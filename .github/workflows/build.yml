@@ -11,11 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build iOS simulator target
-        run: xcodebuild -quiet -project DHDSelfDevelopment.xcodeproj -scheme DHDSelfDevelopment -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -quiet -project MultiOrg.xcodeproj -scheme MultiOrg -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
 
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build macOS target
-        run: xcodebuild -quiet -project DHDSelfDevelopment.xcodeproj -scheme DHDSelfDevelopmentMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -quiet -project MultiOrg.xcodeproj -scheme MultiOrgMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build
