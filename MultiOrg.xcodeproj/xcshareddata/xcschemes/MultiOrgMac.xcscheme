@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "88884394AF1B61F26EBABB9A"
-               BuildableName = "DHDSelfDevelopment.app"
-               BlueprintName = "DHDSelfDevelopment"
-               ReferencedContainer = "container:DHDSelfDevelopment.xcodeproj">
+               BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
+               BuildableName = "MultiOrgMac.app"
+               BlueprintName = "MultiOrgMac"
+               ReferencedContainer = "container:MultiOrg.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "88884394AF1B61F26EBABB9A"
-            BuildableName = "DHDSelfDevelopment.app"
-            BlueprintName = "DHDSelfDevelopment"
-            ReferencedContainer = "container:DHDSelfDevelopment.xcodeproj">
+            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
+            BuildableName = "MultiOrgMac.app"
+            BlueprintName = "MultiOrgMac"
+            ReferencedContainer = "container:MultiOrg.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -57,10 +57,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "88884394AF1B61F26EBABB9A"
-            BuildableName = "DHDSelfDevelopment.app"
-            BlueprintName = "DHDSelfDevelopment"
-            ReferencedContainer = "container:DHDSelfDevelopment.xcodeproj">
+            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
+            BuildableName = "MultiOrgMac.app"
+            BlueprintName = "MultiOrgMac"
+            ReferencedContainer = "container:MultiOrg.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -76,10 +76,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "88884394AF1B61F26EBABB9A"
-            BuildableName = "DHDSelfDevelopment.app"
-            BlueprintName = "DHDSelfDevelopment"
-            ReferencedContainer = "container:DHDSelfDevelopment.xcodeproj">
+            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
+            BuildableName = "MultiOrgMac.app"
+            BlueprintName = "MultiOrgMac"
+            ReferencedContainer = "container:MultiOrg.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

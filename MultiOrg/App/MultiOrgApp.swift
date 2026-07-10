@@ -32,7 +32,7 @@ extension Notification.Name {
 }
 
 @main
-struct DHDSelfDevelopmentApp: App {
+struct MultiOrgApp: App {
   @StateObject private var appState = AppState()
   private let notificationDelegate = DHDNotificationDelegate()
 

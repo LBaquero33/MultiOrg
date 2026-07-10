@@ -35,7 +35,7 @@ Output:
 - Regenerates the Xcode project using the bundled `tools/xcodegen`
 
 Then open:
-- `DHD-Self-Development-iOS-acme/DHDSelfDevelopment.xcodeproj`
+- `MultiOrg-acme/MultiOrg.xcodeproj`
 
 ## Notes
 - In `.xcconfig`, `https://...` is treated as a comment (`//`).  
@@ -49,4 +49,3 @@ Two viable directions:
    - stores org configs
    - runs the generator
    - provisions Supabase projects and deploys functions/migrations
-
