@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>DHD_APP_DISPLAY_NAME</key>
+	<string>$(DHD_APP_DISPLAY_NAME)</string>
+	<key>DHD_BYPASS_ACCESS</key>
+	<string>$(DHD_BYPASS_ACCESS)</string>
+	<key>DHD_ENABLE_ENTITLEMENT_TEST</key>
+	<string>$(DHD_ENABLE_ENTITLEMENT_TEST)</string>
+	<key>DHD_LEGACY_EMAIL_DOMAIN</key>
+	<string>$(DHD_LEGACY_EMAIL_DOMAIN)</string>
+	<key>DHD_STRIPE_SUBSCRIBE_URL</key>
+	<string>$(DHD_STRIPE_SUBSCRIBE_URL)</string>
+	<key>DHD_SUPPORT_EMAIL</key>
+	<string>$(DHD_SUPPORT_EMAIL)</string>
+	<key>DHD_WEBSITE_HOST</key>
+	<string>$(DHD_WEBSITE_HOST)</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_HOST</key>
+	<string>$(SUPABASE_HOST)</string>
+</dict>
+</plist>

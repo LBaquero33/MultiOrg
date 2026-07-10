@@ -1,0 +1,10 @@
+.DS_Store
+xcuserdata/
+DerivedData/
+*.xcworkspace
+*.xcodeproj/project.xcworkspace
+DHDSelfDevelopment 2.xcodeproj/
+supabase_cli.tar.gz
+
+# Secrets
+Configs/Secrets.xcconfig

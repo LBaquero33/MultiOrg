@@ -1,0 +1,21 @@
+name: Multi-Org Build Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build iOS simulator target
+        run: xcodebuild -quiet -project DHDSelfDevelopment.xcodeproj -scheme DHDSelfDevelopment -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build macOS target
+        run: xcodebuild -quiet -project DHDSelfDevelopment.xcodeproj -scheme DHDSelfDevelopmentMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build
