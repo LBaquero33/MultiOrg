@@ -169,7 +169,7 @@ struct SDPlayerTodayViewInternal: View {
         }
       }
 
-      if let assignment, let template {
+      if assignment != nil, let template {
         let ctx = scheduleContext
         Text("Program: \(template.name)")
           .font(.subheadline)
