@@ -1,6 +1,18 @@
 import Foundation
 import Supabase
 
+private enum SessionRestoreError: LocalizedError {
+  case missing
+  case expired
+
+  var errorDescription: String? {
+    switch self {
+    case .missing: return "No saved session."
+    case .expired: return "Your saved session expired. Please sign in again."
+    }
+  }
+}
+
 @MainActor
 final class SupabaseService: ObservableObject {
   let client: SupabaseClient
@@ -193,7 +205,17 @@ final class SupabaseService: ObservableObject {
   }
 
   func restoreSessionIfAny() async throws {
-    _ = try await client.auth.session
+    guard let storedSession = client.auth.currentSession else {
+      throw SessionRestoreError.missing
+    }
+
+    // Do not refresh an expired token on the blocking launch path. A stalled
+    // refresh can hold the auth client lock and prevent the public org list and
+    // login requests from starting. Clear it locally and let the user sign in.
+    guard !storedSession.isExpired else {
+      Task { try? await client.auth.signOut(scope: .local) }
+      throw SessionRestoreError.expired
+    }
   }
 
   // MARK: - Orgs (multi-org)
@@ -232,8 +254,23 @@ final class SupabaseService: ObservableObject {
   func fetchOrgSettings(orgId: UUID) async throws -> SDOrgSettings? {
     let rows: [SDOrgSettings] = try await client
       .from("sd_org_settings")
-      .select("org_id,display_name,short_name,support_email,website_host,primary_color_hex,secondary_color_hex,accent_color_hex,terminology,feature_flags,booking_policy,dashboard_layout,created_at,updated_at")
+      .select("org_id,display_name,short_name,support_email,website_host,primary_color_hex,secondary_color_hex,accent_color_hex,logo_path,terminology,feature_flags,booking_policy,dashboard_layout,team_policy,created_at,updated_at")
       .eq("org_id", value: orgId.uuidString)
+      .limit(1)
+      .execute()
+      .value
+    return rows.first
+  }
+
+  /// The Stripe webhook is the writer for this table. The client only reads
+  /// its latest synchronized state for the active organization.
+  func fetchLatestOrgSubscription(orgId: UUID) async throws -> SDOrgSubscription? {
+    let rows: [SDOrgSubscription] = try await client
+      .from("sd_org_subscriptions")
+      .select("id,org_id,provider,provider_subscription_id,provider_product_id,provider_price_id,status,current_period_start,current_period_end,cancel_at_period_end,canceled_at,updated_at")
+      .eq("org_id", value: orgId.uuidString)
+      .eq("provider", value: "stripe")
+      .order("updated_at", ascending: false)
       .limit(1)
       .execute()
       .value
@@ -249,17 +286,19 @@ final class SupabaseService: ObservableObject {
     let primary_color_hex: String
     let secondary_color_hex: String
     let accent_color_hex: String
+    let logo_path: String?
     let terminology: [String: SDJSONValue]
     let feature_flags: [String: SDJSONValue]
     let booking_policy: [String: SDJSONValue]
     let dashboard_layout: [String: SDJSONValue]
+    let team_policy: [String: SDJSONValue]
   }
 
   func upsertOrgSettings(_ settings: SDOrgSettingsUpsert) async throws -> SDOrgSettings {
     try await client
       .from("sd_org_settings")
       .upsert(settings, onConflict: "org_id")
-      .select("org_id,display_name,short_name,support_email,website_host,primary_color_hex,secondary_color_hex,accent_color_hex,terminology,feature_flags,booking_policy,dashboard_layout,created_at,updated_at")
+      .select("org_id,display_name,short_name,support_email,website_host,primary_color_hex,secondary_color_hex,accent_color_hex,logo_path,terminology,feature_flags,booking_policy,dashboard_layout,team_policy,created_at,updated_at")
       .single()
       .execute()
       .value
@@ -340,23 +379,186 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  struct OrgTeamsResponse: Decodable, Sendable {
+    let teams: [SDTeam]
+    let members: [SDTeamMember]
+    let roster: [Profile]
+  }
+
+  func adminListTeams(orgId: UUID) async throws -> OrgTeamsResponse {
+    try await invokeAuthenticatedFunction(
+      "org_admin",
+      body: ["action": "list_teams", "org_id": orgId.uuidString]
+    )
+  }
+
+  func adminCreateTeam(orgId: UUID, name: String, colorHex: String?, description: String?) async throws {
+    let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": "create_team", "org_id": orgId.uuidString, "name": name,
+      "color_hex": colorHex ?? "", "description": description ?? ""
+    ])
+  }
+
+  func adminAssignTeam(orgId: UUID, teamId: UUID?, memberId: UUID) async throws {
+    if let teamId {
+      let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+        "action": "assign_team_member", "org_id": orgId.uuidString,
+        "team_id": teamId.uuidString, "member_id": memberId.uuidString
+      ])
+    } else {
+      let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+        "action": "remove_team_member", "org_id": orgId.uuidString, "member_id": memberId.uuidString
+      ])
+    }
+  }
+
+  func adminFetchPlayerAccess(orgId: UUID, playerId: UUID) async throws -> SDAdminPlayerAccess {
+    struct Response: Decodable { let entitlement: SDAdminPlayerAccess }
+    let response: Response = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": "get_player_access",
+      "org_id": orgId.uuidString,
+      "player_id": playerId.uuidString,
+    ])
+    return response.entitlement
+  }
+
+  func adminSetPlayerAccess(orgId: UUID, playerId: UUID, isActive: Bool) async throws -> SDAdminPlayerAccess {
+    struct Response: Decodable { let entitlement: SDAdminPlayerAccess }
+    let response: Response = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": "set_player_access",
+      "org_id": orgId.uuidString,
+      "player_id": playerId.uuidString,
+      "is_active": isActive ? "true" : "false",
+    ])
+    return response.entitlement
+  }
+
+  /// Edge Functions do not automatically refresh the bearer token in every
+  /// long-running desktop session. Refresh first, then explicitly install the
+  /// current access token so authorized team/admin calls cannot drift into 401.
+  private func invokeAuthenticatedFunction<Response: Decodable>(
+    _ name: String,
+    body: [String: String]
+  ) async throws -> Response {
+    let session = try await client.auth.session
+    client.functions.setAuth(token: session.accessToken)
+    return try await client.functions.invoke(
+      name,
+      options: FunctionInvokeOptions(body: body)
+    )
+  }
+
+  private struct OrgBillingURLResponse: Decodable {
+    let url: String
+  }
+
+  private enum OrgBillingURLError: LocalizedError {
+    case invalidHostedURL
+
+    var errorDescription: String? {
+      "Home Plate returned an invalid billing link. Please try again."
+    }
+  }
+
+  func createOrgSubscriptionCheckout(orgId: UUID) async throws -> URL {
+    let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
+      "create-org-subscription-checkout",
+      body: ["org_id": orgId.uuidString]
+    )
+    return try validatedStripeHostedURL(response.url)
+  }
+
+  func createOrgBillingPortal(orgId: UUID) async throws -> URL {
+    let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
+      "create-org-billing-portal",
+      body: ["org_id": orgId.uuidString]
+    )
+    return try validatedStripeHostedURL(response.url)
+  }
+
+  private func validatedStripeHostedURL(_ rawValue: String) throws -> URL {
+    guard let url = URL(string: rawValue),
+          url.scheme?.lowercased() == "https",
+          let host = url.host?.lowercased(),
+          host == "checkout.stripe.com" || host == "billing.stripe.com" else {
+      throw OrgBillingURLError.invalidHostedURL
+    }
+    return url
+  }
+
+  func platformAdminDashboard() async throws -> SDPlatformDashboard {
+    try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: ["action": "dashboard"]
+    )
+  }
+
+  /// Checks server-authorized platform access without decoding organization
+  /// billing rows. Permission visibility must not depend on optional legacy
+  /// fields in the dashboard payload.
+  func verifyPlatformAdminAccess() async throws {
+    struct AuthorizationResponse: Decodable {}
+    let _: AuthorizationResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: ["action": "dashboard"]
+    )
+  }
+
+  func platformCreateOrganization(
+    name: String,
+    slug: String,
+    plan: String,
+    billingEmail: String?,
+    maxMembers: Int?
+  ) async throws -> SDPlatformOrganization {
+    struct Response: Decodable { let organization: SDPlatformOrganization }
+    var body: [String: String] = [
+      "action": "create_organization",
+      "name": name,
+      "slug": slug,
+      "plan": plan,
+    ]
+    if let billingEmail { body["billing_email"] = billingEmail }
+    if let maxMembers { body["max_members"] = String(maxMembers) }
+    let response: Response = try await invokeAuthenticatedFunction("platform_admin", body: body)
+    return response.organization
+  }
+
+  func platformUpdateOrganization(_ organization: SDPlatformOrganization) async throws {
+    struct Response: Decodable { let organization: SDPlatformOrganization }
+    let _: Response = try await invokeAuthenticatedFunction("platform_admin", body: [
+      "action": "update_organization", "org_id": organization.id.uuidString,
+      "name": organization.name, "slug": organization.slug, "status": organization.status,
+      "plan": organization.plan, "billing_email": organization.billing_email ?? "",
+      "max_members": String(organization.max_members ?? 0)
+    ])
+  }
+
   struct OrgLoginResponse: Decodable, Sendable {
     let access_token: String
     let refresh_token: String
     let active_org_id: UUID
   }
 
-  func orgLogin(orgSlug: String, username: String, password: String) async throws -> OrgLoginResponse {
+  func orgLogin(orgSlug: String, identifier: String, password: String) async throws -> OrgLoginResponse {
     try await client.functions.invoke(
       "org_login",
       options: FunctionInvokeOptions(
         body: [
           "org_slug": orgSlug,
-          "username": username,
+          "identifier": identifier,
           "password": password,
         ]
       )
     )
+  }
+
+  /// Installs the session returned by the server-side organization login and
+  /// immediately reads it back. This prevents the UI from entering its
+  /// authenticated branch before Supabase has a usable local session.
+  func installSession(accessToken: String, refreshToken: String) async throws {
+    _ = try await client.auth.setSession(accessToken: accessToken, refreshToken: refreshToken)
+    _ = try await client.auth.session
   }
 
   func signIn(email: String, password: String) async throws {
@@ -672,7 +874,7 @@ final class SupabaseService: ObservableObject {
     return out
   }
 
-  // MARK: - Access entitlement (web purchase; app is sign-in only)
+  // MARK: - Access entitlement
 
   func fetchAccessEntitlement(userId: UUID) async throws -> SDAccessEntitlement? {
     let rows: [SDAccessEntitlement] = try await client
@@ -683,6 +885,45 @@ final class SupabaseService: ObservableObject {
       .execute()
       .value
     return rows.first
+  }
+
+  struct AppleSubscriptionVerificationResponse: Decodable, Sendable {
+    let status: String
+    let current_period_end: String?
+    let access_may_be_active: Bool
+  }
+
+  private struct AppleSubscriptionVerificationErrorBody: Decodable {
+    let error: String?
+  }
+
+  private struct AppleSubscriptionVerificationError: LocalizedError {
+    let code: String
+    var errorDescription: String? {
+      "Apple purchase verification was rejected (\(code)). Retry verification, or contact support if it continues."
+    }
+  }
+
+  func verifyApplePlayerSubscription(
+    signedTransaction: String,
+    context: PlayerSubscriptionContext
+  ) async throws -> AppleSubscriptionVerificationResponse {
+    do {
+      return try await invokeAuthenticatedFunction(
+        "verify-apple-player-subscription",
+        body: [
+          "signed_transaction_info": signedTransaction,
+          "org_id": context.orgId.uuidString,
+          "player_id": context.playerId.uuidString,
+          "billing_user_id": context.billingUserId.uuidString,
+          "app_account_token": context.appAccountToken.uuidString,
+        ]
+      )
+    } catch let FunctionsError.httpError(_, data) {
+      let response = try? JSONDecoder().decode(AppleSubscriptionVerificationErrorBody.self, from: data)
+      let code = response?.error?.trimmingCharacters(in: .whitespacesAndNewlines)
+      throw AppleSubscriptionVerificationError(code: code?.isEmpty == false ? code! : "apple_verification_failed")
+    }
   }
 
   // MARK: - Facilities scheduling
@@ -887,6 +1128,14 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
+  func deleteFacility(id: UUID) async throws {
+    _ = try await client
+      .from("sd_facilities")
+      .delete()
+      .eq("id", value: id.uuidString)
+      .execute()
+  }
+
   // MARK: - Parent linking
 
   func listMyParentInvites() async throws -> [SDParentInvite] {
@@ -986,9 +1235,15 @@ final class SupabaseService: ObservableObject {
     let height_in: Int?
     let weight_lb: Int?
     let notes: String?
+    let professional_title: String?
+    let bio: String?
+    let specialties: String?
+    let website: String?
+    let years_experience: Int?
 
     private enum CodingKeys: String, CodingKey {
       case id, role, full_name, avatar_path, phone, grad_year, primary_position, bats, school, team, height_in, weight_lb, notes
+      case professional_title, bio, specialties, website, years_experience
       case throws_hand = "throws"
     }
   }
@@ -998,7 +1253,7 @@ final class SupabaseService: ObservableObject {
     let uid = session.user.id
     return try await client
       .from("profiles")
-      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes")
+      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,years_experience")
       .eq("id", value: uid.uuidString)
       .single()
       .execute()
@@ -1018,9 +1273,15 @@ final class SupabaseService: ObservableObject {
     let height_in: Int?
     let weight_lb: Int?
     let notes: String?
+    let professional_title: String?
+    let bio: String?
+    let specialties: String?
+    let website: String?
+    let years_experience: Int?
 
     private enum CodingKeys: String, CodingKey {
       case full_name, avatar_path, phone, grad_year, primary_position, bats, school, team, height_in, weight_lb, notes
+      case professional_title, bio, specialties, website, years_experience
       case throws_hand = "throws"
     }
   }
@@ -1038,7 +1299,9 @@ final class SupabaseService: ObservableObject {
   func uploadMyAvatarJPEG(_ jpegData: Data) async throws -> String {
     let session = try await client.auth.session
     let uid = session.user.id
-    let path = "\(uid.uuidString)/avatar.jpg"
+    // Storage RLS compares the first path segment to auth.uid()::text, which
+    // PostgreSQL renders in lowercase. Foundation's UUID string is uppercase.
+    let path = "\(uid.uuidString.lowercased())/avatar.jpg"
     _ = try await client
       .storage
       .from("avatars")
@@ -1049,6 +1312,23 @@ final class SupabaseService: ObservableObject {
   func publicAvatarURL(path: String) -> URL? {
     do {
       return try client.storage.from("avatars").getPublicURL(path: path, cacheNonce: nil)
+    } catch {
+      return nil
+    }
+  }
+
+  func uploadOrganizationLogoJPEG(orgId: UUID, jpegData: Data) async throws -> String {
+    let path = "\(orgId.uuidString)/logo.jpg"
+    _ = try await client
+      .storage
+      .from("org-assets")
+      .upload(path, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: true))
+    return path
+  }
+
+  func publicOrganizationLogoURL(path: String) -> URL? {
+    do {
+      return try client.storage.from("org-assets").getPublicURL(path: path, cacheNonce: nil)
     } catch {
       return nil
     }
@@ -1068,7 +1348,7 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
-  func createParentInviteRequest(parentEmail: String, relationship: String?) async throws -> SDParentInviteRequest {
+  func createParentInviteRequest(orgId: UUID, parentEmail: String, relationship: String?) async throws -> SDParentInviteRequest {
     let session = try await client.auth.session
     let uid = session.user.id
 
@@ -1078,6 +1358,7 @@ final class SupabaseService: ObservableObject {
     }
 
     struct Insert: Encodable {
+      let org_id: UUID
       let email_norm: String
       let child_id: UUID
       let requested_by: UUID
@@ -1087,7 +1368,7 @@ final class SupabaseService: ObservableObject {
 
     return try await client
       .from("sd_parent_invite_requests")
-      .insert(Insert(email_norm: emailNorm, child_id: uid, requested_by: uid, relationship: relationship, status: "requested"))
+      .insert(Insert(org_id: orgId, email_norm: emailNorm, child_id: uid, requested_by: uid, relationship: relationship, status: "requested"))
       .select("id,email_norm,child_id,requested_by,relationship,status,coach_note,created_at,updated_at")
       .single()
       .execute()
@@ -1135,7 +1416,7 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Coach → Parent invites
 
-  func coachCreateParentInvite(childId: UUID, parentEmail: String, relationship: String?) async throws -> SDParentInvite {
+  func coachCreateParentInvite(orgId: UUID, childId: UUID, parentEmail: String, relationship: String?) async throws -> SDParentInvite {
     let session = try await client.auth.session
     let uid = session.user.id
 
@@ -1143,6 +1424,7 @@ final class SupabaseService: ObservableObject {
     if emailNorm.isEmpty { throw NSError(domain: "SupabaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Email is required."]) }
 
     struct Insert: Encodable {
+      let org_id: UUID
       let email_norm: String
       let child_id: UUID
       let invited_by: UUID
@@ -1150,7 +1432,7 @@ final class SupabaseService: ObservableObject {
     }
     return try await client
       .from("sd_parent_invites")
-      .insert(Insert(email_norm: emailNorm, child_id: childId, invited_by: uid, relationship: relationship))
+      .insert(Insert(org_id: orgId, email_norm: emailNorm, child_id: childId, invited_by: uid, relationship: relationship))
       .select("id,email_norm,child_id,invited_by,relationship,accepted_at,parent_id,created_at")
       .single()
       .execute()
@@ -1218,31 +1500,6 @@ final class SupabaseService: ObservableObject {
       .execute()
   }
 
-  func createCheckoutSessionURL() async throws -> URL {
-    struct Resp: Decodable { let url: String }
-    let resp: Resp = try await client.functions.invoke("create_checkout_session")
-    let s = resp.url.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let url = URL(string: s), url.scheme?.hasPrefix("http") == true else {
-      throw NSError(domain: "SupabaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid checkout URL."])
-    }
-    return url
-  }
-
-  // MARK: - DEV: Entitlement test (no Stripe / no money)
-
-  func entitlementTestSet(userId: UUID, isActive: Bool) async throws {
-    struct Payload: Encodable {
-      let user_id: String
-      let is_active: Bool
-    }
-    struct Resp: Decodable { let ok: Bool }
-    let body = Payload(user_id: userId.uuidString, is_active: isActive)
-    let _: Resp = try await client.functions.invoke(
-      "entitlement_test",
-      options: FunctionInvokeOptions(body: body)
-    )
-  }
-
   // MARK: - SD Program (iOS-native tables)
 
   func listMyCoachTemplates() async throws -> [SDProgramTemplate] {
@@ -1257,19 +1514,35 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
-  func createProgramTemplate(name: String, weeks: Int, liftWeekdays: [Int], orgId: UUID? = nil) async throws -> SDProgramTemplate {
+  func createProgramTemplate(
+    name: String,
+    kind: SDProgramKind = .strength,
+    weeks: Int,
+    liftWeekdays: [Int],
+    orgId: UUID? = nil
+  ) async throws -> SDProgramTemplate {
     let session = try await client.auth.session
     let uid = session.user.id
     struct Insert: Encodable {
       let org_id: UUID?
       let coach_id: UUID
       let name: String
+      let program_kind: String
       let weeks: Int
       let lift_weekdays: [Int]
     }
     return try await client
       .from("sd_program_templates")
-      .insert(Insert(org_id: orgId, coach_id: uid, name: name, weeks: weeks, lift_weekdays: liftWeekdays))
+      .insert(
+        Insert(
+          org_id: orgId,
+          coach_id: uid,
+          name: name,
+          program_kind: kind.rawValue,
+          weeks: weeks,
+          lift_weekdays: liftWeekdays
+        )
+      )
       .select()
       .single()
       .execute()
@@ -1304,6 +1577,43 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
+  func duplicateProgramTemplate(_ template: SDProgramTemplate) async throws -> SDProgramTemplate {
+    let duplicate = try await createProgramTemplate(
+      name: "\(template.name) Copy",
+      kind: template.kind,
+      weeks: template.weeks,
+      liftWeekdays: template.lift_weekdays,
+      orgId: template.org_id
+    )
+    do {
+      let sourceDays = try await fetchProgramDays(templateId: template.id)
+      for day in sourceDays {
+        let copiedExercises = day.exercises.map {
+          SDExercise(id: UUID(), name: $0.name, sets: $0.sets, reps: $0.reps, unit: $0.unit, notes: $0.notes)
+        }
+        _ = try await upsertProgramDay(
+          templateId: duplicate.id,
+          week: day.week,
+          dayIndex: day.day_index,
+          exercises: copiedExercises
+        )
+      }
+      return duplicate
+    } catch {
+      // Never leave a misleading, partially copied template behind.
+      try? await deleteProgramTemplate(id: duplicate.id)
+      throw error
+    }
+  }
+
+  func deleteProgramTemplate(id: UUID) async throws {
+    _ = try await client
+      .from("sd_program_templates")
+      .delete()
+      .eq("id", value: id.uuidString)
+      .execute()
+  }
+
   func assignProgram(templateId: UUID, playerId: UUID, startDateISO: String, notes: String?, orgId: UUID? = nil) async throws -> SDProgramAssignment {
     let session = try await client.auth.session
     let coachId = session.user.id
@@ -1334,16 +1644,18 @@ final class SupabaseService: ObservableObject {
   }
 
   func fetchActiveAssignment(playerId: UUID) async throws -> SDProgramAssignment? {
-    let rows: [SDProgramAssignment] = try await client
+    try await fetchActiveAssignments(playerId: playerId).first
+  }
+
+  func fetchActiveAssignments(playerId: UUID) async throws -> [SDProgramAssignment] {
+    try await client
       .from("sd_program_assignments")
       .select()
       .eq("player_id", value: playerId.uuidString)
       .is("ended_at", value: nil)
       .order("created_at", ascending: false)
-      .limit(1)
       .execute()
       .value
-    return rows.first
   }
 
   func fetchTemplate(id: UUID) async throws -> SDProgramTemplate {
