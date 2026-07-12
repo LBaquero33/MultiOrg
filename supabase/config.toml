@@ -4,6 +4,11 @@
 # working directory name when running `supabase init`.
 project_id = "DHD-Self-Development-iOS-multiorg"
 
+# Stripe calls this endpoint directly, so it validates Stripe's signed payload
+# itself instead of requiring a Supabase user JWT.
+[functions.stripe-platform-webhook]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.
