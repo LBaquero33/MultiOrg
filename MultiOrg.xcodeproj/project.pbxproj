@@ -17,6 +17,7 @@
 		1193B96C7083BE4486E0552B /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C548457F3D672402508357C2 /* CoachRootView.swift */; };
 		13D00D4CAD6078C8B3A89894 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */; };
 		1A00AC53BF05B31826D61C7B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 531147FE95E6FC7910099D17 /* LaunchScreen.storyboard */; };
+		1A5FAAD832868C935AB335B5 /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */; };
 		1C9A838B6E6749C47B6BB9B3 /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1394ABFD7D898E955BC2002 /* CoachHomeView.swift */; };
 		209B2482BB2E2ADD6354C1C9 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */; };
 		209FB48C32106FB765210A14 /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C660267821C1DCF495CB6E6A /* ProgramDayEditorSheet.swift */; };
@@ -44,6 +45,7 @@
 		55D43CD2E3897D2648FC2578 /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF961C0BCFF4A7EE9BEBB1 /* FacilitiesDayTimelineView.swift */; };
 		5799D437075F062CEE5878F2 /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC52F39057A42F264AD2EB8 /* ParentRequestPanels.swift */; };
 		5DB17F2A5CEC9D54AEF5BC54 /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066344F12892B67645F0CE3A /* FacilityDaySheet.swift */; };
+		5EAF1C60ABFD8634DBBDF1B8 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */; };
 		62EF6D4D0BA1D2E486F49A75 /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA19017054A973F061AFF997 /* PlotlyChartView.swift */; };
 		6390B0D4B0F77D6523D9F887 /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B916688FF0F5F52935CC13 /* SDModels.swift */; };
 		66D07D409E4135DDB957363D /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2D344B2DA890D8F660AB44 /* AccountView.swift */; };
@@ -55,10 +57,12 @@
 		723E91DB2EA612B68BA38431 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */; };
 		748508D3DA8E3D7376A5AB94 /* CoachPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A188FDE80381391940586A4 /* CoachPlayerCalendarView.swift */; };
 		7527206DFCBAC4F512DBAC22 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050DC46A39A2465CF87AFC19 /* Profile.swift */; };
+		769A800CFA93D465582D95E0 /* apple_player_purchase_context_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = FB32DCB8F2D6452C3ECF4687 /* apple_player_purchase_context_vectors.json */; };
 		788B39ED739CDA6EE583C7F9 /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C548457F3D672402508357C2 /* CoachRootView.swift */; };
 		797D7F570E4286C53276BB69 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */; };
 		7D224150B1E10C4ED2E52B5B /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */; };
 		7DA5D27A706E0DEBD5B7E2C6 /* SDPlayerTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300C5AE13EBE95D3ED6156BA /* SDPlayerTodayView.swift */; };
+		7F5835685E8215EB973B0812 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */; };
 		80467F896FB637134B766113 /* SDPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673E98DA486024FE1B4D92C /* SDPlayerCalendarView.swift */; };
 		80C0CA01294BBEA1561783B4 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A980B4434AE15B0118E411DC /* ChatModels.swift */; };
 		84EC81260684A3C6FCB92549 /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2DEEEEF5864F2348CBC7E /* AppleSignInButtonView.swift */; };
@@ -81,6 +85,7 @@
 		A85FB62FA090CE66409C889D /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */; };
 		AB2AC368E22787E8981A4C3C /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */; };
 		ABB5CDFEAFCF179925ABC77E /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390478B5296E9E4862625480 /* OrgModels.swift */; };
+		AC19B8AF570603CF023386C7 /* PlayerSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */; };
 		B0002413FEC79E1C4ADD9D44 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */; };
 		B01E1EDEE67C244C9DD97395 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */; };
 		B16D18A42A144F0E003541D5 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050DC46A39A2465CF87AFC19 /* Profile.swift */; };
@@ -106,6 +111,7 @@
 		D8315F69564308AC7D723591 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE855FCD4677311F5E0F940A /* RootView.swift */; };
 		D8D9BE9D814FC3196FA71A78 /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */; };
 		D98927FE9143284F185DE2C2 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */; };
+		DA87D7BE211965A0A44DFB5D /* PlayerSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */; };
 		DC0CEEC47E6F5676801E15EB /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */; };
 		DC432D70D22CF9E407DF79E5 /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81072AE4EDB470AF9B158FE3 /* DHDAppConfig.swift */; };
 		DC55BEA904849502B5435A1D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 65113244A2524780C997F8DB /* Assets.xcassets */; };
@@ -125,10 +131,12 @@
 		EE194D04D272145A262634D3 /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B916688FF0F5F52935CC13 /* SDModels.swift */; };
 		F15688597022607D2BAA60FE /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC52F39057A42F264AD2EB8 /* ParentRequestPanels.swift */; };
 		F1701C7AF2BD4BF71D0BC0A4 /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 540B4F7EA5E3696953AE96F1 /* CoachPlayerDailyLogsView.swift */; };
+		F1AEA85FB957119567E01349 /* ApplePlayerSubscriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */; };
 		F1E178E25F046FEE9D1050AE /* ParentChildProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9769A900D6270873BE5FC5D4 /* ParentChildProfileView.swift */; };
 		F2EA690A8484E1C5CD2A4FEB /* ProgramTemplateEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C0A5A1707AA1FCB37ACD6C /* ProgramTemplateEditorView.swift */; };
 		F3DE5FD0D0FDF4C8007E4EE6 /* ParentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1752B2C944B62272867F8B21 /* ParentHomeView.swift */; };
 		F62F6C39047F034BF7722D7D /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78419895C8DC111FE881785D /* ConfigErrorView.swift */; };
+		F640F5F5C1ED02194F5C8C2C /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */; };
 		F74F236A48A53AF9893DF369 /* CalendarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9196E63687758A17CD3AEC6F /* CalendarComponents.swift */; };
 		F9CF157D36651030A71AF9C0 /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D38AFB3538DFF5C99C236 /* CoachProgramsView.swift */; };
 		FA2FCEC78572093840A42992 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9288C396D7D5B23756F5382E /* AppState.swift */; };
@@ -142,11 +150,23 @@
 		FD74B3BC31834B2303EA5A7F /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5D74C3EC49FBCD94574141 /* BPAnalysisComponents.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E27C657EBDDF309DA5611825 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E96ACE54325355A3B577E4CD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 538B61A0C346E35126ABC6F5;
+			remoteInfo = MultiOrg;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerSubscriptionTests.swift; sourceTree = "<group>"; };
 		05006A2A787F69671DF9B59A /* OrgAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgAdminConsoleView.swift; sourceTree = "<group>"; };
 		050DC46A39A2465CF87AFC19 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
 		066344F12892B67645F0CE3A /* FacilityDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilityDaySheet.swift; sourceTree = "<group>"; };
 		0673E98DA486024FE1B4D92C /* SDPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerCalendarView.swift; sourceTree = "<group>"; };
+		142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerPurchaseContext.swift; sourceTree = "<group>"; };
 		14821E17D9E1E0304EFF7715 /* SDPlayerTestingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTestingView.swift; sourceTree = "<group>"; };
 		1752B2C944B62272867F8B21 /* ParentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentHomeView.swift; sourceTree = "<group>"; };
 		19997407DA62C2D66E71D81F /* DHDMonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDMonthGridView.swift; sourceTree = "<group>"; };
@@ -162,10 +182,12 @@
 		3B227E28E01D1C464E4CBEB0 /* MultiOrgMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MultiOrgMac.entitlements; sourceTree = "<group>"; };
 		3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDProgramSchedule.swift; sourceTree = "<group>"; };
 		3E6A9D5D611D4B9E904F9AC1 /* SDParentBillingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentBillingView.swift; sourceTree = "<group>"; };
+		41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionStore.swift; sourceTree = "<group>"; };
 		4D659C3B9742EE31020125B7 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		504E106156187C940340CC13 /* ChatCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCreateView.swift; sourceTree = "<group>"; };
 		50A1EFEA8FD5CB17BFE9DD76 /* DHDUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDUIComponents.swift; sourceTree = "<group>"; };
 		50EF961C0BCFF4A7EE9BEBB1 /* FacilitiesDayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilitiesDayTimelineView.swift; sourceTree = "<group>"; };
+		521ADE4FB19D10ED07701F7F /* MultiOrgTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MultiOrgTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		531147FE95E6FC7910099D17 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		540B4F7EA5E3696953AE96F1 /* CoachPlayerDailyLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerDailyLogsView.swift; sourceTree = "<group>"; };
 		5A1495C06A774146053E749C /* CoachPlayerTestingEntriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerTestingEntriesView.swift; sourceTree = "<group>"; };
@@ -213,6 +235,7 @@
 		EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHomeView.swift; sourceTree = "<group>"; };
 		EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
 		ECD0B37FA2FE13F332848F67 /* DHDTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDTheme.swift; sourceTree = "<group>"; };
+		EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionPaywall.swift; sourceTree = "<group>"; };
 		EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildCalendarView.swift; sourceTree = "<group>"; };
 		F3B916688FF0F5F52935CC13 /* SDModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDModels.swift; sourceTree = "<group>"; };
@@ -220,6 +243,7 @@
 		F6A4E1079E0605186D421B80 /* CSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSV.swift; sourceTree = "<group>"; };
 		F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerAnalysisView.swift; sourceTree = "<group>"; };
 		F8040C5F9126ECB854715C25 /* AccessRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessRequiredView.swift; sourceTree = "<group>"; };
+		FB32DCB8F2D6452C3ECF4687 /* apple_player_purchase_context_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = apple_player_purchase_context_vectors.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -332,6 +356,8 @@
 			children = (
 				01C936A679952A927E296428 /* Configs */,
 				EDFA9C97F57BAFE42D01E8C5 /* MultiOrg */,
+				CE5CD3C1D015BB84AFDE355D /* MultiOrgTests */,
+				DAA5658B3D231E6B97E54F67 /* SharedFixtures */,
 				EE9108F33AD6852A6BAB6536 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -350,6 +376,7 @@
 		6646F17F9381868C91256EE4 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */,
 				DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */,
 				9288C396D7D5B23756F5382E /* AppState.swift */,
 				A980B4434AE15B0118E411DC /* ChatModels.swift */,
@@ -360,6 +387,7 @@
 				50A1EFEA8FD5CB17BFE9DD76 /* DHDUIComponents.swift */,
 				390478B5296E9E4862625480 /* OrgModels.swift */,
 				9DFB3870E20334EC01173C45 /* ParentModels.swift */,
+				41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */,
 				CA19017054A973F061AFF997 /* PlotlyChartView.swift */,
 				050DC46A39A2465CF87AFC19 /* Profile.swift */,
 				F3B916688FF0F5F52935CC13 /* SDModels.swift */,
@@ -396,6 +424,22 @@
 			path = Chat;
 			sourceTree = "<group>";
 		};
+		CE5CD3C1D015BB84AFDE355D /* MultiOrgTests */ = {
+			isa = PBXGroup;
+			children = (
+				04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */,
+			);
+			path = MultiOrgTests;
+			sourceTree = "<group>";
+		};
+		DAA5658B3D231E6B97E54F67 /* SharedFixtures */ = {
+			isa = PBXGroup;
+			children = (
+				FB32DCB8F2D6452C3ECF4687 /* apple_player_purchase_context_vectors.json */,
+			);
+			path = SharedFixtures;
+			sourceTree = "<group>";
+		};
 		EDFA9C97F57BAFE42D01E8C5 /* MultiOrg */ = {
 			isa = PBXGroup;
 			children = (
@@ -412,6 +456,7 @@
 			children = (
 				ABE56649250D098DEBC82E29 /* MultiOrg.app */,
 				3047438889BC485953DB801B /* MultiOrgMac.app */,
+				521ADE4FB19D10ED07701F7F /* MultiOrgTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -437,6 +482,7 @@
 				CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */,
 				EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */,
 				EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */,
+				EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -456,6 +502,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2DB33BA0DC5366C5193BE48D /* MultiOrgTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 20CBDA13F1B3DF61269F35FF /* Build configuration list for PBXNativeTarget "MultiOrgTests" */;
+			buildPhases = (
+				A2605F12B9A97AC9ECBED72B /* Sources */,
+				5179B018071DA7A36F0D0587 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CD6D8E9C063DCF6F65E99979 /* PBXTargetDependency */,
+			);
+			name = MultiOrgTests;
+			packageProductDependencies = (
+			);
+			productName = MultiOrgTests;
+			productReference = 521ADE4FB19D10ED07701F7F /* MultiOrgTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		538B61A0C346E35126ABC6F5 /* MultiOrg */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = EC5842D9AC844E03750CFFF6 /* Build configuration list for PBXNativeTarget "MultiOrg" */;
@@ -505,6 +570,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					2DB33BA0DC5366C5193BE48D = {
+						DevelopmentTeam = "";
+					};
 					538B61A0C346E35126ABC6F5 = {
 						DevelopmentTeam = "";
 					};
@@ -532,6 +600,7 @@
 			targets = (
 				538B61A0C346E35126ABC6F5 /* MultiOrg */,
 				EC084FF5D26C6CD38ACE48BC /* MultiOrgMac */,
+				2DB33BA0DC5366C5193BE48D /* MultiOrgTests */,
 			);
 		};
 /* End PBXProject section */
@@ -542,6 +611,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				DC55BEA904849502B5435A1D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5179B018071DA7A36F0D0587 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				769A800CFA93D465582D95E0 /* apple_player_purchase_context_vectors.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -564,6 +641,7 @@
 				FBE27D17C3BD565B73A0A622 /* AccessRequiredView.swift in Sources */,
 				0CE51730DAF66C6B7221DB4F /* AccountView.swift in Sources */,
 				FA2FCEC78572093840A42992 /* AppState.swift in Sources */,
+				F640F5F5C1ED02194F5C8C2C /* ApplePlayerPurchaseContext.swift in Sources */,
 				BA0F4F1DDA7CE6F4B1A0C617 /* AppleSignIn.swift in Sources */,
 				C647965B733D1D2524C31A58 /* AppleSignInButtonView.swift in Sources */,
 				FCC25BC41E8645A2EFF14159 /* BPAnalysisComponents.swift in Sources */,
@@ -608,6 +686,8 @@
 				531CCE9F78E2B1C1F9BD636E /* ParentRootView.swift in Sources */,
 				FD545093A4E37DC9990E5F55 /* PlayerDetailView.swift in Sources */,
 				FCBC6FB4994A558C363D74C2 /* PlayerHomeView.swift in Sources */,
+				7F5835685E8215EB973B0812 /* PlayerSubscriptionPaywall.swift in Sources */,
+				DA87D7BE211965A0A44DFB5D /* PlayerSubscriptionStore.swift in Sources */,
 				62EF6D4D0BA1D2E486F49A75 /* PlotlyChartView.swift in Sources */,
 				7527206DFCBAC4F512DBAC22 /* Profile.swift in Sources */,
 				209FB48C32106FB765210A14 /* ProgramDayEditorSheet.swift in Sources */,
@@ -630,6 +710,7 @@
 				5526ECEF92406FD36EB18105 /* AccessRequiredView.swift in Sources */,
 				66D07D409E4135DDB957363D /* AccountView.swift in Sources */,
 				07F24F24A0D00805611D0FB1 /* AppState.swift in Sources */,
+				1A5FAAD832868C935AB335B5 /* ApplePlayerPurchaseContext.swift in Sources */,
 				13D00D4CAD6078C8B3A89894 /* AppleSignIn.swift in Sources */,
 				84EC81260684A3C6FCB92549 /* AppleSignInButtonView.swift in Sources */,
 				FD74B3BC31834B2303EA5A7F /* BPAnalysisComponents.swift in Sources */,
@@ -675,6 +756,8 @@
 				7D224150B1E10C4ED2E52B5B /* ParentRootView.swift in Sources */,
 				871F75D08CD4348C54D18D2C /* PlayerDetailView.swift in Sources */,
 				2B8B243C9D4C2A283EDA0208 /* PlayerHomeView.swift in Sources */,
+				5EAF1C60ABFD8634DBBDF1B8 /* PlayerSubscriptionPaywall.swift in Sources */,
+				AC19B8AF570603CF023386C7 /* PlayerSubscriptionStore.swift in Sources */,
 				2FF4E9FBDA4A40E392A7DEC8 /* PlotlyChartView.swift in Sources */,
 				B16D18A42A144F0E003541D5 /* Profile.swift in Sources */,
 				D822CCB5CC8D9848547D00D6 /* ProgramDayEditorSheet.swift in Sources */,
@@ -699,7 +782,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A2605F12B9A97AC9ECBED72B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1AEA85FB957119567E01349 /* ApplePlayerSubscriptionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CD6D8E9C063DCF6F65E99979 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 538B61A0C346E35126ABC6F5 /* MultiOrg */;
+			targetProxy = E27C657EBDDF309DA5611825 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		24B1A0CC84707CB029C0EFDA /* Release */ = {
@@ -828,6 +927,40 @@
 			};
 			name = Debug;
 		};
+		D3CCBD17D0424DC6FD17922B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MultiOrg.app/MultiOrg";
+			};
+			name = Debug;
+		};
+		E82AE01483DE096CE634C7DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MultiOrg.app/MultiOrg";
+			};
+			name = Release;
+		};
 		FDFD0A780E146FD7BB2DE24C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 37103D2BEFEC1BEE46D24C30 /* Secrets.xcconfig */;
@@ -898,6 +1031,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		20CBDA13F1B3DF61269F35FF /* Build configuration list for PBXNativeTarget "MultiOrgTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D3CCBD17D0424DC6FD17922B /* Debug */,
+				E82AE01483DE096CE634C7DC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		24BC2282D5FF1C349386A9BA /* Build configuration list for PBXProject "MultiOrg" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

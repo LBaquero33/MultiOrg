@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "2DB33BA0DC5366C5193BE48D"
+               BuildableName = "MultiOrgTests.xctest"
+               BlueprintName = "MultiOrgTests"
+               ReferencedContainer = "container:MultiOrg.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

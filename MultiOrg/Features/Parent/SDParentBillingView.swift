@@ -52,6 +52,16 @@ struct SDParentBillingView: View {
           }
         }
 
+        DHDCard {
+          VStack(alignment: .leading, spacing: 10) {
+            DHDSectionHeader("Player subscription") { EmptyView() }
+            Text("Purchase or restore Home Plate access for \(child.displayName).")
+              .font(.footnote)
+              .foregroundStyle(DHDTheme.textSecondary)
+            PlayerSubscriptionPaywall(playerId: child.id)
+          }
+        }
+
         DHDCard(style: .flat) {
           VStack(alignment: .leading, spacing: 10) {
             DHDSectionHeader("Requests") { EmptyView() }

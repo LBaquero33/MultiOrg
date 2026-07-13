@@ -57,7 +57,22 @@ targets:
     dependencies:
       - package: Supabase
     scheme:
-      testTargets: []
+      testTargets:
+        - MultiOrgTests
+
+  MultiOrgTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: MultiOrgTests
+      - path: SharedFixtures/apple_player_purchase_context_vectors.json
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: MultiOrg
 
   MultiOrgMac:
     type: application

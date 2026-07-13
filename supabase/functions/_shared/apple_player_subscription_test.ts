@@ -1,19 +1,56 @@
 import {
+  APPLE_PLAYER_MONTHLY_PRODUCT_ID,
   authorizeApplePurchaseContext,
   canonicalUuid,
   expectedAppAccountToken,
-  syncAppleSubscription,
+  normalizeStoreKitVerifiedTransaction,
+  syncAppleSubscriptionAtomically,
   validateAppleTransactionContext,
 } from "./apple_player_subscription.ts";
 
+type Fixture = {
+  organization_id: string;
+  player_id: string;
+  billing_user_id: string;
+  canonical_input: string;
+  app_account_token: string;
+};
+
+const fixtures = JSON.parse(
+  await Deno.readTextFile(
+    new URL(
+      "../../../SharedFixtures/apple_player_purchase_context_vectors.json",
+      import.meta.url,
+    ),
+  ),
+) as Fixture[];
+
 const org = "800e22ae-2a9d-4109-9e11-1360eeaa8ea7";
+const otherOrg = "900e22ae-2a9d-4109-9e11-1360eeaa8ea7";
 const player = "b1aead64-4ecb-46c5-b30f-3c96c5322cb3";
+const otherPlayer = "c1aead64-4ecb-46c5-b30f-3c96c5322cb4";
 const parent = "a1aead64-4ecb-46c5-b30f-3c96c5322cb4";
-const membership = (userId: string, role: string, status = "active") => ({ user_id: userId, role, status });
+const membership = (userId: string, role: string, status = "active") => ({
+  user_id: userId,
+  role,
+  status,
+});
 const profile = (id: string) => ({ id });
 
 function assertEquals(actual: unknown, expected: unknown) {
-  if (actual !== expected) throw new Error(`Expected ${String(expected)}, received ${String(actual)}`);
+  if (actual !== expected) {
+    throw new Error(`Expected ${String(expected)}, received ${String(actual)}`);
+  }
+}
+
+function assertNotEquals(actual: unknown, expected: unknown) {
+  if (actual === expected) {
+    throw new Error(`Expected values to differ: ${actual}`);
+  }
+}
+
+function assert(value: unknown, message = "Assertion failed") {
+  if (!value) throw new Error(message);
 }
 
 function assertCode(code: string, operation: () => unknown) {
@@ -25,7 +62,10 @@ function assertCode(code: string, operation: () => unknown) {
   }
 }
 
-async function assertAsyncCode(code: string, operation: () => Promise<unknown>) {
+async function assertAsyncCode(
+  code: string,
+  operation: () => Promise<unknown>,
+) {
   try {
     await operation();
     throw new Error(`Expected ${code}`);
@@ -34,197 +74,374 @@ async function assertAsyncCode(code: string, operation: () => Promise<unknown>) 
   }
 }
 
-const transaction = (token: string) => ({
-  bundleId: "com.homeplate.app",
-  productId: "com.homeplate.player.monthly",
-  environment: "Sandbox",
-  appAccountToken: token,
+const validTransaction = async (billingUserId = player) => ({
+  bundleId: "com.multiorg.app",
+  productId: APPLE_PLAYER_MONTHLY_PRODUCT_ID,
+  environment: "sandbox",
+  appAccountToken: await expectedAppAccountToken(org, player, billingUserId),
   transactionId: "200000000000001",
   originalTransactionId: "200000000000000",
   purchaseDate: Date.now() - 1_000,
-  expiresDate: Date.now() + 86_400_000,
+  expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1_000,
+  revocationDate: 0,
 });
 
 class FakeAdmin {
-  existingSubscription: Record<string, unknown> | null = null;
-  entitlement: Record<string, unknown> | null = null;
-  subscriptionWriteError: unknown = null;
-  entitlementReadError: unknown = null;
-  entitlementWriteError: unknown = null;
-  subscriptionWrite = "";
-  entitlementPayload: Record<string, unknown> | null = null;
+  calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  data: unknown = {
+    status: "active",
+    current_period_end: "2026-08-13T00:00:00.000Z",
+    persisted: true,
+    entitlement_synchronized: true,
+    access_is_active: true,
+    idempotent: false,
+  };
+  error: unknown = null;
 
-  from(table: string) {
-    return new FakeQuery(this, table);
+  rpc(name: string, args: Record<string, unknown>) {
+    this.calls.push({ name, args });
+    return Promise.resolve({ data: this.data, error: this.error });
   }
 }
 
-class FakeQuery {
-  private operation = "select";
-  constructor(private admin: FakeAdmin, private table: string) {}
-  select(_columns: string) { this.operation = "select"; return this; }
-  eq(_column: string, _value: unknown) { return this; }
-  update(_payload: unknown) { this.operation = "update"; this.admin.subscriptionWrite = "update"; return this; }
-  insert(_payload: unknown) { this.operation = "insert"; this.admin.subscriptionWrite = "insert"; return this; }
-  upsert(payload: Record<string, unknown>) {
-    this.admin.entitlementPayload = payload;
-    return Promise.resolve({ data: null, error: this.admin.entitlementWriteError });
+Deno.test("backend matches every shared appAccountToken vector", async () => {
+  for (const fixture of fixtures) {
+    const orgId = canonicalUuid(fixture.organization_id);
+    const playerId = canonicalUuid(fixture.player_id);
+    const billingUserId = canonicalUuid(fixture.billing_user_id);
+    assert(orgId && playerId && billingUserId);
+    assertEquals(
+      `${orgId}|${playerId}|${billingUserId}`,
+      fixture.canonical_input,
+    );
+    assertEquals(
+      await expectedAppAccountToken(orgId!, playerId!, billingUserId!),
+      fixture.app_account_token,
+    );
   }
-  maybeSingle() {
-    if (this.table === "sd_player_subscriptions") {
-      return Promise.resolve({ data: this.admin.existingSubscription, error: null });
-    }
-    return Promise.resolve({ data: this.admin.entitlement, error: this.admin.entitlementReadError });
-  }
-  then(resolve: (value: unknown) => unknown, reject: (reason?: unknown) => unknown) {
-    return Promise.resolve({ data: null, error: this.admin.subscriptionWriteError }).then(resolve, reject);
-  }
-}
-
-Deno.test("canonical UUID removes Swift UUID casing differences", () => {
-  assertEquals(canonicalUuid(player.toUpperCase()), player);
 });
 
-Deno.test("deterministic token ignores UUID string casing", async () => {
+Deno.test("UUID casing is normalized and all three identities affect the token", async () => {
+  const baseline = await expectedAppAccountToken(org, player, parent);
   assertEquals(
-    await expectedAppAccountToken(org, player, player),
-    await expectedAppAccountToken(org.toUpperCase(), player.toUpperCase(), player.toUpperCase()),
+    baseline,
+    await expectedAppAccountToken(
+      org.toUpperCase(),
+      player.toUpperCase(),
+      parent.toUpperCase(),
+    ),
+  );
+  assertNotEquals(
+    baseline,
+    await expectedAppAccountToken(otherOrg, player, parent),
+  );
+  assertNotEquals(
+    baseline,
+    await expectedAppAccountToken(org, otherPlayer, parent),
+  );
+  assertNotEquals(
+    baseline,
+    await expectedAppAccountToken(org, player, otherPlayer),
   );
 });
 
-Deno.test("transaction context accepts the current deterministic token", async () => {
-  const token = await expectedAppAccountToken(org, player, player);
-  validateAppleTransactionContext(transaction(token), {
-    bundleId: "com.homeplate.app",
-    productId: "com.homeplate.player.monthly",
+Deno.test("verified StoreKit metadata is strictly normalized", async () => {
+  const transaction = await validTransaction();
+  const normalized = normalizeStoreKitVerifiedTransaction({
+    bundle_id: transaction.bundleId,
+    product_id: transaction.productId,
+    environment: "Sandbox",
+    app_account_token: transaction.appAccountToken,
+    transaction_id: transaction.transactionId,
+    original_transaction_id: transaction.originalTransactionId,
+    purchase_date_ms: String(transaction.purchaseDate),
+    expires_date_ms: String(transaction.expiresDate),
+    revocation_date_ms: "0",
+    is_active: true,
+  }, {
+    bundleId: transaction.bundleId,
     environment: "sandbox",
-    appAccountToken: token,
+    appAccountToken: transaction.appAccountToken,
   });
-});
-
-Deno.test("wrong or legacy app account token remains blocked", async () => {
-  const expected = await expectedAppAccountToken(org, player, player);
-  assertCode("app_account_token_mismatch", () => validateAppleTransactionContext(transaction(parent), {
-    bundleId: "com.homeplate.app",
-    productId: "com.homeplate.player.monthly",
+  assertEquals(normalized.productId, APPLE_PLAYER_MONTHLY_PRODUCT_ID);
+  assertEquals("is_active" in normalized, false);
+  validateAppleTransactionContext(normalized, {
+    bundleId: transaction.bundleId,
+    productId: APPLE_PLAYER_MONTHLY_PRODUCT_ID,
     environment: "sandbox",
-    appAccountToken: expected,
-  }));
-});
-
-Deno.test("valid player self-purchase", () => {
-  assertEquals(authorizeApplePurchaseContext({
-    actorId: player, orgId: org, playerId: player,
-    actorProfile: profile(player), targetProfile: profile(player),
-    actorMembership: membership(player, "player"), targetMembership: membership(player, "player"),
-    parentLink: null,
-  }), "player");
-});
-
-Deno.test("valid linked-parent purchase", () => {
-  assertEquals(authorizeApplePurchaseContext({
-    actorId: parent, orgId: org, playerId: player,
-    actorProfile: profile(parent), targetProfile: profile(player),
-    actorMembership: membership(parent, "parent"), targetMembership: membership(player, "player"),
-    parentLink: { org_id: org, parent_id: parent, child_id: player, can_pay: true },
-  }), "parent");
-});
-
-Deno.test("parent without payment permission is blocked", () => {
-  assertCode("parent_can_pay_false", () => authorizeApplePurchaseContext({
-    actorId: parent, orgId: org, playerId: player,
-    actorProfile: profile(parent), targetProfile: profile(player),
-    actorMembership: membership(parent, "parent"), targetMembership: membership(player, "player"),
-    parentLink: { org_id: org, parent_id: parent, child_id: player, can_pay: false },
-  }));
-});
-
-Deno.test("inactive player membership is blocked", () => {
-  assertCode("actor_membership_not_active", () => authorizeApplePurchaseContext({
-    actorId: player, orgId: org, playerId: player,
-    actorProfile: profile(player), targetProfile: profile(player),
-    actorMembership: membership(player, "player", "disabled"), targetMembership: membership(player, "player", "disabled"),
-    parentLink: null,
-  }));
-});
-
-Deno.test("coach or admin actor cannot use player purchase endpoint", () => {
-  assertCode("self_target_id_mismatch", () => authorizeApplePurchaseContext({
-    actorId: parent, orgId: org, playerId: player,
-    actorProfile: profile(parent), targetProfile: profile(player),
-    actorMembership: membership(parent, "coach"), targetMembership: membership(player, "player"),
-    parentLink: null,
-  }));
-});
-
-Deno.test("wrong player ID is blocked", () => {
-  assertCode("self_target_id_mismatch", () => authorizeApplePurchaseContext({
-    actorId: parent, orgId: org, playerId: player,
-    actorProfile: profile(parent), targetProfile: profile(player),
-    actorMembership: membership(parent, "player"), targetMembership: membership(player, "player"),
-    parentLink: null,
-  }));
-});
-
-Deno.test("cross-organization parent link is blocked", () => {
-  assertCode("organization_context_mismatch", () => authorizeApplePurchaseContext({
-    actorId: parent, orgId: org, playerId: player,
-    actorProfile: profile(parent), targetProfile: profile(player),
-    actorMembership: membership(parent, "parent"), targetMembership: membership(player, "player"),
-    parentLink: { org_id: "900e22ae-2a9d-4109-9e11-1360eeaa8ea7", parent_id: parent, child_id: player, can_pay: true },
-  }));
-});
-
-Deno.test("missing membership remains distinguishable from inactive membership", () => {
-  assertCode("actor_membership_missing", () => authorizeApplePurchaseContext({
-    actorId: player, orgId: org, playerId: player,
-    actorProfile: profile(player), targetProfile: profile(player),
-    actorMembership: null, targetMembership: membership(player, "player"), parentLink: null,
-}));
-});
-
-Deno.test("duplicate transaction retry updates the same subscription context", async () => {
-  const admin = new FakeAdmin();
-  admin.existingSubscription = { id: "subscription-id", org_id: org, player_id: player, billing_user_id: player };
-  const result = await syncAppleSubscription({
-    admin, transaction: transaction(await expectedAppAccountToken(org, player, player)),
-    orgId: org, playerId: player, billingUserId: player, status: "active",
+    appAccountToken: transaction.appAccountToken,
   });
-  assertEquals(admin.subscriptionWrite, "update");
-  assertEquals(result.access_may_be_active, true);
-  assertEquals(admin.entitlementPayload?.user_id, player);
 });
 
-Deno.test("an existing transaction cannot move to another player or organization", async () => {
-  const admin = new FakeAdmin();
-  admin.existingSubscription = { id: "subscription-id", org_id: org, player_id: parent, billing_user_id: player };
-  await assertAsyncCode("organization_context_mismatch", () => syncAppleSubscription({
-    admin, transaction: transaction(parent), orgId: org, playerId: player, billingUserId: player, status: "active",
-  }));
+Deno.test("metadata manipulation is rejected", async () => {
+  const transaction = await validTransaction();
+  const body = {
+    bundle_id: transaction.bundleId,
+    product_id: transaction.productId,
+    environment: transaction.environment,
+    app_account_token: transaction.appAccountToken,
+    transaction_id: transaction.transactionId,
+    original_transaction_id: transaction.originalTransactionId,
+    purchase_date_ms: String(transaction.purchaseDate),
+    expires_date_ms: String(transaction.expiresDate),
+    revocation_date_ms: "0",
+  };
+  const expected = {
+    bundleId: transaction.bundleId,
+    environment: "sandbox",
+    appAccountToken: transaction.appAccountToken,
+  };
+  assertCode("product_id_mismatch", () =>
+    normalizeStoreKitVerifiedTransaction(
+      { ...body, product_id: "wrong.product" },
+      expected,
+    ));
+  assertCode("bundle_id_mismatch", () =>
+    normalizeStoreKitVerifiedTransaction(
+      { ...body, bundle_id: "wrong.bundle" },
+      expected,
+    ));
+  assertCode("environment_mismatch", () =>
+    normalizeStoreKitVerifiedTransaction(
+      { ...body, environment: "production" },
+      expected,
+    ));
+  assertCode(
+    "app_account_token_mismatch",
+    () =>
+      normalizeStoreKitVerifiedTransaction(
+        { ...body, app_account_token: parent },
+        expected,
+      ),
+  );
+  assertCode(
+    "apple_transaction_invalid",
+    () =>
+      normalizeStoreKitVerifiedTransaction(
+        { ...body, expires_date_ms: String(Date.now() + 90 * 86_400_000) },
+        expected,
+      ),
+  );
 });
 
-Deno.test("subscription database failures retain a safe diagnostic code", async () => {
-  const admin = new FakeAdmin();
-  admin.subscriptionWriteError = { message: "database details must not escape" };
-  await assertAsyncCode("subscription_upsert_failed", () => syncAppleSubscription({
-    admin, transaction: transaction(player), orgId: org, playerId: player, billingUserId: player, status: "active",
-  }));
+Deno.test("active player may purchase only for self", () => {
+  assertEquals(
+    authorizeApplePurchaseContext({
+      actorId: player,
+      orgId: org,
+      playerId: player,
+      actorProfile: profile(player),
+      targetProfile: profile(player),
+      actorMembership: membership(player, "player"),
+      targetMembership: membership(player, "player"),
+      parentLink: null,
+    }),
+    "player",
+  );
 });
 
-Deno.test("entitlement database failures retain a safe diagnostic code", async () => {
-  const admin = new FakeAdmin();
-  admin.entitlementWriteError = { message: "database details must not escape" };
-  await assertAsyncCode("entitlement_sync_failed", () => syncAppleSubscription({
-    admin, transaction: transaction(player), orgId: org, playerId: player, billingUserId: player, status: "active",
-  }));
+Deno.test("active linked parent with can_pay may purchase", () => {
+  assertEquals(
+    authorizeApplePurchaseContext({
+      actorId: parent,
+      orgId: org,
+      playerId: player,
+      actorProfile: profile(parent),
+      targetProfile: profile(player),
+      actorMembership: membership(parent, "parent"),
+      targetMembership: membership(player, "player"),
+      parentLink: {
+        org_id: org,
+        parent_id: parent,
+        child_id: player,
+        can_pay: true,
+      },
+    }),
+    "parent",
+  );
 });
 
-Deno.test("active non-Apple access is preserved", async () => {
+Deno.test("parent without can_pay is blocked", () => {
+  assertCode("parent_can_pay_false", () =>
+    authorizeApplePurchaseContext({
+      actorId: parent,
+      orgId: org,
+      playerId: player,
+      actorProfile: profile(parent),
+      targetProfile: profile(player),
+      actorMembership: membership(parent, "parent"),
+      targetMembership: membership(player, "player"),
+      parentLink: {
+        org_id: org,
+        parent_id: parent,
+        child_id: player,
+        can_pay: false,
+      },
+    }));
+});
+
+Deno.test("coach, admin, wrong-player, inactive, and cross-org actors are blocked", () => {
+  for (const role of ["coach", "owner", "admin"]) {
+    assertCode("actor_role_not_allowed", () =>
+      authorizeApplePurchaseContext({
+        actorId: parent,
+        orgId: org,
+        playerId: player,
+        actorProfile: profile(parent),
+        targetProfile: profile(player),
+        actorMembership: membership(parent, role),
+        targetMembership: membership(player, "player"),
+        parentLink: null,
+      }));
+  }
+  assertCode("actor_role_not_allowed", () =>
+    authorizeApplePurchaseContext({
+      actorId: parent,
+      orgId: org,
+      playerId: player,
+      actorProfile: profile(parent),
+      targetProfile: profile(player),
+      actorMembership: membership(parent, "player"),
+      targetMembership: membership(player, "player"),
+      parentLink: null,
+    }));
+  assertCode(
+    "actor_membership_not_active",
+    () =>
+      authorizeApplePurchaseContext({
+        actorId: player,
+        orgId: org,
+        playerId: player,
+        actorProfile: profile(player),
+        targetProfile: profile(player),
+        actorMembership: membership(player, "player", "disabled"),
+        targetMembership: membership(player, "player"),
+        parentLink: null,
+      }),
+  );
+  assertCode(
+    "organization_context_mismatch",
+    () =>
+      authorizeApplePurchaseContext({
+        actorId: parent,
+        orgId: org,
+        playerId: player,
+        actorProfile: profile(parent),
+        targetProfile: profile(player),
+        actorMembership: membership(parent, "parent"),
+        targetMembership: membership(player, "player"),
+        parentLink: {
+          org_id: otherOrg,
+          parent_id: parent,
+          child_id: player,
+          can_pay: true,
+        },
+      }),
+  );
+});
+
+Deno.test("atomic sync makes one RPC and returns persistence facts", async () => {
   const admin = new FakeAdmin();
-  admin.entitlement = { user_id: player, is_active: true, source: "organization" };
-  const result = await syncAppleSubscription({
-    admin, transaction: transaction(player), orgId: org, playerId: player, billingUserId: player, status: "expired",
+  const transaction = await validTransaction();
+  const result = await syncAppleSubscriptionAtomically({
+    admin,
+    transaction,
+    orgId: org,
+    playerId: player,
+    billingUserId: player,
+    status: "active",
   });
-  assertEquals(result.access_may_be_active, true);
-  assertEquals(admin.entitlementPayload, null);
+  assertEquals(admin.calls.length, 1);
+  assertEquals(admin.calls[0].name, "sd_sync_apple_player_subscription");
+  assertEquals(admin.calls[0].args.p_transaction_id, transaction.transactionId);
+  assertEquals(result.persisted, true);
+  assertEquals(result.entitlement_synchronized, true);
+  assertEquals(result.access_is_active, true);
+});
+
+Deno.test("idempotent retry remains a successful atomic synchronization", async () => {
+  const admin = new FakeAdmin();
+  admin.data = {
+    status: "active",
+    current_period_end: "2026-08-13T00:00:00.000Z",
+    persisted: true,
+    entitlement_synchronized: true,
+    access_is_active: true,
+    idempotent: true,
+  };
+  const result = await syncAppleSubscriptionAtomically({
+    admin,
+    transaction: await validTransaction(),
+    orgId: org,
+    playerId: player,
+    billingUserId: player,
+    status: "active",
+  });
+  assertEquals(result.idempotent, true);
+});
+
+Deno.test("replay, reassignment, and malformed atomic responses fail closed", async () => {
+  const transaction = await validTransaction();
+  for (
+    const code of [
+      "apple_transaction_reassigned",
+      "apple_original_transaction_reassigned",
+      "apple_transaction_replay",
+      "apple_transaction_replay_conflict",
+      "player_subscription_context_conflict",
+    ]
+  ) {
+    const admin = new FakeAdmin();
+    admin.error = { message: `database rejected: ${code}` };
+    await assertAsyncCode(code, () =>
+      syncAppleSubscriptionAtomically({
+        admin,
+        transaction,
+        orgId: org,
+        playerId: player,
+        billingUserId: player,
+        status: "active",
+      }));
+  }
+  const malformed = new FakeAdmin();
+  malformed.data = { persisted: true, access_is_active: true };
+  await assertAsyncCode(
+    "apple_subscription_atomic_sync_failed",
+    async () =>
+      syncAppleSubscriptionAtomically({
+        admin: malformed,
+        transaction: await validTransaction(),
+        orgId: org,
+        playerId: player,
+        billingUserId: player,
+        status: "active",
+      }),
+  );
+});
+
+Deno.test("corrective migration uses real Apple subscription columns", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../../supabase/migrations/20260714020000_apple_subscription_atomic_sync.sql",
+      import.meta.url,
+    ),
+  );
+  for (
+    const column of [
+      "provider_transaction_id",
+      "original_transaction_id",
+      "provider_subscription_id",
+      "provider_product_id",
+      "current_period_start",
+      "current_period_end",
+    ]
+  ) assert(sql.includes(column), `Migration must reference ${column}`);
+  assert(
+    sql.includes("pg_advisory_xact_lock"),
+    "Replay guards must serialize lineage writes",
+  );
+  assert(
+    sql.includes("sd_sync_apple_player_subscription"),
+    "Atomic RPC must exist",
+  );
 });

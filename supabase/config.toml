@@ -9,6 +9,9 @@ project_id = "DHD-Self-Development-iOS-multiorg"
 [functions.stripe-platform-webhook]
 verify_jwt = false
 
+[functions.app-store-server-notifications]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

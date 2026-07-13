@@ -890,39 +890,80 @@ final class SupabaseService: ObservableObject {
   struct AppleSubscriptionVerificationResponse: Decodable, Sendable {
     let status: String
     let current_period_end: String?
-    let access_may_be_active: Bool
+    let persisted: Bool
+    let entitlement_synchronized: Bool
+    let access_is_active: Bool
+    let idempotent: Bool
   }
 
   private struct AppleSubscriptionVerificationErrorBody: Decodable {
     let error: String?
+    let message: String?
   }
 
-  private struct AppleSubscriptionVerificationError: LocalizedError {
+  struct AppleSubscriptionSynchronizationError: LocalizedError {
     let code: String
+
     var errorDescription: String? {
-      "Apple purchase verification was rejected (\(code)). Retry verification, or contact support if it continues."
+      switch code {
+      case "app_account_token_mismatch":
+        return PlayerSubscriptionFailure.tokenMismatch.message
+      case "apple_transaction_replay", "apple_transaction_replay_conflict",
+           "apple_transaction_reassigned", "apple_original_transaction_reassigned",
+           "apple_transaction_lineage_conflict", "apple_transaction_context_mismatch",
+           "player_subscription_context_conflict":
+        return "This Apple purchase is already associated with a different account or a newer subscription period. Contact support."
+      case "actor_profile_missing", "actor_membership_missing", "actor_membership_not_active",
+           "actor_role_not_allowed", "target_profile_missing", "target_membership_missing",
+           "target_membership_not_active", "target_role_not_player", "parent_link_missing",
+           "parent_can_pay_false", "organization_context_mismatch":
+        return "This account is not allowed to purchase access for the selected player."
+      case "product_id_mismatch", "bundle_id_mismatch", "environment_mismatch",
+           "apple_transaction_identifiers_missing", "apple_transaction_invalid":
+        return "Apple returned subscription details that do not match this Home Plate app. Contact support."
+      case "missing_auth", "invalid_auth":
+        return "Your sign-in expired. Sign in again, then restore the purchase."
+      default:
+        return PlayerSubscriptionFailure.backendSynchronizationFailed.message
+      }
+    }
+
+    var subscriptionFailure: PlayerSubscriptionFailure {
+      if code == "app_account_token_mismatch" { return .tokenMismatch }
+      return PlayerSubscriptionFailure(
+        code: code.isEmpty ? PlayerSubscriptionFailure.backendSynchronizationFailed.code : code,
+        message: errorDescription ?? PlayerSubscriptionFailure.backendSynchronizationFailed.message
+      )
     }
   }
 
   func verifyApplePlayerSubscription(
-    signedTransaction: String,
-    context: PlayerSubscriptionContext
+    purchase: PlayerSubscriptionStore.VerifiedPurchase,
+    context: ApplePlayerPurchaseContext
   ) async throws -> AppleSubscriptionVerificationResponse {
     do {
       return try await invokeAuthenticatedFunction(
         "verify-apple-player-subscription",
         body: [
-          "signed_transaction_info": signedTransaction,
-          "org_id": context.orgId.uuidString,
-          "player_id": context.playerId.uuidString,
-          "billing_user_id": context.billingUserId.uuidString,
-          "app_account_token": context.appAccountToken.uuidString,
+          "org_id": context.organizationId.uuidString.lowercased(),
+          "player_id": context.playerId.uuidString.lowercased(),
+          "app_account_token": context.appAccountToken.uuidString.lowercased(),
+          "transaction_id": String(purchase.id),
+          "original_transaction_id": String(purchase.originalTransactionID),
+          "product_id": purchase.productID,
+          "bundle_id": Bundle.main.bundleIdentifier ?? "",
+          "purchase_date_ms": String(Int64(purchase.purchaseDate.timeIntervalSince1970 * 1_000)),
+          "expires_date_ms": String(Int64((purchase.expirationDate?.timeIntervalSince1970 ?? 0) * 1_000)),
+          "revocation_date_ms": String(Int64((purchase.revocationDate?.timeIntervalSince1970 ?? 0) * 1_000)),
+          "environment": purchase.environment,
         ]
       )
     } catch let FunctionsError.httpError(_, data) {
       let response = try? JSONDecoder().decode(AppleSubscriptionVerificationErrorBody.self, from: data)
       let code = response?.error?.trimmingCharacters(in: .whitespacesAndNewlines)
-      throw AppleSubscriptionVerificationError(code: code?.isEmpty == false ? code! : "apple_verification_failed")
+      throw AppleSubscriptionSynchronizationError(
+        code: code?.isEmpty == false ? code! : "apple_subscription_sync_failed"
+      )
     }
   }
 

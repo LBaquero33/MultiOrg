@@ -1,0 +1,16 @@
+[
+  {
+    "organization_id": "550E8400-E29B-41D4-A716-446655440000",
+    "player_id": "6BA7B810-9DAD-41D1-80B4-00C04FD430C8",
+    "billing_user_id": "6BA7B811-9DAD-41D1-80B4-00C04FD430C8",
+    "canonical_input": "550e8400-e29b-41d4-a716-446655440000|6ba7b810-9dad-41d1-80b4-00c04fd430c8|6ba7b811-9dad-41d1-80b4-00c04fd430c8",
+    "app_account_token": "d21d9c47-edc4-5bb1-8ee4-9e3ae1961a1e"
+  },
+  {
+    "organization_id": "800E22AE-2A9D-4109-9E11-1360EEAA8EA7",
+    "player_id": "B1AEAD64-4ECB-46C5-B30F-3C96C5322CB3",
+    "billing_user_id": "B1AEAD64-4ECB-46C5-B30F-3C96C5322CB3",
+    "canonical_input": "800e22ae-2a9d-4109-9e11-1360eeaa8ea7|b1aead64-4ecb-46c5-b30f-3c96c5322cb3|b1aead64-4ecb-46c5-b30f-3c96c5322cb3",
+    "app_account_token": "61dddb1f-f8a4-5c95-806f-6d38964f553a"
+  }
+]
