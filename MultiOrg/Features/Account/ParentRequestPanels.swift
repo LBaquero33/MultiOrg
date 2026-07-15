@@ -130,11 +130,15 @@ struct PlayerParentRequestsPanel: View {
   }
 
   private func submitRequest() async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else {
+      errorText = "Choose an organization before requesting a parent invite."
+      return
+    }
     isLoading = true
     defer { isLoading = false }
     do {
       _ = try await supabase.createParentInviteRequest(
+        orgId: orgId,
         parentEmail: parentEmail,
         relationship: relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : relationship
       )

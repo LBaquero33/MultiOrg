@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ProgramTemplateEditorView: View {
+  @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var appState: AppState
   let template: SDProgramTemplate
+  var onDuplicated: (SDProgramTemplate) -> Void = { _ in }
+  var onDeleted: () -> Void = {}
 
   @State private var days: [SDProgramDay] = []
   @State private var isLoading = false
@@ -14,6 +17,8 @@ struct ProgramTemplateEditorView: View {
   @State private var showClearMenu = false
   @State private var copyPrefill: ProgramCopyPrefill?
   @State private var clearPrefill: ProgramClearPrefill?
+  @State private var isMutatingTemplate = false
+  @State private var confirmDeleteTemplate = false
 
   var body: some View {
     ScrollView {
@@ -26,7 +31,7 @@ struct ProgramTemplateEditorView: View {
       .frame(maxHeight: .infinity, alignment: .topLeading)
     }
     .background(DHDTheme.pageBackground)
-    .navigationTitle("Edit program")
+    .navigationTitle("Edit \(template.kind.title) program")
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
@@ -36,6 +41,12 @@ struct ProgramTemplateEditorView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+    .confirmationDialog("Delete this program?", isPresented: $confirmDeleteTemplate, titleVisibility: .visible) {
+      Button("Delete Program", role: .destructive) { Task { await deleteTemplate() } }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This permanently removes the template and all of its workout days. Assigned programs must be ended first.")
+    }
     .task { await reload() }
     .dhdToast($toastText)
     .sheet(item: $editingCell) { key in
@@ -77,7 +88,7 @@ struct ProgramTemplateEditorView: View {
           VStack(alignment: .leading, spacing: 2) {
             Text(template.name)
               .font(.title3.weight(.semibold))
-            Text("\(template.weeks) weeks • \(template.lift_weekdays.count) lifts/week • \(weekdayLabel(template.lift_weekdays))")
+            Text("\(template.kind.title) • \(template.weeks) weeks • \(template.lift_weekdays.count) days/week • \(weekdayLabel(template.lift_weekdays))")
               .font(.caption)
               .foregroundStyle(Color.white.opacity(0.88))
           }
@@ -85,6 +96,16 @@ struct ProgramTemplateEditorView: View {
         }
 
         HStack(spacing: 10) {
+          Button {
+            Task { await duplicateTemplate() }
+          } label: {
+            Label("Duplicate Program", systemImage: "plus.square.on.square")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+          .tint(.white.opacity(0.9))
+          .disabled(isMutatingTemplate)
+
           Button {
             copyPrefill = nil
             showCopyMenu = true
@@ -104,6 +125,16 @@ struct ProgramTemplateEditorView: View {
           }
           .buttonStyle(.bordered)
           .tint(.white.opacity(0.85))
+
+          Button(role: .destructive) {
+            confirmDeleteTemplate = true
+          } label: {
+            Label("Delete Program", systemImage: "trash")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+          .tint(.red)
+          .disabled(isMutatingTemplate)
         }
       }
       .foregroundStyle(.white)
@@ -174,7 +205,7 @@ struct ProgramTemplateEditorView: View {
     do {
       switch op {
       case .copyDay(let src, let dst):
-        let exercises = dayMap[dayKey(week: src.week, dayIndex: src.dayIndex)]?.exercises ?? []
+        let exercises = independentCopy(dayMap[dayKey(week: src.week, dayIndex: src.dayIndex)]?.exercises ?? [])
         let saved = try await supabase.upsertProgramDay(templateId: template.id, week: dst.week, dayIndex: dst.dayIndex, exercises: exercises)
         days.removeAll(where: { $0.week == dst.week && $0.day_index == dst.dayIndex })
         days.append(saved)
@@ -182,7 +213,7 @@ struct ProgramTemplateEditorView: View {
       case .copyWeek(let srcWeek, let dstWeek):
         try await withThrowingTaskGroup(of: SDProgramDay.self) { group in
           for d in 1...template.lift_weekdays.count {
-            let exercises = dayMap[dayKey(week: srcWeek, dayIndex: d)]?.exercises ?? []
+            let exercises = independentCopy(dayMap[dayKey(week: srcWeek, dayIndex: d)]?.exercises ?? [])
             group.addTask {
               try await supabase.upsertProgramDay(templateId: template.id, week: dstWeek, dayIndex: d, exercises: exercises)
             }
@@ -197,7 +228,7 @@ struct ProgramTemplateEditorView: View {
         for targetWeek in targets.sorted() {
           try await withThrowingTaskGroup(of: SDProgramDay.self) { group in
             for d in 1...template.lift_weekdays.count {
-              let exercises = dayMap[dayKey(week: srcWeek, dayIndex: d)]?.exercises ?? []
+              let exercises = independentCopy(dayMap[dayKey(week: srcWeek, dayIndex: d)]?.exercises ?? [])
               group.addTask {
                 try await supabase.upsertProgramDay(templateId: template.id, week: targetWeek, dayIndex: d, exercises: exercises)
               }
@@ -243,6 +274,38 @@ struct ProgramTemplateEditorView: View {
       toastText = "Cleared"
     } catch {
       errorText = error.localizedDescription
+    }
+  }
+
+  private func duplicateTemplate() async {
+    guard let supabase = appState.supabase else { return }
+    isMutatingTemplate = true
+    defer { isMutatingTemplate = false }
+    do {
+      let duplicate = try await supabase.duplicateProgramTemplate(template)
+      onDuplicated(duplicate)
+      toastText = "Program duplicated"
+    } catch {
+      errorText = "The program could not be duplicated. \(error.localizedDescription)"
+    }
+  }
+
+  private func independentCopy(_ exercises: [SDExercise]) -> [SDExercise] {
+    exercises.map {
+      SDExercise(id: UUID(), name: $0.name, sets: $0.sets, reps: $0.reps, unit: $0.unit, notes: $0.notes)
+    }
+  }
+
+  private func deleteTemplate() async {
+    guard let supabase = appState.supabase else { return }
+    isMutatingTemplate = true
+    defer { isMutatingTemplate = false }
+    do {
+      try await supabase.deleteProgramTemplate(id: template.id)
+      onDeleted()
+      dismiss()
+    } catch {
+      errorText = "This program could not be deleted. End any player assignments using it, then try again."
     }
   }
 }

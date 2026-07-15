@@ -1,8 +1,8 @@
 // Supabase Edge Function: org_login
 //
 // Purpose:
-// - Enforce "Pick org → username + password" login flow for a multi-org app.
-// - Username is org-scoped and maps to a real Supabase Auth email (password reset works normally).
+// - Enforce "Pick org → email or username + password" login flow for a multi-org app.
+// - Usernames are org-scoped; emails are authenticated directly and then checked against the selected org.
 // - Returns a Supabase Auth session (access_token + refresh_token) + active_org_id.
 //
 // Required secrets (Supabase project → Edge Functions → Secrets):
@@ -38,7 +38,7 @@ function normalizeSlug(x: unknown): string {
   return String(x ?? "").trim().toLowerCase();
 }
 
-function normalizeUsername(x: unknown): string {
+function normalizeIdentifier(x: unknown): string {
   return String(x ?? "").trim().toLowerCase();
 }
 
@@ -57,9 +57,9 @@ Deno.serve(async (req) => {
   }
 
   const org_slug = normalizeSlug(payload.org_slug);
-  const username = normalizeUsername(payload.username);
+  const identifier = normalizeIdentifier(payload.identifier ?? payload.username);
   const password = normalizePassword(payload.password);
-  if (!org_slug || !username || !password) return json(400, { error: "missing_fields" });
+  if (!org_slug || !identifier || !password) return json(400, { error: "missing_fields" });
 
   const supabaseUrl = getEnv("SUPABASE_URL") || getEnv("DHD_SUPABASE_URL");
   const anonKey = getEnv("SUPABASE_ANON_KEY") || getEnv("DHD_SUPABASE_ANON_KEY");
@@ -74,20 +74,50 @@ Deno.serve(async (req) => {
   const { data: orgRow, error: orgErr } = await admin
     .from("sd_orgs")
     .select("id, slug, name")
-    .eq("slug", org_slug)
+    // Legacy/imported organizations may have uppercase slugs (for example
+    // "MRST"). Login input is normalized to lowercase, so match without case
+    // sensitivity instead of making otherwise valid coach accounts fail.
+    .ilike("slug", org_slug)
     .maybeSingle();
   if (orgErr) return json(500, { error: "db_error", message: orgErr.message });
   if (!orgRow) return json(404, { error: "org_not_found" });
 
-  // 2) Resolve username -> user_id (server-only table)
-  const { data: uRow, error: uErr } = await admin
-    .from("sd_org_usernames")
-    .select("user_id")
-    .eq("org_id", (orgRow as any).id)
-    .eq("username", username)
-    .maybeSingle();
-  if (uErr) return json(500, { error: "db_error", message: uErr.message });
-  const user_id = (uRow as any)?.user_id ?? null;
+  const publicClient = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  let user_id: string | null = null;
+  let sessionData: any = null;
+
+  if (identifier.includes("@")) {
+    // Email login does not disclose whether the account exists: a failed password
+    // check always receives the same invalid_login response as a bad username.
+    const { data, error } = await publicClient.auth.signInWithPassword({ email: identifier, password });
+    if (error) return json(401, { error: "invalid_login" });
+    user_id = data.user?.id ?? null;
+    sessionData = data;
+  } else {
+    // Resolve an org-scoped username to its underlying Auth user.
+    const { data: uRow, error: uErr } = await admin
+      .from("sd_org_usernames")
+      .select("user_id")
+      .eq("org_id", (orgRow as any).id)
+      .eq("username", identifier)
+      .maybeSingle();
+    if (uErr) return json(500, { error: "db_error", message: uErr.message });
+    user_id = (uRow as any)?.user_id ?? null;
+    if (!user_id) return json(401, { error: "invalid_login" });
+
+    const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(user_id);
+    if (authErr) return json(500, { error: "auth_admin_get_failed", message: authErr.message });
+    const email = (authUser as any)?.user?.email ?? null;
+    if (!email) return json(500, { error: "missing_email" });
+
+    const { data, error } = await publicClient.auth.signInWithPassword({ email, password });
+    if (error) return json(401, { error: "invalid_login" });
+    sessionData = data;
+  }
+
   if (!user_id) return json(401, { error: "invalid_login" });
 
   // 3) Ensure membership is active
@@ -101,23 +131,7 @@ Deno.serve(async (req) => {
   if (mErr) return json(500, { error: "db_error", message: mErr.message });
   if (!mRow) return json(403, { error: "no_org_access" });
 
-  // 4) Fetch real email from Auth
-  const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(user_id);
-  if (authErr) return json(500, { error: "auth_admin_get_failed", message: authErr.message });
-  const email = (authUser as any)?.user?.email ?? null;
-  if (!email) return json(500, { error: "missing_email" });
-
-  // 5) Issue a normal session by signing in with email/password
-  const publicClient = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: sessionData, error: signInErr } = await publicClient.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (signInErr) return json(401, { error: "invalid_login" });
-
-  const access_token = (sessionData as any)?.session?.access_token;
+  const access_token = sessionData?.session?.access_token;
   const refresh_token = (sessionData as any)?.session?.refresh_token;
   if (!access_token || !refresh_token) return json(500, { error: "missing_tokens" });
 

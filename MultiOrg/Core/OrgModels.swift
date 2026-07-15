@@ -8,6 +8,23 @@ struct SDOrg: Identifiable, Decodable, Equatable, Hashable, Sendable {
   var displayName: String { name }
 }
 
+/// Server-synchronized organization software subscription state. Timestamps
+/// remain strings because PostgREST can return fractional PostgreSQL times.
+struct SDOrgSubscription: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let org_id: UUID
+  let provider: String
+  let provider_subscription_id: String?
+  let provider_product_id: String?
+  let provider_price_id: String?
+  let status: String
+  let current_period_start: String?
+  let current_period_end: String?
+  let cancel_at_period_end: Bool
+  let canceled_at: String?
+  let updated_at: String?
+}
+
 struct SDOrgMembership: Identifiable, Codable, Equatable, Sendable {
   var id: String { "\(org_id.uuidString):\(user_id.uuidString)" }
   let org_id: UUID
@@ -17,10 +34,36 @@ struct SDOrgMembership: Identifiable, Codable, Equatable, Sendable {
   let created_at: Date?
   let created_by: UUID?
 
-  var isOwner: Bool { role.lowercased() == "owner" }
-  var isCoach: Bool { role.lowercased() == "coach" }
-  var isAdmin: Bool { isOwner }
-  var isStaff: Bool { isOwner || isCoach }
+  var normalizedRole: String { role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+  var normalizedStatus: String { status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+  var isActive: Bool { normalizedStatus == "active" }
+  var isOwner: Bool { normalizedRole == "owner" }
+  var isCoach: Bool { normalizedRole == "coach" }
+  var isAdmin: Bool { normalizedRole == "admin" }
+  var canAdministerOrganization: Bool { isActive && (isOwner || isAdmin) }
+  var isStaff: Bool { isActive && (isOwner || isAdmin || isCoach) }
+}
+
+enum OrganizationAuthorization {
+  static func activeMembership(
+    userId: UUID?,
+    orgId: UUID?,
+    memberships: [SDOrgMembership]
+  ) -> SDOrgMembership? {
+    guard let userId, let orgId else { return nil }
+    return memberships.first {
+      $0.user_id == userId && $0.org_id == orgId && $0.isActive
+    }
+  }
+
+  static func canAdminister(
+    userId: UUID?,
+    orgId: UUID?,
+    memberships: [SDOrgMembership]
+  ) -> Bool {
+    activeMembership(userId: userId, orgId: orgId, memberships: memberships)?
+      .canAdministerOrganization == true
+  }
 }
 
 struct SDOrgSettings: Identifiable, Codable, Equatable, Sendable {
@@ -33,12 +76,41 @@ struct SDOrgSettings: Identifiable, Codable, Equatable, Sendable {
   var primary_color_hex: String
   var secondary_color_hex: String
   var accent_color_hex: String
+  var logo_path: String?
   var terminology: [String: SDJSONValue]
   var feature_flags: [String: SDJSONValue]
   var booking_policy: [String: SDJSONValue]
   var dashboard_layout: [String: SDJSONValue]
+  var team_policy: [String: SDJSONValue]
   let created_at: Date?
   let updated_at: Date?
+
+  private enum CodingKeys: String, CodingKey {
+    case org_id, display_name, short_name, support_email, website_host
+    case primary_color_hex, secondary_color_hex, accent_color_hex, logo_path
+    case terminology, feature_flags, booking_policy, dashboard_layout, team_policy
+    case created_at, updated_at
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    org_id = try container.decode(UUID.self, forKey: .org_id)
+    display_name = try? container.decodeIfPresent(String.self, forKey: .display_name)
+    short_name = try? container.decodeIfPresent(String.self, forKey: .short_name)
+    support_email = try? container.decodeIfPresent(String.self, forKey: .support_email)
+    website_host = try? container.decodeIfPresent(String.self, forKey: .website_host)
+    primary_color_hex = (try? container.decode(String.self, forKey: .primary_color_hex)) ?? "#0D2445"
+    secondary_color_hex = (try? container.decode(String.self, forKey: .secondary_color_hex)) ?? "#0A3854"
+    accent_color_hex = (try? container.decode(String.self, forKey: .accent_color_hex)) ?? "#4D9EF9"
+    logo_path = try? container.decodeIfPresent(String.self, forKey: .logo_path)
+    terminology = (try? container.decode([String: SDJSONValue].self, forKey: .terminology)) ?? [:]
+    feature_flags = (try? container.decode([String: SDJSONValue].self, forKey: .feature_flags)) ?? [:]
+    booking_policy = (try? container.decode([String: SDJSONValue].self, forKey: .booking_policy)) ?? [:]
+    dashboard_layout = (try? container.decode([String: SDJSONValue].self, forKey: .dashboard_layout)) ?? [:]
+    team_policy = (try? container.decode([String: SDJSONValue].self, forKey: .team_policy)) ?? [:]
+    created_at = try? container.decode(Date.self, forKey: .created_at)
+    updated_at = try? container.decode(Date.self, forKey: .updated_at)
+  }
 
   func term(_ key: String, fallback: String) -> String {
     terminology[key]?.stringValue ?? fallback
@@ -51,6 +123,10 @@ struct SDOrgSettings: Identifiable, Codable, Equatable, Sendable {
   func bookingInt(_ key: String, default defaultValue: Int) -> Int {
     booking_policy[key]?.intValue ?? defaultValue
   }
+
+  func teamPolicy(_ key: String, default defaultValue: Bool) -> Bool {
+    team_policy[key]?.boolValue ?? defaultValue
+  }
 }
 
 struct SDOrgAdminMember: Identifiable, Codable, Equatable, Sendable {
@@ -59,7 +135,10 @@ struct SDOrgAdminMember: Identifiable, Codable, Equatable, Sendable {
   let user_id: UUID
   var role: String
   var status: String
-  let created_at: Date?
+  // Edge Functions return PostgreSQL timestamps with microseconds and a
+  // `+00:00` offset. Keep audit timestamps lossless instead of routing them
+  // through Foundation's narrower default Date decoder.
+  let created_at: String?
   let created_by: UUID?
   var username: String?
   var email: String?
@@ -67,18 +146,347 @@ struct SDOrgAdminMember: Identifiable, Codable, Equatable, Sendable {
   var profile_role: String?
 
   var displayName: String {
-    if let full_name, !full_name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return full_name
+    if let full_name {
+      let value = full_name.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !value.isEmpty { return value }
     }
-    if let username, !username.isEmpty { return "@\(username)" }
-    if let email, !email.isEmpty { return email }
-    return user_id.uuidString
+    if let username {
+      let value = username.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !value.isEmpty { return "@\(value)" }
+    }
+    if let email {
+      let value = email.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !value.isEmpty { return value }
+    }
+    return "Player \(user_id.uuidString.lowercased().suffix(6))"
   }
 
   var isAdmin: Bool {
     let normalized = role.lowercased()
-    return normalized == "owner" || normalized == "coach"
+    return normalized == "owner" || normalized == "admin"
   }
+}
+
+enum SDPaymentRequestPlayerRoster {
+  static func organizationChanged(from previous: UUID?, to next: UUID?) -> Bool {
+    previous != next
+  }
+
+  static func eligiblePlayers(
+    from members: [SDPaymentRequestEligiblePlayer],
+    organizationId: UUID
+  ) -> [SDPaymentRequestEligiblePlayer] {
+    var memberByUserId: [UUID: SDPaymentRequestEligiblePlayer] = [:]
+    for member in members where member.organizationId == organizationId
+      && member.role.lowercased() == "player"
+      && member.status.lowercased() == "active" {
+      guard let existing = memberByUserId[member.userId] else {
+        memberByUserId[member.userId] = member
+        continue
+      }
+      if identityQuality(member) > identityQuality(existing) {
+        memberByUserId[member.userId] = member
+      }
+    }
+    return memberByUserId.values.sorted { lhs, rhs in
+      let comparison = lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
+      if comparison == .orderedSame { return lhs.userId.uuidString < rhs.userId.uuidString }
+      return comparison == .orderedAscending
+    }
+  }
+
+  static func search(
+    _ players: [SDPaymentRequestEligiblePlayer],
+    text: String
+  ) -> [SDPaymentRequestEligiblePlayer] {
+    let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return players }
+    return players.filter {
+      $0.displayName.localizedCaseInsensitiveContains(query)
+        || $0.userId.uuidString.localizedCaseInsensitiveContains(query)
+    }
+  }
+
+  static func selectAll(_ players: [SDPaymentRequestEligiblePlayer]) -> Set<UUID> {
+    Set(players.map(\.userId))
+  }
+
+  static func reconcile(
+    selectedPlayerUserIds: Set<UUID>,
+    eligiblePlayers: [SDPaymentRequestEligiblePlayer]
+  ) -> Set<UUID> {
+    selectedPlayerUserIds.intersection(selectAll(eligiblePlayers))
+  }
+
+  static func payloadPlayerUserIds(
+    selectedPlayerUserIds: Set<UUID>,
+    eligiblePlayers: [SDPaymentRequestEligiblePlayer]
+  ) -> [UUID] {
+    reconcile(selectedPlayerUserIds: selectedPlayerUserIds, eligiblePlayers: eligiblePlayers)
+      .sorted { $0.uuidString < $1.uuidString }
+  }
+
+  private static func identityQuality(_ member: SDPaymentRequestEligiblePlayer) -> Int {
+    if member.fullName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return 3 }
+    if member.username?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return 2 }
+    if member.email?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return 1 }
+    return 0
+  }
+}
+
+enum SDPaymentRequestRosterResponseContext {
+  static func matchesSelectedOrganization(
+    responseOrganizationId: UUID,
+    selectedOrganizationId: UUID?,
+    rosterContextOrganizationId: UUID?
+  ) -> Bool {
+    responseOrganizationId == selectedOrganizationId
+      && responseOrganizationId == rosterContextOrganizationId
+  }
+}
+
+enum SDPaymentRequestEligibleRosterState: Equatable, Sendable {
+  case idle
+  case loading(organizationId: UUID, requestId: UUID)
+  case loaded(organizationId: UUID, players: [SDPaymentRequestEligiblePlayer])
+  case empty(organizationId: UUID)
+  case failed(organizationId: UUID, message: String)
+
+  var organizationId: UUID? {
+    switch self {
+    case .idle:
+      nil
+    case .loading(let organizationId, _),
+         .loaded(let organizationId, _),
+         .empty(let organizationId),
+         .failed(let organizationId, _):
+      organizationId
+    }
+  }
+
+  var isLoading: Bool {
+    if case .loading = self { return true }
+    return false
+  }
+
+  var errorMessage: String? {
+    if case .failed(_, let message) = self { return message }
+    return nil
+  }
+
+  var shouldShowRetry: Bool {
+    switch self {
+    case .empty, .failed:
+      true
+    case .idle, .loading, .loaded:
+      false
+    }
+  }
+
+  var debugLabel: String {
+    switch self {
+    case .idle: "idle"
+    case .loading: "loading"
+    case .loaded(_, let players): "loaded(\(players.count))"
+    case .empty: "empty"
+    case .failed: "failed"
+    }
+  }
+
+  func players(for organizationId: UUID?) -> [SDPaymentRequestEligiblePlayer] {
+    guard let organizationId,
+          case .loaded(let loadedOrganizationId, let players) = self,
+          loadedOrganizationId == organizationId else { return [] }
+    return players
+  }
+
+  func hasSuccessfulResponse(for organizationId: UUID?) -> Bool {
+    guard let organizationId else { return false }
+    switch self {
+    case .loaded(let loadedOrganizationId, _), .empty(let loadedOrganizationId):
+      return loadedOrganizationId == organizationId
+    case .idle, .loading, .failed:
+      return false
+    }
+  }
+
+  mutating func beginLoading(organizationId: UUID, requestId: UUID) {
+    self = .loading(organizationId: organizationId, requestId: requestId)
+  }
+
+  @discardableResult
+  mutating func apply(
+    _ players: [SDPaymentRequestEligiblePlayer],
+    organizationId: UUID,
+    requestId: UUID
+  ) -> Bool {
+    guard case .loading(let loadingOrganizationId, let loadingRequestId) = self,
+          loadingOrganizationId == organizationId,
+          loadingRequestId == requestId else { return false }
+    self = players.isEmpty
+      ? .empty(organizationId: organizationId)
+      : .loaded(organizationId: organizationId, players: players)
+    return true
+  }
+
+  @discardableResult
+  mutating func fail(message: String, organizationId: UUID, requestId: UUID) -> Bool {
+    guard case .loading(let loadingOrganizationId, let loadingRequestId) = self,
+          loadingOrganizationId == organizationId,
+          loadingRequestId == requestId else { return false }
+    self = .failed(organizationId: organizationId, message: message)
+    return true
+  }
+
+  mutating func finishLoadingIfNeeded(organizationId: UUID, requestId: UUID) {
+    guard case .loading(let loadingOrganizationId, let loadingRequestId) = self,
+          loadingOrganizationId == organizationId,
+          loadingRequestId == requestId else { return }
+    self = .idle
+  }
+}
+
+struct SDTeam: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let org_id: UUID
+  let name: String
+  let color_hex: String?
+  let description: String?
+  let is_active: Bool
+  let sort_order: Int
+  let created_at: String?
+  let updated_at: String?
+}
+
+struct SDTeamMember: Identifiable, Codable, Equatable, Sendable {
+  var id: String { "\(org_id.uuidString):\(player_id.uuidString)" }
+  let org_id: UUID
+  let team_id: UUID
+  let player_id: UUID
+  let assigned_by: UUID?
+  let assigned_at: String?
+
+  var member_id: UUID { player_id }
+}
+
+struct SDAdminPlayerAccess: Decodable, Equatable, Sendable {
+  let org_id: UUID?
+  let user_id: UUID
+  let is_active: Bool
+  let source: String?
+  let updated_at: String?
+}
+
+struct SDPlatformOrganization: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let slug: String
+  let name: String
+  let status: String
+  let plan: String
+  let billing_email: String?
+  let max_members: Int?
+  let active_members: Int
+  let players: Int
+  let coaches: Int
+  let active_entitlements: Int
+  let teams: Int
+
+  init(
+    id: UUID,
+    slug: String,
+    name: String,
+    status: String,
+    plan: String,
+    billing_email: String?,
+    max_members: Int?,
+    active_members: Int,
+    players: Int,
+    coaches: Int,
+    active_entitlements: Int,
+    teams: Int
+  ) {
+    self.id = id
+    self.slug = slug
+    self.name = name
+    self.status = status
+    self.plan = plan
+    self.billing_email = billing_email
+    self.max_members = max_members
+    self.active_members = active_members
+    self.players = players
+    self.coaches = coaches
+    self.active_entitlements = active_entitlements
+    self.teams = teams
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, slug, name, status, plan, billing_email, max_members
+    case active_members, players, coaches, active_entitlements, teams
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(UUID.self, forKey: .id)
+    slug = (try? container.decode(String.self, forKey: .slug)) ?? id.uuidString.lowercased()
+    name = (try? container.decode(String.self, forKey: .name)) ?? "Organization"
+    status = (try? container.decodeIfPresent(String.self, forKey: .status)) ?? "active"
+    plan = (try? container.decodeIfPresent(String.self, forKey: .plan)) ?? "starter"
+    billing_email = try? container.decodeIfPresent(String.self, forKey: .billing_email)
+    max_members = Self.decodeOptionalInt(container, key: .max_members)
+    active_members = Self.decodeInt(container, key: .active_members)
+    players = Self.decodeInt(container, key: .players)
+    coaches = Self.decodeInt(container, key: .coaches)
+    active_entitlements = Self.decodeInt(container, key: .active_entitlements)
+    teams = Self.decodeInt(container, key: .teams)
+  }
+
+  private static func decodeInt(
+    _ container: KeyedDecodingContainer<CodingKeys>,
+    key: CodingKeys
+  ) -> Int {
+    decodeOptionalInt(container, key: key) ?? 0
+  }
+
+  private static func decodeOptionalInt(
+    _ container: KeyedDecodingContainer<CodingKeys>,
+    key: CodingKeys
+  ) -> Int? {
+    if let value = try? container.decodeIfPresent(Int.self, forKey: key) { return value }
+    if let value = try? container.decodeIfPresent(String.self, forKey: key) { return Int(value) }
+    return nil
+  }
+}
+
+struct SDPlatformDashboard: Decodable, Sendable {
+  let organizations: [SDPlatformOrganization]
+  let ownerless_organizations: [SDPlatformOrganization]
+  let unmanaged_organizations: [SDPlatformOrganization]
+
+  private enum CodingKeys: String, CodingKey {
+    case organizations, ownerless_organizations, unmanaged_organizations
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    organizations = try container.decode([SDPlatformOrganization].self, forKey: .organizations)
+    ownerless_organizations = (try? container.decode(
+      [SDPlatformOrganization].self,
+      forKey: .ownerless_organizations
+    )) ?? []
+    unmanaged_organizations = (try? container.decode(
+      [SDPlatformOrganization].self,
+      forKey: .unmanaged_organizations
+    )) ?? []
+  }
+}
+
+struct SDPlatformOrganizationCreatePayload: Encodable, Equatable, Sendable {
+  let action = "create_organization"
+  let name: String
+  let slug: String
+  let plan: String
+  let billing_email: String?
+  let max_members: Int?
 }
 
 enum SDJSONValue: Codable, Equatable, Hashable, Sendable {

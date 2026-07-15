@@ -1,18 +1,17 @@
 import SwiftUI
 
-/// Parent billing: manual "pay on behalf" request (no Stripe yet).
+/// Parent-facing organization payment requests and Stripe-hosted Checkout.
 struct SDParentBillingView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
   let child: Profile
 
-  @State private var requests: [SDPaymentRequest] = []
+  @State private var requestState = SDPaymentRequestListState()
   @State private var isLoading = false
   @State private var errorText: String?
-  @State private var toastText: String?
-
-  @State private var planName = "Membership"
-  @State private var amountDollars = ""
-  @State private var notes = ""
+  @State private var checkoutState = SDPaymentCheckoutState.idle
+  @State private var checkoutConfirmationRequest: SDPaymentRequest?
 
   var body: some View {
     ScrollView {
@@ -20,9 +19,9 @@ struct SDParentBillingView: View {
         DHDHeaderCard {
           HStack {
             VStack(alignment: .leading, spacing: 4) {
-              Text("Billing")
+              Text("Payment Requests")
                 .font(.title3.weight(.semibold))
-              Text("Request payment for \(child.displayName)")
+              Text(child.displayName)
                 .font(.caption)
                 .foregroundStyle(Color.white.opacity(0.85))
             }
@@ -33,129 +32,127 @@ struct SDParentBillingView: View {
         }
 
         DHDCard {
-          VStack(alignment: .leading, spacing: 12) {
-            DHDSectionHeader("Request payment") { EmptyView() }
-            TextField("Plan name", text: $planName)
-              .textFieldStyle(.roundedBorder)
-            TextField("Amount (USD)", text: $amountDollars)
-              .textFieldStyle(.roundedBorder)
-            TextField("Notes (optional)", text: $notes, axis: .vertical)
-              .lineLimit(3...6)
-              .textFieldStyle(.roundedBorder)
-            Button {
-              Task { await createRequest() }
-            } label: {
-              Label("Submit request", systemImage: "paperplane")
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-          }
-        }
-
-        DHDCard {
           VStack(alignment: .leading, spacing: 10) {
-            DHDSectionHeader("Player subscription") { EmptyView() }
-            Text("Purchase or restore Home Plate access for \(child.displayName).")
+            Label("Secure payments through Stripe", systemImage: "lock.shield")
+              .font(.headline)
+            Text("Pay Now is available only when your organization link allows payment for this child.")
               .font(.footnote)
               .foregroundStyle(DHDTheme.textSecondary)
-            PlayerSubscriptionPaywall(playerId: child.id)
           }
         }
 
-        DHDCard(style: .flat) {
-          VStack(alignment: .leading, spacing: 10) {
-            DHDSectionHeader("Requests") { EmptyView() }
-            if requests.isEmpty, !isLoading {
-              Text("No requests yet.")
-                .foregroundStyle(DHDTheme.textSecondary)
-            } else {
-              ForEach(requests) { r in
-                HStack {
-                  VStack(alignment: .leading, spacing: 4) {
-                    Text(r.plan_name ?? "Payment")
-                      .font(.headline)
-                    Text(statusLabel(r))
-                      .font(.caption)
-                      .foregroundStyle(DHDTheme.textSecondary)
-                  }
-                  Spacer()
-                  if let cents = r.amount_cents {
-                    Text("$" + String(format: "%.2f", Double(cents) / 100.0))
-                      .foregroundStyle(DHDTheme.textSecondary)
-                  }
-                }
-                .padding(.vertical, 6)
-                Divider().overlay(DHDTheme.separator.opacity(0.25))
-              }
+        if let errorText {
+          DHDCard {
+            VStack(alignment: .leading, spacing: 10) {
+              Text(errorText).foregroundStyle(.red)
+              Button("Try Again") { Task { await reload() } }
+                .buttonStyle(.bordered)
             }
+          }
+        } else if requestState.requests.isEmpty, !isLoading {
+          ContentUnavailableView(
+            "No Payment Requests",
+            systemImage: "doc.text",
+            description: Text("This organization has not requested a payment for \(child.displayName).")
+          )
+          .frame(maxWidth: .infinity, minHeight: 220)
+        } else {
+          ForEach(requestState.requests) { request in
+            paymentRequestCard(request)
           }
         }
       }
       .padding(DHDTheme.pagePadding)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
     }
     .background(DHDTheme.pageBackground)
-    .dhdToast($toastText)
-    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
-      Button("OK", role: .cancel) {}
-    } message: { Text(errorText ?? "") }
-    .task { await reload() }
+    .refreshable { await reload() }
+    .task(id: loadKey) { await reload() }
+    .sheet(item: $checkoutConfirmationRequest) { request in
+      PaymentCheckoutConfirmationSheet(
+        request: request,
+        organizationName: activeOrganizationName,
+        playerName: request.player_name ?? child.displayName,
+        onConfirm: { Task { await openCheckout(for: request) } }
+      )
+    }
+    .onChange(of: scenePhase) { _, next in
+      guard next == .active, checkoutState.shouldRefreshWhenActive else { return }
+      Task { await reload() }
+    }
+  }
+
+  private var loadKey: String {
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(child.id.uuidString)"
+  }
+
+  private func paymentRequestCard(_ request: SDPaymentRequest) -> some View {
+    PaymentRequestCard(
+      request: request,
+      organizationName: activeOrganizationName,
+      playerName: request.player_name ?? child.displayName,
+      context: .parent,
+      checkoutState: checkoutState,
+      onPay: { checkoutConfirmationRequest = request }
+    )
   }
 
   private func reload() async {
-    guard let supabase = appState.supabase else { return }
+    errorText = nil
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else {
+      requestState.clear()
+      checkoutState = .idle
+      checkoutConfirmationRequest = nil
+      errorText = "Choose an organization to view payment requests."
+      return
+    }
+    if requestState.organizationId != orgId {
+      checkoutState = .idle
+      checkoutConfirmationRequest = nil
+    }
+    requestState.beginLoading(organizationId: orgId)
     isLoading = true
     defer { isLoading = false }
     do {
-      requests = try await supabase.listMyPaymentRequests(childId: child.id)
+      let requests = try await supabase.listPaymentRequests(orgId: orgId, playerId: child.id)
+      requestState.apply(requests, organizationId: orgId)
+      checkoutState.reconcile(with: requests)
     } catch {
-      errorText = error.localizedDescription
+      guard requestState.organizationId == orgId else { return }
+      errorText = "Payment requests could not be loaded. \(error.localizedDescription)"
     }
   }
 
-  private func createRequest() async {
+  private func openCheckout(for request: SDPaymentRequest) async {
     guard let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
+    guard checkoutState.beginOpening(requestId: request.id) else { return }
     do {
-      let cleanPlan = planName.trimmingCharacters(in: .whitespacesAndNewlines)
-      let plan = cleanPlan.isEmpty ? nil : cleanPlan
-
-      let dollars = amountDollars.trimmingCharacters(in: .whitespacesAndNewlines)
-      let cents: Int?
-      if dollars.isEmpty {
-        cents = nil
-      } else if let d = Double(dollars) {
-        cents = Int((d * 100).rounded())
-      } else {
-        throw NSError(domain: "Billing", code: 1, userInfo: [NSLocalizedDescriptionKey: "Amount must be a number (e.g., 99.00)."])
+      let response = try await supabase.createPaymentRequestCheckout(paymentRequestId: request.id)
+      guard response.checkout.payment_request_id == request.id else {
+        checkoutState.fail(requestId: request.id, message: "Checkout returned the wrong payment request. Refresh and try again.")
+        return
       }
-
-      _ = try await supabase.createPaymentRequest(
-        childId: child.id,
-        planName: plan,
-        amountCents: cents,
-        currency: "usd",
-        notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes
-      )
-      toastText = "Requested"
-      amountDollars = ""
-      notes = ""
-      await reload()
+      let wasOpened: Bool = await withCheckedContinuation { continuation in
+        openURL(response.checkout.url) { accepted in
+          continuation.resume(returning: accepted)
+        }
+      }
+      if !wasOpened {
+        checkoutState.fail(requestId: request.id, message: "Stripe Checkout could not be opened in the system browser.")
+      } else {
+        checkoutState.browserOpened(requestId: request.id)
+      }
     } catch {
-      errorText = error.localizedDescription
+      checkoutState.fail(requestId: request.id, message: error.localizedDescription)
     }
   }
 
-  private func statusLabel(_ r: SDPaymentRequest) -> String {
-    let status = r.status.capitalized
-    if let d = r.created_at {
-      let df = DateFormatter()
-      df.dateStyle = .medium
-      df.timeStyle = .short
-      return "\(status) • \(df.string(from: d))"
+  private var activeOrganizationName: String {
+    if let orgId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == orgId }) {
+      return organization.displayName
     }
-    return status
+    return appState.activeOrgSettings?.display_name ?? "Organization"
   }
+
 }

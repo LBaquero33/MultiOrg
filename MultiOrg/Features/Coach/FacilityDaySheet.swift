@@ -9,6 +9,7 @@ struct FacilityDaySheet: View {
   let bookings: [SDFacilityBooking]
   let userNameById: [UUID: String]
   let isLoading: Bool
+  let bookingActionsInFlight: Set<UUID>
 
   let onClose: () -> Void
   @Binding var createSeed: NewFacilityBookingSheet.Seed?
@@ -32,7 +33,7 @@ struct FacilityDaySheet: View {
             Text(DateUtils.toISODate(date))
               .font(.title3.weight(.semibold))
               .foregroundStyle(DHDTheme.textPrimary)
-            Text("Tap a time slot to add a booking/block. Tap a booking to edit. Use Rearrange to drag-move.")
+            Text("Approve pending requests below. Tap an empty time slot to add a booking or block.")
               .font(.subheadline)
               .foregroundStyle(DHDTheme.textSecondary)
           }
@@ -65,6 +66,42 @@ struct FacilityDaySheet: View {
               Spacer()
             }
             .padding(.vertical, 2)
+          }
+        }
+
+        let pendingRequests = bookings
+          .filter { $0.status.lowercased() == "pending" && !$0.is_block }
+          .sorted { $0.start_at < $1.start_at }
+        if !pendingRequests.isEmpty {
+          DHDCard(style: .flat) {
+            VStack(alignment: .leading, spacing: 10) {
+              DHDSectionHeader("Pending requests") {
+                DHDStatusBadge(text: "\(pendingRequests.count)", color: .orange)
+              }
+              ForEach(Array(pendingRequests.enumerated()), id: \.element.id) { index, booking in
+                HStack(spacing: 10) {
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(playerName(for: booking))
+                      .font(.subheadline.weight(.semibold))
+                    Text(booking.start_at.formatted(date: .omitted, time: .shortened))
+                      .font(.caption)
+                      .foregroundStyle(DHDTheme.textSecondary)
+                  }
+                  Spacer()
+                  if bookingActionsInFlight.contains(booking.id) {
+                    ProgressView().controlSize(.small)
+                  } else {
+                    Button("Deny", role: .destructive) { onDeny(booking) }
+                      .buttonStyle(.bordered)
+                    Button("Approve") { onApprove(booking) }
+                      .buttonStyle(.borderedProminent)
+                  }
+                }
+                if index < pendingRequests.count - 1 {
+                  Divider().overlay(DHDTheme.separator.opacity(0.3))
+                }
+              }
+            }
           }
         }
 
@@ -141,5 +178,10 @@ struct FacilityDaySheet: View {
       .environmentObject(appState)
     }
     #endif
+  }
+
+  private func playerName(for booking: SDFacilityBooking) -> String {
+    guard let playerId = booking.player_id else { return "Player request" }
+    return userNameById[playerId] ?? "Player request"
   }
 }

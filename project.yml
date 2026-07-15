@@ -36,8 +36,9 @@ targets:
       - path: MultiOrg
         excludes:
           - "**/*.md"
+          - "Supporting/Info.plist"
     info:
-      path: MultiOrg/Supporting/Info.plist
+      path: Configs/MultiOrg-iOS-Info.plist
       properties:
         DHD_APP_DISPLAY_NAME: $(DHD_APP_DISPLAY_NAME)
         SUPABASE_HOST: $(SUPABASE_HOST)
@@ -48,12 +49,25 @@ targets:
         DHD_BYPASS_ACCESS: $(DHD_BYPASS_ACCESS)
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
         DHD_STRIPE_SUBSCRIBE_URL: $(DHD_STRIPE_SUBSCRIBE_URL)
+        DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
+        UIRequiresFullScreen: true
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: MultiOrg/Supporting/MultiOrg.entitlements
+        DEVELOPMENT_TEAM: L9HQB8S3M3
         TARGETED_DEVICE_FAMILY: "1,2"
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+          DHD_APNS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+          DHD_APNS_ENVIRONMENT: production
     dependencies:
       - package: Supabase
     scheme:
@@ -95,11 +109,19 @@ targets:
         DHD_BYPASS_ACCESS: $(DHD_BYPASS_ACCESS)
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
         DHD_STRIPE_SUBSCRIBE_URL: $(DHD_STRIPE_SUBSCRIBE_URL)
+        DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.mac
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconMac
         CODE_SIGN_ENTITLEMENTS: MultiOrg/Supporting/MultiOrgMac.entitlements
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+          DHD_APNS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+          DHD_APNS_ENVIRONMENT: production
     dependencies:
       - package: Supabase
     scheme:

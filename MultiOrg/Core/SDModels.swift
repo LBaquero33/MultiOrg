@@ -1,14 +1,51 @@
 import Foundation
 
+enum SDProgramKind: String, Codable, CaseIterable, Identifiable {
+  case strength
+  case hitting
+  case pitching
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .strength: return "S&C"
+    case .hitting: return "Hitting"
+    case .pitching: return "Pitching"
+    }
+  }
+
+  var builderTitle: String { "\(title) Program Builder" }
+
+  var systemImage: String {
+    switch self {
+    case .strength: return "dumbbell.fill"
+    case .hitting: return "baseball.fill"
+    case .pitching: return "figure.baseball"
+    }
+  }
+
+  var unitOptions: [String] {
+    switch self {
+    case .strength: return ["lb", "kg", "sec", "min", "in", "ft", "m", "yd", "bw", "band", "other"]
+    case .hitting: return ["swings", "other"]
+    case .pitching: return ["pitches", "other"]
+    }
+  }
+}
+
 struct SDProgramTemplate: Identifiable, Decodable, Equatable {
   let id: UUID
   let org_id: UUID?
   let coach_id: UUID
   let name: String
+  let program_kind: String?
   let weeks: Int
   let lift_weekdays: [Int]
   let created_at: Date?
   let updated_at: Date?
+
+  var kind: SDProgramKind { SDProgramKind(rawValue: program_kind ?? "strength") ?? .strength }
 }
 
 struct SDProgramAssignment: Identifiable, Decodable, Equatable {

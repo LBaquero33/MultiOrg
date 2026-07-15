@@ -12,6 +12,42 @@ verify_jwt = false
 [functions.app-store-server-notifications]
 verify_jwt = false
 
+[functions.create-stripe-connect-onboarding-link]
+verify_jwt = true
+
+[functions.get-stripe-connect-account-status]
+verify_jwt = true
+
+[functions.payment_requests]
+verify_jwt = true
+
+[functions.finance-dashboard]
+verify_jwt = true
+
+[functions.notification-center]
+verify_jwt = true
+
+[functions.push-device-registration]
+verify_jwt = true
+
+# Called only by the database queue wake-up and scheduled fallback. The
+# function verifies a separate internal secret before claiming any work.
+[functions.process-notification-deliveries]
+verify_jwt = false
+
+[functions.create-payment-request-checkout]
+verify_jwt = true
+
+# Stripe calls this endpoint directly. It verifies the raw request body with a
+# dedicated connected-payments webhook signing secret.
+[functions.stripe-connected-payments-webhook]
+verify_jwt = false
+
+# Stripe opens this URL directly in an external browser without the app JWT.
+# It accepts no state and only directs the owner back to the authenticated app.
+[functions.stripe-connect-refresh]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

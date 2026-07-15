@@ -13,7 +13,7 @@
 // {
 //   "player_id": "uuid",
 //   "session_date": "YYYY-MM-DD",
-//   "source": "rapsodo" | "hitrax",
+//   "source": "rapsodo" | "hitrax" | "trackman",
 //   "reps_type": "practice" | "game",
 //   "events": [
 //     { "pitch_num": 1, "exit_velo": 90.1, "distance": 320, "launch_angle": 18, "strike_x": 0.2, "strike_z": 2.6, "raw": { ... } }
@@ -126,4 +126,3 @@ Deno.serve(async (req) => {
 
   return json(200, { session_id, event_count: insertRows.length });
 });
-

@@ -18,6 +18,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>DHD_APNS_ENVIRONMENT</key>
+	<string>$(DHD_APNS_ENVIRONMENT)</string>
 	<key>DHD_APP_DISPLAY_NAME</key>
 	<string>$(DHD_APP_DISPLAY_NAME)</string>
 	<key>DHD_BYPASS_ACCESS</key>

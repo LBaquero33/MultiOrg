@@ -69,6 +69,7 @@ struct DHDCard<Content: View>: View {
 }
 
 struct DHDHeaderCard<Content: View>: View {
+  @Environment(\.dhdOrgBranding) private var branding
   let content: Content
 
   init(@ViewBuilder content: () -> Content) {
@@ -80,13 +81,57 @@ struct DHDHeaderCard<Content: View>: View {
       .padding(DHDTheme.cardPadding)
       .background(
         RoundedRectangle(cornerRadius: DHDTheme.cornerRadius)
-          .fill(DHDTheme.headerGradient)
+          .fill(branding.headerGradient)
       )
       .overlay(
         DHDDiamondPattern(color: Color.white.opacity(0.06))
           .clipShape(RoundedRectangle(cornerRadius: DHDTheme.cornerRadius))
       )
       .shadow(color: DHDTheme.macShadowColor, radius: DHDTheme.macShadowRadius, x: 0, y: DHDTheme.macShadowY)
+  }
+}
+
+struct DHDOrgMenuHeader: View {
+  @Environment(\.dhdOrgBranding) private var branding
+  var subtitle = "Coach workspace"
+
+  var body: some View {
+    HStack(spacing: 11) {
+      Group {
+        if let logoURL = branding.logoURL {
+          AsyncImage(url: logoURL) { image in
+            image.resizable().scaledToFit()
+          } placeholder: {
+            ProgressView().tint(.white)
+          }
+        } else {
+          Image("BrandMark")
+            .resizable()
+            .scaledToFit()
+        }
+      }
+      .frame(width: 38, height: 38)
+      .padding(5)
+      .background(Color.white.opacity(0.10))
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(branding.shortName)
+          .font(.headline)
+          .lineLimit(1)
+        Text(subtitle)
+          .font(.caption2)
+          .foregroundStyle(.white.opacity(0.76))
+          .lineLimit(1)
+      }
+      Spacer(minLength: 0)
+    }
+    .foregroundStyle(.white)
+    .padding(10)
+    .background(branding.headerGradient)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(branding.name), \(subtitle)")
   }
 }
 

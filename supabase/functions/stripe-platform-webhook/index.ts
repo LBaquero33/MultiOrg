@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { env, json } from "../_shared/org_billing.ts";
-import { stripeRequest, stripeUnixToIso, verifyStripeSignature } from "../_shared/stripe.ts";
+import { stripeRequest, stripeSubscriptionSnapshot, stripeUnixToIso, verifyStripeSignature } from "../_shared/stripe.ts";
 
 type StripeSubscription = Record<string, any>;
 
@@ -11,7 +11,8 @@ function stripeId(value: unknown): string | null {
 }
 
 function subscriptionPayload(subscription: StripeSubscription, orgId: string) {
-  const price = subscription.items?.data?.[0]?.price ?? {};
+  const snapshot = stripeSubscriptionSnapshot(subscription);
+  const price = snapshot.item?.price as Record<string, unknown> | undefined ?? {};
   return {
     org_id: orgId,
     provider: "stripe",
@@ -19,9 +20,9 @@ function subscriptionPayload(subscription: StripeSubscription, orgId: string) {
     provider_product_id: stripeId(price.product),
     provider_price_id: price.id ? String(price.id) : null,
     status: String(subscription.status ?? "unknown"),
-    current_period_start: stripeUnixToIso(subscription.current_period_start),
-    current_period_end: stripeUnixToIso(subscription.current_period_end),
-    cancel_at_period_end: subscription.cancel_at_period_end === true,
+    current_period_start: snapshot.currentPeriodStart,
+    current_period_end: snapshot.currentPeriodEnd,
+    cancel_at_period_end: snapshot.cancelAtPeriodEnd,
     canceled_at: stripeUnixToIso(subscription.canceled_at),
     provider_state: {
       customer_id: stripeId(subscription.customer),

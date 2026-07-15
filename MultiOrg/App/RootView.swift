@@ -17,14 +17,62 @@ struct RootView: View {
       }
       #endif
     }
+    .environment(\.dhdOrgBranding, activeBranding)
+    .tint(activeBranding.accent)
     .dhdToast($appState.globalToastText)
+    .overlay(alignment: .topTrailing) {
+      if appState.isAuthenticated {
+        NotificationBellButton()
+          .environmentObject(appState)
+          .padding(.top, 10)
+          .padding(.trailing, 14)
+          .zIndex(100)
+      }
+    }
     .onChange(of: scenePhase) { _, next in
       guard next == .active else { return }
-      // When returning from the Stripe browser, refresh entitlement automatically.
-      guard appState.isAuthenticated, appState.myProfile?.isPlayer == true else { return }
-      if AppFlags.bypassAccessCheck { return }
-      Task { await appState.refreshEntitlement() }
+      guard appState.isAuthenticated else { return }
+      Task {
+        await appState.configurePushNotifications()
+        // Platform support is server-authorized and may have changed while the
+        // app was backgrounded. Refresh it before navigation or controls gate
+        // on the cached value.
+        await appState.refreshPlatformAdminStatus()
+        guard appState.myProfile?.isPlayer == true, !AppFlags.bypassAccessCheck else { return }
+        await appState.refreshEntitlement()
+      }
     }
+    .task(id: pushConfigurationKey) {
+      await appState.configurePushNotifications()
+    }
+    .sheet(item: $appState.requestedNotification) { notification in
+      NavigationStack {
+        NotificationDestinationView(notification: notification)
+          .environmentObject(appState)
+      }
+      #if os(macOS)
+      .frame(minWidth: 480, minHeight: 420)
+      #endif
+    }
+  }
+
+  private var pushConfigurationKey: String {
+    "\(appState.isAuthenticated):\(appState.myProfile?.id.uuidString.lowercased() ?? "none")"
+  }
+
+  private var activeBranding: DHDOrgBranding {
+    guard let settings = appState.activeOrgSettings else { return .fallback }
+    let name = settings.display_name ?? settings.short_name ?? "MultiOrg"
+    let shortName = settings.short_name ?? settings.display_name ?? "MultiOrg"
+    let logoURL = settings.logo_path.flatMap { appState.supabase?.publicOrganizationLogoURL(path: $0) }
+    return DHDOrgBranding(
+      name: name,
+      shortName: shortName,
+      primary: DHDTheme.color(hex: settings.primary_color_hex, fallback: DHDTheme.navy),
+      secondary: DHDTheme.color(hex: settings.secondary_color_hex, fallback: DHDTheme.navy2),
+      accent: DHDTheme.color(hex: settings.accent_color_hex, fallback: DHDTheme.accent),
+      logoURL: logoURL
+    )
   }
 
   @ViewBuilder
@@ -48,17 +96,15 @@ private struct MobileRootView<Content: View>: View {
   }
 
   var body: some View {
-    GeometryReader { proxy in
-      ZStack(alignment: .topLeading) {
-        DHDTheme.pageBackground
-          .ignoresSafeArea()
+    ZStack(alignment: .topLeading) {
+      DHDTheme.pageBackground
+        .ignoresSafeArea()
 
-        content
-          .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-          .ignoresSafeArea(.keyboard, edges: .bottom)
-      }
-      .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+      content
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 #else

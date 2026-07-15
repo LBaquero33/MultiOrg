@@ -15,6 +15,7 @@ struct CoachPlayerProfileView: View {
   }
 
   @State private var tab: Tab = .overview
+  @State private var canManagePlayer = true
 
   var body: some View {
     content
@@ -45,6 +46,9 @@ struct CoachPlayerProfileView: View {
       #if !os(macOS)
       .navigationBarTitleDisplayMode(.inline)
       #endif
+      .task(id: player.id) {
+        canManagePlayer = await appState.canManagePlayerOnActiveTeam(player.id)
+      }
   }
 
   @ViewBuilder
@@ -55,9 +59,9 @@ struct CoachPlayerProfileView: View {
     case .calendar:
       CoachPlayerCalendarView(player: player)
     case .testing:
-      CoachPlayerTestingCRUDView(player: player)
+      CoachPlayerTestingCRUDView(player: player, canManagePlayer: canManagePlayer)
     case .program:
-      CoachPlayerProgramAssignerView(player: player)
+      CoachPlayerProgramAssignerView(player: player, canManagePlayer: canManagePlayer)
     case .analysis:
       CoachPlayerAnalysisView(player: player)
     }
@@ -67,9 +71,10 @@ struct CoachPlayerProfileView: View {
 private struct CoachPlayerProgramAssignerView: View {
   @EnvironmentObject private var appState: AppState
   let player: Profile
+  let canManagePlayer: Bool
 
-  @State private var activeAssignment: SDProgramAssignment?
-  @State private var activeTemplate: SDProgramTemplate?
+  @State private var activeAssignments: [SDProgramAssignment] = []
+  @State private var activeTemplates: [UUID: SDProgramTemplate] = [:]
   @State private var coachTemplates: [SDProgramTemplate] = []
   @State private var selectedTemplateId: UUID?
   @State private var startDate = Date()
@@ -81,7 +86,8 @@ private struct CoachPlayerProgramAssignerView: View {
   @State private var parentRelationship = ""
   @State private var parentInvites: [SDParentInvite] = []
   @State private var parentLinks: [SDParentChildLink] = []
-  @State private var paymentRequests: [SDPaymentRequest] = []
+  @State private var playerAccess: SDAdminPlayerAccess?
+  @State private var accessActionInFlight = false
 
   var body: some View {
     ScrollView {
@@ -103,30 +109,94 @@ private struct CoachPlayerProgramAssignerView: View {
 
         DHDCard {
           VStack(alignment: .leading, spacing: 12) {
-            DHDSectionHeader("Current program") {
-              if activeAssignment != nil {
-                DHDStatusBadge(text: "Active", color: .green)
+            if !canManagePlayer {
+              Label("Your organization limits program changes to players on your assigned team.", systemImage: "lock.fill")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+            }
+            DHDSectionHeader("Active programs") {
+              if !activeAssignments.isEmpty {
+                DHDStatusBadge(text: "\(activeAssignments.count) active", color: .green)
               }
             }
 
-            if let a = activeAssignment, let t = activeTemplate {
-              DHDFormRow("Template") { Text(t.name) }
-              DHDFormRow("Start") { Text(a.start_date) }
-              DHDFormRow("Days/week") { Text("\(t.lift_weekdays.count)") }
-              DHDFormRow("Weekdays") { Text(weekdayLabel(t.lift_weekdays)) }
-
-              Divider().overlay(DHDTheme.separator.opacity(0.35))
-
-              Button(role: .destructive) {
-                Task { await endProgram() }
-              } label: {
-                Label("End current program", systemImage: "xmark.circle")
-                  .frame(maxWidth: .infinity, alignment: .leading)
-              }
-              .disabled(isWorking)
-            } else {
-              Text("No active program assigned.")
+            if activeAssignments.isEmpty {
+              Text("No active programs assigned.")
                 .foregroundStyle(DHDTheme.textSecondary)
+            } else {
+              ForEach(activeAssignments) { assignment in
+                if let template = activeTemplates[assignment.template_id] {
+                  VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                      Label(template.kind.title, systemImage: template.kind.systemImage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(DHDTheme.accent)
+                      Spacer()
+                      Text("Starts \(assignment.start_date)")
+                        .font(.caption)
+                        .foregroundStyle(DHDTheme.textSecondary)
+                    }
+                    DHDFormRow("Template") { Text(template.name) }
+                    DHDFormRow("Days/week") { Text("\(template.lift_weekdays.count)") }
+                    DHDFormRow("Weekdays") { Text(weekdayLabel(template.lift_weekdays)) }
+                    Button(role: .destructive) {
+                      Task { await endProgram(assignment) }
+                    } label: {
+                      Label("End \(template.kind.title) program", systemImage: "xmark.circle")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .disabled(isWorking || !canManagePlayer)
+                  }
+                  if assignment.id != activeAssignments.last?.id {
+                    Divider().overlay(DHDTheme.separator.opacity(0.35))
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if appState.canAdminActiveOrg {
+          DHDCard {
+            VStack(alignment: .leading, spacing: 12) {
+              DHDSectionHeader("Player app access") {
+                DHDStatusBadge(
+                  text: playerAccess?.is_active == true ? "Access granted" : "Payment required",
+                  color: playerAccess?.is_active == true ? .green : .orange
+                )
+              }
+
+              Text("This override applies only to \(player.displayName). It does not change access for anyone else in the organization.")
+                .font(.footnote)
+                .foregroundStyle(DHDTheme.textSecondary)
+
+              HStack(spacing: 10) {
+                Button {
+                  Task { await setPlayerAccess(true) }
+                } label: {
+                  Label("Grant access", systemImage: "lock.open.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(accessActionInFlight || playerAccess?.is_active == true)
+
+                Button {
+                  Task { await setPlayerAccess(false) }
+                } label: {
+                  Label("Require payment", systemImage: "lock.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .disabled(accessActionInFlight || playerAccess?.is_active == false)
+
+                if accessActionInFlight { ProgressView().controlSize(.small) }
+                Spacer()
+              }
+
+              if let updated = playerAccess?.updated_at, !updated.isEmpty {
+                Text("Last changed \(updated)")
+                  .font(.caption2)
+                  .foregroundStyle(DHDTheme.textSecondary)
+              }
             }
           }
         }
@@ -160,7 +230,7 @@ private struct CoachPlayerProgramAssignerView: View {
                   .frame(maxWidth: .infinity)
               }
               .buttonStyle(.borderedProminent)
-              .disabled(isWorking || selectedTemplateId == nil)
+              .disabled(isWorking || selectedTemplateId == nil || !canManagePlayer)
             }
           }
         }
@@ -185,7 +255,7 @@ private struct CoachPlayerProgramAssignerView: View {
                 Label("Invite", systemImage: "paperplane")
               }
               .buttonStyle(.borderedProminent)
-              .disabled(isWorking || parentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+              .disabled(isWorking || !canManagePlayer || parentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
             if !parentLinks.isEmpty {
@@ -218,31 +288,6 @@ private struct CoachPlayerProgramAssignerView: View {
           }
         }
 
-        DHDCard {
-          VStack(alignment: .leading, spacing: 12) {
-            DHDSectionHeader("Payment requests") { EmptyView() }
-            if paymentRequests.isEmpty {
-              Text("No payment requests for this player.")
-                .foregroundStyle(DHDTheme.textSecondary)
-            } else {
-              ForEach(paymentRequests) { r in
-                HStack {
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(r.plan_name ?? "Payment").font(.headline)
-                    Text(r.status.capitalized).font(.caption).foregroundStyle(DHDTheme.textSecondary)
-                  }
-                  Spacer()
-                  Menu("Update") {
-                    Button("Mark paid") { Task { await setPaymentStatus(r.id, "paid") } }
-                    Button("Approve") { Task { await setPaymentStatus(r.id, "approved") } }
-                    Button("Cancel", role: .destructive) { Task { await setPaymentStatus(r.id, "cancelled") } }
-                  }
-                }
-                Divider().overlay(DHDTheme.separator.opacity(0.25))
-              }
-            }
-          }
-        }
       }
       .padding(DHDTheme.pagePadding)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -262,15 +307,36 @@ private struct CoachPlayerProgramAssignerView: View {
     defer { isWorking = false }
     do {
       coachTemplates = try await supabase.listMyCoachTemplates()
-      activeAssignment = try await supabase.fetchActiveAssignment(playerId: player.id)
-      if let activeAssignment {
-        activeTemplate = try await supabase.fetchTemplate(id: activeAssignment.template_id)
-      } else {
-        activeTemplate = nil
+      activeAssignments = try await supabase.fetchActiveAssignments(playerId: player.id)
+      var templates: [UUID: SDProgramTemplate] = [:]
+      for assignment in activeAssignments {
+        templates[assignment.template_id] = try await supabase.fetchTemplate(id: assignment.template_id)
       }
+      activeTemplates = templates
       parentInvites = try await supabase.coachListParentInvites(childId: player.id)
       parentLinks = try await supabase.coachListParentLinks(childId: player.id)
-      paymentRequests = try await supabase.listMyPaymentRequests(childId: player.id)
+      if appState.canAdminActiveOrg, let orgId = appState.activeOrgId {
+        playerAccess = try await supabase.adminFetchPlayerAccess(orgId: orgId, playerId: player.id)
+      }
+    } catch {
+      errorText = error.localizedDescription
+    }
+  }
+
+  private func setPlayerAccess(_ isActive: Bool) async {
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else {
+      errorText = "Choose an organization before changing player access."
+      return
+    }
+    accessActionInFlight = true
+    defer { accessActionInFlight = false }
+    do {
+      playerAccess = try await supabase.adminSetPlayerAccess(
+        orgId: orgId,
+        playerId: player.id,
+        isActive: isActive
+      )
+      toastText = isActive ? "Access granted to \(player.displayName)." : "Payment is now required for \(player.displayName)."
     } catch {
       errorText = error.localizedDescription
     }
@@ -297,13 +363,12 @@ private struct CoachPlayerProgramAssignerView: View {
     }
   }
 
-  private func endProgram() async {
+  private func endProgram(_ assignment: SDProgramAssignment) async {
     guard let supabase = appState.supabase else { return }
-    guard let a = activeAssignment else { return }
     isWorking = true
     defer { isWorking = false }
     do {
-      try await supabase.endAssignment(assignmentId: a.id)
+      try await supabase.endAssignment(assignmentId: assignment.id)
       toastText = "Ended"
       await reload()
     } catch {
@@ -312,12 +377,16 @@ private struct CoachPlayerProgramAssignerView: View {
   }
 
   private func sendParentInvite() async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else {
+      errorText = "Choose an organization before inviting a parent."
+      return
+    }
     isWorking = true
     defer { isWorking = false }
     do {
       let rel = parentRelationship.trimmingCharacters(in: .whitespacesAndNewlines)
       _ = try await supabase.coachCreateParentInvite(
+        orgId: orgId,
         childId: player.id,
         parentEmail: parentEmail,
         relationship: rel.isEmpty ? nil : rel
@@ -325,19 +394,6 @@ private struct CoachPlayerProgramAssignerView: View {
       toastText = "Invited"
       parentEmail = ""
       parentRelationship = ""
-      await reload()
-    } catch {
-      errorText = error.localizedDescription
-    }
-  }
-
-  private func setPaymentStatus(_ requestId: UUID, _ status: String) async {
-    guard let supabase = appState.supabase else { return }
-    isWorking = true
-    defer { isWorking = false }
-    do {
-      try await supabase.coachUpdatePaymentRequestStatus(requestId: requestId, status: status)
-      toastText = "Updated"
       await reload()
     } catch {
       errorText = error.localizedDescription

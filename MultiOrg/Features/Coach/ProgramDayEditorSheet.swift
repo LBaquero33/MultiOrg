@@ -16,7 +16,7 @@ struct ProgramDayEditorSheet: View {
   @State private var isSaving = false
   @State private var errorText: String?
 
-  private let unitOptions: [String] = ["lb", "kg", "sec", "min", "in", "ft", "m", "yd", "bw", "band", "other"]
+  private var unitOptions: [String] { template.kind.unitOptions }
 
   var body: some View {
     NavigationStack {
@@ -33,7 +33,7 @@ struct ProgramDayEditorSheet: View {
             }
           }
 
-          Section("Exercises (in order)") {
+          Section(template.kind == .strength ? "Exercises (in order)" : "Drills (in order)") {
             if items.isEmpty {
               Text("No exercises yet. Click Add.")
                 .foregroundStyle(.secondary)

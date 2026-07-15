@@ -3,12 +3,62 @@ import PhotosUI
 #if canImport(UniformTypeIdentifiers)
 import UniformTypeIdentifiers
 #endif
+
 import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
 import AppKit
 #endif
+
+private struct PushNotificationSettingsCard: View {
+  @ObservedObject var manager: PushNotificationManager
+
+  var body: some View {
+    DHDCard {
+      VStack(alignment: .leading, spacing: 10) {
+        DHDSectionHeader("Notifications") { EmptyView() }
+        DHDFormRow("System permission") { Text(permissionLabel) }
+        DHDFormRow("This device") { Text(registrationLabel) }
+        HStack {
+          if manager.canRequestPermission {
+            Button { Task { await manager.requestPermission() } } label: {
+              Label("Enable Notifications", systemImage: "bell")
+            }
+            .buttonStyle(.borderedProminent)
+          }
+          if manager.authorizationStatus == .denied {
+            Button { manager.openSystemSettings() } label: {
+              Label("Open System Settings", systemImage: "gear")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+      }
+    }
+  }
+
+  private var permissionLabel: String {
+    switch manager.authorizationStatus {
+    case .authorized: "Enabled"
+    case .denied: "Denied"
+    case .notDetermined: "Not set"
+    case .provisional: "Provisional"
+    case .ephemeral: "Ephemeral"
+    @unknown default: "Unknown"
+    }
+  }
+
+  private var registrationLabel: String {
+    switch manager.registrationState {
+    case .idle: "Not registered"
+    case .waitingForToken: "Waiting for Apple"
+    case .registering: "Registering…"
+    case .registered: "Registered"
+    case .failed(let message): message
+    }
+  }
+}
 
 /// Unified Account / Profile screen (role-aware).
 /// - Profile: avatar + full bio fields
@@ -17,14 +67,23 @@ import AppKit
 /// - Security: password reset + sign out
 struct AccountView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
 
   @State private var details: SupabaseService.SDProfileDetails?
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var toastText: String?
+  @State private var isApplyingProfile = false
+  @State private var isSavingProfile = false
+  @State private var profileSaveTask: Task<Void, Never>?
 
-  @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
   @State private var myParentCode: String?
+  @State private var paymentRequestState = SDPaymentRequestListState()
+  @State private var isPaymentRequestLoading = false
+  @State private var paymentRequestErrorText: String?
+  @State private var paymentCheckoutState = SDPaymentCheckoutState.idle
+  @State private var checkoutConfirmationRequest: SDPaymentRequest?
 
   // Editable fields
   @State private var fullName: String = ""
@@ -38,6 +97,11 @@ struct AccountView: View {
   @State private var heightIn: String = ""
   @State private var weightLb: String = ""
   @State private var notes: String = ""
+  @State private var professionalTitle: String = ""
+  @State private var professionalBio: String = ""
+  @State private var specialties: String = ""
+  @State private var website: String = ""
+  @State private var yearsExperience: String = ""
 
   // Avatar
   @State private var avatarURL: URL?
@@ -51,6 +115,33 @@ struct AccountView: View {
 #endif
 
   var body: some View {
+    accountPage
+      .sheet(item: $checkoutConfirmationRequest) { request in
+        PaymentCheckoutConfirmationSheet(
+          request: request,
+          organizationName: activePaymentOrganizationName,
+          playerName: request.player_name ?? appState.myProfile?.displayName ?? "Player",
+          onConfirm: { Task { await openPaymentRequestCheckout(for: request) } }
+        )
+      }
+      .task(id: appState.activeOrgId) { await reload() }
+      .task(id: paymentRequestLoadKey) { await reloadPlayerPaymentRequests() }
+      .onChange(of: scenePhase) { _, next in
+        guard next == .active, paymentCheckoutState.shouldRefreshWhenActive else { return }
+        Task { await reloadPlayerPaymentRequests() }
+      }
+      .onChange(of: profileAutosaveKey) { _, _ in scheduleProfileAutosave() }
+  }
+
+  private var profileAutosaveKey: String {
+    [
+      fullName, phone, gradYear, primaryPosition, bats, throwsHand, school, team,
+      heightIn, weightLb, notes, professionalTitle, professionalBio, specialties,
+      website, yearsExperience,
+    ].joined(separator: "\u{1F}")
+  }
+
+  private var accountPage: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         DHDHeaderCard {
@@ -76,7 +167,8 @@ struct AccountView: View {
         profileCard
         familyCard
         accessCard
-        if appState.myProfile?.isCoach == true { notificationsCard }
+        if isActiveOrganizationPlayer { paymentRequestsCard }
+        PushNotificationSettingsCard(manager: appState.pushNotifications)
         securityCard
 
         if let toastText, !toastText.isEmpty {
@@ -93,7 +185,6 @@ struct AccountView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .task(id: appState.activeOrgId) { await reload() }
   }
 
   private var title: String {
@@ -122,10 +213,23 @@ struct AccountView: View {
     if !appState.availableOrganizations.isEmpty {
       DHDCard {
         HStack(spacing: 12) {
-          Image(systemName: "building.2.fill")
-            .font(.title3)
-            .foregroundStyle(DHDTheme.accent)
-            .frame(width: 28)
+          Group {
+            if let path = appState.activeOrgSettings?.logo_path,
+               let url = appState.supabase?.publicOrganizationLogoURL(path: path) {
+              AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+              } placeholder: {
+                ProgressView()
+              }
+              .frame(width: 34, height: 34)
+              .clipShape(RoundedRectangle(cornerRadius: 7))
+            } else {
+              Image(systemName: "building.2.fill")
+                .font(.title3)
+                .foregroundStyle(DHDTheme.accent)
+                .frame(width: 34, height: 34)
+            }
+          }
           VStack(alignment: .leading, spacing: 2) {
             Text("Active organization")
               .font(.caption.weight(.semibold))
@@ -207,7 +311,7 @@ struct AccountView: View {
             }
 #endif
             if pendingAvatarJPEG != nil {
-              Text("Photo selected • will upload on Save")
+              Text("Photo selected • saving automatically")
                 .font(.caption)
                 .foregroundStyle(DHDTheme.textSecondary)
             }
@@ -215,7 +319,42 @@ struct AccountView: View {
           Spacer()
         }
 
-        Group {
+        if appState.myProfile?.isCoach == true {
+          coachProfileFields
+        } else {
+          athleteProfileFields
+        }
+
+        HStack(spacing: 10) {
+          Button {
+            Task { await saveProfile(isAutomatic: false) }
+          } label: {
+            Label("Save now", systemImage: "checkmark.circle.fill")
+              .frame(maxWidth: 220)
+          }
+          .buttonStyle(.borderedProminent)
+
+          if isSavingProfile {
+            HStack(spacing: 6) {
+              ProgressView().controlSize(.small)
+              Text("Saving…")
+            }
+            .font(.caption)
+            .foregroundStyle(DHDTheme.textSecondary)
+          } else {
+            Text("Saves automatically")
+              .font(.caption)
+              .foregroundStyle(DHDTheme.textSecondary)
+          }
+
+          Spacer()
+        }
+      }
+    }
+  }
+
+  private var athleteProfileFields: some View {
+    Group {
           TextField("Full name", text: $fullName)
             .textFieldStyle(.roundedBorder)
           TextField("Phone (optional)", text: $phone)
@@ -265,29 +404,33 @@ struct AccountView: View {
           TextField("Notes", text: $notes, axis: .vertical)
             .lineLimit(4...10)
             .textFieldStyle(.roundedBorder)
-        }
+    }
+  }
 
-        HStack(spacing: 10) {
-          Button {
-            Task { await saveProfile() }
-          } label: {
-            Label("Save", systemImage: "checkmark.circle.fill")
-              .frame(maxWidth: 220)
-          }
-          .buttonStyle(.borderedProminent)
-
-          if appState.myProfile?.isPlayer == true {
-            Button {
-              appState.showOnboardingEditor = true
-            } label: {
-              Label("Edit onboarding", systemImage: "sparkles")
-            }
-            .buttonStyle(.bordered)
-          }
-
-          Spacer()
-        }
+  private var coachProfileFields: some View {
+    Group {
+      TextField("Full name", text: $fullName)
+        .textFieldStyle(.roundedBorder)
+      TextField("Professional title", text: $professionalTitle)
+        .textFieldStyle(.roundedBorder)
+      HStack(spacing: 10) {
+        TextField("Phone (optional)", text: $phone)
+          .textFieldStyle(.roundedBorder)
+        TextField("Organization / school", text: $school)
+          .textFieldStyle(.roundedBorder)
       }
+      HStack(spacing: 10) {
+        TextField("Specialties", text: $specialties)
+          .textFieldStyle(.roundedBorder)
+        TextField("Years coaching", text: $yearsExperience)
+          .textFieldStyle(.roundedBorder)
+          .frame(maxWidth: 170)
+      }
+      TextField("Website or profile link", text: $website)
+        .textFieldStyle(.roundedBorder)
+      TextField("Professional bio", text: $professionalBio, axis: .vertical)
+        .lineLimit(4...10)
+        .textFieldStyle(.roundedBorder)
     }
   }
 
@@ -345,32 +488,16 @@ struct AccountView: View {
 
         if appState.myProfile?.isPlayer == true {
           entitlementSummary(entitlement: appState.myEntitlement)
-          if appState.myEntitlement?.is_active != true {
-            SubscribeButtonRow(label: "Subscribe (6-month)")
-              .environmentObject(appState)
-          }
-          Button("Manage subscription (coming soon)") {
-            toast("Subscription management is coming soon.")
-          }
-          .buttonStyle(.bordered)
+          Text("Access is managed by your organization. Contact an organization administrator if this status is incorrect.")
+            .font(.footnote)
+            .foregroundStyle(DHDTheme.textSecondary)
         } else if appState.myProfile?.isCoach == true {
-          Text("Access gating applies to player accounts only.")
+          Text("Player access is managed individually from Players → Program. Organization owners and platform administrators can grant access or require payment.")
             .foregroundStyle(DHDTheme.textSecondary)
 
-          SubscribeButtonRow(label: "Open subscription page")
-            .environmentObject(appState)
-
-          if AppFlags.enableEntitlementTestUI {
-            Divider().padding(.vertical, 4)
-            EntitlementTestPanel()
-              .environmentObject(appState)
-          }
         } else if appState.myProfile?.isParent == true {
-          Text("You can request payments on behalf of your child from the child’s Billing tab.")
+          Text("Player access and payment requirements are managed by the organization.")
             .foregroundStyle(DHDTheme.textSecondary)
-
-          SubscribeButtonRow(label: "Open subscription page")
-            .environmentObject(appState)
         } else {
           Text("—")
             .foregroundStyle(DHDTheme.textSecondary)
@@ -379,135 +506,134 @@ struct AccountView: View {
     }
   }
 
-  private struct SubscribeButtonRow: View {
-    let label: String
+  private var paymentRequestLoadKey: String {
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none")"
+  }
 
-    @EnvironmentObject var appState: AppState
-    @Environment(\.openURL) private var openURL
-    @State private var err: String?
-
-    private var stripeSubscribeURL: URL? {
-      let rawAny = Bundle.main.object(forInfoDictionaryKey: "DHD_STRIPE_SUBSCRIBE_URL")
-      let raw0 = (rawAny as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      let raw = raw0.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-      guard !raw.isEmpty else { return nil }
-      let candidate = raw.lowercased().hasPrefix("http") ? raw : "https://\(raw)"
-      guard let url = URL(string: candidate), url.scheme?.hasPrefix("http") == true, url.host != nil else { return nil }
-      return url
-    }
-
-    private func withClientReferenceId(base: URL, userId: UUID) -> URL {
-      let key = "client_reference_id"
-      let val = userId.uuidString
-      guard var comps = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return base }
-      var items = comps.queryItems ?? []
-      items.removeAll { $0.name == key }
-      items.append(URLQueryItem(name: key, value: val))
-      comps.queryItems = items
-      return comps.url ?? base
-    }
-
-    var body: some View {
-      VStack(alignment: .leading, spacing: 8) {
-        if let err, !err.isEmpty {
-          Text(err)
-            .font(.footnote)
-            .foregroundStyle(.red)
-        }
-        Button {
-          err = nil
-          Task {
-            do {
-              guard let supabase = appState.supabase else { throw NSError(domain: "DHD", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured."]) }
-              guard let base = stripeSubscribeURL else { throw NSError(domain: "DHD", code: 2, userInfo: [NSLocalizedDescriptionKey: "Stripe subscribe link not configured."]) }
-              let session = try await supabase.client.auth.session
-              let url = withClientReferenceId(base: base, userId: session.user.id)
-              openURL(url)
-            } catch {
-              err = error.localizedDescription
-            }
+  private var paymentRequestsCard: some View {
+    DHDCard {
+      VStack(alignment: .leading, spacing: 10) {
+        DHDSectionHeader("Payment Requests") {
+          HStack {
+            if isPaymentRequestLoading { ProgressView() }
+            Button("Refresh") { Task { await reloadPlayerPaymentRequests() } }
+              .disabled(isPaymentRequestLoading)
           }
-        } label: {
-          Label(label, systemImage: "creditcard")
-            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+
+        Text("Organization payment requests are separate from your Apple player subscription.")
+          .font(.footnote)
+          .foregroundStyle(DHDTheme.textSecondary)
+
+        if let paymentRequestErrorText {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(paymentRequestErrorText).font(.footnote).foregroundStyle(.red)
+            Button("Try Again") { Task { await reloadPlayerPaymentRequests() } }
+              .buttonStyle(.bordered)
+          }
+        } else if paymentRequestState.requests.isEmpty, !isPaymentRequestLoading {
+          Text("No payment requests for this organization.")
+            .foregroundStyle(DHDTheme.textSecondary)
+        } else {
+          ForEach(paymentRequestState.requests) { request in
+            PaymentRequestCard(
+              request: request,
+              organizationName: activePaymentOrganizationName,
+              playerName: request.player_name ?? appState.myProfile?.displayName ?? "Player",
+              context: .player,
+              checkoutState: paymentCheckoutState,
+              onPay: { checkoutConfirmationRequest = request }
+            )
+          }
+        }
       }
     }
   }
 
-  private struct EntitlementTestPanel: View {
-    @EnvironmentObject var appState: AppState
-    @State private var targetUserIdText: String = ""
-    @State private var isBusy = false
-
-    var body: some View {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("DEV: Entitlement Test") { EmptyView() }
-        Text("Simulates a subscription toggle without Stripe or any payment. Coach-only.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
-
-        DHDFormRow("Target user UUID") {
-          TextField("UUID", text: $targetUserIdText)
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 420)
-        }
-
-        HStack(spacing: 10) {
-          Button {
-            Task { await setActive(true) }
-          } label: {
-            Label("Set Active", systemImage: "checkmark.seal")
-          }
-          .buttonStyle(.borderedProminent)
-          .disabled(isBusy)
-
-          Button(role: .destructive) {
-            Task { await setActive(false) }
-          } label: {
-            Label("Set Inactive", systemImage: "xmark.seal")
-          }
-          .buttonStyle(.bordered)
-          .disabled(isBusy)
-
-          Spacer()
-
-          Button {
-            if let uid = appState.myProfile?.id {
-              targetUserIdText = uid.uuidString
-            }
-          } label: {
-            Label("Use mine", systemImage: "person.crop.circle")
-          }
-          .buttonStyle(.borderless)
-          .disabled(isBusy)
-        }
-      }
-      .task {
-        if targetUserIdText.isEmpty, let uid = appState.myProfile?.id {
-          targetUserIdText = uid.uuidString
-        }
-      }
+  private func reloadPlayerPaymentRequests() async {
+    paymentRequestErrorText = nil
+    guard isActiveOrganizationPlayer,
+          let playerId = appState.myProfile?.id,
+          let orgId = appState.activeOrgId,
+          let supabase = appState.supabase else {
+      paymentRequestState.clear()
+      paymentCheckoutState = .idle
+      checkoutConfirmationRequest = nil
+      return
     }
+    if paymentRequestState.organizationId != orgId {
+      paymentCheckoutState = .idle
+      checkoutConfirmationRequest = nil
+    }
+    paymentRequestState.beginLoading(organizationId: orgId)
+    isPaymentRequestLoading = true
+    defer { isPaymentRequestLoading = false }
+    do {
+      let requests = try await supabase.listPaymentRequests(orgId: orgId, playerId: playerId)
+      paymentRequestState.apply(requests, organizationId: orgId)
+      paymentCheckoutState.reconcile(with: requests)
+    } catch {
+      guard paymentRequestState.organizationId == orgId else { return }
+      paymentRequestErrorText = "Payment requests could not be loaded. \(error.localizedDescription)"
+    }
+  }
 
-    private func setActive(_ active: Bool) async {
-      guard let supabase = appState.supabase else { return }
-      guard let uid = UUID(uuidString: targetUserIdText.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-        appState.globalToastText = "Invalid UUID."
+  private var isActiveOrganizationPlayer: Bool {
+    appState.activeOrgMembership?.normalizedRole == "player"
+  }
+
+  private func openPaymentRequestCheckout(for request: SDPaymentRequest) async {
+    guard let supabase = appState.supabase else { return }
+    guard paymentCheckoutState.beginOpening(requestId: request.id) else { return }
+    do {
+      let response = try await supabase.createPaymentRequestCheckout(paymentRequestId: request.id)
+      guard response.checkout.payment_request_id == request.id else {
+        paymentCheckoutState.fail(
+          requestId: request.id,
+          message: "Checkout returned the wrong payment request. Refresh and try again."
+        )
         return
       }
-      isBusy = true
-      defer { isBusy = false }
-      do {
-        try await supabase.entitlementTestSet(userId: uid, isActive: active)
-        appState.globalToastText = active ? "Set Active." : "Set Inactive."
-        // Refresh current user's entitlement so you can immediately see the effect when targeting yourself.
-        await appState.refreshEntitlement()
-      } catch {
-        appState.globalToastText = error.localizedDescription
+      let wasOpened: Bool = await withCheckedContinuation { continuation in
+        openURL(response.checkout.url) { accepted in
+          continuation.resume(returning: accepted)
+        }
       }
+      if !wasOpened {
+        paymentCheckoutState.fail(
+          requestId: request.id,
+          message: "Stripe Checkout could not be opened in the system browser."
+        )
+      } else {
+        paymentCheckoutState.browserOpened(requestId: request.id)
+      }
+    } catch {
+      paymentCheckoutState.fail(requestId: request.id, message: error.localizedDescription)
     }
+  }
+
+  private var activePaymentOrganizationName: String {
+    if let orgId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == orgId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name ?? "Organization"
+  }
+
+  private func paymentRequestStatusColor(_ status: SDPaymentRequestStatus) -> Color {
+    switch status {
+    case .open: return .orange
+    case .canceled: return .secondary
+    case .paid: return .green
+    }
+  }
+
+  private func displayPaymentRequestDate(_ value: String) -> String {
+    let input = DateFormatter()
+    input.locale = Locale(identifier: "en_US_POSIX")
+    input.dateFormat = "yyyy-MM-dd"
+    guard let date = input.date(from: value) else { return value }
+    return date.formatted(date: .abbreviated, time: .omitted)
   }
 
   private var securityCard: some View {
@@ -532,38 +658,6 @@ struct AccountView: View {
     }
   }
 
-  private var notificationsCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Notifications") { EmptyView() }
-
-        DHDFormRow("Messages and facility activity") {
-          Text(notificationStatusLabel)
-        }
-
-        Button {
-          Task {
-            await appState.requestCoachNotificationPermission()
-            await refreshNotificationStatus()
-          }
-        } label: {
-          Label("Enable notifications", systemImage: "bell")
-        }
-        .buttonStyle(.bordered)
-      }
-    }
-  }
-
-  private var notificationStatusLabel: String {
-    switch notificationStatus {
-    case .authorized: return "Enabled"
-    case .denied: return "Denied"
-    case .notDetermined: return "Not set"
-    case .provisional: return "Provisional"
-    case .ephemeral: return "Ephemeral"
-    @unknown default: return "Unknown"
-    }
-  }
 
   private func entitlementSummary(entitlement: SDAccessEntitlement?) -> some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -586,6 +680,8 @@ struct AccountView: View {
     isLoading = true
     defer { isLoading = false }
     do {
+      isApplyingProfile = true
+      defer { isApplyingProfile = false }
       let d = try await supabase.fetchMyProfileDetails()
       details = d
       fullName = (d.full_name ?? "")
@@ -599,6 +695,11 @@ struct AccountView: View {
       heightIn = d.height_in.map(String.init) ?? ""
       weightLb = d.weight_lb.map(String.init) ?? ""
       notes = (d.notes ?? "")
+      professionalTitle = d.professional_title ?? ""
+      professionalBio = d.bio ?? ""
+      specialties = d.specialties ?? ""
+      website = d.website ?? ""
+      yearsExperience = d.years_experience.map(String.init) ?? ""
 
       pendingAvatarJPEG = nil
       if let p = d.avatar_path, let url = supabase.publicAvatarURL(path: p) {
@@ -613,7 +714,6 @@ struct AccountView: View {
         myParentCode = nil
       }
 
-      await refreshNotificationStatus()
     } catch {
       errorText = error.localizedDescription
     }
@@ -629,41 +729,62 @@ struct AccountView: View {
 #endif
   }
 
-  private func refreshNotificationStatus() async {
-    let settings = await UNUserNotificationCenter.current().notificationSettings()
-    notificationStatus = settings.authorizationStatus
+  private func scheduleProfileAutosave() {
+    guard !isApplyingProfile, details != nil else { return }
+    profileSaveTask?.cancel()
+    profileSaveTask = Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(650))
+      guard !Task.isCancelled else { return }
+      await saveProfile(isAutomatic: true)
+    }
   }
 
-  private func saveProfile() async {
+  private func saveProfile(isAutomatic: Bool) async {
     guard let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
-    do {
-      var avatarPath: String? = details?.avatar_path
-      if let jpeg = pendingAvatarJPEG {
+    if isAutomatic { isSavingProfile = true } else { isLoading = true }
+    defer {
+      if isAutomatic { isSavingProfile = false } else { isLoading = false }
+    }
+    var avatarPath: String? = details?.avatar_path
+    if let jpeg = pendingAvatarJPEG {
+      do {
         avatarPath = try await supabase.uploadMyAvatarJPEG(jpeg)
+      } catch {
+        errorText = "Your profile photo could not be uploaded. Please try again. (avatar_upload_failed)"
+        return
       }
+    }
 
-      let patch = SupabaseService.SDProfileDetailsPatch(
-        full_name: cleanOrNil(fullName),
-        avatar_path: avatarPath,
-        phone: cleanOrNil(phone),
-        grad_year: Int(cleanDigits(gradYear) ?? ""),
-        primary_position: cleanOrNil(primaryPosition),
-        bats: cleanOrNil(bats) ?? "unknown",
-        throws_hand: cleanOrNil(throwsHand) ?? "unknown",
-        school: cleanOrNil(school),
-        team: cleanOrNil(team),
-        height_in: Int(cleanDigits(heightIn) ?? ""),
-        weight_lb: Int(cleanDigits(weightLb) ?? ""),
-        notes: cleanOrNil(notes)
-      )
+    let patch = SupabaseService.SDProfileDetailsPatch(
+      full_name: cleanOrNil(fullName),
+      avatar_path: avatarPath,
+      phone: cleanOrNil(phone),
+      grad_year: Int(cleanDigits(gradYear) ?? ""),
+      primary_position: cleanOrNil(primaryPosition),
+      bats: cleanOrNil(bats) ?? "unknown",
+      throws_hand: cleanOrNil(throwsHand) ?? "unknown",
+      school: cleanOrNil(school),
+      team: cleanOrNil(team),
+      height_in: Int(cleanDigits(heightIn) ?? ""),
+      weight_lb: Int(cleanDigits(weightLb) ?? ""),
+      notes: cleanOrNil(notes),
+      professional_title: cleanOrNil(professionalTitle),
+      bio: cleanOrNil(professionalBio),
+      specialties: cleanOrNil(specialties),
+      website: cleanOrNil(website),
+      years_experience: Int(cleanDigits(yearsExperience) ?? "")
+    )
+    do {
       try await supabase.updateMyProfileDetails(patch)
+    } catch {
+      errorText = "Your profile details could not be saved. Please try again. (profile_update_failed)"
+      return
+    }
+    pendingAvatarJPEG = nil
+    if !isAutomatic {
       toast("Saved.")
       await appState.loadMyProfile()
       await reload()
-    } catch {
-      errorText = error.localizedDescription
     }
   }
 
@@ -691,6 +812,7 @@ struct AccountView: View {
         pendingAvatarJPEG = jpeg
         // Show immediate preview by decoding jpeg data locally.
         avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
+        scheduleProfileAutosave()
       }
     } catch {
       errorText = error.localizedDescription
@@ -701,8 +823,9 @@ struct AccountView: View {
     do {
       let data = try Data(contentsOf: url)
       if let jpeg = AvatarImageProcessor.squareJPEG(from: data, side: 512) {
-        pendingAvatarJPEG = jpeg
-        avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
+      pendingAvatarJPEG = jpeg
+      avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
+      scheduleProfileAutosave()
       }
     } catch {
       errorText = error.localizedDescription

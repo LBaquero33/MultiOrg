@@ -3,13 +3,18 @@ import SwiftUI
 struct SDPlayerProgramView: View {
   @EnvironmentObject private var appState: AppState
 
-  @State private var assignment: SDProgramAssignment?
-  @State private var template: SDProgramTemplate?
+  @State private var activePrograms: [PlayerActiveProgram] = []
+  @State private var selectedProgramId: UUID?
   @State private var days: [SDProgramDay] = []
   @State private var selectedWeek = 1
   @State private var selectedDay = 1
   @State private var isLoading = false
   @State private var errorText: String?
+
+  private var selectedProgram: PlayerActiveProgram? {
+    guard let selectedProgramId else { return nil }
+    return activePrograms.first { $0.id == selectedProgramId }
+  }
 
   var body: some View {
     NavigationStack {
@@ -18,20 +23,33 @@ struct SDPlayerProgramView: View {
           HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
         }
 
-        Section("Current program") {
-          if let assignment, let template {
-            Text(template.name).font(.headline)
-            Text("Start: \(assignment.start_date) • \(template.weeks) weeks • \(template.lift_weekdays.count) lifts/week")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+        Section("Active programs") {
+          if activePrograms.isEmpty {
+            ContentUnavailableView(
+              "No active programs",
+              systemImage: "figure.strengthtraining.traditional",
+              description: Text("Your coach can assign S&C, hitting, and pitching programs independently.")
+            )
           } else {
-            Text("No active program assigned.")
-              .foregroundStyle(.secondary)
+            Picker("Program", selection: $selectedProgramId) {
+              ForEach(activePrograms) { program in
+                Label(program.label, systemImage: program.template.kind.systemImage)
+                  .tag(Optional(program.id))
+              }
+            }
+            .pickerStyle(.menu)
+
+            if let program = selectedProgram {
+              Text(program.template.name).font(.headline)
+              Text("\(program.template.kind.title) • Starts \(program.assignment.start_date) • \(program.template.weeks) weeks")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
 
-        if let template, !days.isEmpty {
-          Section("Browse") {
+        if let template = selectedProgram?.template {
+          Section("Browse \(template.kind.title) plan") {
             Picker("Week", selection: $selectedWeek) {
               ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
             }
@@ -40,18 +58,18 @@ struct SDPlayerProgramView: View {
             }
           }
 
-          Section("Exercises") {
-            let ex = days.first(where: { $0.week == selectedWeek && $0.day_index == selectedDay })?.exercises ?? []
-            if ex.isEmpty {
-              Text("No exercises set for this day yet.")
+          Section(template.kind == .strength ? "Exercises" : "Drills") {
+            let exercises = days.first(where: { $0.week == selectedWeek && $0.day_index == selectedDay })?.exercises ?? []
+            if exercises.isEmpty {
+              Text("No items are set for this day yet.")
                 .foregroundStyle(.secondary)
             } else {
-              ForEach(ex, id: \.name) { e in
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(e.name).font(.headline)
-                  Text(line(e)).font(.caption).foregroundStyle(.secondary)
-                  if let n = e.notes, !n.isEmpty {
-                    Text(n).font(.caption).foregroundStyle(.secondary)
+              ForEach(exercises, id: \.id) { exercise in
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(exercise.name).font(.headline)
+                  Text(line(exercise)).font(.caption).foregroundStyle(.secondary)
+                  if let notes = exercise.notes, !notes.isEmpty {
+                    Text(notes).font(.caption).foregroundStyle(.secondary)
                   }
                 }
                 .padding(.vertical, 4)
@@ -60,13 +78,14 @@ struct SDPlayerProgramView: View {
           }
         }
       }
-      .navigationTitle("Program")
+      .navigationTitle("Programs")
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            Task { await reload() }
-          } label: { Image(systemName: "arrow.clockwise") }
+          Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
         }
+      }
+      .onChange(of: selectedProgramId) { _, _ in
+        Task { await loadSelectedProgramDays() }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
@@ -83,30 +102,49 @@ struct SDPlayerProgramView: View {
     defer { isLoading = false }
     do {
       let session = try await supabase.client.auth.session
-      let uid = session.user.id
-      assignment = try await supabase.fetchActiveAssignment(playerId: uid)
-      if let assignment {
-        template = try await supabase.fetchTemplate(id: assignment.template_id)
-        if let template {
-          days = try await supabase.fetchProgramDays(templateId: template.id)
-          selectedWeek = min(max(1, selectedWeek), template.weeks)
-          selectedDay = min(max(1, selectedDay), max(1, template.lift_weekdays.count))
-        } else {
-          days = []
-        }
-      } else {
-        template = nil
-        days = []
+      let assignments = try await supabase.fetchActiveAssignments(playerId: session.user.id)
+      var resolved: [PlayerActiveProgram] = []
+      for assignment in assignments {
+        let template = try await supabase.fetchTemplate(id: assignment.template_id)
+        resolved.append(PlayerActiveProgram(assignment: assignment, template: template))
       }
+      activePrograms = resolved.sorted { lhs, rhs in
+        lhs.template.kind.rawValue < rhs.template.kind.rawValue
+      }
+      if selectedProgramId == nil || !activePrograms.contains(where: { $0.id == selectedProgramId }) {
+        selectedProgramId = activePrograms.first?.id
+      }
+      await loadSelectedProgramDays()
     } catch {
       errorText = error.localizedDescription
     }
   }
 
-  private func line(_ e: SDExercise) -> String {
-    let s = e.sets.map(String.init) ?? "—"
-    let r = (e.reps ?? "—").isEmpty ? "—" : (e.reps ?? "—")
-    let u = (e.unit ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    return u.isEmpty ? "\(s) x \(r)" : "\(s) x \(r) • \(u)"
+  private func loadSelectedProgramDays() async {
+    guard let supabase = appState.supabase, let program = selectedProgram else {
+      days = []
+      return
+    }
+    do {
+      days = try await supabase.fetchProgramDays(templateId: program.template.id)
+      selectedWeek = min(max(1, selectedWeek), program.template.weeks)
+      selectedDay = min(max(1, selectedDay), max(1, program.template.lift_weekdays.count))
+    } catch {
+      errorText = error.localizedDescription
+    }
   }
+
+  private func line(_ exercise: SDExercise) -> String {
+    let sets = exercise.sets.map(String.init) ?? "—"
+    let reps = (exercise.reps ?? "—").isEmpty ? "—" : (exercise.reps ?? "—")
+    let unit = (exercise.unit ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return unit.isEmpty ? "\(sets) x \(reps)" : "\(sets) x \(reps) • \(unit)"
+  }
+}
+
+private struct PlayerActiveProgram: Identifiable {
+  let assignment: SDProgramAssignment
+  let template: SDProgramTemplate
+  var id: UUID { assignment.id }
+  var label: String { "\(template.kind.title): \(template.name)" }
 }

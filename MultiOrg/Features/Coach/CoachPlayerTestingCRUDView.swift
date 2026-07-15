@@ -4,6 +4,7 @@ import SwiftUI
 struct CoachPlayerTestingCRUDView: View {
   @EnvironmentObject private var appState: AppState
   let player: Profile
+  let canManagePlayer: Bool
 
   @State private var entries: [SDTestingEntry] = []
   @State private var isLoading = false
@@ -18,11 +19,17 @@ struct CoachPlayerTestingCRUDView: View {
       }
 
       Section {
+        if !canManagePlayer {
+          Label("Your organization limits testing changes to players on your assigned team.", systemImage: "lock.fill")
+            .font(.footnote)
+            .foregroundStyle(.orange)
+        }
         Button {
           showAdd = true
         } label: {
           Label("Add entry", systemImage: "plus")
         }
+        .disabled(!canManagePlayer)
       }
 
       Section("Entries") {
@@ -41,6 +48,7 @@ struct CoachPlayerTestingCRUDView: View {
               .padding(.vertical, 4)
             }
             .buttonStyle(.plain)
+            .disabled(!canManagePlayer)
           }
         }
       }

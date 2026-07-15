@@ -104,7 +104,9 @@ Deno.serve(async (req) => {
   const { data: orgRow, error: orgErr } = await admin
     .from("sd_orgs")
     .select("id, slug, name")
-    .eq("slug", org_slug)
+    // Imported organizations may store uppercase slugs (for example "MRST"),
+    // while client input is normalized. Keep account creation consistent with login.
+    .ilike("slug", org_slug)
     .maybeSingle();
   if (orgErr) return json(500, { error: "org_lookup_failed", message: orgErr.message });
   if (!orgRow?.id) return json(404, { error: "org_not_found" });

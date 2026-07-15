@@ -206,8 +206,9 @@ private struct CoachPlayerDailyLogDetailView: View {
             .pickerStyle(.menu)
 
             Picker("Source", selection: $importSource) {
-              Text("Rapsodo").tag("rapsodo")
-              Text("HitTrax").tag("hitrax")
+              ForEach(BPImportSource.allCases) { source in
+                Text(source.label).tag(source.rawValue)
+              }
             }
             .pickerStyle(.menu)
 
@@ -220,7 +221,7 @@ private struct CoachPlayerDailyLogDetailView: View {
             }
           }
 
-          Text("Uploading replaces BP events for this date/source/type.")
+          Text("Upload Rapsodo, HitTrax, or TrackMan CSVs. The source is detected automatically when possible; importing replaces the selected day's events.")
             .font(.caption)
             .foregroundStyle(DHDTheme.textSecondary)
         }
@@ -288,118 +289,33 @@ private struct CoachPlayerDailyLogDetailView: View {
     isLoading = true
     defer { isLoading = false }
     do {
-      let data = try Data(contentsOf: url)
-      guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
-        throw NSError(domain: "CSV", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not read file as text."])
-      }
-      let rows = CSV.parse(text: text)
-
-      if importSource != "rapsodo" {
-        throw NSError(domain: "CSV", code: 3, userInfo: [NSLocalizedDescriptionKey: "HitTrax mapping is not enabled yet. Use Rapsodo for now."])
-      }
-
-      // Rapsodo exports often include metadata lines before the actual header.
-      // Detect the real header row so we don't import all-null events.
-      guard let table = CSV.asTableDetectingHeader(
-        rows: rows,
-        requiredColumns: ["ExitVelocity", "LaunchAngle", "Distance"]
-      ) else {
-        throw NSError(domain: "CSV", code: 2, userInfo: [NSLocalizedDescriptionKey: "Empty CSV."])
-      }
-
-      let mapped = mapRapsodo(header: table.header, rows: table.body)
-      let creates: [SDBPEventCreate] = mapped.enumerated().map { idx, r in
+      let text = try CSVFileReader.readText(from: url)
+      let result = try BPImportMapper.map(text: text, selectedSource: BPImportSource.parse(importSource))
+      importSource = result.source.rawValue
+      let creates: [SDBPEventCreate] = result.rows.enumerated().map { idx, row in
         SDBPEventCreate(
-          session_id: UUID(), // placeholder; Edge Function ignores this field
-          pitch_num: r.pitch_num ?? (idx + 1),
-          exit_velo: r.exit_velo,
-          distance: r.distance,
-          launch_angle: r.launch_angle,
-          strike_x: r.strike_x,
-          strike_z: r.strike_z,
-          raw: r.raw
-        )
-      }
-
-      // Sanity check: if we couldn't map any core metric columns, fail fast with a helpful message.
-      let mappedMetricCount = creates.reduce(0) { acc, e in
-        acc + ((e.exit_velo != nil || e.distance != nil || e.launch_angle != nil) ? 1 : 0)
-      }
-      if mappedMetricCount == 0 {
-        throw NSError(
-          domain: "CSV",
-          code: 4,
-          userInfo: [NSLocalizedDescriptionKey: "Could not detect Rapsodo columns for ExitVelocity/Distance/LaunchAngle. Please verify this is a Rapsodo hitting export CSV."]
+          session_id: UUID(), // The coach import endpoint assigns the real session ID.
+          pitch_num: row.pitch_num ?? (idx + 1),
+          exit_velo: row.exit_velo,
+          distance: row.distance,
+          launch_angle: row.launch_angle,
+          strike_x: row.strike_x,
+          strike_z: row.strike_z,
+          raw: row.raw
         )
       }
 
       _ = try await supabase.coachReplaceBPEvents(
         playerId: player.id,
         dateISO: dateISO,
-        source: importSource,
+        source: result.source.rawValue,
         repsType: importRepsType,
         events: creates
       )
-      toastText = "Imported \(creates.count) BP events."
+      toastText = "Imported \(creates.count) \(result.source.label) events."
       await reload()
     } catch {
       errorText = error.localizedDescription
-    }
-  }
-
-  private struct MappedRow {
-    var pitch_num: Int?
-    var exit_velo: Double?
-    var distance: Double?
-    var launch_angle: Double?
-    var strike_x: Double?
-    var strike_z: Double?
-    var raw: [String: String]
-  }
-
-  private func mapRapsodo(header: [String], rows: [[String]]) -> [MappedRow] {
-    func idx(where predicate: (String) -> Bool) -> Int? {
-      header.enumerated().first(where: { predicate($0.element.lowercased()) })?.offset
-    }
-
-    let pitchIdx = idx { $0.contains("pitch") && $0.contains("num") } ?? idx { $0 == "pitch_num" }
-    let evIdx = idx { $0.contains("exit") && $0.contains("velo") } ?? idx { $0 == "exitvelocity" } ?? idx { $0 == "exit velo" }
-    let distIdx = idx { $0.contains("dist") } ?? idx { $0.contains("carry") }
-    let laIdx = idx { $0.contains("launch") && $0.contains("angle") } ?? idx { $0 == "launchangle" }
-
-    // Strike-zone coordinates: accept common aliases.
-    let xIdx = idx { $0.contains("strikezonex") } ?? idx { ($0.contains("plate") || $0.contains("strike")) && $0.contains("side") }
-      ?? idx { ($0.contains("plate") || $0.contains("strike")) && $0.contains("x") }
-    let zIdx = idx { $0.contains("strikezoney") } ?? idx { ($0.contains("plate") || $0.contains("strike")) && ($0.contains("height") || $0.contains("z")) }
-
-    func asDouble(_ s: String) -> Double? {
-      let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-      if t.isEmpty { return nil }
-      return Double(t)
-    }
-    func asInt(_ s: String) -> Int? {
-      let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-      if t.isEmpty { return nil }
-      return Int(t)
-    }
-
-    return rows.map { r in
-      var raw: [String: String] = [:]
-      for (i, h) in header.enumerated() {
-        if i < r.count {
-          let v = r[i].trimmingCharacters(in: .whitespacesAndNewlines)
-          if !v.isEmpty { raw[h] = v }
-        }
-      }
-      return MappedRow(
-        pitch_num: pitchIdx.flatMap { $0 < r.count ? asInt(r[$0]) : nil },
-        exit_velo: evIdx.flatMap { $0 < r.count ? asDouble(r[$0]) : nil },
-        distance: distIdx.flatMap { $0 < r.count ? asDouble(r[$0]) : nil },
-        launch_angle: laIdx.flatMap { $0 < r.count ? asDouble(r[$0]) : nil },
-        strike_x: xIdx.flatMap { $0 < r.count ? asDouble(r[$0]) : nil },
-        strike_z: zIdx.flatMap { $0 < r.count ? asDouble(r[$0]) : nil },
-        raw: raw
-      )
     }
   }
 

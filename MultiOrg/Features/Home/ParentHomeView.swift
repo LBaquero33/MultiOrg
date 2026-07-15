@@ -64,7 +64,7 @@ struct ParentHomeView: View {
           }
         }
       }
-      .task { await reload() }
+      .task(id: appState.activeOrgId) { await reload() }
 #else
       NavigationStack {
         List {
@@ -114,7 +114,7 @@ struct ParentHomeView: View {
           }
         }
         .navigationTitle("Parent")
-        .task { await reload() }
+        .task(id: appState.activeOrgId) { await reload() }
       }
 #endif
     }
@@ -171,12 +171,15 @@ struct ParentHomeView: View {
 #endif
 
   private func reload() async {
-    guard let supabase = appState.supabase else { return }
+    invites = []
+    links = []
+    children = []
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
     isLoading = true
     defer { isLoading = false }
     do {
       invites = try await supabase.listMyParentInvites()
-      links = try await supabase.listMyParentChildLinks()
+      links = try await supabase.listMyParentChildLinks(orgId: orgId)
       let ids = links.map(\.child_id)
       let profiles = try await supabase.listProfiles(ids: ids)
       // Only show player children.

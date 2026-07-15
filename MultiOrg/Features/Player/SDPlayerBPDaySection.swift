@@ -39,8 +39,9 @@ struct SDPlayerBPDaySection: View {
             .onChange(of: repsType) { _, _ in Task { await loadSession() } }
 
             Picker("Upload type", selection: $source) {
-              Text("Rapsodo").tag("rapsodo")
-              Text("HitTrax").tag("hitrax")
+              ForEach(BPImportSource.allCases) { importSource in
+                Text(importSource.label).tag(importSource.rawValue)
+              }
             }
             .onChange(of: source) { _, _ in Task { await loadSession() } }
 
@@ -171,39 +172,29 @@ struct SDPlayerBPDaySection: View {
     isWorking = true
     defer { isWorking = false }
     do {
-      let data = try Data(contentsOf: url)
-      guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
-        throw NSError(domain: "CSV", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not read file as text."])
-      }
-      let rows = CSV.parse(text: text)
-      guard let table = CSV.asTableDetectingHeader(
-        rows: rows,
-        requiredColumns: ["ExitVelocity", "LaunchAngle", "Distance"]
-      ) else {
-        throw NSError(domain: "CSV", code: 2, userInfo: [NSLocalizedDescriptionKey: "Empty CSV."])
-      }
-
-      let mapped = mapRapsodo(header: table.header, rows: table.body)
+      let text = try CSVFileReader.readText(from: url)
+      let importResult = try BPImportMapper.map(text: text, selectedSource: BPImportSource.parse(source))
+      source = importResult.source.rawValue
 
       let sessionAuth = try await supabase.client.auth.session
       let uid = sessionAuth.user.id
-      let s = try await supabase.upsertBPSession(playerId: uid, dateISO: dateISO, source: source, repsType: repsType, orgId: appState.activeOrgId)
+      let s = try await supabase.upsertBPSession(playerId: uid, dateISO: dateISO, source: importResult.source.rawValue, repsType: repsType, orgId: appState.activeOrgId)
       session = s
-      let creates = mapped.enumerated().map { idx, r in
+      let creates = importResult.rows.enumerated().map { idx, row in
         SDBPEventCreate(
           session_id: s.id,
-          pitch_num: r.pitch_num ?? (idx + 1),
-          exit_velo: r.exit_velo,
-          distance: r.distance,
-          launch_angle: r.launch_angle,
-          strike_x: r.strike_x,
-          strike_z: r.strike_z,
-          raw: r.raw
+          pitch_num: row.pitch_num ?? (idx + 1),
+          exit_velo: row.exit_velo,
+          distance: row.distance,
+          launch_angle: row.launch_angle,
+          strike_x: row.strike_x,
+          strike_z: row.strike_z,
+          raw: row.raw
         )
       }
       try await supabase.replaceBPEvents(sessionId: s.id, events: creates)
       events = try await supabase.fetchBPEvents(sessionId: s.id)
-      toast("Imported \(events.count) events.")
+      toast("Imported \(events.count) \(importResult.source.label) events.")
     } catch {
       errorText = error.localizedDescription
     }

@@ -10,6 +10,7 @@ struct CoachProgramsView: View {
 
   @State private var showCreate = false
   @State private var query = ""
+  @State private var selectedKind: SDProgramKind = .strength
 
 #if os(macOS)
   @State private var selectedTemplateId: UUID?
@@ -37,7 +38,7 @@ struct CoachProgramsView: View {
       }
     }
     .sheet(isPresented: $showCreate) {
-      CreateProgramTemplateSheet { created in
+      CreateProgramTemplateSheet(kind: selectedKind) { created in
         templates.insert(created, at: 0)
         selectedTemplateId = created.id
       }
@@ -50,19 +51,33 @@ struct CoachProgramsView: View {
 #else
     NavigationStack {
       List {
+        Section {
+          Picker("Program type", selection: $selectedKind) {
+            ForEach(SDProgramKind.allCases) { kind in
+              Label(kind.title, systemImage: kind.systemImage).tag(kind)
+            }
+          }
+          .pickerStyle(.segmented)
+        }
+
         if isLoading {
           HStack(spacing: 10) {
             ProgressView()
             Text("Loading…").foregroundStyle(.secondary)
           }
-        } else if templates.isEmpty {
-          Text("No program templates yet.")
+        } else if visibleTemplates.isEmpty {
+          Text("No \(selectedKind.title) program templates yet.")
             .foregroundStyle(.secondary)
         } else {
-          Section("Program templates") {
-            ForEach(templates) { t in
+          Section("\(selectedKind.title) program templates") {
+            ForEach(visibleTemplates) { t in
               NavigationLink {
-                ProgramTemplateEditorView(template: t)
+                ProgramTemplateEditorView(
+                  template: t,
+                  onDuplicated: { templates.insert($0, at: 0) },
+                  onDeleted: { templates.removeAll { $0.id == t.id } }
+                )
+                .id(t.id)
               } label: {
                 VStack(alignment: .leading, spacing: 2) {
                   Text(t.name).font(.headline)
@@ -95,7 +110,7 @@ struct CoachProgramsView: View {
         Text(errorText ?? "")
       }
       .sheet(isPresented: $showCreate) {
-        CreateProgramTemplateSheet { created in
+        CreateProgramTemplateSheet(kind: selectedKind) { created in
           templates.insert(created, at: 0)
         }
         .environmentObject(appState)
@@ -107,11 +122,16 @@ struct CoachProgramsView: View {
 #endif
   }
 
+  private var visibleTemplates: [SDProgramTemplate] {
+    templates.filter { $0.kind == selectedKind }
+  }
+
 #if os(macOS)
   private var filteredTemplates: [SDProgramTemplate] {
     let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard !q.isEmpty else { return templates }
-    return templates.filter { $0.name.lowercased().contains(q) }
+    return templates.filter {
+      $0.kind == selectedKind && (q.isEmpty || $0.name.lowercased().contains(q))
+    }
   }
 
   private var selectedTemplate: SDProgramTemplate? {
@@ -121,10 +141,19 @@ struct CoachProgramsView: View {
 
   private var templateList: some View {
     List(selection: $selectedTemplateId) {
+      Section {
+        Picker("Program type", selection: $selectedKind) {
+          ForEach(SDProgramKind.allCases) { kind in
+            Label(kind.title, systemImage: kind.systemImage).tag(kind)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+      }
       if isLoading {
         HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
       } else if filteredTemplates.isEmpty {
-        Text("No program templates yet.")
+        Text("No \(selectedKind.title) program templates yet.")
           .foregroundStyle(.secondary)
       } else {
         ForEach(filteredTemplates) { t in
@@ -144,7 +173,18 @@ struct CoachProgramsView: View {
   @ViewBuilder
   private var templateDetail: some View {
     if let t = selectedTemplate {
-      ProgramTemplateEditorView(template: t)
+      ProgramTemplateEditorView(
+        template: t,
+        onDuplicated: { duplicated in
+          templates.insert(duplicated, at: 0)
+          selectedTemplateId = duplicated.id
+        },
+        onDeleted: {
+          templates.removeAll { $0.id == t.id }
+          selectedTemplateId = filteredTemplates.first?.id
+        }
+      )
+        .id(t.id)
         .environmentObject(appState)
     } else {
       VStack(spacing: 10) {
@@ -184,6 +224,7 @@ struct CoachProgramsView: View {
 private struct CreateProgramTemplateSheet: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var appState: AppState
+  let kind: SDProgramKind
   let onCreated: (SDProgramTemplate) -> Void
 
   @State private var name = ""
@@ -196,14 +237,14 @@ private struct CreateProgramTemplateSheet: View {
     NavigationStack {
       Form {
         Section("Template") {
-          TextField("Program name", text: $name)
+          TextField("\(kind.title) program name", text: $name)
           Picker("Weeks", selection: $weeks) {
             Text("2 weeks").tag(2)
             Text("4 weeks").tag(4)
           }
         }
 
-        Section("Lift days (weekdays)") {
+        Section(kind == .strength ? "Lift days (weekdays)" : "Training days (weekdays)") {
           ForEach(1...7, id: \.self) { i in
             Toggle(weekday(i), isOn: Binding(
               get: { liftDays.contains(i) },
@@ -214,7 +255,7 @@ private struct CreateProgramTemplateSheet: View {
           }
         }
       }
-      .navigationTitle("New program")
+      .navigationTitle("New \(kind.title) program")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
@@ -247,6 +288,7 @@ private struct CreateProgramTemplateSheet: View {
     do {
       let created = try await supabase.createProgramTemplate(
         name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+        kind: kind,
         weeks: weeks,
         liftWeekdays: liftDays.sorted(),
         orgId: appState.activeOrgId

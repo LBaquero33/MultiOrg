@@ -1,0 +1,24 @@
+{
+  "identifier" : "9A8F4E81-3F68-498B-A0BD-4FB4F2D41B45",
+  "nonRenewingSubscription" : [],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "A3E83B20-1C70-4F94-92C8-0E6ED565DAA2",
+      "localizations" : [
+        { "description" : "Monthly Home Plate player access.", "displayName" : "Home Plate Player Monthly", "locale" : "en_US" }
+      ],
+      "productID" : "com.homeplate.player.monthly",
+      "referenceName" : "Home Plate Player Monthly",
+      "subscriptionGroupID" : "0A62C916-26BF-4F96-AB30-7145E4BBD8C1",
+      "subscriptionPeriod" : "P1M",
+      "type" : "Auto-Renewable Subscription"
+    }
+  ],
+  "settings" : { "locale" : "en_US", "storefront" : "USA", "storeKitErrors" : [] },
+  "subscriptionGroups" : [
+    { "id" : "0A62C916-26BF-4F96-AB30-7145E4BBD8C1", "localizations" : [ { "displayName" : "Home Plate Player Access", "locale" : "en_US" } ], "referenceName" : "Home Plate Player Access" }
+  ],
+  "version" : { "major" : 3, "minor" : 0 }
+}

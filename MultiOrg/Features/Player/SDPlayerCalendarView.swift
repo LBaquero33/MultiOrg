@@ -81,9 +81,9 @@ struct SDPlayerCalendarView: View {
       .task {
         await reload()
       }
-    }
-    .navigationDestination(for: Date.self) { d in
-      SDPlayerDayDetailView(initialDate: d)
+      .navigationDestination(for: Date.self) { d in
+        SDPlayerDayDetailView(initialDate: d)
+      }
     }
   }
 

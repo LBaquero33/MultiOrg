@@ -12,9 +12,11 @@ struct CoachRootView: View {
   enum Destination: String, CaseIterable, Identifiable {
     case players = "Players"
     case facilities = "Facilities"
+    case teams = "Teams"
     case programs = "Program Templates"
     case chat = "Chat"
     case admin = "Org Admin"
+    case platform = "Platform Admin"
     case account = "Account"
     var id: String { rawValue }
   }
@@ -22,6 +24,10 @@ struct CoachRootView: View {
   var body: some View {
     NavigationSplitView {
       List(selection: $selection) {
+        DHDOrgMenuHeader()
+          .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 12, trailing: 8))
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
         NavigationLink(value: Destination.players) {
           Label(term("players", fallback: "Players"), systemImage: "person.3")
         }
@@ -29,6 +35,9 @@ struct CoachRootView: View {
           NavigationLink(value: Destination.facilities) {
             Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock")
           }
+        }
+        NavigationLink(value: Destination.teams) {
+          Label("Teams", systemImage: "person.3.sequence.fill")
         }
         if feature("programs") {
           NavigationLink(value: Destination.programs) {
@@ -45,10 +54,16 @@ struct CoachRootView: View {
             Label("Org Admin", systemImage: "slider.horizontal.3")
           }
         }
+        if appState.isPlatformAdmin {
+          NavigationLink(value: Destination.platform) {
+            Label("Platform Admin", systemImage: "building.2.crop.circle")
+          }
+        }
         NavigationLink(value: Destination.account) {
           Label("Account", systemImage: "gearshape")
         }
       }
+      .listStyle(.sidebar)
       .navigationTitle("Coach")
     } detail: {
       switch selection ?? .players {
@@ -62,8 +77,17 @@ struct CoachRootView: View {
         if feature("chat") { ChatChannelListView() } else { disabledFeatureView("Chat") }
       case .admin:
         OrgAdminConsoleView()
+      case .teams:
+        CoachTeamsView()
+      case .platform:
+        PlatformAdminDashboardView()
       case .account:
         AccountView()
+      }
+    }
+    .onChange(of: appState.activeOrgAuthorizationKey) { _, _ in
+      if selection == .admin && !appState.canAdminActiveOrg {
+        selection = .players
       }
     }
   }
@@ -98,6 +122,8 @@ struct CoachRootView: View {
         CoachFacilitiesView()
           .tabItem { Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock") }
       }
+      NavigationStack { CoachTeamsView() }
+        .tabItem { Label("Teams", systemImage: "person.3.sequence.fill") }
       if feature("chat") {
         ChatChannelListView()
           .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
@@ -109,6 +135,10 @@ struct CoachRootView: View {
       if appState.canAdminActiveOrg {
         NavigationStack { OrgAdminConsoleView() }
           .tabItem { Label("Org Admin", systemImage: "slider.horizontal.3") }
+      }
+      if appState.isPlatformAdmin {
+        NavigationStack { PlatformAdminDashboardView() }
+          .tabItem { Label("Platform", systemImage: "building.2.crop.circle") }
       }
       NavigationStack { AccountView() }
         .tabItem { Label("Account", systemImage: "gearshape") }

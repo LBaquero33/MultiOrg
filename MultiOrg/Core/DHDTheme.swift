@@ -1,5 +1,42 @@
 import SwiftUI
 
+struct DHDOrgBranding: Equatable {
+  let name: String
+  let shortName: String
+  let primary: Color
+  let secondary: Color
+  let accent: Color
+  let logoURL: URL?
+
+  static let fallback = DHDOrgBranding(
+    name: "MultiOrg",
+    shortName: "MultiOrg",
+    primary: DHDTheme.navy,
+    secondary: DHDTheme.navy2,
+    accent: DHDTheme.accent,
+    logoURL: nil
+  )
+
+  var headerGradient: LinearGradient {
+    LinearGradient(
+      colors: [primary, secondary],
+      startPoint: .topLeading,
+      endPoint: .bottomTrailing
+    )
+  }
+}
+
+private struct DHDOrgBrandingKey: EnvironmentKey {
+  static let defaultValue = DHDOrgBranding.fallback
+}
+
+extension EnvironmentValues {
+  var dhdOrgBranding: DHDOrgBranding {
+    get { self[DHDOrgBrandingKey.self] }
+    set { self[DHDOrgBrandingKey.self] = newValue }
+  }
+}
+
 enum DHDTheme {
   // Brand
   static let navy = Color(red: 0.05, green: 0.14, blue: 0.27)
@@ -101,6 +138,18 @@ enum DHDTheme {
       colors: [navy.opacity(0.95), navy2.opacity(0.92)],
       startPoint: .topLeading,
       endPoint: .bottomTrailing
+    )
+  }
+
+  static func color(hex rawValue: String?, fallback: Color) -> Color {
+    guard let rawValue else { return fallback }
+    let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hex = value.hasPrefix("#") ? String(value.dropFirst()) : value
+    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return fallback }
+    return Color(
+      red: Double((rgb & 0xFF0000) >> 16) / 255,
+      green: Double((rgb & 0x00FF00) >> 8) / 255,
+      blue: Double(rgb & 0x0000FF) / 255
     )
   }
 }

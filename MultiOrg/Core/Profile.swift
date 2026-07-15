@@ -1,6 +1,6 @@
 import Foundation
 
-struct Profile: Identifiable, Decodable, Equatable {
+struct Profile: Identifiable, Decodable, Equatable, Sendable {
   let id: UUID
   let role: String
   let full_name: String?

@@ -19,15 +19,7 @@ enum DHDAppConfig {
     infoString("DHD_SUPPORT_EMAIL")
   }
 
-  static var websiteURL: URL? {
-    guard let raw = infoString("DHD_WEBSITE_HOST") else { return nil }
-    let candidate = raw.lowercased().hasPrefix("http") ? raw : "https://\(raw)"
-    guard let url = URL(string: candidate), url.scheme?.hasPrefix("http") == true, url.host != nil else { return nil }
-    return url
-  }
-
   static var legacyEmailDomain: String {
     infoString("DHD_LEGACY_EMAIL_DOMAIN") ?? "legacy.dhd.local"
   }
 }
-

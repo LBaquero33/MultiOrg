@@ -436,9 +436,9 @@ final class SupabaseService: ObservableObject {
   /// Edge Functions do not automatically refresh the bearer token in every
   /// long-running desktop session. Refresh first, then explicitly install the
   /// current access token so authorized team/admin calls cannot drift into 401.
-  private func invokeAuthenticatedFunction<Response: Decodable>(
+  private func invokeAuthenticatedFunction<Response: Decodable, Body: Encodable>(
     _ name: String,
-    body: [String: String]
+    body: Body
   ) async throws -> Response {
     let session = try await client.auth.session
     client.functions.setAuth(token: session.accessToken)
@@ -452,11 +452,42 @@ final class SupabaseService: ObservableObject {
     let url: String
   }
 
+  private struct StripeConnectOnboardingResponse: Decodable {
+    let url: String
+    let expires_at: Int
+  }
+
+  struct StripeConnectAccountStatus: Decodable, Equatable, Sendable {
+    enum State: String, Decodable, Sendable {
+      case notConnected = "not_connected"
+      case onboardingIncomplete = "onboarding_incomplete"
+      case requirementsDue = "requirements_due"
+      case ready
+      case restricted
+    }
+
+    let status: State
+    let details_submitted: Bool
+    let charges_enabled: Bool
+    let payouts_enabled: Bool
+    let currently_due: [String]
+    let past_due: [String]
+    let eventually_due: [String]
+    let disabled_reason: String?
+    let last_synced_at: String?
+  }
+
   private enum OrgBillingURLError: LocalizedError {
     case invalidHostedURL
+    case invalidConnectURL
 
     var errorDescription: String? {
-      "Home Plate returned an invalid billing link. Please try again."
+      switch self {
+      case .invalidHostedURL:
+        return "Home Plate returned an invalid billing link. Please try again."
+      case .invalidConnectURL:
+        return "Home Plate returned an invalid Stripe setup link. Please try again."
+      }
     }
   }
 
@@ -474,6 +505,27 @@ final class SupabaseService: ObservableObject {
       body: ["org_id": orgId.uuidString]
     )
     return try validatedStripeHostedURL(response.url)
+  }
+
+  func createStripeConnectOnboardingLink(orgId: UUID) async throws -> URL {
+    let response: StripeConnectOnboardingResponse = try await invokeAuthenticatedFunction(
+      "create-stripe-connect-onboarding-link",
+      body: ["org_id": orgId.uuidString]
+    )
+    guard response.expires_at > Int(Date().timeIntervalSince1970),
+          let url = URL(string: response.url),
+          url.scheme?.lowercased() == "https",
+          url.host?.lowercased() == "connect.stripe.com" else {
+      throw OrgBillingURLError.invalidConnectURL
+    }
+    return url
+  }
+
+  func getStripeConnectAccountStatus(orgId: UUID) async throws -> StripeConnectAccountStatus {
+    try await invokeAuthenticatedFunction(
+      "get-stripe-connect-account-status",
+      body: ["org_id": orgId.uuidString]
+    )
   }
 
   private func validatedStripeHostedURL(_ rawValue: String) throws -> URL {
@@ -512,15 +564,14 @@ final class SupabaseService: ObservableObject {
     maxMembers: Int?
   ) async throws -> SDPlatformOrganization {
     struct Response: Decodable { let organization: SDPlatformOrganization }
-    var body: [String: String] = [
-      "action": "create_organization",
-      "name": name,
-      "slug": slug,
-      "plan": plan,
-    ]
-    if let billingEmail { body["billing_email"] = billingEmail }
-    if let maxMembers { body["max_members"] = String(maxMembers) }
-    let response: Response = try await invokeAuthenticatedFunction("platform_admin", body: body)
+    let payload = SDPlatformOrganizationCreatePayload(
+      name: name,
+      slug: slug,
+      plan: plan,
+      billing_email: billingEmail,
+      max_members: maxMembers
+    )
+    let response: Response = try await invokeAuthenticatedFunction("platform_admin", body: payload)
     return response.organization
   }
 
@@ -1203,10 +1254,11 @@ final class SupabaseService: ObservableObject {
       .execute()
   }
 
-  func listMyParentChildLinks() async throws -> [SDParentChildLink] {
+  func listMyParentChildLinks(orgId: UUID) async throws -> [SDParentChildLink] {
     try await client
       .from("sd_parent_child_links")
-      .select("parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
+      .select("org_id,parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
+      .eq("org_id", value: orgId.uuidString)
       .execute()
       .value
   }
@@ -1216,7 +1268,7 @@ final class SupabaseService: ObservableObject {
     let uid = session.user.id
     return try await client
       .from("sd_parent_child_links")
-      .select("parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
+      .select("org_id,parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
       .eq("child_id", value: uid.uuidString)
       .execute()
       .value
@@ -1493,52 +1545,352 @@ final class SupabaseService: ObservableObject {
   func coachListParentLinks(childId: UUID) async throws -> [SDParentChildLink] {
     try await client
       .from("sd_parent_child_links")
-      .select("parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
+      .select("org_id,parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
       .eq("child_id", value: childId.uuidString)
       .execute()
       .value
   }
 
-  // MARK: - Payment requests (manual for now)
+  // MARK: - Internal payment requests (Stripe Payments Phase 1B-1)
 
-  func listMyPaymentRequests(childId: UUID) async throws -> [SDPaymentRequest] {
-    try await client
-      .from("sd_payment_requests")
-      .select("id,payer_id,child_id,status,plan_name,amount_cents,currency,notes,created_at,updated_at")
-      .eq("child_id", value: childId.uuidString)
-      .order("created_at", ascending: false)
-      .execute()
-      .value
-  }
-
-  func createPaymentRequest(childId: UUID, planName: String?, amountCents: Int?, currency: String?, notes: String?) async throws -> SDPaymentRequest {
-    let session = try await client.auth.session
-    let uid = session.user.id
-    struct Insert: Encodable {
-      let payer_id: UUID
-      let child_id: UUID
-      let status: String
-      let plan_name: String?
-      let amount_cents: Int?
-      let currency: String?
-      let notes: String?
+  private func invokePaymentRequestFunction<Response: Decodable, Body: Encodable>(
+    body: Body
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("payment_requests", body: body)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
     }
-    return try await client
-      .from("sd_payment_requests")
-      .insert(Insert(payer_id: uid, child_id: childId, status: "requested", plan_name: planName, amount_cents: amountCents, currency: currency, notes: notes))
-      .select("id,payer_id,child_id,status,plan_name,amount_cents,currency,notes,created_at,updated_at")
-      .single()
-      .execute()
-      .value
   }
 
-  func coachUpdatePaymentRequestStatus(requestId: UUID, status: String) async throws {
-    struct Patch: Encodable { let status: String }
-    _ = try await client
-      .from("sd_payment_requests")
-      .update(Patch(status: status))
-      .eq("id", value: requestId.uuidString)
-      .execute()
+  private nonisolated static func paymentRequestTopLevelJSONKeys(_ data: Data) -> [String] {
+    guard let object = try? JSONSerialization.jsonObject(with: data),
+          let dictionary = object as? [String: Any] else { return [] }
+    return dictionary.keys.sorted()
+  }
+
+  func listEligiblePaymentRequestPlayersResponse(
+    orgId: UUID
+  ) async throws -> SDPaymentRequestEligiblePlayersResponse {
+    let action = "list_eligible_players"
+    let body = ["action": action, "org_id": orgId.uuidString]
+    #if DEBUG
+    print("[PaymentRequestRoster] action_sent=\(action) org_id=\(orgId.uuidString)")
+    #endif
+
+    let session = try await client.auth.session
+    client.functions.setAuth(token: session.accessToken)
+    do {
+      let response: SDPaymentRequestEligiblePlayersResponse = try await client.functions.invoke(
+        "payment_requests",
+        options: FunctionInvokeOptions(body: body),
+        decode: { @Sendable data, httpResponse in
+          let topLevelKeys = Self.paymentRequestTopLevelJSONKeys(data)
+          #if DEBUG
+          print(
+            "[PaymentRequestRoster] org_id=\(orgId.uuidString) "
+              + "http_result=\(httpResponse.statusCode) "
+              + "raw_top_level_json_keys=\(topLevelKeys.joined(separator: ","))"
+          )
+          #endif
+          let decoded = try SDPaymentRequestEligiblePlayersContract.decode(data)
+          #if DEBUG
+          print(
+            "[PaymentRequestRoster] org_id=\(orgId.uuidString) "
+              + "decoded_player_count=\(decoded.players.count)"
+          )
+          #endif
+          return decoded
+        }
+      )
+      return response
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        #if DEBUG
+        let topLevelKeys = Self.paymentRequestTopLevelJSONKeys(data)
+        print(
+          "[PaymentRequestRoster] org_id=\(orgId.uuidString) "
+            + "http_result=\(statusCode) "
+            + "raw_top_level_json_keys=\(topLevelKeys.joined(separator: ","))"
+        )
+        #endif
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        #if DEBUG
+        print("[PaymentRequestRoster] org_id=\(orgId.uuidString) http_result=relay_error")
+        #endif
+        throw error
+      }
+    }
+  }
+
+  func listEligiblePaymentRequestPlayers(
+    orgId: UUID
+  ) async throws -> [SDPaymentRequestEligiblePlayer] {
+    try await listEligiblePaymentRequestPlayersResponse(orgId: orgId).players
+  }
+
+  nonisolated static func paymentRequestListBody(
+    orgId: UUID,
+    playerId: UUID? = nil
+  ) -> [String: String] {
+    var body = [
+      "action": "list",
+      "org_id": orgId.uuidString,
+    ]
+    if let playerId { body["player_id"] = playerId.uuidString.lowercased() }
+    return body
+  }
+
+  func listPaymentRequests(orgId: UUID, playerId: UUID? = nil) async throws -> [SDPaymentRequest] {
+    let body = Self.paymentRequestListBody(orgId: orgId, playerId: playerId)
+    let response: SDPaymentRequestListResponse = try await invokePaymentRequestFunction(body: body)
+    return response.requests
+  }
+
+  func listManagedPaymentRequests(orgId: UUID) async throws -> [SDPaymentRequest] {
+    let response: SDPaymentRequestListResponse = try await invokePaymentRequestFunction(
+      body: [
+        "action": "list_manage",
+        "org_id": orgId.uuidString,
+      ]
+    )
+    return response.requests
+  }
+
+  func createPaymentRequests(
+    payload: SDPaymentRequestCreatePayload
+  ) async throws -> SDPaymentRequestCreateResponse {
+    try await invokePaymentRequestFunction(body: payload)
+  }
+
+  func cancelPaymentRequest(orgId: UUID, requestId: UUID) async throws -> SDPaymentRequest {
+    let response: SDPaymentRequestSingleResponse = try await invokePaymentRequestFunction(
+      body: [
+        "action": "cancel",
+        "org_id": orgId.uuidString,
+        "request_id": requestId.uuidString,
+      ]
+    )
+    return response.request
+  }
+
+  // MARK: - In-app notification center
+
+  private func invokeNotificationCenter<Request: Encodable, Response: Decodable>(
+    _ request: Request
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("notification-center", body: request)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
+  }
+
+  func listNotifications(
+    organizationId: UUID?,
+    unreadOnly: Bool,
+    limit: Int = 20,
+    offset: Int = 0
+  ) async throws -> NotificationListResponse {
+    try await invokeNotificationCenter(NotificationListRequest(
+      organizationId: organizationId,
+      unreadOnly: unreadOnly,
+      limit: limit,
+      offset: offset
+    ))
+  }
+
+  func unreadNotificationCount(
+    organizationId: UUID? = nil
+  ) async throws -> NotificationUnreadCountResponse {
+    try await invokeNotificationCenter(NotificationUnreadCountRequest(
+      organizationId: organizationId
+    ))
+  }
+
+  func markNotificationRead(
+    notificationId: UUID
+  ) async throws -> AppNotification {
+    let response: NotificationSingleResponse = try await invokeNotificationCenter(
+      NotificationMarkReadRequest(notificationId: notificationId)
+    )
+    return response.notification
+  }
+
+  func getNotification(notificationId: UUID) async throws -> AppNotification {
+    let response: NotificationSingleResponse = try await invokeNotificationCenter(
+      NotificationGetRequest(notificationId: notificationId)
+    )
+    return response.notification
+  }
+
+  func registerPushDevice(_ request: PushDeviceRegisterRequest) async throws -> PushDevice {
+    let response: PushDeviceResponse = try await invokeAuthenticatedFunction(
+      "push-device-registration", body: request
+    )
+    return response.device
+  }
+
+  func unregisterPushDevice(_ request: PushDeviceUnregisterRequest) async throws {
+    let _: PushDeviceUnregisterResponse = try await invokeAuthenticatedFunction(
+      "push-device-registration", body: request
+    )
+  }
+
+  func markAllNotificationsRead(
+    organizationId: UUID? = nil
+  ) async throws -> NotificationMarkAllResponse {
+    try await invokeNotificationCenter(NotificationMarkAllReadRequest(
+      organizationId: organizationId
+    ))
+  }
+
+  func createOrganizationAnnouncement(
+    organizationId: UUID,
+    draft: AnnouncementDraft,
+    supportMode: Bool,
+    idempotencyKey: UUID
+  ) async throws -> OrganizationAnnouncementResponse {
+    try await invokeNotificationCenter(OrganizationAnnouncementRequest(
+      organizationId: organizationId,
+      draft: draft,
+      supportMode: supportMode,
+      idempotencyKey: idempotencyKey
+    ))
+  }
+
+  // MARK: - Read-only organization finance dashboard
+
+  private func invokeFinanceDashboard<Request: Encodable, Response: Decodable>(
+    _ request: Request
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("finance-dashboard", body: request)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
+  }
+
+  func financeOverview(
+    orgId: UUID,
+    range: FinanceDateRangeSelection,
+    supportMode: Bool
+  ) async throws -> FinanceOverviewResponse {
+    try await invokeFinanceDashboard(FinanceDashboardRequest(
+      action: "overview",
+      organizationId: orgId,
+      range: range,
+      supportMode: supportMode
+    ))
+  }
+
+  func financeRecentPayments(
+    orgId: UUID,
+    range: FinanceDateRangeSelection,
+    supportMode: Bool
+  ) async throws -> FinanceRecentPaymentsResponse {
+    try await invokeFinanceDashboard(FinanceDashboardRequest(
+      action: "recent_payments",
+      organizationId: orgId,
+      range: range,
+      supportMode: supportMode
+    ))
+  }
+
+  func financePaymentRequests(
+    orgId: UUID,
+    range: FinanceDateRangeSelection,
+    filter: FinancePaymentRequestFilter,
+    supportMode: Bool
+  ) async throws -> FinancePaymentRequestsResponse {
+    try await invokeFinanceDashboard(FinanceDashboardRequest(
+      action: "payment_requests",
+      organizationId: orgId,
+      range: range,
+      filter: filter,
+      supportMode: supportMode
+    ))
+  }
+
+  func financeExpenses(
+    orgId: UUID,
+    range: FinanceDateRangeSelection,
+    supportMode: Bool
+  ) async throws -> FinanceExpensesResponse {
+    try await invokeFinanceDashboard(FinanceDashboardRequest(
+      action: "expenses",
+      organizationId: orgId,
+      range: range,
+      supportMode: supportMode
+    ))
+  }
+
+  func createFinanceExpense(
+    _ request: FinanceExpenseMutationRequest
+  ) async throws -> FinanceExpenseMutationResponse {
+    try await invokeFinanceDashboard(request)
+  }
+
+  func updateFinanceExpense(
+    _ request: FinanceExpenseMutationRequest
+  ) async throws -> FinanceExpenseMutationResponse {
+    try await invokeFinanceDashboard(request)
+  }
+
+  func archiveFinanceExpense(
+    _ request: FinanceExpenseMutationRequest
+  ) async throws -> FinanceExpenseMutationResponse {
+    try await invokeFinanceDashboard(request)
+  }
+
+  func financeRefunds(
+    orgId: UUID,
+    range: FinanceDateRangeSelection,
+    supportMode: Bool
+  ) async throws -> FinanceRefundsResponse {
+    try await invokeFinanceDashboard(FinanceDashboardRequest(
+      action: "refunds",
+      organizationId: orgId,
+      range: range,
+      supportMode: supportMode
+    ))
+  }
+
+  // MARK: - Payment-request Checkout (Stripe Payments Phase 1B-2)
+
+  func createPaymentRequestCheckout(
+    paymentRequestId: UUID
+  ) async throws -> SDPaymentCheckoutResponse {
+    do {
+      return try await invokeAuthenticatedFunction(
+        "create-payment-request-checkout",
+        body: ["payment_request_id": paymentRequestId.uuidString]
+      )
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
   }
 
   // MARK: - SD Program (iOS-native tables)

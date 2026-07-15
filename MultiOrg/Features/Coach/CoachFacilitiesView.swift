@@ -20,9 +20,9 @@ struct CoachFacilitiesView: View {
   @State private var dayBookings: [SDFacilityBooking] = []
   @State private var rangeBookings: [SDFacilityBooking] = []
 
-  @State private var showNew = false
   @State private var editingBooking: SDFacilityBooking?
   @State private var movingBooking: SDFacilityBooking?
+  @State private var bookingActionsInFlight = Set<UUID>()
   @State private var coachOptions: [Profile] = []
   @State private var playerOptions: [Profile] = []
   @State private var dayModal: DayModal?
@@ -60,6 +60,8 @@ struct CoachFacilitiesView: View {
           }
         )
 
+        pendingRequestsCard
+
         Text("Green = approved. Blue = pending. Red = denied/cancelled.")
           .font(.footnote)
           .foregroundStyle(DHDTheme.textSecondary)
@@ -71,34 +73,13 @@ struct CoachFacilitiesView: View {
     .background(DHDTheme.pageBackground)
     .dhdToast($toastText)
     .toolbar {
-      ToolbarItemGroup(placement: .automatic) {
-        Button {
-          showNew = true
-        } label: {
-          Label("New booking", systemImage: "plus")
-        }
+      ToolbarItem(placement: .automatic) {
         Button {
           Task { await reloadAll() }
         } label: {
           Image(systemName: "arrow.clockwise")
         }
       }
-    }
-    .sheet(isPresented: $showNew) {
-      NewFacilityBookingSheet(
-        facilities: facilities,
-        playerOptions: playerOptions,
-        defaultDate: selectedDate,
-        seed: nil,
-        onCreated: {
-          toastText = "Created"
-          Task { await reloadAll() }
-        }
-      )
-      .environmentObject(appState)
-      #if os(macOS)
-      .frame(minWidth: 560, minHeight: 520)
-      #endif
     }
     #if os(macOS)
     .dhdFloatingModal(item: $dayModal, width: 980, height: 760) { modal in
@@ -109,6 +90,7 @@ struct CoachFacilitiesView: View {
         bookings: dayBookings,
         userNameById: profileNameById,
         isLoading: isLoading,
+        bookingActionsInFlight: bookingActionsInFlight,
         onClose: { dayModal = nil },
         createSeed: $createSeed,
         movingBooking: $movingBooking,
@@ -134,6 +116,7 @@ struct CoachFacilitiesView: View {
         bookings: dayBookings,
         userNameById: profileNameById,
         isLoading: isLoading,
+        bookingActionsInFlight: bookingActionsInFlight,
         onClose: { dayModal = nil },
         createSeed: $createSeed,
         movingBooking: $movingBooking,
@@ -197,6 +180,61 @@ struct CoachFacilitiesView: View {
       }
       .foregroundStyle(.white)
     }
+  }
+
+  private var pendingRequestsCard: some View {
+    let pending = rangeBookings
+      .filter { $0.status.lowercased() == "pending" && !$0.is_block }
+      .sorted { $0.start_at < $1.start_at }
+
+    return DHDCard {
+      VStack(alignment: .leading, spacing: 10) {
+        DHDSectionHeader("Pending requests") {
+          DHDStatusBadge(text: "\(pending.count)", color: pending.isEmpty ? .green : .orange)
+        }
+
+        if pending.isEmpty {
+          Label("All booking requests are handled.", systemImage: "checkmark.circle.fill")
+            .foregroundStyle(DHDTheme.textSecondary)
+        } else {
+          ForEach(Array(pending.prefix(8).enumerated()), id: \.element.id) { index, booking in
+            HStack(spacing: 12) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(playerName(for: booking))
+                  .font(.subheadline.weight(.semibold))
+                Text(booking.start_at.formatted(date: .abbreviated, time: .shortened))
+                  .font(.caption)
+                  .foregroundStyle(DHDTheme.textSecondary)
+                Text(facilities.first(where: { $0.id == booking.facility_id })?.name ?? "Facility")
+                  .font(.caption)
+                  .foregroundStyle(DHDTheme.textSecondary)
+              }
+              Spacer()
+              if bookingActionsInFlight.contains(booking.id) {
+                ProgressView().controlSize(.small)
+              } else {
+                Button("Deny", role: .destructive) {
+                  Task { await setStatus(booking, status: "denied") }
+                }
+                .buttonStyle(.bordered)
+                Button("Approve") {
+                  Task { await setStatus(booking, status: "approved") }
+                }
+                .buttonStyle(.borderedProminent)
+              }
+            }
+            if index < min(pending.count, 8) - 1 {
+              Divider().overlay(DHDTheme.separator.opacity(0.3))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func playerName(for booking: SDFacilityBooking) -> String {
+    guard let playerId = booking.player_id else { return "Player request" }
+    return profileNameById[playerId] ?? "Player request"
   }
 
   private func reloadAll() async {
@@ -265,8 +303,17 @@ struct CoachFacilitiesView: View {
 
   private func setStatus(_ booking: SDFacilityBooking, status: String) async {
     guard let supabase = appState.supabase else { return }
+    guard !bookingActionsInFlight.contains(booking.id) else { return }
+    bookingActionsInFlight.insert(booking.id)
+    // Approval/denial is a status-only action. Explicitly clear any stale
+    // create/edit presentation so it can never jump into a creation form.
+    createSeed = nil
+    editingBooking = nil
     isLoading = true
-    defer { isLoading = false }
+    defer {
+      isLoading = false
+      bookingActionsInFlight.remove(booking.id)
+    }
     do {
       _ = try await supabase.updateFacilityBooking(
         id: booking.id,

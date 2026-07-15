@@ -85,16 +85,25 @@ struct NewFacilityBookingSheet: View {
         }
       }
       .navigationTitle("New booking")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
+      .safeAreaInset(edge: .bottom) {
+        HStack(spacing: 12) {
+          Button("Cancel") { dismiss() }
+            .buttonStyle(.bordered)
+          Spacer()
           Button {
             Task { await save() }
           } label: {
-            if isSaving { ProgressView() } else { Text("Create") }
+            if isSaving {
+              ProgressView()
+            } else {
+              Label("Create booking", systemImage: "calendar.badge.plus")
+            }
           }
+          .buttonStyle(.borderedProminent)
           .disabled(isSaving || facilityId == nil || (!isBlock && playerId == nil))
         }
+        .padding(12)
+        .background(.regularMaterial)
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}

@@ -20,24 +20,6 @@ enum AppFlags {
     #endif
   }
 
-  /// DEV ONLY: show entitlement test buttons in Account → Subscription/Access.
-  ///
-  /// This does not involve Stripe or any monetary transaction; it calls the
-  /// `entitlement_test` Edge Function (coach-only).
-  ///
-  /// Set in `Configs/Secrets.xcconfig`:
-  /// `DHD_ENABLE_ENTITLEMENT_TEST = 1`
-  static var enableEntitlementTestUI: Bool {
-    #if !DEBUG
-    return false
-    #else
-    let rawAny = Bundle.main.object(forInfoDictionaryKey: "DHD_ENABLE_ENTITLEMENT_TEST")
-    if let b = rawAny as? Bool { return b }
-    let raw = (rawAny as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-    if raw.isEmpty { return false }
-    return ["1", "true", "yes", "y", "on"].contains(raw)
-    #endif
-  }
 }
 
 @MainActor
@@ -59,6 +41,11 @@ final class AppState: ObservableObject {
   @Published var globalToastText: String?
   @Published var chatLastInsert: SupabaseService.ChatMessageInsert?
   @Published var requestedChatChannelId: UUID?
+  @Published var requestedNotification: AppNotification?
+  @Published private(set) var isPlatformAdmin = false
+
+  let pushNotifications = PushNotificationManager()
+  private let pendingPushNotificationKey = "homePlate.pendingNotificationId"
 
   private(set) var supabase: SupabaseService?
   private var coachListenersStarted = false
@@ -75,19 +62,69 @@ final class AppState: ObservableObject {
       guard let channelId = note.object as? UUID else { return }
       Task { @MainActor in self?.requestedChatChannelId = channelId }
     }
+    NotificationCenter.default.addObserver(
+      forName: .dhdRemoteDeviceToken, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let data = note.object as? Data else { return }
+      Task { @MainActor in await self?.pushNotifications.receiveDeviceToken(data) }
+    }
+    NotificationCenter.default.addObserver(
+      forName: .dhdRemoteRegistrationFailed, object: nil, queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in self?.pushNotifications.receiveRegistrationFailure() }
+    }
+    NotificationCenter.default.addObserver(
+      forName: .dhdOpenRemoteNotification, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let id = note.object as? UUID else { return }
+      Task { @MainActor in await self?.openRemoteNotification(id) }
+    }
   }
 
   var activeOrgMembership: SDOrgMembership? {
-    guard let activeOrgId else { return nil }
-    return myOrgMemberships.first { $0.org_id == activeOrgId }
+    OrganizationAuthorization.activeMembership(
+      userId: myProfile?.id,
+      orgId: activeOrgId,
+      memberships: myOrgMemberships
+    )
   }
 
   var canAdminActiveOrg: Bool {
-    activeOrgMembership?.isStaff == true || myProfile?.isCoach == true
+    activeOrgMembership?.canAdministerOrganization == true
   }
 
   var canStaffActiveOrg: Bool {
-    activeOrgMembership?.isStaff == true || myProfile?.isCoach == true
+    activeOrgMembership?.isStaff == true
+  }
+
+  var activeOrgAuthorizationKey: String {
+    guard let membership = activeOrgMembership else {
+      return "\(activeOrgId?.uuidString.lowercased() ?? "none"):none"
+    }
+    return [
+      membership.org_id.uuidString.lowercased(),
+      membership.user_id.uuidString.lowercased(),
+      membership.normalizedRole,
+      membership.normalizedStatus,
+    ].joined(separator: ":")
+  }
+
+  /// Coaches can browse the organization roster, but an organization may
+  /// restrict mutations to players assigned to the coach's own team.
+  func canManagePlayerOnActiveTeam(_ playerId: UUID) async -> Bool {
+    guard activeOrgSettings?.teamPolicy("restrictCoachActionsToTeam", default: true) != false else { return true }
+    // Organization owners/admins retain full management access. Platform
+    // administration is deliberately separate from organization authority.
+    guard activeOrgMembership?.canAdministerOrganization != true else { return true }
+    guard let supabase, let orgId = activeOrgId, let myId = myProfile?.id else { return false }
+    do {
+      let response = try await supabase.adminListTeams(orgId: orgId)
+      let myTeam = response.members.first(where: { $0.member_id == myId })?.team_id
+      let playerTeam = response.members.first(where: { $0.member_id == playerId })?.team_id
+      return myTeam != nil && myTeam == playerTeam
+    } catch {
+      return false
+    }
   }
 
   private func clearOrgContext() {
@@ -95,6 +132,7 @@ final class AppState: ObservableObject {
     myOrgMemberships = []
     availableOrganizations = []
     activeOrgSettings = nil
+    isPlatformAdmin = false
   }
 
   func bootstrap() async {
@@ -111,10 +149,12 @@ final class AppState: ObservableObject {
     guard let supabase else { return }
     do {
       try await supabase.restoreSessionIfAny()
-      isAuthenticated = true
       await loadMyProfile()
-      await startCoachListenersIfNeeded()
-      await startChatListenerIfNeeded()
+      guard myProfile != nil else {
+        throw LoginBootstrapError.profileUnavailable
+      }
+      isAuthenticated = true
+      startLiveUpdates()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -147,8 +187,7 @@ final class AppState: ObservableObject {
     do {
       myProfile = try await supabase.fetchMyProfile()
       await refreshOrgContext()
-      await startCoachListenersIfNeeded()
-      await startChatListenerIfNeeded()
+      await reconcileOrganizationDirectoryNames()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -166,8 +205,7 @@ final class AppState: ObservableObject {
         try await supabase.ensureMyProfileExists(fullName: nil)
         myProfile = try await supabase.fetchMyProfile()
         await refreshOrgContext()
-        await startCoachListenersIfNeeded()
-        await startChatListenerIfNeeded()
+        await reconcileOrganizationDirectoryNames()
         if myProfile?.isPlayer == true {
           if AppFlags.bypassAccessCheck {
             myEntitlement = nil
@@ -188,6 +226,15 @@ final class AppState: ObservableObject {
         coachListenersStarted = false
       }
     }
+  }
+
+  private func reconcileOrganizationDirectoryNames() async {
+    guard myProfile?.isCoach == true,
+          let supabase,
+          let orgId = activeOrgId else { return }
+    // The authorized directory endpoint repairs legacy profiles whose names
+    // were missing, allowing every roster surface to use a human name.
+    _ = try? await supabase.adminListTeams(orgId: orgId)
   }
 
   func refreshOrgContext() async {
@@ -219,7 +266,14 @@ final class AppState: ObservableObject {
   }
 
   func switchActiveOrganization(to orgId: UUID) async {
-    guard myOrgMemberships.contains(where: { $0.org_id == orgId }) else {
+    // Refresh first so a role/status change in another session cannot leave
+    // authorization cached from the previously selected organization.
+    await refreshOrgContext()
+    guard OrganizationAuthorization.activeMembership(
+      userId: myProfile?.id,
+      orgId: orgId,
+      memberships: myOrgMemberships
+    ) != nil else {
       globalToastText = "You do not have access to that organization."
       return
     }
@@ -255,16 +309,11 @@ final class AppState: ObservableObject {
   }
 
   func refreshOnboarding() async {
-    guard let supabase else { return }
-    do {
-      let session = try await supabase.client.auth.session
-      let uid = session.user.id
-      myOnboarding = try await supabase.fetchOnboarding(playerId: uid)
-      needsOnboarding = (myOnboarding?.completed_at == nil)
-    } catch {
-      myOnboarding = nil
-      needsOnboarding = false
-    }
+    // MultiOrg no longer blocks accounts behind a questionnaire. Keep this
+    // compatibility entry point so older call sites remain harmless.
+    myOnboarding = nil
+    needsOnboarding = false
+    showOnboardingEditor = false
   }
 
   func signIn(email: String, password: String) async {
@@ -276,9 +325,12 @@ final class AppState: ObservableObject {
     }
     do {
       try await supabase.signIn(email: email, password: password)
-      isAuthenticated = true
       await loadMyProfile()
-      await startCoachListenersIfNeeded()
+      guard myProfile != nil else {
+        throw LoginBootstrapError.profileUnavailable
+      }
+      isAuthenticated = true
+      startLiveUpdates()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -311,7 +363,7 @@ final class AppState: ObservableObject {
     }
   }
 
-  func signIn(orgSlug: String, username: String, password: String) async {
+  func signIn(orgSlug: String, identifier: String, password: String) async {
     authError = nil
     profileLoadError = nil
     guard let supabase else {
@@ -319,13 +371,39 @@ final class AppState: ObservableObject {
       return
     }
     do {
-      let resp = try await supabase.orgLogin(orgSlug: orgSlug, username: username, password: password)
-      try await supabase.client.auth.setSession(accessToken: resp.access_token, refreshToken: resp.refresh_token)
-      activeOrgId = resp.active_org_id
-
-      isAuthenticated = true
+      let normalizedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if normalizedIdentifier.contains("@") {
+        // Email identifies the user globally. Authenticate first, then resolve
+        // the organizations that account actually belongs to. This prevents a
+        // valid coach login from failing just because the public picker was
+        // initially pointing at a different organization.
+        try await supabase.signIn(email: normalizedIdentifier, password: password)
+      } else {
+        // Usernames are organization-scoped and must use the selected org.
+        let resp = try await supabase.orgLogin(
+          orgSlug: orgSlug,
+          identifier: normalizedIdentifier,
+          password: password
+        )
+        try await supabase.installSession(accessToken: resp.access_token, refreshToken: resp.refresh_token)
+        activeOrgId = resp.active_org_id
+      }
       await loadMyProfile()
-      await startCoachListenersIfNeeded()
+      guard myProfile != nil else {
+        throw LoginBootstrapError.profileUnavailable
+      }
+
+      // Honor the selected organization when the authenticated account is a
+      // member; otherwise retain the first real active membership selected by
+      // refreshOrgContext().
+      if let selected = availableOrganizations.first(where: {
+        $0.slug.caseInsensitiveCompare(orgSlug) == .orderedSame
+      }), myOrgMemberships.contains(where: { $0.org_id == selected.id }) {
+        activeOrgId = selected.id
+        activeOrgSettings = try await supabase.fetchOrgSettings(orgId: selected.id)
+      }
+      isAuthenticated = true
+      startLiveUpdates()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -341,13 +419,74 @@ final class AppState: ObservableObject {
         needsAccess = false
       }
     } catch {
-      authError = error.localizedDescription
-      isAuthenticated = false
-      myProfile = nil
-      myOnboarding = nil
-      needsOnboarding = false
-      clearOrgContext()
-      coachListenersStarted = false
+      await clearFailedLogin(with: userFacingLoginMessage(for: error))
+    }
+  }
+
+  private enum LoginBootstrapError: LocalizedError {
+    case profileUnavailable
+
+    var errorDescription: String? {
+      switch self {
+      case .profileUnavailable: return "Profile could not be loaded."
+      }
+    }
+  }
+
+  private func clearFailedLogin(with message: String) async {
+    if let supabase {
+      try? await supabase.signOut()
+    }
+    isAuthenticated = false
+    myProfile = nil
+    myOnboarding = nil
+    needsOnboarding = false
+    myEntitlement = nil
+    needsAccess = false
+    clearOrgContext()
+    coachListenersStarted = false
+    chatListenerStarted = false
+    profileLoadError = nil
+    authError = message
+  }
+
+  private func userFacingLoginMessage(for error: Error) -> String {
+    let message = error.localizedDescription.lowercased()
+    if message.contains("invalid_login")
+      || message.contains("invalid credentials")
+      || message.contains("invalid email or password")
+      || message.contains("401")
+      || message.contains("auth session missing")
+      || message.contains("profile could not be loaded") {
+      return "Login credentials are incorrect."
+    }
+    return "We couldn't sign you in right now. Check your connection and try again."
+  }
+
+  /// Notifications and realtime keep the app current, but never belong on the
+  /// blocking path between a valid login and the first usable screen.
+  private func startLiveUpdates() {
+    Task { [weak self] in
+      guard let self else { return }
+      await self.refreshPlatformAdminStatus()
+      await self.startCoachListenersIfNeeded()
+      await self.startChatListenerIfNeeded()
+    }
+  }
+
+  @discardableResult
+  func refreshPlatformAdminStatus() async -> Bool {
+    guard let supabase, isAuthenticated else {
+      isPlatformAdmin = false
+      return false
+    }
+    do {
+      try await supabase.verifyPlatformAdminAccess()
+      isPlatformAdmin = true
+      return true
+    } catch {
+      isPlatformAdmin = false
+      return false
     }
   }
 
@@ -415,7 +554,10 @@ final class AppState: ObservableObject {
         needsOnboarding = false
       }
     } catch {
-      authError = error.localizedDescription
+      let message = error.localizedDescription
+      authError = message.localizedCaseInsensitiveContains("404")
+        ? "The selected organization could not be found. Refresh the organization list and try again."
+        : message
       isAuthenticated = false
       myProfile = nil
       myOnboarding = nil
@@ -513,8 +655,12 @@ final class AppState: ObservableObject {
       _ = try await supabase.client.auth.signInWithIdToken(credentials: creds)
       // Create/update profile (player default).
       try? await supabase.ensureMyProfileExists(fullName: fullName)
-      isAuthenticated = true
       await loadMyProfile()
+      guard myProfile != nil else {
+        throw LoginBootstrapError.profileUnavailable
+      }
+      isAuthenticated = true
+      startLiveUpdates()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -547,6 +693,7 @@ final class AppState: ObservableObject {
     do {
       await supabase.stopFacilityBookingRequestListener()
       await supabase.stopChatMessageListener()
+      await pushNotifications.detachBeforeSignOut()
       try await supabase.signOut()
     } catch {
       authError = error.localizedDescription
@@ -562,6 +709,38 @@ final class AppState: ObservableObject {
     clearOrgContext()
     coachListenersStarted = false
     chatListenerStarted = false
+  }
+
+  func configurePushNotifications() async {
+    if isAuthenticated {
+      await pushNotifications.configure(actorId: myProfile?.id, service: supabase)
+    } else {
+      await pushNotifications.configure(actorId: nil, service: nil)
+    }
+    guard isAuthenticated,
+          let raw = UserDefaults.standard.string(forKey: pendingPushNotificationKey),
+          let id = UUID(uuidString: raw) else { return }
+    await openRemoteNotification(id)
+  }
+
+  private func openRemoteNotification(_ notificationId: UUID) async {
+    guard isAuthenticated, let supabase else {
+      UserDefaults.standard.set(
+        notificationId.uuidString.lowercased(), forKey: pendingPushNotificationKey
+      )
+      return
+    }
+    do {
+      // The push payload contributes only an opaque identifier. The backend
+      // performs recipient ownership checks before any route is accepted.
+      _ = try await supabase.getNotification(notificationId: notificationId)
+      let owned = try await supabase.markNotificationRead(notificationId: notificationId)
+      UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
+      requestedNotification = owned
+    } catch {
+      UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
+      globalToastText = "That notification is no longer available for this account."
+    }
   }
 
   func promoteMeToCoach() async {

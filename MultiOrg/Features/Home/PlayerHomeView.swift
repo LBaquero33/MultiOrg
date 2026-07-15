@@ -64,41 +64,12 @@ struct PlayerHomeView: View {
       }
       if feature("bpAnalysis") {
         SDPlayerAnalysisView()
-          .tabItem { Label("Analysis", systemImage: "chart.area") }
+          .tabItem { Label("Analysis", systemImage: "chart.xyaxis.line") }
       }
       NavigationStack { AccountView() }
         .tabItem { Label("Account", systemImage: "gearshape") }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    #if os(macOS)
-    .sheet(isPresented: Binding(
-      get: { (appState.myProfile?.isPlayer == true) && (appState.needsOnboarding || appState.showOnboardingEditor) },
-      set: { newValue in
-        if !newValue { appState.showOnboardingEditor = false }
-      }
-    )) {
-      OnboardingWizardView(mode: appState.needsOnboarding ? .required : .edit)
-        .environmentObject(appState)
-        .interactiveDismissDisabled(appState.needsOnboarding)
-        .frame(minWidth: 520, minHeight: 520)
-    }
-    #else
-    .fullScreenCover(isPresented: Binding(
-      get: { (appState.myProfile?.isPlayer == true) && (appState.needsOnboarding || appState.showOnboardingEditor) },
-      set: { newValue in
-        if !newValue { appState.showOnboardingEditor = false }
-      }
-    )) {
-      OnboardingWizardView(mode: appState.needsOnboarding ? .required : .edit)
-        .environmentObject(appState)
-        .interactiveDismissDisabled(appState.needsOnboarding)
-    }
-    #endif
-    .task {
-      if appState.myProfile?.isPlayer == true {
-        await appState.refreshOnboarding()
-      }
-    }
 #endif
   }
 

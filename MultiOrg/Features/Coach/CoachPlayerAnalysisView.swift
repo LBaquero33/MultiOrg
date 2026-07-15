@@ -44,6 +44,7 @@ struct BPAnalysisView: View {
           Text("All").tag("all")
           Text("Rapsodo").tag("rapsodo")
           Text("HitTrax").tag("hitrax")
+          Text("TrackMan").tag("trackman")
         }
         .onChange(of: source) { _, _ in Task { await reload() } }
       }
@@ -80,6 +81,12 @@ struct BPAnalysisView: View {
           HistogramChart(values: events.compactMap(\.launch_angle), binCount: 12, xLabel: "°")
             .frame(height: 220)
         }
+        Section("Contact quality") {
+          ContactQualitySummary(events: events)
+        }
+        Section("Ball flight") {
+          BallFlightSummary(events: events)
+        }
         Section("EV vs Launch Angle") {
           ScatterChart(events: events)
             .frame(height: 260)
@@ -90,7 +97,7 @@ struct BPAnalysisView: View {
             Text("Density").tag("density")
           }
           .pickerStyle(.segmented)
-          StrikeZonePlotly(events: events, mode: strikeMode)
+          StrikeZoneChart(events: events, mode: strikeMode)
             .frame(height: 320)
         }
       }
