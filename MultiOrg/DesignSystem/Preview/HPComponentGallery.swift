@@ -26,6 +26,19 @@ struct HPComponentGallery: View {
       HPGalleryBadgesSection()
       HPGalleryMetricsSection()
       HPGalleryStatesSection()
+
+      HPGalleryDivider()
+      HPGalleryProgressSection()
+      HPGalleryStatTilesSection()
+      HPGalleryAvatarsSection()
+      HPGallerySegmentedSection()
+      HPGallerySearchFilterSection()
+      HPGalleryFormSection()
+      HPGalleryTableSection()
+      HPGalleryChartSection()
+      HPGalleryToastSection()
+      HPGalleryModalSection()
+      HPGalleryNavSection()
     }
     .padding(HP.Space.lg)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -333,6 +346,240 @@ private struct HPGalleryStatesSection: View {
         HPCard {
           HPErrorState(message: "We couldn't load the finance overview. Check your connection and try again.") {}
         }
+      }
+    }
+  }
+}
+
+// MARK: - Stage 3B sections
+
+private struct HPGalleryDivider: View {
+  var body: some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Rectangle().fill(HP.Color.borderStrong).frame(height: 1)
+      Text("STAGE 3B COMPONENTS")
+        .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.accent)
+    }
+  }
+}
+
+private struct HPGalleryProgressSection: View {
+  var body: some View {
+    HPGallerySection(title: "Progress") {
+      HPCard {
+        FlowLayout(spacing: HP.Space.lg) {
+          VStack(spacing: 4) { HPProgressIndicator(value: 0.72, style: .ring).frame(width: 56, height: 56); Text("Ring 72%").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+          VStack(spacing: 4) { HPProgressIndicator(style: .ring).frame(width: 56, height: 56); Text("Indeterminate").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+          VStack(spacing: 4) { HPProgressIndicator(style: .spinner); Text("Spinner").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+          VStack(alignment: .leading, spacing: 4) { HPProgressIndicator(value: 0.4, style: .bar).frame(width: 160); Text("Bar 40%").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+}
+
+private struct HPGalleryStatTilesSection: View {
+  var body: some View {
+    HPGallerySection(title: "Stat tiles") {
+      HPCard {
+        VStack(spacing: 0) {
+          HPStatTile(label: "Active players", value: "128", systemImage: "person.3")
+          Divider().overlay(HP.Color.border.opacity(0.5))
+          HPStatTile(label: "Utilization", value: "82%", systemImage: "gauge.medium")
+          Divider().overlay(HP.Color.border.opacity(0.5))
+          HPStatTile(label: "Collection rate", value: "94%", systemImage: "checkmark.seal", valueColor: HP.Color.success)
+        }
+      }
+    }
+  }
+}
+
+private struct HPGalleryAvatarsSection: View {
+  var body: some View {
+    HPGallerySection(title: "Avatars") {
+      HPCard {
+        FlowLayout(spacing: HP.Space.md) {
+          HPAvatar(name: "Jose Alvarez", size: .lg, showsStatus: true)
+          HPAvatar(name: "Maria Chen", size: .md, tint: HP.Color.exampleOrg)
+          HPAvatar(name: "Coach", systemImage: "figure.baseball", size: .md, tint: HP.Color.accent)
+          HPAvatar(name: "Diamond BA", systemImage: "diamond.fill", size: .sm, tint: HP.Color.primaryGlow)
+          HPAvatar(name: "R O", size: .xs)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+}
+
+private struct HPGallerySegmentedSection: View {
+  @State private var range = "12W"
+  var body: some View {
+    HPGallerySection(title: "Segmented control") {
+      HPCard {
+        HPSegmentedControl(
+          options: [("4W", "4 weeks"), ("12W", "12 weeks"), ("1Y", "1 year")],
+          selection: $range
+        )
+      }
+    }
+  }
+}
+
+private struct HPGallerySearchFilterSection: View {
+  @State private var query = ""
+  @State private var active: Set<String> = ["Paid"]
+  var body: some View {
+    HPGallerySection(title: "Search & filters") {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSearchBar(text: $query, placeholder: "Search players or payments")
+          HPFilterBar(pills: HPSample.filterPills, active: $active)
+        }
+      }
+    }
+  }
+}
+
+private struct HPGalleryFormSection: View {
+  @State private var name = "Jose Alvarez"
+  @State private var password = "secret"
+  @State private var notes = ""
+  @State private var amount = 14900
+  var body: some View {
+    HPGallerySection(title: "Form fields & money") {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPFormField(label: "Full name", text: $name, placeholder: "Player name", helper: "As it appears on the roster.")
+          HPFormField(label: "Password", text: $password, kind: .secure)
+          HPFormField(label: "Email", text: .constant("not-an-email"), placeholder: "name@example.com", error: "Enter a valid email address.")
+          HPFormField(label: "Coach notes", text: $notes, kind: .multiline, placeholder: "Optional notes…")
+          HPFormField(label: "Disabled", text: .constant("Read only"), isEnabled: false)
+          HPMoneyField(label: "Payment amount", cents: $amount, helper: "Stored as integer cents.")
+          // Focus presentation (static) — the gold ring appears on focus.
+          VStack(alignment: .leading, spacing: 4) {
+            Text("FOCUSED (RING)").font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking).foregroundStyle(HP.Color.textMuted)
+            Text("name@example.com").font(HP.Font.body).foregroundStyle(HP.Color.text)
+              .padding(.horizontal, HP.Space.sm).padding(.vertical, 10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.input))
+              .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.focusRing, lineWidth: 2))
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct HPGalleryTableSection: View {
+  var body: some View {
+    HPGallerySection(title: "Table (auto: columns → stacked at AX)") {
+      HPTable(columns: HPSample.paymentColumns, rows: HPSample.paymentRows)
+    }
+  }
+}
+
+private struct HPGalleryChartSection: View {
+  var body: some View {
+    HPGallerySection(title: "Charts (native Swift Charts)") {
+      VStack(spacing: HP.Space.sm) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            HPSectionHeader("Exit velo trend")
+            HPChart(points: HPSample.trendPoints, style: .line)
+          }
+        }
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            HPSectionHeader("Revenue by month")
+            HPChart(points: HPSample.revenuePoints, style: .bar)
+          }
+        }
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            HPSectionHeader("Empty chart")
+            HPChart(points: [], style: .line)
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct HPGalleryToastSection: View {
+  @State private var toast: String?
+  var body: some View {
+    HPGallerySection(title: "Toast") {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPToast(text: "Saved.", kind: .success)
+          HPToast(text: "Payment failed.", systemImage: "exclamationmark.triangle.fill", kind: .danger)
+          HPButton(title: "Show toast", variant: .secondary, size: .sm) { toast = "Saved." }
+          Text("Reduced Motion: toast fades instead of sliding.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .hpToast($toast)
+    }
+  }
+}
+
+private struct HPGalleryModalSection: View {
+  @State private var showModal = false
+  @State private var showConfirm = false
+  var body: some View {
+    HPGallerySection(title: "Modal & confirmation") {
+      VStack(spacing: HP.Space.sm) {
+        HPModalContainer(title: "New Expense", onClose: {}) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            Text("Modal surface — sheet on iOS, click-out panel on macOS.")
+              .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+            HStack { Spacer(); HPButton(title: "Save", size: .sm) }
+          }
+        }
+        HPConfirmationDialog(title: "Cancel request?",
+                             message: "This cancels the payment request. This cannot be undone.",
+                             confirmTitle: "Cancel request",
+                             destructive: true)
+        HStack(spacing: HP.Space.sm) {
+          HPButton(title: "Present modal", variant: .secondary, size: .sm) { showModal = true }
+          HPButton(title: "Confirm dialog", variant: .secondary, size: .sm) { showConfirm = true }
+        }
+      }
+      .hpModal(isPresented: $showModal) {
+        HPModalContainer(title: "New Expense", onClose: { showModal = false }) {
+          Text("Live modal content").font(HP.Font.body).foregroundStyle(HP.Color.text)
+        }
+      }
+      .hpModal(isPresented: $showConfirm) {
+        HPConfirmationDialog(title: "Cancel request?", message: "This cannot be undone.",
+                             confirmTitle: "Cancel request", destructive: true,
+                             onConfirm: { showConfirm = false }, onCancel: { showConfirm = false })
+      }
+    }
+  }
+}
+
+private struct HPGalleryNavSection: View {
+  @State private var role: HPRole = .coach
+  @State private var selection: UUID? = nil
+  var body: some View {
+    let groups = HPSample.navGroups(for: role)
+    return HPGallerySection(title: "Sidebar & workspace directory (role/entitlement)") {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSegmentedControl(
+          options: HPRole.allCases.map { ($0, $0.rawValue) },
+          selection: $role
+        )
+        HPSidebar(orgIdentity: HPSample.orgIdentity, role: role, groups: groups, selection: $selection)
+          .frame(height: 380)
+          .clipShape(RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous))
+          .overlay(RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+        Text("Workspace directory (branded 'More')").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        HPWorkspaceDirectory(groups: groups)
       }
     }
   }

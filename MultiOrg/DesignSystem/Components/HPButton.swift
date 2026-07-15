@@ -17,6 +17,8 @@ struct HPButton: View {
   var variant: HPButtonVariant = .primary
   var size: HPButtonSize = .md
   var isLoading: Bool = false
+  /// Stretch to fill available width (used for stacked accessibility actions).
+  var fullWidth: Bool = false
   var action: () -> Void = {}
 
   var body: some View {
@@ -28,12 +30,13 @@ struct HPButton: View {
           Image(systemName: systemImage)
         }
         Text(title)
-          .lineLimit(1)
-          .minimumScaleFactor(0.85)
+          .multilineTextAlignment(.center)
+          .lineLimit(fullWidth ? nil : 2)
+          .minimumScaleFactor(fullWidth ? 1 : 0.85)
       }
       .fixedSize(horizontal: false, vertical: true)
     }
-    .buttonStyle(HPButtonStyle(variant: variant, size: size))
+    .buttonStyle(HPButtonStyle(variant: variant, size: size, fullWidth: fullWidth))
     .disabled(isLoading)
     .accessibilityLabel(title)
     .accessibilityValue(isLoading ? "Loading" : "")
@@ -43,14 +46,17 @@ struct HPButton: View {
 struct HPButtonStyle: ButtonStyle {
   var variant: HPButtonVariant = .primary
   var size: HPButtonSize = .md
+  var fullWidth: Bool = false
   @Environment(\.isEnabled) private var isEnabled
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
       .font(size.font.weight(.semibold))
       .foregroundStyle(foreground)
-      .frame(minHeight: size.minHeight)
+      .multilineTextAlignment(.center)
       .padding(.horizontal, size.hPadding)
+      .padding(.vertical, 6)
+      .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: size.minHeight)
       .background(
         RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
           .fill(background(pressed: configuration.isPressed))

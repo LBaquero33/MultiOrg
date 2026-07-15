@@ -5,47 +5,43 @@ import SwiftUI
 import UIKit
 #endif
 
-/// EVIDENCE-ONLY render harness (Stage 3A). Renders the preview-only
-/// `HPComponentGallery` on the iOS simulator runtime at a standard **393-pt**
-/// iPhone width and captures ordinary **device-viewport windows** (393 × 852 pt)
-/// for top / middle / bottom review — at normal and Dynamic Type accessibility
-/// sizes.
+/// EVIDENCE-ONLY render harness. Renders the preview-only `HPComponentGallery`
+/// on the iOS simulator runtime at iPhone (393 pt), iPad (834 pt), and macOS
+/// (1200 pt) widths, at normal and Dynamic Type accessibility sizes, and slices
+/// each into ordinary **device-viewport windows** (offset + clipped).
 ///
-/// Each viewport is rendered independently (offset + clipped to an 852-pt
-/// window) so the render target stays small. This avoids the CoreGraphics
-/// canvas-size limit that blanks a single very tall image at large Dynamic Type,
-/// and it produces true viewport-sized screenshots rather than one long stitch.
-///
-/// Touches no production screen and exercises no app logic. Safe to delete.
+/// Per-viewport rendering keeps every render target small, which avoids the
+/// CoreGraphics canvas-size limit that blanks a single very tall image. Touches
+/// no production screen and exercises no app logic. Safe to delete.
 @MainActor
 final class HPGalleryRenderTests: XCTestCase {
 
   #if canImport(UIKit)
-  private let width: CGFloat = 393     // standard iPhone logical width
-  private let viewportH: CGFloat = 852 // iPhone logical viewport height
   private let scale: CGFloat = 2
 
   func testRenderGalleryViewports() throws {
     let dir = FileManager.default.temporaryDirectory
-    let specs: [(name: String, dts: DynamicTypeSize)] = [
-      ("normal", .large),
-      ("xl", .accessibility3),
+    struct Spec { let name: String; let width: CGFloat; let dts: DynamicTypeSize; let viewportH: CGFloat }
+    let specs: [Spec] = [
+      Spec(name: "iphone-normal", width: 393,  dts: .large,          viewportH: 852),
+      Spec(name: "iphone-xl",     width: 393,  dts: .accessibility3, viewportH: 852),
+      Spec(name: "ipad",          width: 834,  dts: .large,          viewportH: 1024),
+      Spec(name: "macos",         width: 1200, dts: .large,          viewportH: 800),
     ]
 
     for spec in specs {
       let gallery = HPComponentGallery()
         .environment(\.dynamicTypeSize, spec.dts)
-        .frame(width: width)
+        .frame(width: spec.width)
 
-      // Measure total content height at 393 pt so we know how many viewports.
       let host = UIHostingController(rootView: gallery)
-      let total = host.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
-      let slices = max(1, Int(ceil(total / viewportH)))
+      let total = host.sizeThatFits(in: CGSize(width: spec.width, height: .greatestFiniteMagnitude)).height
+      let slices = max(1, Int(ceil(total / spec.viewportH)))
 
       for i in 0..<slices {
         let window = gallery
-          .offset(y: -CGFloat(i) * viewportH)
-          .frame(width: width, height: viewportH, alignment: .topLeading)
+          .offset(y: -CGFloat(i) * spec.viewportH)
+          .frame(width: spec.width, height: spec.viewportH, alignment: .topLeading)
           .clipped()
           .background(HP.Color.bg)
 
@@ -56,9 +52,7 @@ final class HPGalleryRenderTests: XCTestCase {
           XCTFail("Failed to render \(spec.name) viewport \(i)")
           continue
         }
-        // Each viewport must be exactly 393 × 852 pt (× scale) — horizontal
-        // overflow would clip/show at the 393-pt edge.
-        XCTAssertEqual(cg.width, Int(width * scale), "\(spec.name)-\(i) not 393 pt wide")
+        XCTAssertEqual(cg.width, Int(spec.width * scale), "\(spec.name)-\(i) wrong width")
         writePNG(cg, dir.appendingPathComponent("hp-vp-\(spec.name)-\(i).png"))
       }
       print("HP_VIEWPORTS \(spec.name) totalPt=\(Int(total)) slices=\(slices)")
