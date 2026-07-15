@@ -6,71 +6,130 @@ import UIKit
 #endif
 
 /// EVIDENCE-ONLY, TEST-ONLY render harness for the Finance Overview pilot.
-/// Renders the real Finance content subviews (`FinanceOverviewView`,
-/// `RecentPaymentsView`, `FinancePaymentRequestsView`, `FinanceRefundsView`)
-/// with representative **mock model data** — no network, no `AppState`, not
-/// connected to production navigation. Captures via `layer.render` (these
-/// subviews contain no editable text controls). Safe to delete.
+/// Renders the real Finance content subviews and filter controls with
+/// representative **mock model data** — no network, no `AppState`, not connected
+/// to production navigation. Captures via `layer.render`.
 ///
-/// The same harness compiles against the pre-redesign and post-redesign
-/// subviews (identical initializers), so it produces comparable before/after
-/// content screenshots depending on which `FinanceDashboardView.swift` is built.
+/// Split into several short test methods so each stays well under the per-test
+/// execution timeout (a single all-configs method exceeds it). Safe to delete.
 @MainActor
 final class FinanceRenderTests: XCTestCase {
   #if canImport(UIKit)
-  func testRenderFinance() throws {
-    let dir = FileManager.default.temporaryDirectory
-    struct Spec { let name: String; let width: CGFloat; let dts: DynamicTypeSize; let state: FinanceHarness.State }
-    let specs: [Spec] = [
+  private struct Spec {
+    let name: String
+    let width: CGFloat
+    let dts: DynamicTypeSize
+    let state: FinanceHarness.State
+  }
+
+  func testRenderFinanceLoaded() throws {
+    try render([
       Spec(name: "iphone-loaded",     width: 393,  dts: .large,          state: .loaded),
       Spec(name: "ipad-loaded",       width: 834,  dts: .large,          state: .loaded),
       Spec(name: "macos-loaded",      width: 1200, dts: .large,          state: .loaded),
       Spec(name: "iphone-ax3-loaded", width: 393,  dts: .accessibility3, state: .loaded),
-      Spec(name: "iphone-loading",    width: 393,  dts: .large,          state: .loading),
-      Spec(name: "iphone-empty",      width: 393,  dts: .large,          state: .empty),
-      Spec(name: "iphone-error",      width: 393,  dts: .large,          state: .error),
-      Spec(name: "iphone-refreshing", width: 393,  dts: .large,          state: .refreshing),
-      Spec(name: "iphone-support",    width: 393,  dts: .large,          state: .support),
-    ]
+    ])
+  }
+
+  func testRenderFinanceStates() throws {
+    try render([
+      Spec(name: "iphone-loading",    width: 393, dts: .large, state: .loading),
+      Spec(name: "iphone-empty",      width: 393, dts: .large, state: .empty),
+      Spec(name: "iphone-error",      width: 393, dts: .large,          state: .error),
+      Spec(name: "iphone-ax3-error",  width: 393, dts: .accessibility3, state: .error),
+      Spec(name: "iphone-refreshing", width: 393, dts: .large,          state: .refreshing),
+      Spec(name: "iphone-support",    width: 393, dts: .large,          state: .support),
+    ])
+  }
+
+  func testRenderFinanceControls() throws {
+    try render([
+      Spec(name: "iphone-controls",     width: 393, dts: .large,          state: .controls),
+      Spec(name: "iphone-ax3-controls", width: 393, dts: .accessibility3, state: .controls),
+    ])
+  }
+
+  private func render(_ specs: [Spec]) throws {
+    let dir = FileManager.default.temporaryDirectory
 
     for spec in specs {
-      let view = FinanceHarness(state: spec.state)
-        .environment(\.dynamicTypeSize, spec.dts)
-        .frame(width: spec.width)
-        .background(HP.Color.bg)
-      let host = UIHostingController(rootView: view)
-      host.overrideUserInterfaceStyle = .dark
-      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: spec.width, height: 2000))
-      window.overrideUserInterfaceStyle = .dark
-      window.rootViewController = host
-      window.makeKeyAndVisible()
-      host.view.layoutIfNeeded()
-      RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-      let fitted = host.sizeThatFits(in: CGSize(width: spec.width, height: .greatestFiniteMagnitude))
-      window.frame = CGRect(x: 0, y: 0, width: spec.width, height: ceil(fitted.height))
-      host.view.frame = window.bounds
-      host.view.layoutIfNeeded()
-      RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+      try autoreleasepool {
+        // Accessibility renders are very tall; use 1x there to stay within the
+        // simulator's memory budget when this runs inside the full test suite.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = spec.dts.isAccessibilitySize ? 1 : 2
+        let view = FinanceHarness(state: spec.state)
+          .environment(\.dynamicTypeSize, spec.dts)
+          .frame(width: spec.width)
+          .background(HP.Color.bg)
+        let host = UIHostingController(rootView: view)
+        host.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: spec.width, height: 2000))
+        window.overrideUserInterfaceStyle = .dark
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.layoutIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        let fitted = host.sizeThatFits(in: CGSize(width: spec.width, height: .greatestFiniteMagnitude))
+        window.frame = CGRect(x: 0, y: 0, width: spec.width, height: ceil(fitted.height))
+        host.view.frame = window.bounds
+        host.view.layoutIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.15))
 
-      let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size)
-      let image = renderer.image { ctx in host.view.layer.render(in: ctx.cgContext) }
-      let url = dir.appendingPathComponent("fin-\(spec.name).png")
-      try image.pngData()?.write(to: url)
-      print("FIN_PNG \(url.path) size=\(Int(host.view.bounds.width))x\(Int(host.view.bounds.height))")
+        let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size, format: format)
+        let image = renderer.image { ctx in host.view.layer.render(in: ctx.cgContext) }
+        let url = dir.appendingPathComponent("fin-\(spec.name).png")
+        if let data = image.pngData() { try data.write(to: url) }
+        print("FIN_PNG \(url.path) size=\(Int(host.view.bounds.width))x\(Int(host.view.bounds.height))")
+
+        window.isHidden = true
+        window.rootViewController = nil
+      }
     }
   }
   #else
-  func testRenderFinance() throws { throw XCTSkip("UIKit required") }
+  func testRenderFinanceLoaded() throws { throw XCTSkip("UIKit required") }
   #endif
 }
 
 #if canImport(UIKit)
 /// Test-only host composing the Finance content subviews with mock data.
 struct FinanceHarness: View {
-  enum State { case loaded, loading, empty, error, refreshing, support }
+  enum State { case loaded, loading, empty, error, refreshing, support, controls }
   let state: State
 
   var body: some View {
+    if state == .controls { controls } else { dashboard }
+  }
+
+  // Production Finance filter controls: date-range preset menu (selected),
+  // custom start/end date controls, and the five single-select request pills.
+  private var controls: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      sectionLabel("Date range — selected preset (menu)")
+      FinanceDateRangePicker(selection: .constant(FinanceMock.presetSelection),
+                             serverRange: FinanceMock.range, isLoading: false)
+
+      sectionLabel("Date range — custom start / end")
+      FinanceDateRangePicker(selection: .constant(FinanceMock.customSelection),
+                             serverRange: nil, isLoading: false)
+
+      sectionLabel("Request filter — five single-select pills (Open selected)")
+      FinancePaymentRequestsView(requests: FinanceMock.requests, filter: .constant(.open),
+                                 isLoading: false, onRefresh: {})
+    }
+    .padding(HP.Space.md)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(HP.Color.bg)
+  }
+
+  private func sectionLabel(_ text: String) -> some View {
+    Text(text.uppercased())
+      .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking).foregroundStyle(HP.Color.accent)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private var dashboard: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
       HPWorkspaceHeader("Finance", orgLabel: "Diamond Baseball Academy",
                         context: "2026-07-01 – 2026-07-31") {
@@ -99,10 +158,18 @@ struct FinanceHarness: View {
           }
         }
       }
-      FinanceOverviewView(overview: overview, isLoading: loading, errorMessage: error, onRefresh: {})
-      RecentPaymentsView(payments: payments, isLoading: loading, errorMessage: error, onRefresh: {})
-      FinancePaymentRequestsView(requests: requests, filter: .constant(.all), isLoading: loading, errorMessage: error, onRefresh: {})
-      FinanceRefundsView(refunds: refunds, isLoading: loading, errorMessage: error, onRefresh: {})
+      if state == .error {
+        // One page-level error card (mirrors the production container) — no
+        // per-section error cards are rendered beneath it.
+        HPCard {
+          HPErrorState(message: "The finance service is temporarily unavailable.", onRetry: {})
+        }
+      } else {
+        FinanceOverviewView(overview: overview, isLoading: loading, onRefresh: {})
+        RecentPaymentsView(payments: payments, isLoading: loading, onRefresh: {})
+        FinancePaymentRequestsView(requests: requests, filter: .constant(.all), isLoading: loading, onRefresh: {})
+        FinanceRefundsView(refunds: refunds, isLoading: loading, onRefresh: {})
+      }
     }
     .padding(HP.Space.md)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +177,6 @@ struct FinanceHarness: View {
   }
 
   private var loading: Bool { state == .loading }
-  private var error: String? { state == .error ? "The finance service is temporarily unavailable." : nil }
   private var hasData: Bool { state == .loaded || state == .refreshing || state == .support }
 
   private var overview: FinanceOverview? { hasData ? FinanceMock.overview : nil }
@@ -156,6 +222,21 @@ enum FinanceMock {
     FinanceRefund(id: UUID(), org_id: UUID(), payment_id: UUID(), amount_cents: 6_000,
                   currency: "usd", status: "succeeded", reason: "requested_by_customer", created_at: "2026-07-12"),
   ]
+
+  static var presetSelection: FinanceDateRangeSelection {
+    var selection = FinanceDateRangeSelection()
+    selection.preset = .thisMonth
+    return selection
+  }
+
+  static var customSelection: FinanceDateRangeSelection {
+    var selection = FinanceDateRangeSelection()
+    selection.preset = .custom
+    let calendar = Calendar(identifier: .gregorian)
+    selection.customStart = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)) ?? Date()
+    selection.customEnd = calendar.date(from: DateComponents(year: 2026, month: 7, day: 15)) ?? Date()
+    return selection
+  }
 
   private static func payment(amount: Int, net: Int, status: String, date: String) -> FinanceRecentPayment {
     FinanceRecentPayment(id: UUID(), org_id: UUID(), payment_request_id: nil, player_id: nil, payer_id: nil,

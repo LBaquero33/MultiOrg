@@ -157,6 +157,7 @@
 		B0002413FEC79E1C4ADD9D44 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */; };
 		B009B96DFB03232850EFF28D /* FinanceDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7917B4270BC093E6F9050513 /* FinanceDashboardModels.swift */; };
 		B01E1EDEE67C244C9DD97395 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */; };
+		B032B35D6B1373F741876647 /* FinanceRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */; };
 		B08E261AC973E4E0CE1E2D07 /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */; };
 		B16D18A42A144F0E003541D5 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050DC46A39A2465CF87AFC19 /* Profile.swift */; };
 		B28B52BF0205B6DEDAA5941C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB825EDA00E44810205B264 /* HomeView.swift */; };
@@ -278,6 +279,7 @@
 		219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerOverviewView.swift; sourceTree = "<group>"; };
 		259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardTests.swift; sourceTree = "<group>"; };
 		27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterTests.swift; sourceTree = "<group>"; };
+		2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceRenderTests.swift; sourceTree = "<group>"; };
 		300C5AE13EBE95D3ED6156BA /* SDPlayerTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTodayView.swift; sourceTree = "<group>"; };
 		3047438889BC485953DB801B /* MultiOrgMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MultiOrgMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		363EC27B1804C0306A90F773 /* HPFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormField.swift; sourceTree = "<group>"; };
@@ -661,6 +663,7 @@
 				04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */,
 				7EFA16125BC6D808E78F1B88 /* ExpenseManagementTests.swift */,
 				259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */,
+				2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */,
 				7A3E638DBD12784F5E5239CE /* HPGalleryRenderTests.swift */,
 				ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */,
 				27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */,
@@ -1115,6 +1118,7 @@
 				F1AEA85FB957119567E01349 /* ApplePlayerSubscriptionTests.swift in Sources */,
 				57BA5263E9D2C601F7B65B9F /* ExpenseManagementTests.swift in Sources */,
 				540153518CE9EAADF35A7161 /* FinanceDashboardTests.swift in Sources */,
+				B032B35D6B1373F741876647 /* FinanceRenderTests.swift in Sources */,
 				E09FFC8C3AB90B52368CE889 /* HPGalleryRenderTests.swift in Sources */,
 				0E9C3FDAB0F1795F28160B6B /* HPLiveControlsRenderTests.swift in Sources */,
 				3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */,

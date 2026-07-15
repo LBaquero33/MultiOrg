@@ -60,44 +60,49 @@ struct FinanceDashboardView: View {
         serverRange: viewModel.snapshot?.overview.overview.range,
         isLoading: viewModel.isLoading
       )
-      FinanceOverviewView(
-        overview: viewModel.snapshot?.overview.overview,
-        isLoading: viewModel.isLoading,
-        errorMessage: viewModel.errorMessage,
-        onRefresh: { Task { await refresh() } }
-      )
-      RecentPaymentsView(
-        payments: viewModel.snapshot?.recentPayments.payments,
-        isLoading: viewModel.isLoading,
-        errorMessage: viewModel.errorMessage,
-        onRefresh: { Task { await refresh() } }
-      )
-      FinancePaymentRequestsView(
-        requests: viewModel.snapshot?.paymentRequests.requests,
-        filter: $viewModel.requestFilter,
-        isLoading: viewModel.isLoading,
-        errorMessage: viewModel.errorMessage,
-        onRefresh: { Task { await refresh() } }
-      )
-      // Embedded, UNCHANGED — expense mutation behavior preserved.
-      ExpenseManagementView(
-        organizationId: organizationId,
-        supportMode: platformSupportMode,
-        defaultCurrency: viewModel.snapshot?.overview.overview.currency ?? "usd",
-        expenses: viewModel.snapshot?.expenses.expenses,
-        authorizationSource: viewModel.snapshot?.expenses.authorization_source,
-        isLoading: viewModel.isLoading,
-        errorMessage: viewModel.errorMessage,
-        viewModel: viewModel,
-        service: appState.supabase,
-        onRefresh: { Task { await refresh() } }
-      )
-      FinanceRefundsView(
-        refunds: viewModel.snapshot?.refunds.refunds,
-        isLoading: viewModel.isLoading,
-        errorMessage: viewModel.errorMessage,
-        onRefresh: { Task { await refresh() } }
-      )
+      if let errorMessage = viewModel.errorMessage, viewModel.snapshot == nil {
+        // One page-level error for the single shared global error. Sections are
+        // not rendered here, so the same error is never repeated per section.
+        HPCard {
+          HPErrorState(message: errorMessage, onRetry: { Task { await refresh() } })
+        }
+      } else {
+        FinanceOverviewView(
+          overview: viewModel.snapshot?.overview.overview,
+          isLoading: viewModel.isLoading,
+          onRefresh: { Task { await refresh() } }
+        )
+        RecentPaymentsView(
+          payments: viewModel.snapshot?.recentPayments.payments,
+          isLoading: viewModel.isLoading,
+          onRefresh: { Task { await refresh() } }
+        )
+        FinancePaymentRequestsView(
+          requests: viewModel.snapshot?.paymentRequests.requests,
+          filter: $viewModel.requestFilter,
+          isLoading: viewModel.isLoading,
+          onRefresh: { Task { await refresh() } }
+        )
+        // Embedded, UNCHANGED — expense mutation behavior preserved. Passed a
+        // nil error so the global error is not repeated inside Expenses.
+        ExpenseManagementView(
+          organizationId: organizationId,
+          supportMode: platformSupportMode,
+          defaultCurrency: viewModel.snapshot?.overview.overview.currency ?? "usd",
+          expenses: viewModel.snapshot?.expenses.expenses,
+          authorizationSource: viewModel.snapshot?.expenses.authorization_source,
+          isLoading: viewModel.isLoading,
+          errorMessage: nil,
+          viewModel: viewModel,
+          service: appState.supabase,
+          onRefresh: { Task { await refresh() } }
+        )
+        FinanceRefundsView(
+          refunds: viewModel.snapshot?.refunds.refunds,
+          isLoading: viewModel.isLoading,
+          onRefresh: { Task { await refresh() } }
+        )
+      }
     }
     .padding(embedded ? 0 : HP.Space.md)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -210,7 +215,6 @@ struct FinanceDateRangePicker: View {
 struct FinanceOverviewView: View {
   let overview: FinanceOverview?
   let isLoading: Bool
-  let errorMessage: String?
   let onRefresh: () -> Void
 
   @Environment(\.dynamicTypeSize) private var dts
@@ -227,8 +231,6 @@ struct FinanceOverviewView: View {
         HPSectionHeader("Overview")
         if isLoading, overview == nil {
           HPLoadingState(text: "Loading finance overview…")
-        } else if let errorMessage, overview == nil {
-          HPErrorState(message: errorMessage, onRetry: onRefresh)
         } else if let overview {
           metricGrid(overview)
           feesAndActivity(overview)
@@ -295,7 +297,6 @@ struct FinanceOverviewView: View {
 struct RecentPaymentsView: View {
   let payments: [FinanceRecentPayment]?
   let isLoading: Bool
-  let errorMessage: String?
   let onRefresh: () -> Void
 
   var body: some View {
@@ -304,8 +305,6 @@ struct RecentPaymentsView: View {
         HPSectionHeader("Recent payments")
         if isLoading, payments == nil {
           HPLoadingState(text: "Loading recent payments…")
-        } else if let errorMessage, payments == nil {
-          HPErrorState(message: errorMessage, onRetry: onRefresh)
         } else if let payments, !payments.isEmpty {
           ForEach(Array(payments.enumerated()), id: \.element.id) { index, payment in
             row(payment)
@@ -342,28 +341,19 @@ struct FinancePaymentRequestsView: View {
   let requests: [FinancePaymentRequestItem]?
   @Binding var filter: FinancePaymentRequestFilter
   let isLoading: Bool
-  let errorMessage: String?
   let onRefresh: () -> Void
+
+  @Environment(\.dynamicTypeSize) private var dts
 
   var body: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader("Payment requests")
 
-        ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: HP.Space.sm) {
-            ForEach(FinancePaymentRequestFilter.allCases) { option in
-              HPDataPill(label: option.title, isActive: filter == option)
-                .onTapGesture { filter = option }
-            }
-          }
-          .padding(.vertical, 2)
-        }
+        filterControl
 
         if isLoading, requests == nil {
           HPLoadingState(text: "Loading payment requests…")
-        } else if let errorMessage, requests == nil {
-          HPErrorState(message: errorMessage, onRetry: onRefresh)
         } else if let requests, !requests.isEmpty {
           ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
             row(request)
@@ -378,7 +368,52 @@ struct FinancePaymentRequestsView: View {
     }
   }
 
-  private func row(_ request: FinancePaymentRequestItem) -> some View {
+  // Filter: horizontal scrolling pills at normal sizes; a full-width vertical
+  // selector at accessibility sizes so no pill is clipped offscreen.
+  @ViewBuilder private var filterControl: some View {
+    if dts.isAccessibilitySize {
+      VStack(spacing: 4) {
+        ForEach(FinancePaymentRequestFilter.allCases) { option in
+          Button { filter = option } label: {
+            HStack(spacing: HP.Space.sm) {
+              Text(option.title)
+                .font(HP.Font.callout.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+              Image(systemName: filter == option ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(filter == option ? HP.Color.accent : HP.Color.textMuted)
+            }
+            .padding(.horizontal, HP.Space.sm).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+              .fill(filter == option ? HP.Color.accent.opacity(0.14) : .clear))
+            .foregroundStyle(filter == option ? HP.Color.text : HP.Color.textTertiary)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityAddTraits(filter == option ? [.isButton, .isSelected] : .isButton)
+        }
+      }
+      .padding(4)
+      .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.surfaceRaised))
+      .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+    } else {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: HP.Space.sm) {
+          ForEach(FinancePaymentRequestFilter.allCases) { option in
+            HPDataPill(label: option.title, isActive: filter == option)
+              .onTapGesture { filter = option }
+          }
+        }
+        .padding(.vertical, 2)
+      }
+    }
+  }
+
+  @ViewBuilder private func row(_ request: FinancePaymentRequestItem) -> some View {
+    if dts.isAccessibilitySize { accessibilityRow(request) } else { compactRow(request) }
+  }
+
+  private func compactRow(_ request: FinancePaymentRequestItem) -> some View {
     HStack(alignment: .top, spacing: HP.Space.sm) {
       VStack(alignment: .leading, spacing: 3) {
         Text(request.title).font(HP.Font.headline).foregroundStyle(HP.Color.text)
@@ -399,6 +434,27 @@ struct FinancePaymentRequestsView: View {
     }
     .padding(.vertical, 6)
   }
+
+  // Accessibility sizes: single column — full title, metadata beneath, then the
+  // amount and status on their own rows (money never truncated, dates intact).
+  private func accessibilityRow(_ request: FinancePaymentRequestItem) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(request.title).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Player \(request.child_id.uuidString.lowercased().suffix(6))")
+        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      if let dueDate = request.due_date {
+        Text("Due \(dueDate)").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Text(request.money?.formatted() ?? "Amount unavailable")
+        .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      HPStatusBadge(text: request.status.capitalized, kind: financeStatusKind(request.status))
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 6)
+  }
 }
 
 // MARK: - Refunds (HP-styled rich rows)
@@ -406,7 +462,6 @@ struct FinancePaymentRequestsView: View {
 struct FinanceRefundsView: View {
   let refunds: [FinanceRefund]?
   let isLoading: Bool
-  let errorMessage: String?
   let onRefresh: () -> Void
 
   var body: some View {
@@ -415,8 +470,6 @@ struct FinanceRefundsView: View {
         HPSectionHeader("Refunds")
         if isLoading, refunds == nil {
           HPLoadingState(text: "Loading refunds…")
-        } else if let errorMessage, refunds == nil {
-          HPErrorState(message: errorMessage, onRetry: onRefresh)
         } else if let refunds, !refunds.isEmpty {
           ForEach(Array(refunds.enumerated()), id: \.element.id) { index, refund in
             row(refund)
@@ -460,7 +513,7 @@ private func financeStatusKind(_ status: String) -> HPStatusKind {
   switch status.lowercased() {
   case "succeeded", "paid", "completed": .success
   case "open", "pending": .warning
-  case "failed", "canceled": .danger
+  case "failed", "canceled", "overdue": .danger
   default: .neutral
   }
 }
