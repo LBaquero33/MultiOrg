@@ -49,7 +49,7 @@ struct SDPlayerTodayViewInternal: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
         headerCard
         improvementCard
         programCard
@@ -60,11 +60,11 @@ struct SDPlayerTodayViewInternal: View {
         selfAssessmentCard
         submitCard
       }
-      .padding()
+      .padding(HP.Space.md)
       .frame(maxWidth: .infinity, alignment: .leading)
       .frame(maxHeight: .infinity, alignment: .topLeading)
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .navigationTitle("Today")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
@@ -89,18 +89,7 @@ struct SDPlayerTodayViewInternal: View {
     } message: {
       Text(errorText ?? "")
     }
-    .overlay(alignment: .top) {
-      if let successToast {
-        Text(successToast)
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(.thinMaterial)
-          .clipShape(RoundedRectangle(cornerRadius: 14))
-          .padding(.top, 10)
-          .transition(.opacity)
-      }
-    }
+    .hpToast($successToast)
     .task {
       await reloadAll()
     }
@@ -114,94 +103,99 @@ struct SDPlayerTodayViewInternal: View {
   }
 
   private var headerCard: some View {
-    DHDHeaderCard {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .firstTextBaseline) {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(DateUtils.prettyDateTitle(date))
-              .font(.title3.weight(.semibold))
-            Text("Tap the date to view a different day.")
-              .font(.caption)
-              .foregroundStyle(Color.white.opacity(0.85))
-          }
-          Spacer()
-          HStack(spacing: 8) {
-            DHDStatusPill(text: scheduleContext?.isScheduled == true ? "Scheduled" : "Off day",
-                          color: scheduleContext?.isScheduled == true ? .green : Color.white.opacity(0.9))
-            DHDStatusPill(text: isDaySaved ? "Saved" : "Not logged",
-                          color: isDaySaved ? .green : .orange)
-          }
-        }
-
-        DatePicker("", selection: $date, displayedComponents: .date)
-          .datePickerStyle(.compact)
-          .labelsHidden()
-          .tint(.white)
-          .onChange(of: date) { _, _ in
-            Task { await reloadDay() }
-          }
-
-        if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(Color.white.opacity(0.85)) }
-        }
-
-        if (appState.myProfile?.isCoach == false) {
-          Button("Enable Coach Mode (allowlist)") {
-            Task { await appState.promoteMeToCoach() }
-          }
-          .buttonStyle(.bordered)
-          .tint(.white)
-          .font(.footnote.weight(.semibold))
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HPWorkspaceHeader("Today", context: DateUtils.prettyDateTitle(date)) {
+        HStack(spacing: HP.Space.xs) {
+          HPStatusBadge(text: scheduleContext?.isScheduled == true ? "Scheduled" : "Off day",
+                        kind: scheduleContext?.isScheduled == true ? .success : .neutral)
+          HPStatusBadge(text: isDaySaved ? "Saved" : "Not logged",
+                        kind: isDaySaved ? .success : .warning)
         }
       }
-      .foregroundStyle(.white)
+
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
+            Text("Viewing")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+            DatePicker("", selection: $date, displayedComponents: .date)
+              .datePickerStyle(.compact)
+              .labelsHidden()
+              .tint(HP.Color.accent)
+              .onChange(of: date) { _, _ in
+                Task { await reloadDay() }
+              }
+            Spacer(minLength: 0)
+          }
+
+          Text("Tap the date to view a different day.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+
+          if isLoading {
+            HPLoadingState()
+          }
+
+          if (appState.myProfile?.isCoach == false) {
+            HPButton(title: "Enable Coach Mode (allowlist)", variant: .secondary, size: .sm) {
+              Task { await appState.promoteMeToCoach() }
+            }
+          }
+        }
+      }
     }
   }
 
   private var programCard: some View {
-    DHDCard {
-      DHDSectionHeader("Strength program") {
-        if scheduleContext?.isScheduled == true {
-          ProgressRing(progress: progressFraction())
-            .frame(width: 42, height: 42)
-        } else {
-          EmptyView()
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Strength program") {
+          if scheduleContext?.isScheduled == true {
+            ProgressRing(progress: progressFraction())
+              .frame(width: 44, height: 44)
+          }
         }
-      }
 
-      if assignment != nil, let template {
-        let ctx = scheduleContext
-        Text("Program: \(template.name)")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+        if assignment != nil, let template {
+          let ctx = scheduleContext
+          Text("Program: \(template.name)")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
 
-        if ctx?.isScheduled == true, let w = ctx?.week, let d = ctx?.dayIndex {
-          Text("Scheduled today • Week \(w) Day \(d)")
-            .font(.subheadline.weight(.semibold))
-          Text(progressSubtitle())
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        } else if let next = ctx?.nextLiftDateISO {
-          Text("Not scheduled today • Next lift day: \(next)")
-            .font(.subheadline.weight(.semibold))
+          if ctx?.isScheduled == true, let w = ctx?.week, let d = ctx?.dayIndex {
+            Text("Scheduled today • Week \(w) Day \(d)")
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+            Text(progressSubtitle())
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+          } else if let next = ctx?.nextLiftDateISO {
+            Text("Not scheduled today • Next lift day: \(next)")
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+          } else {
+            Text("No more scheduled lifts in this program.")
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+          }
         } else {
-          Text("No more scheduled lifts in this program.")
-            .font(.subheadline.weight(.semibold))
+          Text("No active program assigned yet.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
         }
-      } else {
-        Text("No active program assigned yet.")
-          .foregroundStyle(.secondary)
       }
     }
   }
 
   private var strengthLoggerCard: some View {
-    DHDCard {
-      DisclosureGroup("Log today’s lifts", isExpanded: $isStrengthExpanded) {
-        VStack(alignment: .leading, spacing: 12) {
+    HPCard {
+      DisclosureGroup(isExpanded: $isStrengthExpanded) {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           if exercises.isEmpty {
             Text("No exercises scheduled for today.")
-              .foregroundStyle(.secondary)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
           } else {
             ForEach(scheduledExercises(), id: \.name) { ex in
               StrengthExerciseLogger(
@@ -220,100 +214,111 @@ struct SDPlayerTodayViewInternal: View {
             }
           }
         }
-        .padding(.top, 10)
+        .padding(.top, HP.Space.sm)
+      } label: {
+        Text("Log today’s lifts")
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
       }
-      .font(.headline)
+      .tint(HP.Color.accent)
     }
   }
 
   private var selfAssessmentCard: some View {
-    DHDCard {
-      DisclosureGroup("Self assessment", isExpanded: $isSelfAssessmentExpanded) {
-        VStack(alignment: .leading, spacing: 12) {
+    HPCard {
+      DisclosureGroup(isExpanded: $isSelfAssessmentExpanded) {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           Toggle("Did I get video today?", isOn: $gotVideo)
           Toggle("Did I eat breakfast?", isOn: $ateBreakfast)
           Toggle("Did I hit my daily goals?", isOn: $hitDailyGoals)
           Toggle("Did I stick to my process?", isOn: $stuckToProcess)
 
-          TextField("Where did I fall short? (optional)", text: $fellShort, axis: .vertical)
-            .textFieldStyle(.roundedBorder)
-          TextField("How did I excel? (optional)", text: $excelled, axis: .vertical)
-            .textFieldStyle(.roundedBorder)
+          HPFormField(label: "Where did I fall short? (optional)", text: $fellShort,
+                      kind: .multiline, placeholder: "Optional")
+          HPFormField(label: "How did I excel? (optional)", text: $excelled,
+                      kind: .multiline, placeholder: "Optional")
 
           if scheduleContext?.isScheduled == true {
-            TextField("Comments (optional)", text: $comments, axis: .vertical)
-              .textFieldStyle(.roundedBorder)
+            HPFormField(label: "Comments (optional)", text: $comments,
+                        kind: .multiline, placeholder: "Optional")
             VStack(alignment: .leading, spacing: 6) {
-              Text("How did you feel? (\(feel))").font(.subheadline.weight(.semibold))
+              Text("How did you feel? (\(feel))")
+                .font(HP.Font.caption.weight(.semibold))
+                .foregroundStyle(HP.Color.textMuted)
               Slider(value: Binding(get: { Double(feel) }, set: { feel = Int($0.rounded()) }), in: 1...10, step: 1)
+                .tint(HP.Color.accent)
             }
           }
         }
-        .padding(.top, 10)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .tint(HP.Color.accent)
+        .padding(.top, HP.Space.sm)
+      } label: {
+        Text("Self assessment")
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
       }
-      .font(.headline)
+      .tint(HP.Color.accent)
     }
   }
 
   private var improvementCard: some View {
-    DHDCard {
-      DHDSectionHeader("Improvement")
-      if let latest = testingEntries.first {
-        let prev = testingEntries.dropFirst().first
-        HStack(spacing: 12) {
-          ImprovementTile(
-            title: "Latest test",
-            value: latest.entry_date,
-            delta: nil
-          )
-          ImprovementTile(
-            title: "Max EV",
-            value: fmt(latest.max_exit_velo),
-            delta: deltaText(latest.max_exit_velo, prev?.max_exit_velo, unit: "mph")
-          )
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Improvement")
+        if let latest = testingEntries.first {
+          let prev = testingEntries.dropFirst().first
+          HStack(spacing: HP.Space.sm) {
+            ImprovementTile(
+              title: "Latest test",
+              value: latest.entry_date,
+              delta: nil
+            )
+            ImprovementTile(
+              title: "Max EV",
+              value: fmt(latest.max_exit_velo),
+              delta: deltaText(latest.max_exit_velo, prev?.max_exit_velo, unit: "mph")
+            )
+          }
+          HStack(spacing: HP.Space.sm) {
+            ImprovementTile(
+              title: "Avg EV",
+              value: fmt(latest.avg_exit_velo),
+              delta: deltaText(latest.avg_exit_velo, prev?.avg_exit_velo, unit: "mph")
+            )
+            ImprovementTile(
+              title: "Strength total",
+              value: fmt(strengthTotal(latest)),
+              delta: deltaText(strengthTotal(latest), prev.flatMap(strengthTotal), unit: "lb")
+            )
+          }
+        } else {
+          Text("Add your first Testing entry to see improvement trends.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
         }
-        HStack(spacing: 12) {
-          ImprovementTile(
-            title: "Avg EV",
-            value: fmt(latest.avg_exit_velo),
-            delta: deltaText(latest.avg_exit_velo, prev?.avg_exit_velo, unit: "mph")
-          )
-          ImprovementTile(
-            title: "Strength total",
-            value: fmt(strengthTotal(latest)),
-            delta: deltaText(strengthTotal(latest), prev.flatMap(strengthTotal), unit: "lb")
-          )
-        }
-      } else {
-        Text("Add your first Testing entry to see improvement trends.")
-          .foregroundStyle(.secondary)
       }
     }
   }
 
   private var submitCard: some View {
-    DHDCard {
-      Button {
-        Task { await submitDay() }
-      } label: {
-        HStack {
-          Spacer()
-          if isSaving { ProgressView() } else { Text("Submit day").font(.headline) }
-          Spacer()
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPButton(title: "Submit day", variant: .primary, size: .lg,
+                 isLoading: isSaving, fullWidth: true) {
+          Task { await submitDay() }
         }
-        .padding(.vertical, 6)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(isSaving)
 
-      if scheduleContext?.isScheduled == true {
-        Text("Submitting saves your self assessment and any lift logs for today.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      } else {
-        Text("Submitting saves your self assessment for today.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        if scheduleContext?.isScheduled == true {
+          Text("Submitting saves your self assessment and any lift logs for today.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        } else {
+          Text("Submitting saves your self assessment for today.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
       }
     }
   }
@@ -574,52 +579,45 @@ struct SDPlayerTodayViewInternal: View {
   }
 }
 
-private struct ProgressRing: View {
+/// Reskinned completion ring — wraps `HPProgressIndicator(.ring)`.
+/// Preserves the `progress` (0...1) input from `progressFraction()`.
+struct ProgressRing: View {
   let progress: Double // 0..1
 
   var body: some View {
-    let p = min(1, max(0, progress))
-    ZStack {
-      Circle()
-        .stroke(Color(.systemGray5), lineWidth: 6)
-      Circle()
-        .trim(from: 0, to: p)
-        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-        .rotationEffect(.degrees(-90))
-      Text("\(Int((p * 100).rounded()))%")
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(.secondary)
-    }
+    HPProgressIndicator(value: min(1, max(0, progress)), style: .ring, lineWidth: 6)
   }
 }
 
-private struct ImprovementTile: View {
+/// Reskinned improvement metric — wraps `HPMetricCard` (context over raw
+/// number). Preserves the `title` / `value` / `delta` inputs; the trend arrow
+/// is derived from the preformatted delta's sign.
+struct ImprovementTile: View {
   let title: String
   let value: String
   let delta: String?
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(title)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.title3.weight(.semibold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-      if let delta, !delta.isEmpty {
-        Text(delta)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(12)
-    .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemBackground)))
+    HPMetricCard(
+      title: title,
+      value: value,
+      delta: (delta?.isEmpty == false) ? delta : nil,
+      trend: trend
+    )
+  }
+
+  private var trend: HPTrendDirection? {
+    guard let delta, !delta.isEmpty else { return nil }
+    if delta.hasPrefix("+") { return .up }
+    if delta.hasPrefix("−") || delta.hasPrefix("-") { return .down }
+    return .flat
   }
 }
 
-private struct StrengthExerciseLogger: View {
+/// Reskinned per-exercise strength logger. Presentation only — the four
+/// `@Binding`s (`weights`, `noWeight`, `setsCompleted`, `notes`) are preserved
+/// exactly; they persist via `submitDay()`.
+struct StrengthExerciseLogger: View {
   let exercise: SDExercise
   @Binding var weights: [String]
   @Binding var noWeight: Bool
@@ -627,51 +625,55 @@ private struct StrengthExerciseLogger: View {
   @Binding var notes: String
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(exercise.name).font(.headline)
-        Text(programLine(exercise)).font(.caption).foregroundStyle(.secondary)
-      }
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(exercise.name)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+          Text(programLine(exercise))
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
 
-      Toggle("No weight (bodyweight/jumps/etc)", isOn: $noWeight)
+        Toggle("No weight (bodyweight/jumps/etc)", isOn: $noWeight)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .tint(HP.Color.accent)
 
-      if noWeight {
-        Stepper("Sets completed: \(setsCompleted)", value: $setsCompleted, in: 0...50)
-      } else {
-        VStack(alignment: .leading, spacing: 10) {
-          ForEach(Array(weights.indices), id: \.self) { idx in
-            HStack {
-              Text("Set \(idx + 1)").frame(width: 60, alignment: .leading).foregroundStyle(.secondary)
-              TextField("Weight", text: Binding(
-                get: { weights[idx] },
-                set: { weights[idx] = $0 }
-              ))
-              .textFieldStyle(.roundedBorder)
-            }
+        if noWeight {
+          Stepper(value: $setsCompleted, in: 0...50) {
+            Text("Sets completed: \(setsCompleted)")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
           }
-          HStack {
-            Button {
-              weights.append("")
-            } label: {
-              Label("Add set", systemImage: "plus")
+        } else {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            ForEach(Array(weights.indices), id: \.self) { idx in
+              HPFormField(
+                label: "Set \(idx + 1) weight",
+                text: Binding(
+                  get: { weights[idx] },
+                  set: { weights[idx] = $0 }
+                ),
+                placeholder: "Weight"
+              )
             }
-            .buttonStyle(.bordered)
-            Button {
-              if !weights.isEmpty { weights.removeLast() }
-            } label: {
-              Label("Remove set", systemImage: "minus")
+            HStack(spacing: HP.Space.sm) {
+              HPButton(title: "Add set", systemImage: "plus", variant: .secondary, size: .sm) {
+                weights.append("")
+              }
+              HPButton(title: "Remove set", systemImage: "minus", variant: .secondary, size: .sm) {
+                if !weights.isEmpty { weights.removeLast() }
+              }
+              .disabled(weights.isEmpty)
             }
-            .buttonStyle(.bordered)
-            .disabled(weights.isEmpty)
           }
         }
-      }
 
-      TextField("Notes (optional)", text: $notes, axis: .vertical)
-        .textFieldStyle(.roundedBorder)
+        HPFormField(label: "Notes (optional)", text: $notes, kind: .multiline, placeholder: "Optional")
+      }
     }
-    .padding(12)
-    .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemBackground)))
   }
 
   private func programLine(_ ex: SDExercise) -> String {
