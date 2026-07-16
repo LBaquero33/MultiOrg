@@ -20,10 +20,13 @@ struct SDPlayerBPDaySection: View {
   @State private var events: [SDBPEvent] = []
 
   var body: some View {
-    DHDCard {
-      DisclosureGroup("Hitting (BP)", isExpanded: $isExpanded) {
-        VStack(alignment: .leading, spacing: 12) {
+    HPCard {
+      DisclosureGroup(isExpanded: $isExpanded) {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           Toggle("Did you take BP today?", isOn: $didBP)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .tint(HP.Color.accent)
             .onChange(of: didBP) { _, newValue in
               if newValue {
                 isExpanded = true
@@ -32,63 +35,76 @@ struct SDPlayerBPDaySection: View {
             }
 
           if didBP {
-            Picker("Reps type", selection: $repsType) {
-              Text("Practice").tag("practice")
-              Text("Game").tag("game")
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Reps type")
+                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: [(value: "practice", label: "Practice"), (value: "game", label: "Game")],
+                selection: $repsType
+              )
+              .onChange(of: repsType) { _, _ in Task { await loadSession() } }
             }
-            .onChange(of: repsType) { _, _ in Task { await loadSession() } }
 
-            Picker("Upload type", selection: $source) {
-              ForEach(BPImportSource.allCases) { importSource in
-                Text(importSource.label).tag(importSource.rawValue)
-              }
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Upload type")
+                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: BPImportSource.allCases.map { (value: $0.rawValue, label: $0.label) },
+                selection: $source
+              )
+              .onChange(of: source) { _, _ in Task { await loadSession() } }
             }
-            .onChange(of: source) { _, _ in Task { await loadSession() } }
 
-            Button {
+            HPButton(title: "Import CSV", systemImage: "square.and.arrow.down",
+                     variant: .secondary, size: .md, isLoading: isWorking) {
               isImporting = true
-            } label: {
-              Label("Import CSV", systemImage: "square.and.arrow.down")
             }
-            .buttonStyle(.borderedProminent)
             .disabled(isWorking)
 
             if isWorking {
-              HStack(spacing: 10) { ProgressView(); Text("Working…").foregroundStyle(.secondary) }
+              HPLoadingState(text: "Working…")
             }
 
             if events.isEmpty {
               Text("No BP pitch events imported yet for this date.")
-                .foregroundStyle(.secondary)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
             } else {
               let evs = events.compactMap(\.exit_velo)
               let maxEV = evs.max() ?? 0
               let avgEV = avg(evs)
               VStack(alignment: .leading, spacing: 4) {
-                Text("Events: \(events.count)").font(.subheadline.weight(.semibold))
-                Text("Max EV: \(fmt(maxEV)) mph • Avg EV: \(fmt(avgEV)) mph")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+                HPStatTile(label: "Events", value: "\(events.count)")
+                HPStatTile(label: "Max EV", value: "\(fmt(maxEV)) mph")
+                HPStatTile(label: "Avg EV", value: "\(fmt(avgEV)) mph")
               }
             }
 
             if !events.isEmpty {
-              Text("First 12 events").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+              Text("First 12 events")
+                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
               ForEach(Array(events.prefix(12))) { e in
                 Text("#\(e.pitch_num ?? 0) • EV \(fmt(e.exit_velo ?? 0)) • LA \(fmt(e.launch_angle ?? 0)) • Dist \(fmt(e.distance ?? 0))")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
               }
             }
           } else {
             Text("BP details stay hidden on off days.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
           }
         }
-        .padding(.top, 10)
+        .padding(.top, HP.Space.sm)
+      } label: {
+        Text("Hitting (BP)")
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
       }
-      .font(.headline)
+      .tint(HP.Color.accent)
     }
     .fileImporter(
       isPresented: $isImporting,
@@ -106,18 +122,7 @@ struct SDPlayerBPDaySection: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .overlay(alignment: .top) {
-      if let toastText {
-        Text(toastText)
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(.thinMaterial)
-          .clipShape(RoundedRectangle(cornerRadius: 14))
-          .padding(.top, 10)
-          .transition(.opacity)
-      }
-    }
+    .hpToast($toastText)
     .task {
       await inferExisting()
     }

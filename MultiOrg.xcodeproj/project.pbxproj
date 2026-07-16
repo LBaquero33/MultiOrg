@@ -7,25 +7,43 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00399E6A2D0B29C4FBC1B366 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D17017DA4336517AD4B2A86 /* HPColor.swift */; };
+		0190AF99E5C9E26EC7471758 /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 771FCB40F211B7ADE1E8887D /* HPMetricCard.swift */; };
 		02BF3F9B5EF7EDEC54F58840 /* MultiOrgApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F2FEC22667209020787CDD /* MultiOrgApp.swift */; };
+		036E0773BDBE113664283A71 /* HPSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B541FD0B7B22E076FB0FCA1 /* HPSidebar.swift */; };
 		05225F93A9505CC58FF86485 /* CalendarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9196E63687758A17CD3AEC6F /* CalendarComponents.swift */; };
 		05EDAEDFF4A47736C006803D /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D237F484753CFC6B40445 /* FinanceDashboardView.swift */; };
 		06CD276A453C57B82A57C6A8 /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C134729AD9182B9A792C9DFE /* PlatformAdminDashboardView.swift */; };
 		07F24F24A0D00805611D0FB1 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9288C396D7D5B23756F5382E /* AppState.swift */; };
 		08C6D9F204A7D34B707CC282 /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFC3F1CAEE6C5617EB703AB /* PaymentRequestCard.swift */; };
+		0A0E15C3B9951A9436741929 /* HPProgramExecutionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C952835271F53AE1AD88FC4 /* HPProgramExecutionTemplate.swift */; };
 		0B4F5B3E656911795094F327 /* SDPlayerTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784182375E1DE20720A333BF /* SDPlayerTrendsView.swift */; };
 		0BCC16FE1F6FCA2A76001F2A /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19997407DA62C2D66E71D81F /* DHDMonthGridView.swift */; };
 		0CE51730DAF66C6B7221DB4F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2D344B2DA890D8F660AB44 /* AccountView.swift */; };
 		0E20146D76E5E441BCFE796A /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9933F34E28B54CD46F0DD482 /* PlayerDevelopmentImportModels.swift */; };
+		0E9C3FDAB0F1795F28160B6B /* HPLiveControlsRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */; };
 		0F1CA9E210120251B29A39A0 /* CoachPlayerTestingCRUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687883365CB16724A39F0DC5 /* CoachPlayerTestingCRUDView.swift */; };
+		103340F771E92001AED44470 /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7566BB173B672687DB2E7C /* HPAnalyticsScreenTemplate.swift */; };
+		11280B01FBF5CF380B115E13 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */; };
 		1193B96C7083BE4486E0552B /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C548457F3D672402508357C2 /* CoachRootView.swift */; };
+		123A22417E221354B4FE5E5B /* HPButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2084806F140885563D532A8E /* HPButton.swift */; };
+		13046AE033D1BAE7D3F49D10 /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0B791CE3A319D180685AD4 /* HPAdminScreenTemplate.swift */; };
+		13314D4D0905B26085D1AA78 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F294EE15273BCB9FA728670 /* HPSampleData.swift */; };
 		13D00D4CAD6078C8B3A89894 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */; };
+		153511CC084F8B85418B5C38 /* HPCommunicationScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016471533F76BFD41337D83E /* HPCommunicationScreenTemplate.swift */; };
+		1586CEE9F1D110D436301152 /* HPTemplateGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB927404525A6608D6CC5EF /* HPTemplateGallery.swift */; };
+		18EF9522EE08C9AB80DFA9D7 /* HPModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */; };
 		1A00AC53BF05B31826D61C7B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 531147FE95E6FC7910099D17 /* LaunchScreen.storyboard */; };
 		1A5FAAD832868C935AB335B5 /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */; };
 		1C9A838B6E6749C47B6BB9B3 /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1394ABFD7D898E955BC2002 /* CoachHomeView.swift */; };
+		1E2E9C30930F33F31CDE6E92 /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8B8F485A9EC3ED7D312FE8 /* HPProgressIndicator.swift */; };
 		209B2482BB2E2ADD6354C1C9 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */; };
 		209FB48C32106FB765210A14 /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C660267821C1DCF495CB6E6A /* ProgramDayEditorSheet.swift */; };
+		20DBCD1BA06D2FD7132978DB /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F121DF422B3EA392D5342D4C /* HPLoadingState.swift */; };
+		213D16700E1A90F443FCFD8C /* HPStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */; };
+		21F7023CEA9A2FDF56B56ECC /* HPTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50658B999D42BC28F93EB1F7 /* HPTable.swift */; };
 		24A9823A6A5AC2F8E7526220 /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A4E1079E0605186D421B80 /* CSV.swift */; };
+		262483B786DC304B332B6D89 /* HPWorkspaceDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6940B2BE1FF91C3798EBD504 /* HPWorkspaceDirectory.swift */; };
 		2702BB457FC44716ED93C5B1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 65113244A2524780C997F8DB /* Assets.xcassets */; };
 		2717523DA787EBF6F5F6A9B0 /* SDPlayerTestingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14821E17D9E1E0304EFF7715 /* SDPlayerTestingView.swift */; };
 		27FC20F73FD213641E9624EA /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D572A66CB4CA356ABAC265 /* PaymentCheckoutModels.swift */; };
@@ -33,74 +51,119 @@
 		2AF357AAAEBE7EB2B7C29B39 /* NewFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7244FD3221181B77E2162F7 /* NewFacilityBookingSheet.swift */; };
 		2B71AE90CA5EF8ECF17B1D6B /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F19D3871690DB6531B4187B /* NotificationCenterViewModel.swift */; };
 		2B8B243C9D4C2A283EDA0208 /* PlayerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */; };
+		2E4E65F72EA262D1EC283A83 /* HPSettingsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485CF95B8B06185071869EEB /* HPSettingsScreenTemplate.swift */; };
 		2EB84A8DF55E4C9429412DA6 /* CoachFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211EA5470546353B5474CC64 /* CoachFacilitiesView.swift */; };
 		2ECA66BBFC05B5DCAB2EEB00 /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 540B4F7EA5E3696953AE96F1 /* CoachPlayerDailyLogsView.swift */; };
 		2ED6B3DB88D5C9A3A1674396 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A980B4434AE15B0118E411DC /* ChatModels.swift */; };
+		2F6625D611E56C698111A2BD /* HPChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2EDAD7B9A71C054F4963BE2 /* HPChart.swift */; };
 		2FC99A86E5846BBE49D14D86 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D659C3B9742EE31020125B7 /* LoginView.swift */; };
 		2FF4E9FBDA4A40E392A7DEC8 /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA19017054A973F061AFF997 /* PlotlyChartView.swift */; };
 		3084E34700D65938A759DFB5 /* NewFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7244FD3221181B77E2162F7 /* NewFacilityBookingSheet.swift */; };
+		3184297D54D7BC17650D54CA /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0B791CE3A319D180685AD4 /* HPAdminScreenTemplate.swift */; };
+		332118B1278C83E5C5BFA26F /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401BBBC3896F4AEB73944621 /* HPFilterBar.swift */; };
+		332A1A28D9CDEB79FCC8C218 /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E27AA6116E6C83E10847309 /* HPMetrics.swift */; };
+		34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */; };
 		34E2FAC854814C847C57AD40 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3785F08E82E60961768F2DBD /* NotificationCenterModels.swift */; };
 		34F84830AABD4055FEE17700 /* PlayerDevelopmentCopilotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */; };
 		358DA85769EF6644E0E54536 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */; };
+		358F7408ACF4837F7B5D64DA /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */; };
 		35C66F5103C8796F59E74262 /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3A1FBB634A62BDCF562698 /* PlayerDevelopmentImportView.swift */; };
+		36270AF86256424A535674D9 /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0D9C3433EF2875117C9010 /* HPSearchBar.swift */; };
+		369334119C74E7B2D8068908 /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401BBBC3896F4AEB73944621 /* HPFilterBar.swift */; };
 		3727998F2746AA4E46A73C9E /* CoachPlayerTestingCRUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687883365CB16724A39F0DC5 /* CoachPlayerTestingCRUDView.swift */; };
+		386A3389733D2DE9E1DB603B /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0D9C3433EF2875117C9010 /* HPSearchBar.swift */; };
 		3B64089BEB177CED1FC78D79 /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D237F484753CFC6B40445 /* FinanceDashboardView.swift */; };
+		3C7CA19396E3D19C3168BAA0 /* HPToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A650F6738EB0ABFB970FD3B8 /* HPToast.swift */; };
 		3CA5DDFBBFEFFCF6E466FBDB /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCC64E61B1D1383410C7A32 /* PushNotificationManager.swift */; };
 		3D447915C2D58B526B06F259 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 944769B7C2760AED9CC3136D /* Supabase */; };
 		3F25EA2DAEA6E3AC92D04EEB /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78419895C8DC111FE881785D /* ConfigErrorView.swift */; };
 		3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */; };
+		3F6890FF003ECD0247856E43 /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F2688A4FDCB978B912E378 /* HPWorkspaceHeader.swift */; };
+		4178A2F18C11FDD9C4BDD752 /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 771FCB40F211B7ADE1E8887D /* HPMetricCard.swift */; };
 		426F959E19044B0BB1C6B596 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCC64E61B1D1383410C7A32 /* PushNotificationManager.swift */; };
 		43388DB9F202D91796CA8729 /* OrganizationAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */; };
+		45E5AEFE85424031202E888B /* HPTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50658B999D42BC28F93EB1F7 /* HPTable.swift */; };
+		479E3AFBF36BEB5B4F612E04 /* HPTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA8C2A3E09D61A986587C16 /* HPTheme.swift */; };
 		4A75BA34E29B8AFC4E135E98 /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19997407DA62C2D66E71D81F /* DHDMonthGridView.swift */; };
+		4B1767250810171DECE12988 /* HPStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */; };
 		4B935C8BFDAF26614C3AD865 /* CoachTeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE18C338522894B10642A00F /* CoachTeamsView.swift */; };
+		4BF428CFA2BF90A4843586D2 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F294EE15273BCB9FA728670 /* HPSampleData.swift */; };
+		527850E0F1C6D75F968AC6ED /* HPErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D3DC219AAF3DF93C6101F0 /* HPErrorState.swift */; };
 		529CD575F9D330B99C3EB1C1 /* TwoAxisScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A09BC4C336AD5F07763B87DF /* TwoAxisScrollView.swift */; };
 		531CCE9F78E2B1C1F9BD636E /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */; };
 		5393C83F0C5B495908698633 /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D572A66CB4CA356ABAC265 /* PaymentCheckoutModels.swift */; };
 		540153518CE9EAADF35A7161 /* FinanceDashboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */; };
 		5429F8414C131136B0176E78 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A4E4936E3FE140EC9300A6 /* PlayerDevelopmentAIView.swift */; };
+		54A69743DC816CDC1AC1BF99 /* HPCalendarScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98592C450E4102948D8E3328 /* HPCalendarScreenTemplate.swift */; };
 		5526ECEF92406FD36EB18105 /* AccessRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8040C5F9126ECB854715C25 /* AccessRequiredView.swift */; };
 		55D43CD2E3897D2648FC2578 /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF961C0BCFF4A7EE9BEBB1 /* FacilitiesDayTimelineView.swift */; };
+		561C0B19B35D4008188C0FA3 /* HPDetailScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72641B0B40640537D5579D13 /* HPDetailScreenTemplate.swift */; };
 		5799D437075F062CEE5878F2 /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC52F39057A42F264AD2EB8 /* ParentRequestPanels.swift */; };
 		57BA5263E9D2C601F7B65B9F /* ExpenseManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFA16125BC6D808E78F1B88 /* ExpenseManagementTests.swift */; };
+		57FF02421C19D563017AE8F6 /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97A66D8EC94E3560651CDBE /* HPAvatar.swift */; };
+		594A8EC5EFCE0B99B3112BE1 /* HPCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE32F77DCF9F39A132690AEE /* HPCard.swift */; };
 		5DB17F2A5CEC9D54AEF5BC54 /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066344F12892B67645F0CE3A /* FacilityDaySheet.swift */; };
 		5EAF1C60ABFD8634DBBDF1B8 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */; };
 		5F1096A7F46AB4FCAE45F6CA /* HomePlatePlayerAccess.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 7B5B86A98199CF67801F1A2F /* HomePlatePlayerAccess.storekit */; };
+		5FDCED338834ABFDFB441F2C /* HPSettingsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485CF95B8B06185071869EEB /* HPSettingsScreenTemplate.swift */; };
+		620EBAD6BD0B18AAC416046A /* HPCalendarScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98592C450E4102948D8E3328 /* HPCalendarScreenTemplate.swift */; };
 		62EF6D4D0BA1D2E486F49A75 /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA19017054A973F061AFF997 /* PlotlyChartView.swift */; };
 		6390B0D4B0F77D6523D9F887 /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B916688FF0F5F52935CC13 /* SDModels.swift */; };
 		66D07D409E4135DDB957363D /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2D344B2DA890D8F660AB44 /* AccountView.swift */; };
+		67E3F3209E0BFD80204BFD78 /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76741B0D97A4E4103926EAB9 /* HPSectionHeader.swift */; };
+		68500DB5A92BD11E1FEFC67F /* HPListScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4231112B8B0894349252B0E /* HPListScreenTemplate.swift */; };
+		6ADBF22707D224C0BF2305A6 /* HPListScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4231112B8B0894349252B0E /* HPListScreenTemplate.swift */; };
 		6AE5450AC5464AF24F6F224A /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390478B5296E9E4862625480 /* OrgModels.swift */; };
 		6AE7DCF51549F33EFB6B0055 /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91162C66B074AD1C2DD9AD6F /* CoachPlayerProfileView.swift */; };
 		6B5CA8860B20BD49C2A01142 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A4E4936E3FE140EC9300A6 /* PlayerDevelopmentAIView.swift */; };
 		6CC70D6C3EAE9AE138142337 /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81072AE4EDB470AF9B158FE3 /* DHDAppConfig.swift */; };
 		6E8B6F62EFAF517C6BA8338F /* SDPlayerBPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86290C30C6D11C0883C0E350 /* SDPlayerBPView.swift */; };
+		6EA88963CBADD92273E7667F /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F121DF422B3EA392D5342D4C /* HPLoadingState.swift */; };
 		6F18D8663BA9EC472086D35C /* SDPlayerBPDaySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D72670F615C77DE93FC22D /* SDPlayerBPDaySection.swift */; };
 		6F5C962B1EB3D8CDA29C857E /* PaymentCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */; };
+		715E08D3C599889511F4F62E /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */; };
 		723E91DB2EA612B68BA38431 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */; };
 		748508D3DA8E3D7376A5AB94 /* CoachPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A188FDE80381391940586A4 /* CoachPlayerCalendarView.swift */; };
+		751F19A896709E6CADCFFBF6 /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */; };
 		7527206DFCBAC4F512DBAC22 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050DC46A39A2465CF87AFC19 /* Profile.swift */; };
 		7650B420F95F2FB796794E7B /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD18786FB5BE627092918ABF /* NotificationCenterView.swift */; };
+		7674FD25F5E3FEE6EC01B7FD /* HPModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */; };
 		769A800CFA93D465582D95E0 /* apple_player_purchase_context_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = FB32DCB8F2D6452C3ECF4687 /* apple_player_purchase_context_vectors.json */; };
+		76A7BED540A0273576C3E391 /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0024501F6DBDB8A551AE6E10 /* HPSegmentedControl.swift */; };
+		778F1267F4E0D781B9127F9D /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453F7E119A9C4743C4183016 /* HPEmptyState.swift */; };
 		77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */; };
 		788B39ED739CDA6EE583C7F9 /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C548457F3D672402508357C2 /* CoachRootView.swift */; };
+		790C675CD9EE1F788F11AC30 /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F2688A4FDCB978B912E378 /* HPWorkspaceHeader.swift */; };
 		797D7F570E4286C53276BB69 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */; };
 		7C09AA484D8691BC51DC03A8 /* FinanceDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA262C76E042D79F8AC20CE5 /* FinanceDashboardViewModel.swift */; };
 		7D224150B1E10C4ED2E52B5B /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */; };
 		7DA5D27A706E0DEBD5B7E2C6 /* SDPlayerTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300C5AE13EBE95D3ED6156BA /* SDPlayerTodayView.swift */; };
 		7EB374B248F91EE90CD033EB /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3785F08E82E60961768F2DBD /* NotificationCenterModels.swift */; };
 		7F5835685E8215EB973B0812 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */; };
+		8045B166A4E45D169A00A24A /* HPProgramExecutionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C952835271F53AE1AD88FC4 /* HPProgramExecutionTemplate.swift */; };
 		80467F896FB637134B766113 /* SDPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673E98DA486024FE1B4D92C /* SDPlayerCalendarView.swift */; };
 		80C0CA01294BBEA1561783B4 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A980B4434AE15B0118E411DC /* ChatModels.swift */; };
+		8360694514D8F2930B457117 /* HPTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA8C2A3E09D61A986587C16 /* HPTheme.swift */; };
 		84EC81260684A3C6FCB92549 /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2DEEEEF5864F2348CBC7E /* AppleSignInButtonView.swift */; };
 		857CF155C63DE5BA65F27854 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DAF049C54B9ED0C40F1A2C /* SupabaseService.swift */; };
 		871F75D08CD4348C54D18D2C /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */; };
+		88B46A927489B9FAF57095D0 /* HPChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2EDAD7B9A71C054F4963BE2 /* HPChart.swift */; };
 		893FB0282E9B938EC4AC436B /* CoachFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211EA5470546353B5474CC64 /* CoachFacilitiesView.swift */; };
 		89F20D7E7BE889C9D60A1CAE /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91162C66B074AD1C2DD9AD6F /* CoachPlayerProfileView.swift */; };
 		89F9B24A6C3B7E88861E8BD9 /* DHDUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A1EFEA8FD5CB17BFE9DD76 /* DHDUIComponents.swift */; };
 		8C81665A6FCBF61F6D5133AF /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C134729AD9182B9A792C9DFE /* PlatformAdminDashboardView.swift */; };
+		8DC1D7948DC3B0051300ECBC /* HPWorkspaceDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6940B2BE1FF91C3798EBD504 /* HPWorkspaceDirectory.swift */; };
+		8DCC905844A2DB92D3E91226 /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */; };
 		8DDD5440A8F6E7AD646485BA /* ParentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1752B2C944B62272867F8B21 /* ParentHomeView.swift */; };
 		8E3A377D465E458240A7AD4F /* OrgAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05006A2A787F69671DF9B59A /* OrgAdminConsoleView.swift */; };
+		8F50749556F9F6B239B595A4 /* HPButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2084806F140885563D532A8E /* HPButton.swift */; };
+		90BB8D4FFD1FE2C3F629302A /* HPMoneyField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CE22DD59FDABFE94297E2DE /* HPMoneyField.swift */; };
 		932BBE106CAF003F2A8B4707 /* MultiOrgApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F2FEC22667209020787CDD /* MultiOrgApp.swift */; };
 		9410F4513C85C0C4201906EE /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3A1FBB634A62BDCF562698 /* PlayerDevelopmentImportView.swift */; };
+		9415429A80B2F94077FDC522 /* HPCommunicationScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016471533F76BFD41337D83E /* HPCommunicationScreenTemplate.swift */; };
+		94D38699A658F0D7D26ABF5B /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453F7E119A9C4743C4183016 /* HPEmptyState.swift */; };
+		96DC30B94711672062111BE6 /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7566BB173B672687DB2E7C /* HPAnalyticsScreenTemplate.swift */; };
+		9848FAAFD291E636FAAB8E48 /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0024501F6DBDB8A551AE6E10 /* HPSegmentedControl.swift */; };
 		9AAD69491179056E788032D3 /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3367AB242E1E4C500D552A /* CoachPlayerBPSessionsView.swift */; };
 		9CFC4CC6DAE7AB959EC627A4 /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143A56D3046D51AF57099911 /* PlayerDevelopmentPlayerWorkspaceView.swift */; };
 		9DA1B7A72E7DA4C2B18EDE43 /* DHDUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A1EFEA8FD5CB17BFE9DD76 /* DHDUIComponents.swift */; };
@@ -113,6 +176,7 @@
 		A2344ABBAC9A6154F33F8BB1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DAF049C54B9ED0C40F1A2C /* SupabaseService.swift */; };
 		A3E63464701281ED48CF7A5F /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6F0A65781F4C194EF4EF89 /* PlayerDevelopmentCopilotView.swift */; };
 		A4C0B97BB37C7798E2C7C938 /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F19D3871690DB6531B4187B /* NotificationCenterViewModel.swift */; };
+		A67E8F94B7E6F253CF483692 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D17017DA4336517AD4B2A86 /* HPColor.swift */; };
 		A70A8E385881CCFD2FC245F2 /* SDPlayerProgramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D63293D8904B20D140E46E /* SDPlayerProgramView.swift */; };
 		A85FB62FA090CE66409C889D /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */; };
 		AB2AC368E22787E8981A4C3C /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */; };
@@ -121,8 +185,12 @@
 		B0002413FEC79E1C4ADD9D44 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */; };
 		B009B96DFB03232850EFF28D /* FinanceDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7917B4270BC093E6F9050513 /* FinanceDashboardModels.swift */; };
 		B01E1EDEE67C244C9DD97395 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */; };
+		B032B35D6B1373F741876647 /* FinanceRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */; };
+		B08E261AC973E4E0CE1E2D07 /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */; };
+		B10FFBDD094448847ABA6455 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */; };
 		B16D18A42A144F0E003541D5 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050DC46A39A2465CF87AFC19 /* Profile.swift */; };
 		B28B52BF0205B6DEDAA5941C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB825EDA00E44810205B264 /* HomeView.swift */; };
+		B314AD1FA0237175B3F9FB14 /* HPSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B541FD0B7B22E076FB0FCA1 /* HPSidebar.swift */; };
 		B388EA3A8F102FBA3B45A563 /* SDParentBillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6A9D5D611D4B9E904F9AC1 /* SDParentBillingView.swift */; };
 		B48F6E569FE859BD04725311 /* ChatChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EF8A63526DD5598C55B8DB /* ChatChannelListView.swift */; };
 		B4AD8272B5DE7ABA8D16659E /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D38AFB3538DFF5C99C236 /* CoachProgramsView.swift */; };
@@ -130,25 +198,34 @@
 		B6065ACC8E529CF2BB684F90 /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D234A0190915CD5FF86744A9 /* PushNotificationModels.swift */; };
 		B77BA1DB6FA7B7ACEAFEBCFA /* PlayerDevelopmentCopilotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7F999FDB957D62A6E2DF4B /* PlayerDevelopmentCopilotModels.swift */; };
 		B89C03246BD9B138CD2C8C86 /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143A56D3046D51AF57099911 /* PlayerDevelopmentPlayerWorkspaceView.swift */; };
+		BA046DA989AC32C05FBD8949 /* HPFormField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363EC27B1804C0306A90F773 /* HPFormField.swift */; };
 		BA0F4F1DDA7CE6F4B1A0C617 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */; };
+		BA23F3BE5FB310738177A8AE /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8B8F485A9EC3ED7D312FE8 /* HPProgressIndicator.swift */; };
 		BB65BE0BA33EDBE11B494C87 /* DHDTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD0B37FA2FE13F332848F67 /* DHDTheme.swift */; };
 		BC87E84B29B0B9640C9D2DB5 /* ChatCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504E106156187C940340CC13 /* ChatCreateView.swift */; };
 		BE746374961B50D4F339B3E7 /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF961C0BCFF4A7EE9BEBB1 /* FacilitiesDayTimelineView.swift */; };
 		C0E273BC63CD044C0612519E /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D234A0190915CD5FF86744A9 /* PushNotificationModels.swift */; };
 		C305FBD5C38439F288C8E1BA /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F618D57022D8CFC93433BCD /* DateUtils.swift */; };
 		C4D082099BC3F450A4440949 /* ParentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFB3870E20334EC01173C45 /* ParentModels.swift */; };
+		C64640707534AD293FC915C4 /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */; };
 		C647965B733D1D2524C31A58 /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2DEEEEF5864F2348CBC7E /* AppleSignInButtonView.swift */; };
 		C67338342F946DEBF6FF8A5A /* EditFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96168E1EAD49E0B92192C547 /* EditFacilityBookingSheet.swift */; };
+		C78FA8AE70F64FE62BBAB78F /* HPTemplateRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82A80958FDEB0ACC5E61BE86 /* HPTemplateRenderTests.swift */; };
 		C8586E445154D3A6CDB4B6A1 /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6F0A65781F4C194EF4EF89 /* PlayerDevelopmentCopilotView.swift */; };
 		C94BEEAB5D4BA221443CF231 /* ParentChildProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9769A900D6270873BE5FC5D4 /* ParentChildProfileView.swift */; };
+		CA3751D49A6A1F32920F58EC /* HPFormScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1731FCCDEB6B5D32E19FF539 /* HPFormScreenTemplate.swift */; };
 		CA390030850F7059ADBD939A /* DHDTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD0B37FA2FE13F332848F67 /* DHDTheme.swift */; };
 		CAB020DCF8D447FFA76BED36 /* OrgAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05006A2A787F69671DF9B59A /* OrgAdminConsoleView.swift */; };
 		CC28C9CEA204BA379B690B17 /* HomePlatePlayerAccess.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 7B5B86A98199CF67801F1A2F /* HomePlatePlayerAccess.storekit */; };
 		CC6D459656BA45C6F87564A3 /* PlayerDevelopmentAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2F9BD40AFC5EF19E074DEE1 /* PlayerDevelopmentAITests.swift */; };
 		CC93B434FB06598F41BB6D96 /* SDPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B1DCEDA172A6C46EC5769D4 /* SDPlayerAnalysisView.swift */; };
+		D0106D9CFD39EF67C7B4A1AD /* HPFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0CF8AF8A87B25187F90065 /* HPFont.swift */; };
 		D124354D452D6B07D255D625 /* PlayerDevelopmentImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */; };
+		D3D0BA3F4D2DEA312E13CA09 /* HPErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D3DC219AAF3DF93C6101F0 /* HPErrorState.swift */; };
+		D40E7420D93026BF8D7A019B /* HPTemplateGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB927404525A6608D6CC5EF /* HPTemplateGallery.swift */; };
 		D57D5EE13BF097F833E322D3 /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F618D57022D8CFC93433BCD /* DateUtils.swift */; };
 		D67EE31BD4BC7BBA295B2A11 /* ProgramTemplateEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C0A5A1707AA1FCB37ACD6C /* ProgramTemplateEditorView.swift */; };
+		D74EA1A3C2E5CD3B763171ED /* HPDetailScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72641B0B40640537D5579D13 /* HPDetailScreenTemplate.swift */; };
 		D822CCB5CC8D9848547D00D6 /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C660267821C1DCF495CB6E6A /* ProgramDayEditorSheet.swift */; };
 		D8315F69564308AC7D723591 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE855FCD4677311F5E0F940A /* RootView.swift */; };
 		D8D9BE9D814FC3196FA71A78 /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */; };
@@ -164,8 +241,12 @@
 		DD7D1015754A64DE380E7296 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */; };
 		DE5E645B1830678F5494D667 /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */; };
 		DF6EBED619A49B6C1A7BE1DD /* ChatChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EF8A63526DD5598C55B8DB /* ChatChannelListView.swift */; };
+		DF87CFEAF47B20EF8BCE1735 /* HPMoneyField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CE22DD59FDABFE94297E2DE /* HPMoneyField.swift */; };
+		DFDC557446032BDA1671EBAE /* HPToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A650F6738EB0ABFB970FD3B8 /* HPToast.swift */; };
+		E09FFC8C3AB90B52368CE889 /* HPGalleryRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3E638DBD12784F5E5239CE /* HPGalleryRenderTests.swift */; };
 		E2C8C1172A0DC0857F426903 /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3367AB242E1E4C500D552A /* CoachPlayerBPSessionsView.swift */; };
 		E2E43A7E53E5C6A1ABA92671 /* CoachPlayerTestingEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1495C06A774146053E749C /* CoachPlayerTestingEntriesView.swift */; };
+		E33569E75FED6FAF79116AC4 /* HPFormScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1731FCCDEB6B5D32E19FF539 /* HPFormScreenTemplate.swift */; };
 		E3996319CC30DB2D15B4F191 /* ParentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFB3870E20334EC01173C45 /* ParentModels.swift */; };
 		E3FD46F3ADBEFE620A58C586 /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFC3F1CAEE6C5617EB703AB /* PaymentRequestCard.swift */; };
 		E4E50227E8F0FDF5FD99918F /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */; };
@@ -173,6 +254,8 @@
 		E4FE3AE95FA574A2495067D7 /* CoachTeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE18C338522894B10642A00F /* CoachTeamsView.swift */; };
 		E57156840339A804CEA0ED26 /* ChatCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504E106156187C940340CC13 /* ChatCreateView.swift */; };
 		E7C76522C9636DE423D75171 /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A4E1079E0605186D421B80 /* CSV.swift */; };
+		E8E66FB8FFB390C5E5DF9D23 /* HPFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0CF8AF8A87B25187F90065 /* HPFont.swift */; };
+		E9942D1BE8F20B1475FAE53B /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E27AA6116E6C83E10847309 /* HPMetrics.swift */; };
 		EE194D04D272145A262634D3 /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B916688FF0F5F52935CC13 /* SDModels.swift */; };
 		EE79BD0096C924BF34240363 /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296118F50108534F1DA316F4 /* PlayerDevelopmentAIModels.swift */; };
 		EFDCA549C2CF3E87D14FAF63 /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9933F34E28B54CD46F0DD482 /* PlayerDevelopmentImportModels.swift */; };
@@ -191,13 +274,17 @@
 		F9CF157D36651030A71AF9C0 /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5D38AFB3538DFF5C99C236 /* CoachProgramsView.swift */; };
 		FA2FCEC78572093840A42992 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9288C396D7D5B23756F5382E /* AppState.swift */; };
 		FAC299402D28CDD3C88570C5 /* SDPlayerFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6267D23B9F42AB3D4A37013D /* SDPlayerFacilitiesView.swift */; };
+		FB2DE36784C0B26F527245E6 /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76741B0D97A4E4103926EAB9 /* HPSectionHeader.swift */; };
 		FBBE8CD929E3BC594C22A148 /* CoachPlayerTestingEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1495C06A774146053E749C /* CoachPlayerTestingEntriesView.swift */; };
 		FBE27D17C3BD565B73A0A622 /* AccessRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8040C5F9126ECB854715C25 /* AccessRequiredView.swift */; };
+		FC8D4CD3CB6EA511156A9ABB /* HPCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE32F77DCF9F39A132690AEE /* HPCard.swift */; };
 		FCBC6FB4994A558C363D74C2 /* PlayerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */; };
 		FCC25BC41E8645A2EFF14159 /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5D74C3EC49FBCD94574141 /* BPAnalysisComponents.swift */; };
 		FCE24B49936D1481445BA421 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB825EDA00E44810205B264 /* HomeView.swift */; };
+		FD1ECA2EAABB55E27782EC02 /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97A66D8EC94E3560651CDBE /* HPAvatar.swift */; };
 		FD545093A4E37DC9990E5F55 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */; };
 		FD74B3BC31834B2303EA5A7F /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5D74C3EC49FBCD94574141 /* BPAnalysisComponents.swift */; };
+		FF21466251903B42556CBE8B /* HPFormField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363EC27B1804C0306A90F773 /* HPFormField.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,39 +298,56 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0024501F6DBDB8A551AE6E10 /* HPSegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSegmentedControl.swift; sourceTree = "<group>"; };
+		016471533F76BFD41337D83E /* HPCommunicationScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCommunicationScreenTemplate.swift; sourceTree = "<group>"; };
 		04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerSubscriptionTests.swift; sourceTree = "<group>"; };
 		05006A2A787F69671DF9B59A /* OrgAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgAdminConsoleView.swift; sourceTree = "<group>"; };
 		050DC46A39A2465CF87AFC19 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
 		066344F12892B67645F0CE3A /* FacilityDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilityDaySheet.swift; sourceTree = "<group>"; };
 		0673E98DA486024FE1B4D92C /* SDPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerCalendarView.swift; sourceTree = "<group>"; };
+		0F8B8F485A9EC3ED7D312FE8 /* HPProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgressIndicator.swift; sourceTree = "<group>"; };
 		113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationTests.swift; sourceTree = "<group>"; };
 		142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerPurchaseContext.swift; sourceTree = "<group>"; };
 		143A56D3046D51AF57099911 /* PlayerDevelopmentPlayerWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentPlayerWorkspaceView.swift; sourceTree = "<group>"; };
 		14821E17D9E1E0304EFF7715 /* SDPlayerTestingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTestingView.swift; sourceTree = "<group>"; };
+		1731FCCDEB6B5D32E19FF539 /* HPFormScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormScreenTemplate.swift; sourceTree = "<group>"; };
 		1752B2C944B62272867F8B21 /* ParentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentHomeView.swift; sourceTree = "<group>"; };
 		19997407DA62C2D66E71D81F /* DHDMonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDMonthGridView.swift; sourceTree = "<group>"; };
 		1B9003B438FD4414EF5F3D38 /* MultiOrg.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MultiOrg.entitlements; sourceTree = "<group>"; };
 		1BCC64E61B1D1383410C7A32 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
+		1D17017DA4336517AD4B2A86 /* HPColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPColor.swift; sourceTree = "<group>"; };
 		1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThreadView.swift; sourceTree = "<group>"; };
 		1F19D3871690DB6531B4187B /* NotificationCenterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterViewModel.swift; sourceTree = "<group>"; };
+		1F294EE15273BCB9FA728670 /* HPSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSampleData.swift; sourceTree = "<group>"; };
 		1F5D74C3EC49FBCD94574141 /* BPAnalysisComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPAnalysisComponents.swift; sourceTree = "<group>"; };
+		2084806F140885563D532A8E /* HPButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPButton.swift; sourceTree = "<group>"; };
 		211EA5470546353B5474CC64 /* CoachFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachFacilitiesView.swift; sourceTree = "<group>"; };
 		219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerOverviewView.swift; sourceTree = "<group>"; };
 		259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardTests.swift; sourceTree = "<group>"; };
 		27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterTests.swift; sourceTree = "<group>"; };
 		296118F50108534F1DA316F4 /* PlayerDevelopmentAIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIModels.swift; sourceTree = "<group>"; };
+		2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceRenderTests.swift; sourceTree = "<group>"; };
+		2C952835271F53AE1AD88FC4 /* HPProgramExecutionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgramExecutionTemplate.swift; sourceTree = "<group>"; };
 		300C5AE13EBE95D3ED6156BA /* SDPlayerTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTodayView.swift; sourceTree = "<group>"; };
 		3047438889BC485953DB801B /* MultiOrgMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MultiOrgMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		363EC27B1804C0306A90F773 /* HPFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormField.swift; sourceTree = "<group>"; };
 		37103D2BEFEC1BEE46D24C30 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		3785F08E82E60961768F2DBD /* NotificationCenterModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterModels.swift; sourceTree = "<group>"; };
 		388AEEBC70996C2C4F5AD8FD /* ExpenseManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseManagementView.swift; sourceTree = "<group>"; };
 		390478B5296E9E4862625480 /* OrgModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgModels.swift; sourceTree = "<group>"; };
+		3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPComponentGallery.swift; sourceTree = "<group>"; };
 		3B227E28E01D1C464E4CBEB0 /* MultiOrgMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MultiOrgMac.entitlements; sourceTree = "<group>"; };
 		3B42309A5C4C6B3AADD987A1 /* SDProgramSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDProgramSchedule.swift; sourceTree = "<group>"; };
+		3B541FD0B7B22E076FB0FCA1 /* HPSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSidebar.swift; sourceTree = "<group>"; };
 		3E6A9D5D611D4B9E904F9AC1 /* SDParentBillingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentBillingView.swift; sourceTree = "<group>"; };
+		401BBBC3896F4AEB73944621 /* HPFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFilterBar.swift; sourceTree = "<group>"; };
 		41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionStore.swift; sourceTree = "<group>"; };
+		453F7E119A9C4743C4183016 /* HPEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPEmptyState.swift; sourceTree = "<group>"; };
+		485CF95B8B06185071869EEB /* HPSettingsScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSettingsScreenTemplate.swift; sourceTree = "<group>"; };
 		4D659C3B9742EE31020125B7 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		4E0B791CE3A319D180685AD4 /* HPAdminScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAdminScreenTemplate.swift; sourceTree = "<group>"; };
 		504E106156187C940340CC13 /* ChatCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCreateView.swift; sourceTree = "<group>"; };
+		50658B999D42BC28F93EB1F7 /* HPTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTable.swift; sourceTree = "<group>"; };
 		50A1EFEA8FD5CB17BFE9DD76 /* DHDUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDUIComponents.swift; sourceTree = "<group>"; };
 		50EF961C0BCFF4A7EE9BEBB1 /* FacilitiesDayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilitiesDayTimelineView.swift; sourceTree = "<group>"; };
 		521ADE4FB19D10ED07701F7F /* MultiOrgTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MultiOrgTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -253,14 +357,23 @@
 		5B1DCEDA172A6C46EC5769D4 /* SDPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerAnalysisView.swift; sourceTree = "<group>"; };
 		6267D23B9F42AB3D4A37013D /* SDPlayerFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerFacilitiesView.swift; sourceTree = "<group>"; };
 		65113244A2524780C997F8DB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		65D3DC219AAF3DF93C6101F0 /* HPErrorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPErrorState.swift; sourceTree = "<group>"; };
 		65D572A66CB4CA356ABAC265 /* PaymentCheckoutModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutModels.swift; sourceTree = "<group>"; };
 		687883365CB16724A39F0DC5 /* CoachPlayerTestingCRUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerTestingCRUDView.swift; sourceTree = "<group>"; };
+		6940B2BE1FF91C3798EBD504 /* HPWorkspaceDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceDirectory.swift; sourceTree = "<group>"; };
 		6A188FDE80381391940586A4 /* CoachPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerCalendarView.swift; sourceTree = "<group>"; };
+		6BA8C2A3E09D61A986587C16 /* HPTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTheme.swift; sourceTree = "<group>"; };
+		6CE22DD59FDABFE94297E2DE /* HPMoneyField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMoneyField.swift; sourceTree = "<group>"; };
+		6E27AA6116E6C83E10847309 /* HPMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetrics.swift; sourceTree = "<group>"; };
+		72641B0B40640537D5579D13 /* HPDetailScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPDetailScreenTemplate.swift; sourceTree = "<group>"; };
 		73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAuthorizationTests.swift; sourceTree = "<group>"; };
+		76741B0D97A4E4103926EAB9 /* HPSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSectionHeader.swift; sourceTree = "<group>"; };
+		771FCB40F211B7ADE1E8887D /* HPMetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetricCard.swift; sourceTree = "<group>"; };
 		784182375E1DE20720A333BF /* SDPlayerTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTrendsView.swift; sourceTree = "<group>"; };
 		78419895C8DC111FE881785D /* ConfigErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigErrorView.swift; sourceTree = "<group>"; };
 		78A4E4936E3FE140EC9300A6 /* PlayerDevelopmentAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIView.swift; sourceTree = "<group>"; };
 		7917B4270BC093E6F9050513 /* FinanceDashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardModels.swift; sourceTree = "<group>"; };
+		7A3E638DBD12784F5E5239CE /* HPGalleryRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPGalleryRenderTests.swift; sourceTree = "<group>"; };
 		7A5D38AFB3538DFF5C99C236 /* CoachProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachProgramsView.swift; sourceTree = "<group>"; };
 		7AC52F39057A42F264AD2EB8 /* ParentRequestPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRequestPanels.swift; sourceTree = "<group>"; };
 		7B5B86A98199CF67801F1A2F /* HomePlatePlayerAccess.storekit */ = {isa = PBXFileReference; path = HomePlatePlayerAccess.storekit; sourceTree = "<group>"; };
@@ -268,6 +381,7 @@
 		7F618D57022D8CFC93433BCD /* DateUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtils.swift; sourceTree = "<group>"; };
 		81072AE4EDB470AF9B158FE3 /* DHDAppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDAppConfig.swift; sourceTree = "<group>"; };
 		818DE3395AAC834C0600CDBC /* SDParentFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentFacilitiesView.swift; sourceTree = "<group>"; };
+		82A80958FDEB0ACC5E61BE86 /* HPTemplateRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateRenderTests.swift; sourceTree = "<group>"; };
 		86290C30C6D11C0883C0E350 /* SDPlayerBPView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerBPView.swift; sourceTree = "<group>"; };
 		8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutTests.swift; sourceTree = "<group>"; };
 		8B3367AB242E1E4C500D552A /* CoachPlayerBPSessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerBPSessionsView.swift; sourceTree = "<group>"; };
@@ -276,24 +390,32 @@
 		9288C396D7D5B23756F5382E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		96168E1EAD49E0B92192C547 /* EditFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFacilityBookingSheet.swift; sourceTree = "<group>"; };
 		9769A900D6270873BE5FC5D4 /* ParentChildProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildProfileView.swift; sourceTree = "<group>"; };
+		98592C450E4102948D8E3328 /* HPCalendarScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCalendarScreenTemplate.swift; sourceTree = "<group>"; };
 		9933F34E28B54CD46F0DD482 /* PlayerDevelopmentImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportModels.swift; sourceTree = "<group>"; };
 		9AFC3F1CAEE6C5617EB703AB /* PaymentRequestCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRequestCard.swift; sourceTree = "<group>"; };
 		9DFB3870E20334EC01173C45 /* ParentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentModels.swift; sourceTree = "<group>"; };
 		9FB825EDA00E44810205B264 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A09BC4C336AD5F07763B87DF /* TwoAxisScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoAxisScrollView.swift; sourceTree = "<group>"; };
+		A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStateScreenTemplate.swift; sourceTree = "<group>"; };
+		A650F6738EB0ABFB970FD3B8 /* HPToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPToast.swift; sourceTree = "<group>"; };
 		A7A76C3E9D84327BD93DB783 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A980B4434AE15B0118E411DC /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		AA262C76E042D79F8AC20CE5 /* FinanceDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardViewModel.swift; sourceTree = "<group>"; };
 		AA3A1FBB634A62BDCF562698 /* PlayerDevelopmentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportView.swift; sourceTree = "<group>"; };
 		ABE56649250D098DEBC82E29 /* MultiOrg.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MultiOrg.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ACB927404525A6608D6CC5EF /* HPTemplateGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateGallery.swift; sourceTree = "<group>"; };
 		AE18C338522894B10642A00F /* CoachTeamsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamsView.swift; sourceTree = "<group>"; };
+		AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceScreenTemplate.swift; sourceTree = "<group>"; };
 		B0D72670F615C77DE93FC22D /* SDPlayerBPDaySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerBPDaySection.swift; sourceTree = "<group>"; };
+		B2EDAD7B9A71C054F4963BE2 /* HPChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPChart.swift; sourceTree = "<group>"; };
 		B8C2DEEEEF5864F2348CBC7E /* AppleSignInButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInButtonView.swift; sourceTree = "<group>"; };
 		B8EF8A63526DD5598C55B8DB /* ChatChannelListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatChannelListView.swift; sourceTree = "<group>"; };
+		BC0CF8AF8A87B25187F90065 /* HPFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFont.swift; sourceTree = "<group>"; };
 		BF6F0A65781F4C194EF4EF89 /* PlayerDevelopmentCopilotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotView.swift; sourceTree = "<group>"; };
 		C134729AD9182B9A792C9DFE /* PlatformAdminDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAdminDashboardView.swift; sourceTree = "<group>"; };
 		C1394ABFD7D898E955BC2002 /* CoachHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachHomeView.swift; sourceTree = "<group>"; };
 		C2F9BD40AFC5EF19E074DEE1 /* PlayerDevelopmentAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAITests.swift; sourceTree = "<group>"; };
+		C4231112B8B0894349252B0E /* HPListScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPListScreenTemplate.swift; sourceTree = "<group>"; };
 		C4D63293D8904B20D140E46E /* SDPlayerProgramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerProgramView.swift; sourceTree = "<group>"; };
 		C548457F3D672402508357C2 /* CoachRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachRootView.swift; sourceTree = "<group>"; };
 		C660267821C1DCF495CB6E6A /* ProgramDayEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDayEditorSheet.swift; sourceTree = "<group>"; };
@@ -301,27 +423,38 @@
 		CA19017054A973F061AFF997 /* PlotlyChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotlyChartView.swift; sourceTree = "<group>"; };
 		CD18786FB5BE627092918ABF /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
 		CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRootView.swift; sourceTree = "<group>"; };
+		CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTodayRenderTests.swift; sourceTree = "<group>"; };
+		CE32F77DCF9F39A132690AEE /* HPCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCard.swift; sourceTree = "<group>"; };
 		CE855FCD4677311F5E0F940A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D234A0190915CD5FF86744A9 /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
 		D6F2FEC22667209020787CDD /* MultiOrgApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiOrgApp.swift; sourceTree = "<group>"; };
 		D7244FD3221181B77E2162F7 /* NewFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFacilityBookingSheet.swift; sourceTree = "<group>"; };
+		D97A66D8EC94E3560651CDBE /* HPAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAvatar.swift; sourceTree = "<group>"; };
 		DC6D237F484753CFC6B40445 /* FinanceDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardView.swift; sourceTree = "<group>"; };
 		DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
 		E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotTests.swift; sourceTree = "<group>"; };
+		E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPModal.swift; sourceTree = "<group>"; };
 		EA2D344B2DA890D8F660AB44 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatusBadge.swift; sourceTree = "<group>"; };
 		EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHomeView.swift; sourceTree = "<group>"; };
 		EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
 		ECD0B37FA2FE13F332848F67 /* DHDTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDTheme.swift; sourceTree = "<group>"; };
+		ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLiveControlsRenderTests.swift; sourceTree = "<group>"; };
+		ED7566BB173B672687DB2E7C /* HPAnalyticsScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAnalyticsScreenTemplate.swift; sourceTree = "<group>"; };
+		EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatTile.swift; sourceTree = "<group>"; };
 		EE7F999FDB957D62A6E2DF4B /* PlayerDevelopmentCopilotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotModels.swift; sourceTree = "<group>"; };
 		EEC0F5D92627F71C74D7A286 /* PlayerSubscriptionPaywall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionPaywall.swift; sourceTree = "<group>"; };
 		EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		F121DF422B3EA392D5342D4C /* HPLoadingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLoadingState.swift; sourceTree = "<group>"; };
 		F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildCalendarView.swift; sourceTree = "<group>"; };
 		F3B916688FF0F5F52935CC13 /* SDModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDModels.swift; sourceTree = "<group>"; };
 		F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportTests.swift; sourceTree = "<group>"; };
+		F3F2688A4FDCB978B912E378 /* HPWorkspaceHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceHeader.swift; sourceTree = "<group>"; };
 		F4C0A5A1707AA1FCB37ACD6C /* ProgramTemplateEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramTemplateEditorView.swift; sourceTree = "<group>"; };
 		F6A4E1079E0605186D421B80 /* CSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSV.swift; sourceTree = "<group>"; };
 		F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerAnalysisView.swift; sourceTree = "<group>"; };
 		F8040C5F9126ECB854715C25 /* AccessRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessRequiredView.swift; sourceTree = "<group>"; };
+		FB0D9C3433EF2875117C9010 /* HPSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSearchBar.swift; sourceTree = "<group>"; };
 		FB32DCB8F2D6452C3ECF4687 /* apple_player_purchase_context_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = apple_player_purchase_context_vectors.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -386,6 +519,17 @@
 				374EA80026D564219A24EF71 /* Shared */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		291664051E23633E79544FF9 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				77B63019C7873E334D11BCE7 /* Components */,
+				ABD292DD85F45E997442BDE8 /* Preview */,
+				AA0F67962E16989DD25C4758 /* Templates */,
+				8E07A9D3B6CB84A154ABCDD2 /* Tokens */,
+			);
+			path = DesignSystem;
 			sourceTree = "<group>";
 		};
 		374EA80026D564219A24EF71 /* Shared */ = {
@@ -502,6 +646,36 @@
 			path = Admin;
 			sourceTree = "<group>";
 		};
+		77B63019C7873E334D11BCE7 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				D97A66D8EC94E3560651CDBE /* HPAvatar.swift */,
+				2084806F140885563D532A8E /* HPButton.swift */,
+				CE32F77DCF9F39A132690AEE /* HPCard.swift */,
+				B2EDAD7B9A71C054F4963BE2 /* HPChart.swift */,
+				453F7E119A9C4743C4183016 /* HPEmptyState.swift */,
+				65D3DC219AAF3DF93C6101F0 /* HPErrorState.swift */,
+				401BBBC3896F4AEB73944621 /* HPFilterBar.swift */,
+				363EC27B1804C0306A90F773 /* HPFormField.swift */,
+				F121DF422B3EA392D5342D4C /* HPLoadingState.swift */,
+				771FCB40F211B7ADE1E8887D /* HPMetricCard.swift */,
+				E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */,
+				6CE22DD59FDABFE94297E2DE /* HPMoneyField.swift */,
+				0F8B8F485A9EC3ED7D312FE8 /* HPProgressIndicator.swift */,
+				FB0D9C3433EF2875117C9010 /* HPSearchBar.swift */,
+				76741B0D97A4E4103926EAB9 /* HPSectionHeader.swift */,
+				0024501F6DBDB8A551AE6E10 /* HPSegmentedControl.swift */,
+				3B541FD0B7B22E076FB0FCA1 /* HPSidebar.swift */,
+				EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */,
+				EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */,
+				50658B999D42BC28F93EB1F7 /* HPTable.swift */,
+				A650F6738EB0ABFB970FD3B8 /* HPToast.swift */,
+				6940B2BE1FF91C3798EBD504 /* HPWorkspaceDirectory.swift */,
+				F3F2688A4FDCB978B912E378 /* HPWorkspaceHeader.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		8C220A27CE8713CBB31D2AAD /* Account */ = {
 			isa = PBXGroup;
 			children = (
@@ -509,6 +683,17 @@
 				7AC52F39057A42F264AD2EB8 /* ParentRequestPanels.swift */,
 			);
 			path = Account;
+			sourceTree = "<group>";
+		};
+		8E07A9D3B6CB84A154ABCDD2 /* Tokens */ = {
+			isa = PBXGroup;
+			children = (
+				1D17017DA4336517AD4B2A86 /* HPColor.swift */,
+				BC0CF8AF8A87B25187F90065 /* HPFont.swift */,
+				6E27AA6116E6C83E10847309 /* HPMetrics.swift */,
+				6BA8C2A3E09D61A986587C16 /* HPTheme.swift */,
+			);
+			path = Tokens;
 			sourceTree = "<group>";
 		};
 		8E8D1773B8EC8CA2ABF30895 /* Notifications */ = {
@@ -538,18 +723,51 @@
 			path = Chat;
 			sourceTree = "<group>";
 		};
+		AA0F67962E16989DD25C4758 /* Templates */ = {
+			isa = PBXGroup;
+			children = (
+				4E0B791CE3A319D180685AD4 /* HPAdminScreenTemplate.swift */,
+				ED7566BB173B672687DB2E7C /* HPAnalyticsScreenTemplate.swift */,
+				98592C450E4102948D8E3328 /* HPCalendarScreenTemplate.swift */,
+				016471533F76BFD41337D83E /* HPCommunicationScreenTemplate.swift */,
+				72641B0B40640537D5579D13 /* HPDetailScreenTemplate.swift */,
+				1731FCCDEB6B5D32E19FF539 /* HPFormScreenTemplate.swift */,
+				C4231112B8B0894349252B0E /* HPListScreenTemplate.swift */,
+				2C952835271F53AE1AD88FC4 /* HPProgramExecutionTemplate.swift */,
+				485CF95B8B06185071869EEB /* HPSettingsScreenTemplate.swift */,
+				A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */,
+				AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */,
+			);
+			path = Templates;
+			sourceTree = "<group>";
+		};
+		ABD292DD85F45E997442BDE8 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */,
+				1F294EE15273BCB9FA728670 /* HPSampleData.swift */,
+				ACB927404525A6608D6CC5EF /* HPTemplateGallery.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
 		CE5CD3C1D015BB84AFDE355D /* MultiOrgTests */ = {
 			isa = PBXGroup;
 			children = (
 				04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */,
 				7EFA16125BC6D808E78F1B88 /* ExpenseManagementTests.swift */,
 				259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */,
+				2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */,
+				7A3E638DBD12784F5E5239CE /* HPGalleryRenderTests.swift */,
+				ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */,
+				82A80958FDEB0ACC5E61BE86 /* HPTemplateRenderTests.swift */,
 				27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */,
 				73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */,
 				8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */,
 				C2F9BD40AFC5EF19E074DEE1 /* PlayerDevelopmentAITests.swift */,
 				E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */,
 				F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */,
+				CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */,
 				113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */,
 			);
 			path = MultiOrgTests;
@@ -568,6 +786,7 @@
 			children = (
 				4357003B8C97AC2CFECC7618 /* App */,
 				6646F17F9381868C91256EE4 /* Core */,
+				291664051E23633E79544FF9 /* DesignSystem */,
 				1EE7D2A82DBF3793B243BA52 /* Features */,
 				FE4B12472FFF24FB7C59F530 /* Supporting */,
 			);
@@ -803,6 +1022,47 @@
 				B009B96DFB03232850EFF28D /* FinanceDashboardModels.swift in Sources */,
 				05EDAEDFF4A47736C006803D /* FinanceDashboardView.swift in Sources */,
 				7C09AA484D8691BC51DC03A8 /* FinanceDashboardViewModel.swift in Sources */,
+				13046AE033D1BAE7D3F49D10 /* HPAdminScreenTemplate.swift in Sources */,
+				96DC30B94711672062111BE6 /* HPAnalyticsScreenTemplate.swift in Sources */,
+				57FF02421C19D563017AE8F6 /* HPAvatar.swift in Sources */,
+				8F50749556F9F6B239B595A4 /* HPButton.swift in Sources */,
+				620EBAD6BD0B18AAC416046A /* HPCalendarScreenTemplate.swift in Sources */,
+				594A8EC5EFCE0B99B3112BE1 /* HPCard.swift in Sources */,
+				88B46A927489B9FAF57095D0 /* HPChart.swift in Sources */,
+				00399E6A2D0B29C4FBC1B366 /* HPColor.swift in Sources */,
+				153511CC084F8B85418B5C38 /* HPCommunicationScreenTemplate.swift in Sources */,
+				751F19A896709E6CADCFFBF6 /* HPComponentGallery.swift in Sources */,
+				D74EA1A3C2E5CD3B763171ED /* HPDetailScreenTemplate.swift in Sources */,
+				778F1267F4E0D781B9127F9D /* HPEmptyState.swift in Sources */,
+				527850E0F1C6D75F968AC6ED /* HPErrorState.swift in Sources */,
+				369334119C74E7B2D8068908 /* HPFilterBar.swift in Sources */,
+				E8E66FB8FFB390C5E5DF9D23 /* HPFont.swift in Sources */,
+				FF21466251903B42556CBE8B /* HPFormField.swift in Sources */,
+				CA3751D49A6A1F32920F58EC /* HPFormScreenTemplate.swift in Sources */,
+				6ADBF22707D224C0BF2305A6 /* HPListScreenTemplate.swift in Sources */,
+				6EA88963CBADD92273E7667F /* HPLoadingState.swift in Sources */,
+				0190AF99E5C9E26EC7471758 /* HPMetricCard.swift in Sources */,
+				332A1A28D9CDEB79FCC8C218 /* HPMetrics.swift in Sources */,
+				18EF9522EE08C9AB80DFA9D7 /* HPModal.swift in Sources */,
+				DF87CFEAF47B20EF8BCE1735 /* HPMoneyField.swift in Sources */,
+				8045B166A4E45D169A00A24A /* HPProgramExecutionTemplate.swift in Sources */,
+				1E2E9C30930F33F31CDE6E92 /* HPProgressIndicator.swift in Sources */,
+				4BF428CFA2BF90A4843586D2 /* HPSampleData.swift in Sources */,
+				36270AF86256424A535674D9 /* HPSearchBar.swift in Sources */,
+				FB2DE36784C0B26F527245E6 /* HPSectionHeader.swift in Sources */,
+				76A7BED540A0273576C3E391 /* HPSegmentedControl.swift in Sources */,
+				5FDCED338834ABFDFB441F2C /* HPSettingsScreenTemplate.swift in Sources */,
+				036E0773BDBE113664283A71 /* HPSidebar.swift in Sources */,
+				B08E261AC973E4E0CE1E2D07 /* HPStatTile.swift in Sources */,
+				8DCC905844A2DB92D3E91226 /* HPStateScreenTemplate.swift in Sources */,
+				213D16700E1A90F443FCFD8C /* HPStatusBadge.swift in Sources */,
+				45E5AEFE85424031202E888B /* HPTable.swift in Sources */,
+				1586CEE9F1D110D436301152 /* HPTemplateGallery.swift in Sources */,
+				8360694514D8F2930B457117 /* HPTheme.swift in Sources */,
+				3C7CA19396E3D19C3168BAA0 /* HPToast.swift in Sources */,
+				262483B786DC304B332B6D89 /* HPWorkspaceDirectory.swift in Sources */,
+				790C675CD9EE1F788F11AC30 /* HPWorkspaceHeader.swift in Sources */,
+				11280B01FBF5CF380B115E13 /* HPWorkspaceScreenTemplate.swift in Sources */,
 				B28B52BF0205B6DEDAA5941C /* HomeView.swift in Sources */,
 				DCFA50DC8E2D24476990D1C4 /* LoginView.swift in Sources */,
 				02BF3F9B5EF7EDEC54F58840 /* MultiOrgApp.swift in Sources */,
@@ -892,6 +1152,47 @@
 				F8DD4D17AC8E2796461007B5 /* FinanceDashboardModels.swift in Sources */,
 				3B64089BEB177CED1FC78D79 /* FinanceDashboardView.swift in Sources */,
 				B5F08746477AA1A102A5A60B /* FinanceDashboardViewModel.swift in Sources */,
+				3184297D54D7BC17650D54CA /* HPAdminScreenTemplate.swift in Sources */,
+				103340F771E92001AED44470 /* HPAnalyticsScreenTemplate.swift in Sources */,
+				FD1ECA2EAABB55E27782EC02 /* HPAvatar.swift in Sources */,
+				123A22417E221354B4FE5E5B /* HPButton.swift in Sources */,
+				54A69743DC816CDC1AC1BF99 /* HPCalendarScreenTemplate.swift in Sources */,
+				FC8D4CD3CB6EA511156A9ABB /* HPCard.swift in Sources */,
+				2F6625D611E56C698111A2BD /* HPChart.swift in Sources */,
+				A67E8F94B7E6F253CF483692 /* HPColor.swift in Sources */,
+				9415429A80B2F94077FDC522 /* HPCommunicationScreenTemplate.swift in Sources */,
+				358F7408ACF4837F7B5D64DA /* HPComponentGallery.swift in Sources */,
+				561C0B19B35D4008188C0FA3 /* HPDetailScreenTemplate.swift in Sources */,
+				94D38699A658F0D7D26ABF5B /* HPEmptyState.swift in Sources */,
+				D3D0BA3F4D2DEA312E13CA09 /* HPErrorState.swift in Sources */,
+				332118B1278C83E5C5BFA26F /* HPFilterBar.swift in Sources */,
+				D0106D9CFD39EF67C7B4A1AD /* HPFont.swift in Sources */,
+				BA046DA989AC32C05FBD8949 /* HPFormField.swift in Sources */,
+				E33569E75FED6FAF79116AC4 /* HPFormScreenTemplate.swift in Sources */,
+				68500DB5A92BD11E1FEFC67F /* HPListScreenTemplate.swift in Sources */,
+				20DBCD1BA06D2FD7132978DB /* HPLoadingState.swift in Sources */,
+				4178A2F18C11FDD9C4BDD752 /* HPMetricCard.swift in Sources */,
+				E9942D1BE8F20B1475FAE53B /* HPMetrics.swift in Sources */,
+				7674FD25F5E3FEE6EC01B7FD /* HPModal.swift in Sources */,
+				90BB8D4FFD1FE2C3F629302A /* HPMoneyField.swift in Sources */,
+				0A0E15C3B9951A9436741929 /* HPProgramExecutionTemplate.swift in Sources */,
+				BA23F3BE5FB310738177A8AE /* HPProgressIndicator.swift in Sources */,
+				13314D4D0905B26085D1AA78 /* HPSampleData.swift in Sources */,
+				386A3389733D2DE9E1DB603B /* HPSearchBar.swift in Sources */,
+				67E3F3209E0BFD80204BFD78 /* HPSectionHeader.swift in Sources */,
+				9848FAAFD291E636FAAB8E48 /* HPSegmentedControl.swift in Sources */,
+				2E4E65F72EA262D1EC283A83 /* HPSettingsScreenTemplate.swift in Sources */,
+				B314AD1FA0237175B3F9FB14 /* HPSidebar.swift in Sources */,
+				715E08D3C599889511F4F62E /* HPStatTile.swift in Sources */,
+				C64640707534AD293FC915C4 /* HPStateScreenTemplate.swift in Sources */,
+				4B1767250810171DECE12988 /* HPStatusBadge.swift in Sources */,
+				21F7023CEA9A2FDF56B56ECC /* HPTable.swift in Sources */,
+				D40E7420D93026BF8D7A019B /* HPTemplateGallery.swift in Sources */,
+				479E3AFBF36BEB5B4F612E04 /* HPTheme.swift in Sources */,
+				DFDC557446032BDA1671EBAE /* HPToast.swift in Sources */,
+				8DC1D7948DC3B0051300ECBC /* HPWorkspaceDirectory.swift in Sources */,
+				3F6890FF003ECD0247856E43 /* HPWorkspaceHeader.swift in Sources */,
+				B10FFBDD094448847ABA6455 /* HPWorkspaceScreenTemplate.swift in Sources */,
 				FCE24B49936D1481445BA421 /* HomeView.swift in Sources */,
 				2FC99A86E5846BBE49D14D86 /* LoginView.swift in Sources */,
 				932BBE106CAF003F2A8B4707 /* MultiOrgApp.swift in Sources */,
@@ -954,12 +1255,17 @@
 				F1AEA85FB957119567E01349 /* ApplePlayerSubscriptionTests.swift in Sources */,
 				57BA5263E9D2C601F7B65B9F /* ExpenseManagementTests.swift in Sources */,
 				540153518CE9EAADF35A7161 /* FinanceDashboardTests.swift in Sources */,
+				B032B35D6B1373F741876647 /* FinanceRenderTests.swift in Sources */,
+				E09FFC8C3AB90B52368CE889 /* HPGalleryRenderTests.swift in Sources */,
+				0E9C3FDAB0F1795F28160B6B /* HPLiveControlsRenderTests.swift in Sources */,
+				C78FA8AE70F64FE62BBAB78F /* HPTemplateRenderTests.swift in Sources */,
 				3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */,
 				43388DB9F202D91796CA8729 /* OrganizationAuthorizationTests.swift in Sources */,
 				6F5C962B1EB3D8CDA29C857E /* PaymentCheckoutTests.swift in Sources */,
 				CC6D459656BA45C6F87564A3 /* PlayerDevelopmentAITests.swift in Sources */,
 				34F84830AABD4055FEE17700 /* PlayerDevelopmentCopilotTests.swift in Sources */,
 				D124354D452D6B07D255D625 /* PlayerDevelopmentImportTests.swift in Sources */,
+				34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */,
 				77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
