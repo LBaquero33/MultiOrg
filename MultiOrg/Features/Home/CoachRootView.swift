@@ -90,6 +90,14 @@ struct CoachRootView: View {
         selection = .players
       }
     }
+    .onChange(of: appState.requestedChatChannelId) { _, channelId in
+      guard channelId != nil, feature("chat") else { return }
+      selection = .chat
+    }
+    .task(id: appState.requestedChatChannelId) {
+      guard appState.requestedChatChannelId != nil, feature("chat") else { return }
+      selection = .chat
+    }
   }
 
   private func term(_ key: String, fallback: String) -> String {
@@ -114,36 +122,58 @@ struct CoachRootView: View {
     .background(DHDTheme.pageBackground)
   }
 #else
+  @State private var mobileSelection = MobileDestination.players
+
+  private enum MobileDestination: Hashable {
+    case players, facilities, teams, programs, chat, admin, platform, account
+  }
+
   var body: some View {
-    TabView {
+    TabView(selection: $mobileSelection) {
       CoachHomeView()
         .tabItem { Label(term("players", fallback: "Players"), systemImage: "person.3") }
+        .tag(MobileDestination.players)
       if feature("facilities") {
         CoachFacilitiesView()
           .tabItem { Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock") }
+          .tag(MobileDestination.facilities)
       }
       NavigationStack { CoachTeamsView() }
         .tabItem { Label("Teams", systemImage: "person.3.sequence.fill") }
+        .tag(MobileDestination.teams)
       if feature("chat") {
         ChatChannelListView()
           .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
+          .tag(MobileDestination.chat)
       }
       if feature("programs") {
         CoachProgramsView()
           .tabItem { Label("\(term("program", fallback: "Program")) Templates", systemImage: "square.stack.3d.up") }
+          .tag(MobileDestination.programs)
       }
       if appState.canAdminActiveOrg {
         NavigationStack { OrgAdminConsoleView() }
           .tabItem { Label("Org Admin", systemImage: "slider.horizontal.3") }
+          .tag(MobileDestination.admin)
       }
       if appState.isPlatformAdmin {
         NavigationStack { PlatformAdminDashboardView() }
           .tabItem { Label("Platform", systemImage: "building.2.crop.circle") }
+          .tag(MobileDestination.platform)
       }
       NavigationStack { AccountView() }
         .tabItem { Label("Account", systemImage: "gearshape") }
+        .tag(MobileDestination.account)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .onChange(of: appState.requestedChatChannelId) { _, channelId in
+      guard channelId != nil, feature("chat") else { return }
+      mobileSelection = .chat
+    }
+    .task(id: appState.requestedChatChannelId) {
+      guard appState.requestedChatChannelId != nil, feature("chat") else { return }
+      mobileSelection = .chat
+    }
   }
 
   private func term(_ key: String, fallback: String) -> String {

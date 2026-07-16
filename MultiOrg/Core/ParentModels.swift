@@ -205,6 +205,11 @@ struct SDEdgeFunctionErrorResponse: Decodable, Equatable, Sendable {
   let message: String?
 }
 
+private struct SDEdgeFunctionNestedErrorResponse: Decodable {
+  struct Payload: Decodable { let code: String; let message: String? }
+  let error: Payload
+}
+
 struct SDEdgeFunctionHTTPError: LocalizedError, Equatable, Sendable {
   let statusCode: Int
   let code: String
@@ -214,17 +219,27 @@ struct SDEdgeFunctionHTTPError: LocalizedError, Equatable, Sendable {
 
   static func decode(statusCode: Int, data: Data) -> SDEdgeFunctionHTTPError {
     do {
-      let payload = try JSONDecoder().decode(SDEdgeFunctionErrorResponse.self, from: data)
-      let cleanedMessage = payload.message?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let decoder = JSONDecoder()
+      let code: String
+      let message: String?
+      if let nested = try? decoder.decode(SDEdgeFunctionNestedErrorResponse.self, from: data) {
+        code = nested.error.code
+        message = nested.error.message
+      } else {
+        let payload = try decoder.decode(SDEdgeFunctionErrorResponse.self, from: data)
+        code = payload.error
+        message = payload.message
+      }
+      let cleanedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
       let readableMessage: String
       if let cleanedMessage, !cleanedMessage.isEmpty {
         readableMessage = cleanedMessage
       } else {
-        readableMessage = payload.error.replacingOccurrences(of: "_", with: " ").capitalized + "."
+        readableMessage = code.replacingOccurrences(of: "_", with: " ").capitalized + "."
       }
       return SDEdgeFunctionHTTPError(
         statusCode: statusCode,
-        code: payload.error,
+        code: code,
         message: readableMessage
       )
     } catch {

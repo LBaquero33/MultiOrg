@@ -700,7 +700,7 @@ Deno.test("interactive Phase 9B producers wake the worker only after their trans
   }
 });
 
-Deno.test("existing local notifications are not Phase 9A announcement producers", async () => {
+Deno.test("chat realtime no longer schedules a duplicate local alert beside APNs", async () => {
   const appState = await Deno.readTextFile(
     new URL("../../../MultiOrg/Core/AppState.swift", import.meta.url),
   );
@@ -710,6 +710,8 @@ Deno.test("existing local notifications are not Phase 9A announcement producers"
       import.meta.url,
     ),
   );
-  assert(appState.includes("sd_chat_message_"));
+  assert(!appState.includes("sd_chat_message_"));
+  assert(!appState.includes("scheduleChatNotification"));
+  assert(appState.includes("chatLastInsert = ins"));
   assert(!notificationCenter.includes("UNNotificationRequest"));
 });

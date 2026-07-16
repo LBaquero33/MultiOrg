@@ -1,5 +1,5 @@
 import SwiftUI
-import UserNotifications
+@preconcurrency import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -40,18 +40,31 @@ final class DHDApplicationDelegate: NSObject, NSApplicationDelegate {
 }
 #endif
 
+@MainActor
 final class DHDNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-  func userNotificationCenter(
+  private weak var appState: AppState?
+
+  init(appState: AppState) {
+    self.appState = appState
+    super.init()
+  }
+
+  nonisolated func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification
   ) async -> UNNotificationPresentationOptions {
-    if RemoteNotificationReference(userInfo: notification.request.content.userInfo) != nil {
+    if let reference = RemoteNotificationReference(
+      userInfo: notification.request.content.userInfo
+    ) {
       NotificationCenter.default.post(name: .dhdRemoteNotificationReceived, object: nil)
+      if await shouldPresent(reference.notificationId) == false {
+        return []
+      }
     }
     return [.banner, .list, .sound]
   }
 
-  func userNotificationCenter(
+  nonisolated func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     didReceive response: UNNotificationResponse
   ) async {
@@ -64,6 +77,10 @@ final class DHDNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
     guard let raw = response.notification.request.content.userInfo["channel_id"] as? String,
           let channelId = UUID(uuidString: raw) else { return }
     NotificationCenter.default.post(name: .dhdOpenChatChannel, object: channelId)
+  }
+
+  private func shouldPresent(_ notificationId: UUID) async -> Bool {
+    await appState?.shouldPresentRemoteNotification(notificationId) ?? true
   }
 }
 
@@ -82,6 +99,7 @@ extension Notification.Name {
   static let dhdRemoteRegistrationFailed = Notification.Name("dhdRemoteRegistrationFailed")
   static let dhdRemoteNotificationReceived = Notification.Name("dhdRemoteNotificationReceived")
   static let dhdOpenRemoteNotification = Notification.Name("dhdOpenRemoteNotification")
+  static let dhdNotificationStateChanged = Notification.Name("dhdNotificationStateChanged")
 }
 
 @main
@@ -91,10 +109,13 @@ struct MultiOrgApp: App {
   #elseif canImport(AppKit)
   @NSApplicationDelegateAdaptor(DHDApplicationDelegate.self) private var applicationDelegate
   #endif
-  @StateObject private var appState = AppState()
-  private let notificationDelegate = DHDNotificationDelegate()
+  @StateObject private var appState: AppState
+  private let notificationDelegate: DHDNotificationDelegate
 
   init() {
+    let state = AppState()
+    _appState = StateObject(wrappedValue: state)
+    notificationDelegate = DHDNotificationDelegate(appState: state)
     DHDNotificationCategories.register()
     UNUserNotificationCenter.current().delegate = notificationDelegate
   }

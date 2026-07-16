@@ -40,6 +40,7 @@ final class AppState: ObservableObject {
   @Published var showOnboardingEditor: Bool = false
   @Published var globalToastText: String?
   @Published var chatLastInsert: SupabaseService.ChatMessageInsert?
+  @Published var chatReadUpdate: ChatReadUpdate?
   @Published var requestedChatChannelId: UUID?
   @Published var requestedNotification: AppNotification?
   @Published private(set) var isPlatformAdmin = false
@@ -50,8 +51,8 @@ final class AppState: ObservableObject {
   private(set) var supabase: SupabaseService?
   private var coachListenersStarted = false
   private var chatListenerStarted = false
+  private var chatListenerOrganizationId: UUID?
   private var activeChatChannelId: UUID?
-  private var notifiedChatMessageIds = Set<UUID>()
 
   init() {
     NotificationCenter.default.addObserver(
@@ -128,11 +129,20 @@ final class AppState: ObservableObject {
   }
 
   private func clearOrgContext() {
+    clearChatContext()
     activeOrgId = nil
     myOrgMemberships = []
     availableOrganizations = []
     activeOrgSettings = nil
     isPlatformAdmin = false
+  }
+
+  private func clearChatContext() {
+    activeChatChannelId = nil
+    chatLastInsert = nil
+    chatReadUpdate = nil
+    requestedChatChannelId = nil
+    requestedNotification = nil
   }
 
   func bootstrap() async {
@@ -239,29 +249,75 @@ final class AppState: ObservableObject {
 
   func refreshOrgContext() async {
     guard let supabase else { return }
+    let previousOrganizationId = activeOrgId
+    let memberships: [SDOrgMembership]
     do {
-      let memberships = try await supabase.listMyOrgMemberships()
-      myOrgMemberships = memberships
-      let membershipIds = Set(memberships.map(\.org_id))
+      memberships = try await supabase.listMyOrgMemberships()
+        .filter(\.isActive)
+    } catch {
+      // A failed authoritative membership read must fail closed and remove all
+      // organization authority. Platform authorization is intentionally kept
+      // independent and is refreshed through its server-authorized endpoint.
+      if chatListenerStarted {
+        await supabase.stopChatMessageListener()
+      }
+      activeOrgId = nil
+      myOrgMemberships = []
+      availableOrganizations = []
+      activeOrgSettings = nil
+      chatListenerStarted = false
+      chatListenerOrganizationId = nil
+      clearChatContext()
+      return
+    }
+
+    // Commit the source of truth before loading optional directory/settings
+    // presentation data. A branding or organization-list failure must not
+    // erase a valid active owner/admin/coach membership.
+    myOrgMemberships = memberships
+    let membershipIds = Set(memberships.map(\.org_id))
+    if let currentOrgId = activeOrgId, membershipIds.contains(currentOrgId) {
+      // Keep the current organization when the user still has access.
+    } else {
+      activeOrgId = memberships.first?.org_id
+    }
+
+    do {
       let orgs = try await supabase.listOrgs()
       availableOrganizations = orgs
         .filter { membershipIds.contains($0.id) }
         .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    } catch {
+      // Keep any previously loaded matching names. Authorization remains based
+      // solely on the membership rows committed above.
+      availableOrganizations = availableOrganizations
+        .filter { membershipIds.contains($0.id) }
+        .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
 
-      if let currentOrgId = activeOrgId, membershipIds.contains(currentOrgId) {
-        // Keep the current organization when the user still has access.
-      } else {
-        activeOrgId = availableOrganizations.first?.id ?? memberships.first?.org_id
-      }
-      if let activeOrgId {
+    if let activeOrgId {
+      do {
         activeOrgSettings = try await supabase.fetchOrgSettings(orgId: activeOrgId)
-      } else {
+      } catch {
         activeOrgSettings = nil
       }
-    } catch {
-      myOrgMemberships = []
-      availableOrganizations = []
+    } else {
       activeOrgSettings = nil
+    }
+
+    if previousOrganizationId != activeOrgId, chatListenerStarted {
+      await supabase.stopChatMessageListener()
+      chatListenerStarted = false
+      chatListenerOrganizationId = nil
+      clearChatContext()
+      if activeOrgId != nil {
+        await startChatListenerIfNeeded()
+      }
+    } else if activeOrgId == nil, chatListenerStarted {
+      await supabase.stopChatMessageListener()
+      chatListenerStarted = false
+      chatListenerOrganizationId = nil
+      clearChatContext()
     }
   }
 
@@ -277,8 +333,16 @@ final class AppState: ObservableObject {
       globalToastText = "You do not have access to that organization."
       return
     }
-    guard activeOrgId != orgId else { return }
+    guard activeOrgId != orgId else {
+      // The refresh above still matters: it replaces stale role/status state
+      // even when the requested organization is already selected.
+      return
+    }
 
+    await supabase?.stopChatMessageListener()
+    chatListenerStarted = false
+    chatListenerOrganizationId = nil
+    clearChatContext()
     activeOrgId = orgId
     do {
       activeOrgSettings = try await supabase?.fetchOrgSettings(orgId: orgId)
@@ -288,6 +352,7 @@ final class AppState: ObservableObject {
       activeOrgSettings = nil
       globalToastText = "Organization settings could not be loaded: \(error.localizedDescription)"
     }
+    await startChatListenerIfNeeded()
   }
 
   func refreshEntitlement() async {
@@ -446,6 +511,9 @@ final class AppState: ObservableObject {
     clearOrgContext()
     coachListenersStarted = false
     chatListenerStarted = false
+    chatListenerOrganizationId = nil
+    clearChatContext()
+    UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
     profileLoadError = nil
     authError = message
   }
@@ -709,6 +777,8 @@ final class AppState: ObservableObject {
     clearOrgContext()
     coachListenersStarted = false
     chatListenerStarted = false
+    chatListenerOrganizationId = nil
+    UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
   }
 
   func configurePushNotifications() async {
@@ -733,13 +803,102 @@ final class AppState: ObservableObject {
     do {
       // The push payload contributes only an opaque identifier. The backend
       // performs recipient ownership checks before any route is accepted.
-      _ = try await supabase.getNotification(notificationId: notificationId)
-      let owned = try await supabase.markNotificationRead(notificationId: notificationId)
+      let owned = try await supabase.getNotification(notificationId: notificationId)
       UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
-      requestedNotification = owned
+      await openNotification(owned, markNonChatRead: true)
     } catch {
       UserDefaults.standard.removeObject(forKey: pendingPushNotificationKey)
       globalToastText = "That notification is no longer available for this account."
+    }
+  }
+
+  func openNotification(
+    _ notification: AppNotification,
+    markNonChatRead: Bool
+  ) async {
+    if case .chatConversation(let conversationId, let messageId) =
+      NotificationRouter.destination(for: notification) {
+      await openChatNotification(
+        notification: notification,
+        conversationId: conversationId,
+        messageId: messageId
+      )
+      return
+    }
+
+    if notification.category == .messageReceived {
+      globalToastText = "That conversation link is invalid or no longer available."
+      return
+    }
+
+    if markNonChatRead {
+      do {
+        requestedNotification = try await supabase?.markNotificationRead(
+          notificationId: notification.id
+        ) ?? notification
+      } catch {
+        globalToastText = "That notification is no longer available for this account."
+      }
+    } else {
+      requestedNotification = notification
+    }
+  }
+
+  private func openChatNotification(
+    notification: AppNotification,
+    conversationId: UUID,
+    messageId: UUID
+  ) async {
+    guard let supabase else { return }
+    if activeOrgId != notification.organizationId {
+      await switchActiveOrganization(to: notification.organizationId)
+    }
+    guard activeOrgId == notification.organizationId else {
+      globalToastText = "You no longer have access to that conversation's organization."
+      return
+    }
+    do {
+      _ = try await supabase.chatChannel(
+        channelId: conversationId,
+        organizationId: notification.organizationId
+      )
+      if activeChatChannelId == conversationId {
+        let result = try await supabase.markChatConversationRead(
+          channelId: conversationId,
+          throughMessageId: messageId
+        )
+        recordChatRead(result)
+      } else if requestedChatChannelId != conversationId {
+        requestedChatChannelId = conversationId
+      }
+    } catch {
+      requestedChatChannelId = nil
+      globalToastText = "That conversation is no longer available for this account."
+    }
+  }
+
+  func shouldPresentRemoteNotification(_ notificationId: UUID) async -> Bool {
+    guard isAuthenticated, let supabase else { return true }
+    do {
+      let notification = try await supabase.getNotification(notificationId: notificationId)
+      guard case .chatConversation(let conversationId, let messageId) =
+        NotificationRouter.destination(for: notification) else { return true }
+      guard !ChatForegroundPresentationPolicy.shouldPresent(
+        notificationOrganizationId: notification.organizationId,
+        notificationConversationId: conversationId,
+        activeOrganizationId: activeOrgId,
+        activeConversationId: activeChatChannelId
+      ) else { return true }
+      let result = try await supabase.markChatConversationRead(
+        channelId: conversationId,
+        throughMessageId: messageId
+      )
+      recordChatRead(result)
+      return false
+    } catch {
+      // Failure to resolve an opaque reference must not suppress unrelated
+      // foreground notifications globally.
+      return true
     }
   }
 
@@ -790,19 +949,29 @@ final class AppState: ObservableObject {
   private func startChatListenerIfNeeded() async {
     guard let supabase else { return }
     guard isAuthenticated else { return }
-    if chatListenerStarted { return }
+    guard let organizationId = activeOrgId else { return }
+    if chatListenerStarted, chatListenerOrganizationId == organizationId { return }
+    if chatListenerStarted {
+      await supabase.stopChatMessageListener()
+      chatListenerStarted = false
+      chatListenerOrganizationId = nil
+    }
     chatListenerStarted = true
+    chatListenerOrganizationId = organizationId
 
     await requestNotificationPermissionIfNeeded()
 
     do {
-      try await supabase.startChatMessageListener { [weak self] ins in
+      try await supabase.startChatMessageListener(organizationId: organizationId) { [weak self] ins in
         Task { @MainActor in
+          guard self?.activeOrgId == ins.organizationId,
+                self?.chatListenerOrganizationId == ins.organizationId else { return }
           self?.chatLastInsert = ins
-          self?.handleChatMessageInsertForNotification(ins)
         }
       }
     } catch {
+      chatListenerStarted = false
+      chatListenerOrganizationId = nil
       // Best-effort. Chat still works with manual refresh.
       globalToastText = "Chat live updates unavailable: \(error.localizedDescription)"
     }
@@ -831,6 +1000,20 @@ final class AppState: ObservableObject {
     }
   }
 
+  func recordChatRead(_ result: SDChatReadResult) {
+    guard result.organizationId == activeOrgId else { return }
+    chatReadUpdate = ChatReadUpdate(
+      organizationId: result.organizationId,
+      conversationId: result.conversationId,
+      throughMessageId: result.throughMessageId,
+      lastReadAt: result.lastReadAt,
+      lastReadMessageId: result.lastReadMessageId
+    )
+    if result.notificationsMarkedRead > 0 {
+      NotificationCenter.default.post(name: .dhdNotificationStateChanged, object: nil)
+    }
+  }
+
   private func handleNewFacilityBookingRequest(_ req: SupabaseService.FacilityBookingRequest) {
     globalToastText = "New booking request received."
 
@@ -853,47 +1036,4 @@ final class AppState: ObservableObject {
     UNUserNotificationCenter.current().add(request)
   }
 
-  private func handleChatMessageInsertForNotification(_ ins: SupabaseService.ChatMessageInsert) {
-    guard isAuthenticated, ins.senderId != myProfile?.id, activeChatChannelId != ins.channelId else { return }
-    guard notifiedChatMessageIds.insert(ins.messageId).inserted else { return }
-    if notifiedChatMessageIds.count > 250 { notifiedChatMessageIds.removeAll(keepingCapacity: true) }
-
-    Task { @MainActor in
-      await requestNotificationPermissionIfNeeded()
-      await scheduleChatNotification(for: ins)
-    }
-  }
-
-  private func scheduleChatNotification(for ins: SupabaseService.ChatMessageInsert) async {
-    guard let supabase else { return }
-    do {
-      let channels = try await supabase.listChatChannels()
-      guard let channel = channels.first(where: { $0.id == ins.channelId }) else { return }
-      var senderName = "New message"
-      if let senderId = ins.senderId {
-        senderName = try await supabase.listProfiles(ids: [senderId]).first?.displayName ?? senderName
-      }
-      let title: String
-      if channel.isGroup { title = "\(senderName) in \(channel.title ?? "Group chat")" }
-      else if channel.isAnnouncement { title = channel.title ?? "Announcement" }
-      else { title = senderName }
-      let body = ins.body.trimmingCharacters(in: .whitespacesAndNewlines)
-      globalToastText = "\(title): \(body.isEmpty ? "Sent you a message." : String(body.prefix(180)))"
-
-      let settings = await UNUserNotificationCenter.current().notificationSettings()
-      guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
-      let content = UNMutableNotificationContent()
-      content.title = title
-      content.body = body.isEmpty ? "Sent you a message." : String(body.prefix(180))
-      content.sound = .default
-      content.categoryIdentifier = "chat_message"
-      content.threadIdentifier = "chat_\(ins.channelId.uuidString)"
-      content.userInfo = ["channel_id": ins.channelId.uuidString]
-      try await UNUserNotificationCenter.current().add(UNNotificationRequest(
-        identifier: "sd_chat_message_\(ins.messageId.uuidString)", content: content, trigger: nil
-      ))
-    } catch {
-      // Realtime chat remains functional even if a local alert cannot be scheduled.
-    }
-  }
 }

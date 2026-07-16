@@ -69,6 +69,7 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
   case paymentRequest
   case payment
   case finance
+  case chatConversation
   case organizationAnnouncement
   case notificationDetail
   case unknown(String)
@@ -79,6 +80,7 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case "payment_request": .paymentRequest
     case "payment": .payment
     case "finance": .finance
+    case "chat_conversation": .chatConversation
     case "organization_announcement": .organizationAnnouncement
     case "notification_detail": .notificationDetail
     default: .unknown(raw)
@@ -95,6 +97,7 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case .paymentRequest: "payment_request"
     case .payment: "payment"
     case .finance: "finance"
+    case .chatConversation: "chat_conversation"
     case .organizationAnnouncement: "organization_announcement"
     case .notificationDetail: "notification_detail"
     case .unknown(let value): value
@@ -106,17 +109,37 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
   let paymentRequestId: UUID?
   let paymentId: UUID?
   let announcementId: UUID?
+  let organizationId: UUID?
+  let conversationId: UUID?
+  let messageId: UUID?
+  let senderId: UUID?
 
   private enum CodingKeys: String, CodingKey {
     case paymentRequestId = "payment_request_id"
     case paymentId = "payment_id"
     case announcementId = "announcement_id"
+    case organizationId = "organization_id"
+    case conversationId = "conversation_id"
+    case messageId = "message_id"
+    case senderId = "sender_id"
   }
 
-  init(paymentRequestId: UUID? = nil, paymentId: UUID? = nil, announcementId: UUID? = nil) {
+  init(
+    paymentRequestId: UUID? = nil,
+    paymentId: UUID? = nil,
+    announcementId: UUID? = nil,
+    organizationId: UUID? = nil,
+    conversationId: UUID? = nil,
+    messageId: UUID? = nil,
+    senderId: UUID? = nil
+  ) {
     self.paymentRequestId = paymentRequestId
     self.paymentId = paymentId
     self.announcementId = announcementId
+    self.organizationId = organizationId
+    self.conversationId = conversationId
+    self.messageId = messageId
+    self.senderId = senderId
   }
 
   init(from decoder: Decoder) throws {
@@ -124,6 +147,10 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     paymentRequestId = Self.uuid(container: container, key: .paymentRequestId)
     paymentId = Self.uuid(container: container, key: .paymentId)
     announcementId = Self.uuid(container: container, key: .announcementId)
+    organizationId = Self.uuid(container: container, key: .organizationId)
+    conversationId = Self.uuid(container: container, key: .conversationId)
+    messageId = Self.uuid(container: container, key: .messageId)
+    senderId = Self.uuid(container: container, key: .senderId)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -131,6 +158,10 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     try container.encodeIfPresent(paymentRequestId, forKey: .paymentRequestId)
     try container.encodeIfPresent(paymentId, forKey: .paymentId)
     try container.encodeIfPresent(announcementId, forKey: .announcementId)
+    try container.encodeIfPresent(organizationId, forKey: .organizationId)
+    try container.encodeIfPresent(conversationId, forKey: .conversationId)
+    try container.encodeIfPresent(messageId, forKey: .messageId)
+    try container.encodeIfPresent(senderId, forKey: .senderId)
   }
 
   private static func uuid(
@@ -426,6 +457,7 @@ enum NotificationDestination: Equatable, Sendable {
   case paymentRequest(UUID)
   case payment(paymentId: UUID?, paymentRequestId: UUID?)
   case finance(UUID)
+  case chatConversation(conversationId: UUID, messageId: UUID)
   case announcement(UUID)
   case detail(UUID)
 }
@@ -450,6 +482,14 @@ enum NotificationRouter {
       )
     case .finance:
       return .finance(notification.organizationId)
+    case .chatConversation:
+      guard let conversationId = notification.actionPayload.conversationId,
+            let messageId = notification.actionPayload.messageId,
+            notification.actionPayload.organizationId == nil ||
+              notification.actionPayload.organizationId == notification.organizationId else {
+        return .detail(notification.id)
+      }
+      return .chatConversation(conversationId: conversationId, messageId: messageId)
     case .organizationAnnouncement:
       guard let id = notification.actionPayload.announcementId ??
         notification.relatedEntityId.flatMap(UUID.init(uuidString:)) else {

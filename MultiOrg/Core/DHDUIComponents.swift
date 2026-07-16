@@ -28,6 +28,7 @@ struct DHDCard<Content: View>: View {
       .overlay(
         RoundedRectangle(cornerRadius: DHDTheme.cornerRadius)
           .strokeBorder(DHDTheme.separator.opacity(0.35), lineWidth: 1)
+          .allowsHitTesting(false)
       )
       .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
   }
@@ -86,6 +87,7 @@ struct DHDHeaderCard<Content: View>: View {
       .overlay(
         DHDDiamondPattern(color: Color.white.opacity(0.06))
           .clipShape(RoundedRectangle(cornerRadius: DHDTheme.cornerRadius))
+          .allowsHitTesting(false)
       )
       .shadow(color: DHDTheme.macShadowColor, radius: DHDTheme.macShadowRadius, x: 0, y: DHDTheme.macShadowY)
   }

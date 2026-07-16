@@ -8,9 +8,12 @@ struct ChatThreadView: View {
   @State private var profileById: [UUID: Profile] = [:]
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var loadToken: UUID?
 
   @State private var composerText = ""
   @State private var isSending = false
+  @State private var sendErrorText: String?
+  @State private var sendOperation = ChatSendOperationState()
 
   private var myId: UUID? { appState.myProfile?.id }
   private var canSend: Bool {
@@ -77,12 +80,15 @@ struct ChatThreadView: View {
     .onDisappear {
       appState.clearActiveChatChannelIfCurrent(channel.id)
     }
-    .task {
+    .task(id: chatContextIdentity) {
       appState.setActiveChatChannel(channel.id)
       await reload()
     }
     .onChange(of: appState.chatLastInsert) { _, ins in
-      guard let ins, ins.channelId == channel.id else { return }
+      guard let ins,
+            ins.organizationId == channel.org_id,
+            ins.organizationId == appState.activeOrgId,
+            ins.channelId == channel.id else { return }
       // If we already have the message, ignore.
       if messages.contains(where: { $0.id == ins.messageId }) { return }
       // Append and mark read if we're viewing this thread.
@@ -97,9 +103,20 @@ struct ChatThreadView: View {
         deleted_at: nil
       ))
       Task {
-        try? await appState.supabase?.upsertMyChatReadState(channelId: channel.id, lastReadAt: Date())
+        await markRead(through: ins.messageId)
       }
     }
+    .onChange(of: appState.chatReadUpdate) { _, update in
+      guard let update,
+            update.organizationId == channel.org_id,
+            update.conversationId == channel.id,
+            !messages.contains(where: { $0.id == update.throughMessageId }) else { return }
+      Task { await reload() }
+    }
+  }
+
+  private var chatContextIdentity: String {
+    "\(channel.id.uuidString.lowercased()):\(appState.activeOrgId?.uuidString.lowercased() ?? "none")"
   }
 
   private var channelTitle: String {
@@ -107,7 +124,12 @@ struct ChatThreadView: View {
   }
 
   private var orderedMessages: [SDChatMessage] {
-    messages.sorted(by: { $0.created_at < $1.created_at })
+    messages.sorted { lhs, rhs in
+      if lhs.created_at != rhs.created_at {
+        return lhs.created_at < rhs.created_at
+      }
+      return lhs.id.uuidString.lowercased() < rhs.id.uuidString.lowercased()
+    }
   }
 
   private var threadSubtitle: String {
@@ -172,34 +194,52 @@ struct ChatThreadView: View {
   }
 
   private var composer: some View {
-    HStack(alignment: .bottom, spacing: 10) {
-      TextField(canSend ? "Message" : "Coaches only", text: $composerText, axis: .vertical)
-        .lineLimit(1...5)
-        .textFieldStyle(.plain)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-          RoundedRectangle(cornerRadius: 18)
-            .fill(DHDTheme.surfaceElevated)
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 18)
-            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .disabled(!canSend || isSending)
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .bottom, spacing: 10) {
+        TextField(canSend ? "Message" : "Coaches only", text: $composerText, axis: .vertical)
+          .lineLimit(1...5)
+          .textFieldStyle(.plain)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
+          .background(
+            RoundedRectangle(cornerRadius: 18)
+              .fill(DHDTheme.surfaceElevated)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 18)
+              .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+          )
+          .disabled(!canSend || isSending)
 
-      Button {
-        Task { await send() }
-      } label: {
-        if isSending {
-          ProgressView().controlSize(.small)
-        } else {
-          Image(systemName: "paperplane.fill")
+        Button {
+          Task { await send() }
+        } label: {
+          if isSending {
+            ProgressView().controlSize(.small)
+          } else {
+            Image(systemName: "paperplane.fill")
+          }
         }
+        .buttonStyle(.borderedProminent)
+        .clipShape(Circle())
+        .disabled(!canSend || isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
-      .buttonStyle(.borderedProminent)
-      .clipShape(Circle())
-      .disabled(!canSend || isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+      if let sendErrorText {
+        HStack(spacing: 10) {
+          Label(sendErrorText, systemImage: "exclamationmark.circle.fill")
+            .font(.footnote)
+            .foregroundStyle(.red)
+          Spacer()
+          Button("Retry") { Task { await send() } }
+            .buttonStyle(.bordered)
+            .disabled(isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      } else if sendOperation.status == .sent {
+        Label("Sent", systemImage: "checkmark.circle.fill")
+          .font(.footnote)
+          .foregroundStyle(.green)
+      }
     }
     .padding(.horizontal, 16)
     .padding(.top, 12)
@@ -215,22 +255,48 @@ struct ChatThreadView: View {
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    guard let organizationId = channel.org_id,
+          organizationId == appState.activeOrgId else {
+      loadToken = nil
+      isLoading = false
+      messages = []
+      profileById = [:]
+      errorText = "Switch back to this conversation's organization to view it."
+      return
+    }
+    let token = UUID()
+    loadToken = token
     isLoading = true
-    defer { isLoading = false }
     do {
-      let msgs = try await supabase.listChatMessages(channelId: channel.id, before: nil, limit: 200)
+      let msgs = try await supabase.listChatMessages(
+        channelId: channel.id,
+        organizationId: organizationId,
+        before: nil,
+        limit: 200
+      )
+      guard loadToken == token, appState.activeOrgId == organizationId else { return }
       messages = msgs
 
       // Load participant profiles so we can label messages.
-      let memberships = try await supabase.listChatMemberships(channelIds: [channel.id])
+      let memberships = try await supabase.listChatMemberships(
+        channelIds: [channel.id],
+        organizationId: organizationId
+      )
+      guard loadToken == token, appState.activeOrgId == organizationId else { return }
       let ids = Set(memberships.map(\.user_id))
       let profiles = try await supabase.listProfiles(ids: Array(ids))
+      guard loadToken == token, appState.activeOrgId == organizationId else { return }
       profileById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
 
-      // Mark read (creates membership row for announcements if missing).
-      try await supabase.upsertMyChatReadState(channelId: channel.id, lastReadAt: Date())
+      if let latest = orderedMessages.last {
+        await markRead(through: latest.id)
+      }
+      guard loadToken == token, appState.activeOrgId == organizationId else { return }
+      isLoading = false
     } catch {
+      guard loadToken == token, appState.activeOrgId == organizationId else { return }
       errorText = error.localizedDescription
+      isLoading = false
     }
   }
 
@@ -247,17 +313,56 @@ struct ChatThreadView: View {
 
   private func send() async {
     guard let supabase = appState.supabase else { return }
-    let text = composerText
+    guard channel.org_id == appState.activeOrgId else {
+      sendErrorText = "This conversation belongs to a different organization."
+      return
+    }
+    let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let clientMessageId = sendOperation.begin(
+      channelId: channel.id,
+      body: text
+    ) else { return }
     composerText = ""
+    sendErrorText = nil
     isSending = true
     defer { isSending = false }
     do {
-      let msg = try await supabase.sendChatMessage(channelId: channel.id, body: text)
-      messages.append(msg)
-      try await supabase.upsertMyChatReadState(channelId: channel.id, lastReadAt: Date())
+      let response = try await supabase.sendChatMessage(
+        channelId: channel.id,
+        body: text,
+        clientMessageId: clientMessageId
+      )
+      if !messages.contains(where: { $0.id == response.message.id }) {
+        messages.append(response.message)
+      }
+      sendOperation.finish(success: true)
+      await markRead(through: response.message.id)
     } catch {
+      sendOperation.finish(success: false)
       composerText = text
-      errorText = error.localizedDescription
+      let failure = error.localizedDescription.lowercased()
+      if failure.contains("chat_idempotency_conflict") {
+        sendErrorText = "This retry no longer matches the original message. Review the draft and send again."
+      } else if failure.contains("membership") || failure.contains("participant") || failure.contains("42501") {
+        sendErrorText = "You no longer have permission to send in this conversation."
+      } else {
+        sendErrorText = "Message could not be sent. Your draft is preserved; try again."
+      }
+    }
+  }
+
+  private func markRead(through messageId: UUID) async {
+    guard let supabase = appState.supabase,
+          channel.org_id == appState.activeOrgId else { return }
+    do {
+      let result = try await supabase.markChatConversationRead(
+        channelId: channel.id,
+        throughMessageId: messageId
+      )
+      appState.recordChatRead(result)
+    } catch {
+      // Message content remains available. A later reload or realtime event can
+      // safely retry the exact authoritative read boundary.
     }
   }
 }

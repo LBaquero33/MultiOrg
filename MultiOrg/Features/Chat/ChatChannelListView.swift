@@ -20,6 +20,9 @@ struct ChatChannelListView: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var query = ""
+  @State private var loadToken: UUID?
+  @State private var loadedOrganizationId: UUID?
+  @State private var readCursorByChannelId: [UUID: ChatReadCursor] = [:]
 
   @State private var showCreate = false
 
@@ -75,14 +78,37 @@ struct ChatChannelListView: View {
     } message: {
       Text(errorText ?? "")
     }
-    .task { await reload() }
+    .task(id: chatContextIdentity) {
+      resetForOrganizationChange()
+      await reload()
+      if let requested = appState.requestedChatChannelId {
+        await openRequestedChannel(requested)
+      }
+    }
     .onChange(of: appState.chatLastInsert) { _, ins in
-      guard let ins else { return }
+      guard let ins,
+            ins.organizationId == appState.activeOrgId,
+            ins.organizationId == loadedOrganizationId,
+            channels.contains(where: { $0.id == ins.channelId }) else { return }
       // Update last message cache for quick UI refresh.
       lastByChannelId[ins.channelId] = SDChatLastMessageRow(
         channel_id: ins.channelId,
         body_preview: String(ins.body.prefix(140)),
-        message_created_at: ins.createdAt
+        message_created_at: ins.createdAt,
+        message_id: ins.messageId
+      )
+    }
+    .onChange(of: appState.chatReadUpdate) { _, update in
+      guard let update,
+            update.organizationId == appState.activeOrgId,
+            update.organizationId == loadedOrganizationId else { return }
+      let next = ChatReadCursor(
+        at: update.lastReadAt,
+        messageId: update.lastReadMessageId
+      )
+      readCursorByChannelId[update.conversationId] = ChatReadCursor.later(
+        readCursorByChannelId[update.conversationId],
+        next
       )
     }
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
@@ -125,8 +151,19 @@ struct ChatChannelListView: View {
 
     guard !q.isEmpty else { return sortChannels(base) }
     return sortChannels(base).filter { c in
-      titleForChannel(c).lowercased().contains(q)
+      ChatConversationSearch.matches(
+        title: titleForChannel(c),
+        preview: subtitleForChannel(c),
+        query: q
+      )
     }
+  }
+
+  private var chatContextIdentity: String {
+    [
+      appState.myProfile?.id.uuidString.lowercased() ?? "signed-out",
+      appState.activeOrgId?.uuidString.lowercased() ?? "no-organization",
+    ].joined(separator: ":")
   }
 
   @MainActor
@@ -201,6 +238,7 @@ struct ChatChannelListView: View {
               ChatChannelRowView(
                 title: titleForChannel(c),
                 subtitle: subtitleForChannel(c),
+                timestamp: timestampForChannel(c),
                 unread: isUnread(c),
                 isAnnouncement: c.isAnnouncement
               )
@@ -210,8 +248,9 @@ struct ChatChannelListView: View {
             NavigationLink(value: c.id) {
               ChatChannelRowView(
                 title: titleForChannel(c),
-                subtitle: subtitleForChannel(c),
-                unread: isUnread(c),
+              subtitle: subtitleForChannel(c),
+              timestamp: timestampForChannel(c),
+              unread: isUnread(c),
                 isAnnouncement: c.isAnnouncement
               )
             }
@@ -274,43 +313,117 @@ struct ChatChannelListView: View {
     return "No messages yet"
   }
 
+  private func timestampForChannel(_ channel: SDChatChannel) -> String? {
+    guard let date = lastByChannelId[channel.id]?.message_created_at ?? channel.created_at else {
+      return nil
+    }
+    if Calendar.current.isDateInToday(date) {
+      return date.formatted(date: .omitted, time: .shortened)
+    }
+    return date.formatted(date: .abbreviated, time: .omitted)
+  }
+
   private func isUnread(_ c: SDChatChannel) -> Bool {
-    guard let last = lastByChannelId[c.id]?.message_created_at else { return false }
-    let mine = myMembershipByChannelId[c.id]?.last_read_at
-    if let mine { return last > mine }
-    // No membership row yet (common for announcements): treat as unread if there is any message.
-    return true
+    let membershipCursor = myMembershipByChannelId[c.id].flatMap { membership in
+      membership.last_read_at.map {
+        ChatReadCursor(at: $0, messageId: membership.last_read_message_id)
+      }
+    }
+    let mine = ChatReadCursor.later(
+      membershipCursor,
+      readCursorByChannelId[c.id]
+    )
+    return ChatUnreadState.isUnread(
+      lastMessageAt: lastByChannelId[c.id]?.message_created_at,
+      lastMessageId: lastByChannelId[c.id]?.message_id,
+      lastReadAt: mine?.at,
+      lastReadMessageId: mine?.messageId
+    )
   }
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    guard let organizationId = appState.activeOrgId else {
+      resetForOrganizationChange()
+      return
+    }
+    let token = UUID()
+    loadToken = token
     isLoading = true
-    defer { isLoading = false }
     do {
-      let ch = try await supabase.listChatChannels()
+      let ch = try await supabase.listChatChannels(organizationId: organizationId)
+      guard accepts(organizationId: organizationId, token: token) else { return }
       channels = ch
+      loadedOrganizationId = organizationId
 
       let ids = ch.map(\.id)
       let last = try await supabase.listChatLastMessages(channelIds: ids)
+      guard accepts(organizationId: organizationId, token: token) else { return }
       lastByChannelId = Dictionary(uniqueKeysWithValues: last.map { ($0.channel_id, $0) })
 
-      let myMemberships = try await supabase.listMyChatMemberships()
+      let myMemberships = try await supabase.listMyChatMemberships(organizationId: organizationId)
+      guard accepts(organizationId: organizationId, token: token) else { return }
       myMembershipByChannelId = Dictionary(uniqueKeysWithValues: myMemberships.map { ($0.channel_id, $0) })
+      readCursorByChannelId = Dictionary(uniqueKeysWithValues: myMemberships.compactMap { membership in
+        membership.last_read_at.map {
+          (
+            membership.channel_id,
+            ChatReadCursor(at: $0, messageId: membership.last_read_message_id)
+          )
+        }
+      })
 
-      let allMemberships = try await supabase.listChatMemberships(channelIds: ids)
+      let allMemberships = try await supabase.listChatMemberships(
+        channelIds: ids,
+        organizationId: organizationId
+      )
+      guard accepts(organizationId: organizationId, token: token) else { return }
       membershipsByChannelId = Dictionary(grouping: allMemberships, by: \.channel_id)
 
       // Load participant profiles so DMs can display the other user name.
       let userIds = Set(allMemberships.map(\.user_id))
       let profiles = try await supabase.listProfiles(ids: Array(userIds))
+      guard accepts(organizationId: organizationId, token: token) else { return }
       profileById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+      isLoading = false
 
 #if os(macOS)
       syncSelectedChannel()
 #endif
     } catch {
+      guard accepts(organizationId: organizationId, token: token) else { return }
       errorText = error.localizedDescription
+      isLoading = false
     }
+  }
+
+  private func accepts(organizationId: UUID, token: UUID) -> Bool {
+    ChatContextGuard.accepts(
+      responseOrganizationId: organizationId,
+      responseToken: token,
+      activeOrganizationId: appState.activeOrgId,
+      currentToken: loadToken
+    )
+  }
+
+  private func resetForOrganizationChange() {
+    loadToken = nil
+    loadedOrganizationId = nil
+    channels = []
+    membershipsByChannelId = [:]
+    myMembershipByChannelId = [:]
+    lastByChannelId = [:]
+    profileById = [:]
+    readCursorByChannelId = [:]
+    query = ""
+    errorText = nil
+    isLoading = false
+#if os(macOS)
+    selectedChannelId = nil
+    detailRevision = UUID()
+#else
+    navigationPath = NavigationPath()
+#endif
   }
 
 #if os(macOS)
@@ -344,7 +457,13 @@ struct ChatChannelListView: View {
     if !channels.contains(where: { $0.id == channelId }) {
       await reload()
     }
-    guard let channel = channels.first(where: { $0.id == channelId }) else { return }
+    guard let channel = channels.first(where: {
+      $0.id == channelId && $0.org_id == appState.activeOrgId
+    }) else {
+      appState.requestedChatChannelId = nil
+      appState.globalToastText = "That conversation is no longer available for this organization."
+      return
+    }
     filter = filterForChannel(channel)
 #if os(macOS)
     select(channelId)
@@ -359,6 +478,7 @@ struct ChatChannelListView: View {
 private struct ChatChannelRowView: View {
   let title: String
   let subtitle: String
+  let timestamp: String?
   let unread: Bool
   let isAnnouncement: Bool
 
@@ -373,6 +493,11 @@ private struct ChatChannelRowView: View {
             .foregroundStyle(DHDTheme.textPrimary)
             .lineLimit(1)
           Spacer(minLength: 8)
+          if let timestamp {
+            Text(timestamp)
+              .font(.caption2)
+              .foregroundStyle(DHDTheme.textSecondary)
+          }
           if unread {
             Text("New")
               .font(.caption2.weight(.bold))

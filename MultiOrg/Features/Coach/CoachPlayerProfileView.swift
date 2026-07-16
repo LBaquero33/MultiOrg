@@ -11,6 +11,7 @@ struct CoachPlayerProfileView: View {
     case testing = "Testing"
     case program = "Program"
     case analysis = "Analysis"
+    case developmentAI = "Development AI"
     var id: String { rawValue }
   }
 
@@ -32,13 +33,24 @@ struct CoachPlayerProfileView: View {
           .frame(maxWidth: 520)
         }
 #else
-        ToolbarItem(placement: .principal) {
-          Picker("", selection: $tab) {
-            ForEach(Tab.allCases) { t in
-              Text(t.rawValue).tag(t)
+        ToolbarItem(placement: .primaryAction) {
+          Menu {
+            ForEach(Tab.allCases) { section in
+              Button {
+                tab = section
+              } label: {
+                if tab == section {
+                  Label(section.rawValue, systemImage: "checkmark")
+                } else {
+                  Text(section.rawValue)
+                }
+              }
             }
+          } label: {
+            Label(tab.rawValue, systemImage: "rectangle.grid.1x2")
           }
-          .pickerStyle(.segmented)
+          .accessibilityLabel("Player sections")
+          .accessibilityHint("Includes Player Development AI and Coach Copilot")
         }
 #endif
       }
@@ -64,6 +76,8 @@ struct CoachPlayerProfileView: View {
       CoachPlayerProgramAssignerView(player: player, canManagePlayer: canManagePlayer)
     case .analysis:
       CoachPlayerAnalysisView(player: player)
+    case .developmentAI:
+      PlayerDevelopmentAIWorkspaceView(player: player)
     }
   }
 }

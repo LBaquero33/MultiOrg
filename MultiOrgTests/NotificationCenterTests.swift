@@ -44,6 +44,178 @@ struct NotificationCenterTests {
     #expect(NotificationRouter.destination(for: malformed) == .detail(malformed.id))
   }
 
+  @Test("Direct-message notification routes to the exact current-organization conversation")
+  func directMessageRouteDecodes() throws {
+    let conversationId = UUID(uuidString: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")!
+    let messageId = UUID(uuidString: "ffffffff-ffff-4fff-8fff-ffffffffffff")!
+    let notification = try decodeNotification(
+      category: "message_received",
+      route: "chat_conversation",
+      payload: """
+      {
+        "organization_id":"\(orgId.uuidString.lowercased())",
+        "conversation_id":"\(conversationId.uuidString.lowercased())",
+        "message_id":"\(messageId.uuidString.lowercased())",
+        "sender_id":"\(userId.uuidString.lowercased())"
+      }
+      """,
+      relatedEntityId: messageId.uuidString.lowercased()
+    )
+    #expect(notification.category == .messageReceived)
+    #expect(notification.actionPayload.organizationId == orgId)
+    #expect(notification.actionPayload.conversationId == conversationId)
+    #expect(notification.actionPayload.messageId == messageId)
+    #expect(NotificationRouter.destination(for: notification) == .chatConversation(
+      conversationId: conversationId,
+      messageId: messageId
+    ))
+  }
+
+  @Test("Invalid and cross-organization direct-message metadata fails safely")
+  func invalidDirectMessageRouteFailsSafely() throws {
+    let conversationId = UUID(uuidString: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")!
+    let messageId = UUID(uuidString: "ffffffff-ffff-4fff-8fff-ffffffffffff")!
+    let mismatched = try decodeNotification(
+      category: "message_received",
+      route: "chat_conversation",
+      payload: """
+      {
+        "organization_id":"\(otherOrgId.uuidString.lowercased())",
+        "conversation_id":"\(conversationId.uuidString.lowercased())",
+        "message_id":"\(messageId.uuidString.lowercased())"
+      }
+      """
+    )
+    #expect(NotificationRouter.destination(for: mismatched) == .detail(mismatched.id))
+
+    let malformed = try decodeNotification(
+      category: "message_received",
+      route: "chat_conversation",
+      payload: "{\"conversation_id\":\"not-a-uuid\"}"
+    )
+    #expect(NotificationRouter.destination(for: malformed) == .detail(malformed.id))
+  }
+
+  @Test("Failed and ambiguous message retries retain the stable client operation UUID")
+  func chatSendIdempotency() throws {
+    let channelId = UUID(uuidString: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")!
+    let firstKey = UUID(uuidString: "99999999-9999-4999-8999-999999999991")!
+    let replacementKey = UUID(uuidString: "99999999-9999-4999-8999-999999999992")!
+    var operation = ChatSendOperationState()
+
+    #expect(operation.begin(channelId: channelId, body: " Hello ", key: firstKey) == firstKey)
+    #expect(operation.status == .sending)
+    #expect(operation.begin(channelId: channelId, body: "Hello", key: replacementKey) == nil)
+    operation.finish(success: false)
+    #expect(operation.status == .failed)
+    #expect(operation.begin(channelId: channelId, body: "Hello", key: replacementKey) == firstKey)
+    operation.finish(success: false)
+    #expect(operation.begin(channelId: channelId, body: "Changed", key: replacementKey) == replacementKey)
+    operation.finish(success: true)
+    #expect(operation.status == .sent)
+    #expect(operation.clientMessageId == nil)
+  }
+
+  @Test("Conversation context rejects late responses from another organization or generation")
+  func chatContextRejectsStaleResponses() {
+    let token = UUID()
+    #expect(ChatContextGuard.accepts(
+      responseOrganizationId: orgId,
+      responseToken: token,
+      activeOrganizationId: orgId,
+      currentToken: token
+    ))
+    #expect(!ChatContextGuard.accepts(
+      responseOrganizationId: otherOrgId,
+      responseToken: token,
+      activeOrganizationId: orgId,
+      currentToken: token
+    ))
+    #expect(!ChatContextGuard.accepts(
+      responseOrganizationId: orgId,
+      responseToken: token,
+      activeOrganizationId: orgId,
+      currentToken: UUID()
+    ))
+  }
+
+  @Test("Conversation search and unread state use scoped title, preview, and read cursor")
+  func chatSearchAndUnreadState() {
+    #expect(ChatConversationSearch.matches(
+      title: "Andrew Coach",
+      preview: "Practice moved to six",
+      query: "andrew"
+    ))
+    #expect(ChatConversationSearch.matches(
+      title: "Andrew Coach",
+      preview: "Practice moved to six",
+      query: "moved"
+    ))
+    #expect(!ChatConversationSearch.matches(
+      title: "Andrew Coach",
+      preview: "Practice moved to six",
+      query: "unrelated"
+    ))
+
+    let old = Date(timeIntervalSince1970: 10)
+    let latest = Date(timeIntervalSince1970: 20)
+    let earlierId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    let laterId = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    #expect(ChatUnreadState.isUnread(
+      lastMessageAt: latest,
+      lastMessageId: laterId,
+      lastReadAt: old,
+      lastReadMessageId: earlierId
+    ))
+    #expect(ChatUnreadState.isUnread(
+      lastMessageAt: latest,
+      lastMessageId: laterId,
+      lastReadAt: latest,
+      lastReadMessageId: earlierId
+    ))
+    #expect(!ChatUnreadState.isUnread(
+      lastMessageAt: latest,
+      lastMessageId: earlierId,
+      lastReadAt: latest,
+      lastReadMessageId: laterId
+    ))
+    #expect(ChatUnreadState.isUnread(
+      lastMessageAt: latest,
+      lastMessageId: laterId,
+      lastReadAt: latest,
+      lastReadMessageId: nil
+    ))
+    #expect(!ChatUnreadState.isUnread(
+      lastMessageAt: old,
+      lastMessageId: laterId,
+      lastReadAt: latest,
+      lastReadMessageId: earlierId
+    ))
+  }
+
+  @Test("Only an active exact conversation suppresses the foreground DM banner")
+  func foregroundChatPresentationPolicy() {
+    let conversationId = UUID()
+    #expect(!ChatForegroundPresentationPolicy.shouldPresent(
+      notificationOrganizationId: orgId,
+      notificationConversationId: conversationId,
+      activeOrganizationId: orgId,
+      activeConversationId: conversationId
+    ))
+    #expect(ChatForegroundPresentationPolicy.shouldPresent(
+      notificationOrganizationId: otherOrgId,
+      notificationConversationId: conversationId,
+      activeOrganizationId: orgId,
+      activeConversationId: conversationId
+    ))
+    #expect(ChatForegroundPresentationPolicy.shouldPresent(
+      notificationOrganizationId: orgId,
+      notificationConversationId: conversationId,
+      activeOrganizationId: orgId,
+      activeConversationId: UUID()
+    ))
+  }
+
   @Test("Inbox requests do not send recipients, actors, or authority claims")
   func inboxRequestExcludesServerAuthority() throws {
     let requests: [any Encodable] = [

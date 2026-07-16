@@ -1,0 +1,33 @@
+# Player Development data visibility
+
+This matrix describes the implemented Phase 11C–11E visibility contract. “Unavailable” means no authoritative Copilot adapter exists today; it is not a promise that the data is present elsewhere.
+
+| Development area | Objective raw/source data | Staff report | Player report | Staff alert | Player alert | Private coach content | Current limitation |
+|---|---|---|---|---|---|---|---|
+| Testing | Player sees their own numeric `sd_testing_entries`; authorized staff sees scoped player data. Note text is excluded from player evidence. | May cite scoped testing. | May cite the same player-safe value, unit, date, freshness, and verification only. | May use objective testing conditions. | May show no-recent/stale/limited-testing conditions with nonjudgmental wording. | Never inherited by player objects. | Testing method/context is absent unless recorded in a supported safe field. |
+| Normalized observations | Player sees their own `sd_player_metric_observations`; staff sees scoped observations. | May cite scoped observations. | May cite exact self/org observations. | May use objective changes or data quality. | May show supported improvement/regression, unit conflict, or low sample. | Notes and confidential metadata excluded. | Unverified data remains labeled unverified. |
+| Rapsodo / CSV imports | Committed, normalized observations are visible with safe provider/verification provenance. Preview, rejected rows, jobs, raw files, and storage paths are not evidence. | May cite committed observations. | May cite committed self observations. | May use committed objective values. | Separately generated player wording/identity; never relabeled from staff. | Raw upload and staff mapping context hidden. | Only committed observations enter Copilot evidence. |
+| Programs | Player sees safe assignment/template/date context; staff sees authorized assignments. | May cite assignment context. | May cite assignment context. | Staff workflow alerts may remain private. | No automatic assignment mutation; objective alerts do not imply completion. | Private notes hidden. | No authoritative completion/compliance ledger. |
+| Daily logs | Player-authored bounded aggregate/date/sample context is visible; raw notes are excluded. | May cite safe aggregate. | May cite safe aggregate. | May support staff context. | No judgmental compliance alert. | Raw/private notes hidden. | Logs are not attendance or verified metrics. |
+| BP analysis | Supported numeric `sd_bp_sessions` evidence is player-visible and staff-visible in scope. | May cite objective metrics. | May cite objective metrics. | May use objective conditions. | May use only allowlisted objective alert types. | Staff analysis remains private. | Only currently adapted numeric metrics are available. |
+| Reports | Raw report rows are audience-bound and not a shared source. | `audience=staff`; authorized staff scope only, full review lifecycle/history. | `audience=player`; exact active self player/org/requester only, deterministic player prompt, draft/archive lifecycle. | Report-awaiting-review remains staff-only. | Player report generation may separately create objective player alerts. | Staff edits, notes, approvals, rejection, and history never enter player reports. | `parent` is reserved and unreadable to parents in this phase. |
+| Alerts | Raw alert rows are audience-bound and not relabeled across audiences. | Staff may read/manage `audience=staff` in existing scope. | Player report may cite only player-audience alerts/reports. | Includes staff workflow and roster semantics where authorized. | `audience=player`; self-only objective informational alerts; player may dismiss. | Roster attention, risk flags, concerns, evaluations, and review alerts hidden. | No notification-center/APNs delivery in this phase. |
+| Coach notes | Not in player evidence allowlist. | Staff workflows may use their owning authorization. | Never cited. | May remain inside staff-only workflows. | Never cited. | Staff-only. | Future sharing must select safe content explicitly and audit the action. |
+| Attendance | No authoritative attendance ledger. | Must state unavailable. | Must state unavailable. | Must not infer attendance. | Must not infer attendance. | Existing private context remains private. | Bookings, assignments, and logs are not attendance. |
+| Games | No Copilot game adapter. | Unavailable. | Unavailable. | Unavailable. | Unavailable. | Separate workflows remain separate. | Requires authoritative source and visibility contract. |
+| Film | No Copilot film adapter. | Unavailable. | Unavailable. | Unavailable. | Unavailable. | Storage paths and signed URLs hidden. | Requires explicit media authorization. |
+| CommandIQ | No current source. | Unavailable. | Unavailable. | Unavailable. | Unavailable. | None exposed. | Future integration only. |
+| Goals | No authoritative Copilot goal evidence/tool. | Unavailable as an official Copilot record. | Conversational reflection only; not saved automatically. | No goal alert. | No goal alert. | Coach/private goal context hidden. | `update_personal_goal` remains a proposed action with no execution tool. |
+| Recruiting | No player-safe adapter. | Separate authorized workflows only. | Unavailable; private evaluations excluded. | No recruiting alert. | No recruiting alert. | Evaluations and comparisons hidden. | No guaranteed outcomes or automatic status changes. |
+
+## Exact cross-cutting rules
+
+- Every player-visible row matches the selected active organization and `auth.uid()` as player.
+- Conversations use `coach | player`; reports use `staff | player | parent`; alerts use `staff | player`. These audience values are immutable.
+- Report/alert evidence carries the same organization, player, and audience as its exact parent through composite foreign keys and audience-aware RLS.
+- Staff does not automatically read private player conversations, player reports, or player alerts. Players never read staff equivalents.
+- Player evidence is allowlist-filtered before persistence and before any provider invocation. Player Copilot may cite player-audience reports/alerts but cannot cite staff-audience records.
+- Parent reports are reserved; parents receive no report, Copilot, or parent-draft read access in this phase.
+- Reflection and clarification responses remain private conversation context, not verified metrics, medical evidence, or official records.
+- No dialogue, report, alert, draft, official-record mutation, notification-center row, or APNs push is created automatically.
+- New sources and new audiences default to hidden until database authorization, filtering, UI, and tests ship together.

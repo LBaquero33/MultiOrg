@@ -66,6 +66,32 @@ enum OrganizationAuthorization {
   }
 }
 
+enum SDAuthenticatedWorkspace: Equatable, Sendable {
+  case staff
+  case player
+  case parent
+  case platformOnly
+  case unavailable
+
+  /// Organization workspace selection is derived only from the selected
+  /// organization's active membership. Platform administration remains an
+  /// independent server-authorized capability and never supplies an org role.
+  static func resolve(
+    membership: SDOrgMembership?,
+    isPlatformAdmin: Bool
+  ) -> Self {
+    if membership?.isStaff == true { return .staff }
+    if membership?.isActive == true {
+      switch membership?.normalizedRole {
+      case "player": return .player
+      case "parent": return .parent
+      default: return .unavailable
+      }
+    }
+    return isPlatformAdmin ? .platformOnly : .unavailable
+  }
+}
+
 struct SDOrgSettings: Identifiable, Codable, Equatable, Sendable {
   var id: UUID { org_id }
   let org_id: UUID
@@ -478,6 +504,188 @@ struct SDPlatformDashboard: Decodable, Sendable {
       forKey: .unmanaged_organizations
     )) ?? []
   }
+}
+
+struct SDPlatformMember: Identifiable, Codable, Equatable, Sendable {
+  var id: String { "\(org_id.uuidString):\(user_id.uuidString)" }
+  let org_id: UUID
+  let user_id: UUID
+  let role: String
+  let status: String
+  let created_at: String?
+  let created_by: UUID?
+  let username: String?
+  let email: String?
+  let full_name: String?
+  let profile_role: String?
+  let last_activity: String?
+
+  var displayName: String {
+    for candidate in [full_name, username.map { "@\($0)" }, email] {
+      let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if !value.isEmpty { return value }
+    }
+    return "User \(user_id.uuidString.lowercased().prefix(8))"
+  }
+
+  var normalizedRole: String { role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+  var normalizedStatus: String { status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+  var isActive: Bool { normalizedStatus == "active" }
+  var badges: [String] {
+    switch normalizedRole {
+    case "owner": ["Owner", "Admin", "Coach"]
+    case "admin": ["Admin", "Coach"]
+    case "coach": ["Coach"]
+    case "player": ["Player"]
+    case "parent": ["Parent"]
+    default: []
+    }
+  }
+}
+
+enum SDPlatformMemberFilter: String, CaseIterable, Identifiable, Sendable {
+  case all
+  case owner
+  case admin
+  case coach
+  case player
+  case parent
+  case inactive
+
+  var id: String { rawValue }
+  var title: String { rawValue.capitalized }
+}
+
+enum SDPlatformDirectory {
+  static func organizations(
+    _ organizations: [SDPlatformOrganization],
+    matching query: String
+  ) -> [SDPlatformOrganization] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return organizations.filter { organization in
+      needle.isEmpty
+        || organization.name.localizedCaseInsensitiveContains(needle)
+        || organization.slug.localizedCaseInsensitiveContains(needle)
+        || organization.id.uuidString.localizedCaseInsensitiveContains(needle)
+    }.sorted {
+      let comparison = $0.name.localizedCaseInsensitiveCompare($1.name)
+      return comparison == .orderedSame
+        ? $0.id.uuidString < $1.id.uuidString
+        : comparison == .orderedAscending
+    }
+  }
+
+  static func members(
+    _ members: [SDPlatformMember],
+    matching query: String,
+    filter: SDPlatformMemberFilter
+  ) -> [SDPlatformMember] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return members.filter { member in
+      let matchesFilter: Bool = switch filter {
+      case .all: true
+      case .inactive: !member.isActive
+      default: member.normalizedRole == filter.rawValue
+      }
+      guard matchesFilter else { return false }
+      return needle.isEmpty
+        || member.displayName.localizedCaseInsensitiveContains(needle)
+        || member.username?.localizedCaseInsensitiveContains(needle) == true
+        || member.email?.localizedCaseInsensitiveContains(needle) == true
+    }.sorted {
+      let comparison = $0.displayName.localizedCaseInsensitiveCompare($1.displayName)
+      return comparison == .orderedSame
+        ? $0.user_id.uuidString < $1.user_id.uuidString
+        : comparison == .orderedAscending
+    }
+  }
+}
+
+struct SDPlatformMembersResponse: Decodable, Sendable {
+  let organization: SDPlatformOrganizationSummary
+  let members: [SDPlatformMember]
+}
+
+struct SDPlatformOrganizationSummary: Decodable, Equatable, Sendable {
+  let id: UUID
+  let slug: String
+  let name: String
+  let status: String
+}
+
+struct SDPlatformUsernameReference: Decodable, Equatable, Sendable {
+  let username: String
+  let org_id: UUID
+}
+
+struct SDPlatformUserDirectoryEntry: Identifiable, Decodable, Equatable, Sendable {
+  var id: UUID { user_id }
+  let user_id: UUID
+  let email: String?
+  let full_name: String?
+  let usernames: [SDPlatformUsernameReference]
+  let created_at: String?
+  let last_activity: String?
+
+  var displayName: String {
+    let name = full_name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !name.isEmpty { return name }
+    let address = email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !address.isEmpty { return address }
+    return "User \(user_id.uuidString.lowercased().prefix(8))"
+  }
+}
+
+struct SDPlatformUserSearchResponse: Decodable, Sendable {
+  let users: [SDPlatformUserDirectoryEntry]
+}
+
+struct SDPlatformAdministrator: Identifiable, Decodable, Equatable, Sendable {
+  var id: UUID { user_id }
+  let user_id: UUID
+  let granted_at: String?
+  let granted_by: UUID?
+  let notes: String?
+  let email: String?
+  let full_name: String?
+  let last_activity: String?
+
+  var displayName: String {
+    full_name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+      ? full_name!
+      : email ?? user_id.uuidString.lowercased()
+  }
+}
+
+struct SDPlatformAdministratorsResponse: Decodable, Sendable {
+  let administrators: [SDPlatformAdministrator]
+}
+
+struct SDPlatformMembershipUpdateResponse: Decodable, Sendable {
+  let membership: SDPlatformMembershipRecord
+  let idempotent_replay: Bool
+}
+
+struct SDPlatformMembershipRecord: Decodable, Equatable, Sendable {
+  let org_id: UUID
+  let user_id: UUID
+  let role: String
+  let status: String
+}
+
+struct SDPlatformAuditEntry: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let actor_id: UUID?
+  let action: String
+  let target_type: String
+  let target_id: String?
+  let org_id: UUID?
+  let details: [String: SDJSONValue]
+  let created_at: String?
+}
+
+struct SDPlatformAuditResponse: Decodable, Sendable {
+  let entries: [SDPlatformAuditEntry]
 }
 
 struct SDPlatformOrganizationCreatePayload: Encodable, Equatable, Sendable {

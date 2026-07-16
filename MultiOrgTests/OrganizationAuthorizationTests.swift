@@ -107,6 +107,173 @@ struct OrganizationAuthorizationTests {
       memberships: [membership(role: "coach")]
     ))
   }
+
+  @Test("Active organization roles select the workspace from membership", arguments: [
+    ("owner", SDAuthenticatedWorkspace.staff),
+    ("admin", SDAuthenticatedWorkspace.staff),
+    ("coach", SDAuthenticatedWorkspace.staff),
+    ("player", SDAuthenticatedWorkspace.player),
+    ("parent", SDAuthenticatedWorkspace.parent),
+  ])
+  func workspaceUsesMembership(role: String, expected: SDAuthenticatedWorkspace) {
+    #expect(
+      SDAuthenticatedWorkspace.resolve(
+        membership: membership(role: role),
+        isPlatformAdmin: false
+      ) == expected
+    )
+  }
+
+  @Test("Profile role is not an organization authorization input")
+  func workspaceHasNoProfileRoleOverride() {
+    #expect(
+      SDAuthenticatedWorkspace.resolve(membership: nil, isPlatformAdmin: false)
+        == .unavailable
+    )
+    #expect(
+      SDAuthenticatedWorkspace.resolve(
+        membership: membership(role: "owner", status: "disabled"),
+        isPlatformAdmin: false
+      ) == .unavailable
+    )
+  }
+
+  @Test("Platform-only and owner-plus-platform capabilities remain separate")
+  func platformCapabilityIsIndependent() {
+    #expect(
+      SDAuthenticatedWorkspace.resolve(membership: nil, isPlatformAdmin: true)
+        == .platformOnly
+    )
+    #expect(
+      SDAuthenticatedWorkspace.resolve(
+        membership: membership(role: "owner"),
+        isPlatformAdmin: true
+      ) == .staff
+    )
+  }
+
+  @Test("Selected organization membership isolates different roles and clears stale authority")
+  func selectedOrganizationIsolation() {
+    let memberships = [
+      membership(role: "owner", orgId: adminOrgId),
+      membership(role: "player", orgId: coachOrgId),
+    ]
+    let owner = OrganizationAuthorization.activeMembership(
+      userId: userId,
+      orgId: adminOrgId,
+      memberships: memberships
+    )
+    let player = OrganizationAuthorization.activeMembership(
+      userId: userId,
+      orgId: coachOrgId,
+      memberships: memberships
+    )
+    #expect(SDAuthenticatedWorkspace.resolve(membership: owner, isPlatformAdmin: false) == .staff)
+    #expect(SDAuthenticatedWorkspace.resolve(membership: player, isPlatformAdmin: false) == .player)
+    #expect(OrganizationAuthorization.activeMembership(
+      userId: userId,
+      orgId: UUID(),
+      memberships: memberships
+    ) == nil)
+  }
+
+  @Test("Membership decoding accepts exact database roles without optional audit fields", arguments: [
+    "owner", "admin", "coach", "player", "parent",
+  ])
+  func membershipRoleDecoding(role: String) throws {
+    let json = """
+    {
+      "org_id":"\(adminOrgId.uuidString.lowercased())",
+      "user_id":"\(userId.uuidString.lowercased())",
+      "role":"\(role)",
+      "status":"active"
+    }
+    """
+    let decoded = try JSONDecoder().decode(SDOrgMembership.self, from: Data(json.utf8))
+    #expect(decoded.normalizedRole == role)
+    #expect(decoded.isActive)
+  }
+}
+
+@Suite("Platform administration directory")
+struct PlatformAdministrationDirectoryTests {
+  private let orgA = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
+  private let orgB = UUID(uuidString: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")!
+  private let userA = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+  private let userB = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+
+  private func organization(id: UUID, name: String, status: String = "active") -> SDPlatformOrganization {
+    SDPlatformOrganization(
+      id: id,
+      slug: name.lowercased().replacingOccurrences(of: " ", with: "-"),
+      name: name,
+      status: status,
+      plan: "starter",
+      billing_email: nil,
+      max_members: nil,
+      active_members: 2,
+      players: 1,
+      coaches: 1,
+      active_entitlements: 1,
+      teams: 0
+    )
+  }
+
+  private func member(
+    id: UUID,
+    role: String,
+    status: String = "active",
+    name: String,
+    username: String,
+    email: String
+  ) -> SDPlatformMember {
+    SDPlatformMember(
+      org_id: orgA,
+      user_id: id,
+      role: role,
+      status: status,
+      created_at: "2026-07-01T12:00:00Z",
+      created_by: nil,
+      username: username,
+      email: email,
+      full_name: name,
+      profile_role: nil,
+      last_activity: nil
+    )
+  }
+
+  @Test("Organization search is alphabetical and matches name, slug, and ID")
+  func organizationSearch() {
+    let organizations = [
+      organization(id: orgB, name: "Zulu Baseball"),
+      organization(id: orgA, name: "Alpha Baseball"),
+    ]
+    #expect(SDPlatformDirectory.organizations(organizations, matching: "").map(\.id) == [orgA, orgB])
+    #expect(SDPlatformDirectory.organizations(organizations, matching: "alpha").map(\.id) == [orgA])
+    #expect(SDPlatformDirectory.organizations(organizations, matching: orgB.uuidString).map(\.id) == [orgB])
+  }
+
+  @Test("Member search and role/inactive filters are deterministic")
+  func memberSearchAndFilter() {
+    let members = [
+      member(id: userA, role: "owner", name: "LBAQ Owner", username: "lbaq27", email: "lbaq27@gmail.com"),
+      member(id: userB, role: "coach", status: "disabled", name: "Casey Coach", username: "caseyc", email: "casey@example.com"),
+    ]
+    #expect(SDPlatformDirectory.members(members, matching: "gmail", filter: .all).map(\.user_id) == [userA])
+    #expect(SDPlatformDirectory.members(members, matching: "", filter: .owner).map(\.user_id) == [userA])
+    #expect(SDPlatformDirectory.members(members, matching: "", filter: .inactive).map(\.user_id) == [userB])
+  }
+
+  @Test("Permission editor retains one request ID and recognizes material changes")
+  func permissionDraftIdempotency() {
+    let requestId = UUID(uuidString: "33333333-3333-4333-8333-333333333333")!
+    let owner = member(id: userA, role: "owner", name: "LBAQ Owner", username: "lbaq27", email: "lbaq27@gmail.com")
+    var draft = PlatformMembershipEditDraft(member: owner, requestId: requestId)
+    #expect(!draft.hasChanges)
+    draft.role = "admin"
+    #expect(draft.hasChanges)
+    #expect(draft.requestId == requestId)
+  }
 }
 
 @Suite("Payment request Swift foundation")

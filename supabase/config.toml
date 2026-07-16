@@ -24,6 +24,15 @@ verify_jwt = true
 [functions.finance-dashboard]
 verify_jwt = true
 
+[functions.player-development-ai]
+verify_jwt = true
+
+[functions.player-development-copilot]
+verify_jwt = true
+
+[functions.player-development-imports]
+verify_jwt = true
+
 [functions.notification-center]
 verify_jwt = true
 

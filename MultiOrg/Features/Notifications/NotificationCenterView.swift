@@ -62,6 +62,11 @@ struct NotificationBellButton: View {
         await viewModel.refreshBadge(service: appState.supabase)
       }
     }
+    .onReceive(NotificationCenter.default.publisher(for: .dhdNotificationStateChanged)) { _ in
+      Task {
+        await viewModel.refreshBadge(service: appState.supabase)
+      }
+    }
   }
 
   private var activeOrganizationAnnouncementContext: NotificationAnnouncementContext? {
@@ -111,6 +116,7 @@ struct NotificationCenterScreen: View {
 }
 
 struct NotificationCenterView: View {
+  @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var appState: AppState
   @ObservedObject var viewModel: NotificationCenterViewModel
   let announcementContext: NotificationAnnouncementContext?
@@ -156,6 +162,9 @@ struct NotificationCenterView: View {
       Task { await refresh() }
     }
     .onReceive(NotificationCenter.default.publisher(for: .dhdRemoteNotificationReceived)) { _ in
+      Task { await refresh() }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .dhdNotificationStateChanged)) { _ in
       Task { await refresh() }
     }
     .sheet(item: $selectedNotification) { notification in
@@ -316,6 +325,11 @@ struct NotificationCenterView: View {
 
   private func open(_ notification: AppNotification) {
     Task {
+      if case .chatConversation = NotificationRouter.destination(for: notification) {
+        await appState.openNotification(notification, markNonChatRead: false)
+        dismiss()
+        return
+      }
       _ = await viewModel.markRead(notification, service: appState.supabase)
       selectedNotification = viewModel.notifications.first(where: { $0.id == notification.id }) ?? notification
     }
@@ -504,6 +518,8 @@ struct NotificationDestinationView: View {
         : "Switch to \(notification.organizationName) to open this item in Billing."
     case .finance:
       return "Finance details require the matching active organization and owner or administrator access."
+    case .chatConversation:
+      return "Open Chat to view this conversation."
     case .announcement:
       return "Organization announcement"
     case .detail:

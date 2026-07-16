@@ -607,3 +607,269 @@ Deno.test("production notification center verifies JWT and never returns metadat
   assert(!source.includes("metadata,"));
   assert(config.includes("[functions.notification-center]\nverify_jwt = true"));
 });
+
+Deno.test("Phase 9C message producer derives active same-organization DM recipients and excludes sender", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  const producer = migration.slice(
+    migration.indexOf(
+      "create or replace function public.sd_notify_direct_message_received",
+    ),
+    migration.indexOf(
+      "create or replace function public.sd_queue_apns_deliveries",
+    ),
+  );
+  for (
+    const expected of [
+      "after insert on public.sd_chat_messages",
+      "channel.is_archived = false",
+      "v_channel.channel_type <> 'dm'",
+      "from public.sd_chat_memberships membership",
+      "join public.sd_org_memberships organization_membership",
+      "organization_membership.org_id = new.org_id",
+      "organization_membership.user_id = membership.user_id",
+      "organization_membership.status = 'active'",
+      "membership.org_id = new.org_id",
+      "membership.channel_id = new.channel_id",
+      "membership.user_id <> new.sender_id",
+      "'message_received'",
+      "'chat_message'",
+      "'chat_conversation'",
+      "'organization_id', new.org_id",
+      "'conversation_id', new.channel_id",
+      "'message_id', new.id",
+      "'sender_id', new.sender_id",
+      "'chat'",
+    ]
+  ) assert(producer.includes(expected), `missing ${expected}`);
+  assert(
+    !producer.includes("p_recipient_user_ids uuid[]\n)\nreturns trigger"),
+  );
+  assert(!producer.includes("new.recipient_user_id"));
+});
+
+Deno.test("Phase 9C message and notification retries are deterministic and concurrency safe", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  for (
+    const expected of [
+      "add column if not exists client_message_id uuid",
+      "ux_sd_chat_messages_sender_client_operation",
+      "on public.sd_chat_messages(org_id, sender_id, client_message_id)",
+      "create or replace function public.sd_send_chat_message",
+      "v_actor_id uuid := auth.uid()",
+      "p_channel_id is null or p_client_message_id is null",
+      "message.client_message_id = p_client_message_id",
+      "v_message.channel_id is distinct from p_channel_id",
+      "v_message.body is distinct from v_body",
+      "chat_idempotency_conflict",
+      "on conflict (org_id, sender_id, client_message_id)",
+      "on conflict (org_id, recipient_user_id, category, deduplication_key)",
+      "'message_received:' || new.org_id::text || ':' || new.channel_id::text || ':' || new.id::text",
+      "on conflict (notification_id, device_id, channel) do nothing",
+    ]
+  ) assert(migration.includes(expected), `missing ${expected}`);
+  assert(!migration.includes("p_sender_id"));
+  assert(
+    !migration.includes("p_org_id uuid,\n  p_channel_id uuid,\n  p_body text"),
+  );
+});
+
+Deno.test("Phase 9C preserves complete notification and APNs allowlists", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  const foundation = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715020000_notification_center_foundation.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  const pushMigration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715030000_apns_push_delivery.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  const values = (text: string) =>
+    [...text.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  const sorted = (items: string[]) => [...items].sort();
+
+  const priorSource = foundation.match(
+    /constraint sd_notifications_source_check\s+check \(source in \(([^)]+)\)\)/,
+  );
+  const priorCategories = foundation.match(
+    /constraint sd_notifications_category_check check \(category in \(([\s\S]*?)\)\),/,
+  );
+  const priorQueue = pushMigration.match(
+    /notification\.category in \(([^)]+)\)/,
+  );
+  assert(
+    priorSource && priorCategories && priorQueue,
+    "missing prior allowlist",
+  );
+
+  const sourceConstraint = migration.match(
+    /add constraint sd_notifications_source_check\s+check \(source in \(([^)]+)\)\)/,
+  );
+  assert(sourceConstraint, "missing replacement source constraint");
+  assertEquals(
+    sorted(values(sourceConstraint[1])),
+    sorted([...values(priorSource[1]), "chat"]),
+  );
+
+  const sourceValidation = migration.match(
+    /p_source not in \(([^)]+)\)/,
+  );
+  assert(sourceValidation, "missing producer source allowlist");
+  assertEquals(
+    sorted(values(sourceValidation[1])),
+    sorted([...values(priorSource[1]), "chat"]),
+  );
+
+  const categoryValidation = migration.match(
+    /p_category not in \(([\s\S]*?)\)\s+or pg_catalog\.char_length/,
+  );
+  assert(categoryValidation, "missing producer category allowlist");
+  assertEquals(
+    sorted(values(categoryValidation[1])),
+    sorted(values(priorCategories[1])),
+  );
+
+  const queueFunction = migration.slice(
+    migration.indexOf(
+      "create or replace function public.sd_queue_apns_deliveries",
+    ),
+    migration.indexOf(
+      "create or replace function public.sd_mark_chat_conversation_read",
+    ),
+  );
+  const queueAllowlist = queueFunction.match(
+    /notification\.category in \(([^)]+)\)/,
+  );
+  assert(queueAllowlist, "missing APNs queue category allowlist");
+  assertEquals(
+    sorted(values(queueAllowlist[1])),
+    sorted([...values(priorQueue[1]), "message_received"]),
+  );
+});
+
+Deno.test("Phase 9C send/read RPCs preserve messaging authorization and use safe SECURITY DEFINER grants", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  for (
+    const expected of [
+      "security definer\nset search_path = ''",
+      "if not public.sd_is_org_member(v_channel.org_id)",
+      "membership.channel_id = v_channel.id",
+      "membership.user_id = v_actor_id",
+      "and public.sd_is_org_member(org_id)",
+      "channel.org_id = sd_chat_messages.org_id",
+      "public.sd_chat_is_member(channel.id, (select auth.uid()))",
+      "public.sd_is_org_staff(channel.org_id)",
+      "revoke all on function public.sd_send_chat_message(uuid, text, uuid)\nfrom public, anon, authenticated, service_role",
+      "grant execute on function public.sd_send_chat_message(uuid, text, uuid)\nto authenticated",
+      "revoke all on function public.sd_mark_chat_conversation_read(uuid, uuid)\nfrom public, anon, authenticated, service_role",
+      "grant execute on function public.sd_mark_chat_conversation_read(uuid, uuid)\nto authenticated",
+      "revoke all on function public.sd_notify_direct_message_received()\nfrom public, anon, authenticated, service_role",
+      "revoke all on function public.sd_create_notifications(\n  uuid, uuid[], text, text, text, text, text, text, jsonb, text, uuid, text, jsonb\n) from public, anon, authenticated",
+      "grant execute on function public.sd_create_notifications(\n  uuid, uuid[], text, text, text, text, text, text, jsonb, text, uuid, text, jsonb\n) to service_role",
+      "revoke all on function public.sd_queue_apns_deliveries()\nfrom public, anon, authenticated, service_role",
+    ]
+  ) assert(migration.includes(expected), `missing ${expected}`);
+});
+
+Deno.test("Phase 9C read synchronization advances an exact boundary and leaves newer messages unread", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  for (
+    const expected of [
+      "message.id = p_through_message_id",
+      "message.org_id = v_channel.org_id",
+      "message.channel_id = p_channel_id",
+      "add column if not exists last_read_message_id uuid",
+      "order by message.created_at desc, message.id desc",
+      "message.id as message_id",
+      "set last_read_at = pg_catalog.greatest",
+      "last_read_message_id = case",
+      "excluded.last_read_at > public.sd_chat_memberships.last_read_at",
+      "public.sd_chat_memberships.last_read_message_id is null",
+      "excluded.last_read_message_id > public.sd_chat_memberships.last_read_message_id",
+      "notification.recipient_user_id = v_actor_id",
+      "notification.category = 'message_received'",
+      "notification.action_route = 'chat_conversation'",
+      "notification.related_entity_id = message.id::text",
+      "message.created_at < v_boundary_at",
+      "message.created_at = v_boundary_at",
+      "message.id <= p_through_message_id",
+      "notification.read_at is null",
+      "'last_read_message_id', v_last_read_message_id",
+      "'notifications_marked_read', v_notifications_marked",
+    ]
+  ) assert(migration.includes(expected), `missing ${expected}`);
+  const readFunction = migration.slice(
+    migration.indexOf(
+      "create or replace function public.sd_mark_chat_conversation_read",
+    ),
+  );
+  assert(!readFunction.includes("update public.sd_chat_messages"));
+  assert(!readFunction.includes("mark_all_read"));
+  assert(!readFunction.includes("message.created_at > v_boundary_at"));
+  assert(!readFunction.includes("message.created_at <= v_boundary_at"));
+});
+
+Deno.test("Phase 9C notification and delivery failures cannot roll back or delete persisted messages", async () => {
+  const migration = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260715050000_notification_direct_messages_integration.sql",
+      import.meta.url,
+    ),
+  )).toLowerCase();
+  const producer = migration.slice(
+    migration.indexOf(
+      "create or replace function public.sd_notify_direct_message_received",
+    ),
+    migration.indexOf(
+      "create or replace function public.sd_queue_apns_deliveries",
+    ),
+  );
+  assert(
+    producer.includes("begin\n    perform public.sd_create_notifications"),
+  );
+  assert(producer.includes("exception when others then"));
+  assert(producer.includes("direct_message_notification_production_failed"));
+  assert(producer.includes("return new"));
+  assert(producer.includes("sqlstate=%"));
+  assert(
+    !producer.includes(
+      "raise warning 'direct_message_notification_production_failed body=",
+    ),
+  );
+  assert(!producer.includes("delete from public.sd_chat_messages"));
+  assert(!producer.includes("update public.sd_chat_messages"));
+  assert(migration.includes("'organization_announcement', 'message_received'"));
+  assert(
+    migration.includes(
+      "perform public.sd_request_notification_delivery_worker()",
+    ),
+  );
+});

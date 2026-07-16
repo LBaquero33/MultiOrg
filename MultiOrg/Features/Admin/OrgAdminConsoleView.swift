@@ -1216,7 +1216,7 @@ struct OrgAdminConsoleView: View {
       let horizon = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
       upcomingBookings = (try? await supabase.listFacilityBookings(rangeStart: now, rangeEnd: horizon, orgId: orgId)) ?? []
       templateCount = (try? await supabase.listMyCoachTemplates().count) ?? 0
-      channelCount = (try? await supabase.listChatChannels().count) ?? 0
+      channelCount = (try? await supabase.listChatChannels(organizationId: orgId).count) ?? 0
 
       applySettingsToFields(loadedSettings)
     } catch {

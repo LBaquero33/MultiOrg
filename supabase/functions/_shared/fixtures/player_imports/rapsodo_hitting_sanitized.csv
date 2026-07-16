@@ -1,0 +1,7 @@
+
+"Player ID:",fictional-player-101
+"Player Name:",Avery Example
+
+No,Date,HitID,ExitVelocity,PitchBallVelocity,LaunchAngle,ExitDirection,Spin,Distance,SpinDirection,SpinConfidence,StrikeZoneX,StrikeZoneY,Contact Depth,BatName,SerialNumber,Unique ID,Session Name
+1,Sun Jan 11 2026 1:55:34 PM,fictional-hit-001,92.4,71.2,18.5,-12.0,2140,318,145,High,-,0.8,-,Fictional Bat,REDACTED-DEVICE,fictional-unique-hit-001,Synthetic Session
+2,Sun Jan 11 2026 1:56:12 PM,fictional-hit-002,-,70,8,4,-,142,-,-,-,-,-,Fictional Bat,REDACTED-DEVICE,fictional-unique-hit-002,Synthetic Session

@@ -1,0 +1,1547 @@
+import SwiftUI
+
+@MainActor
+final class PlayerDevelopmentCopilotWorkspaceModel: ObservableObject {
+  enum Phase: Equatable { case idle, loading, loaded, failed(String) }
+
+  @Published private(set) var phase: Phase = .idle
+  @Published private(set) var conversations: [SDCopilotConversation] = []
+  @Published private(set) var drafts: [SDParentUpdateDraft] = []
+  @Published private(set) var suggestedQuestions: [String] = []
+  @Published private(set) var usage: SDCopilotUsage?
+  @Published private(set) var hasMore = false
+  @Published private(set) var isCreating = false
+  @Published private(set) var isLoadingMore = false
+  @Published private(set) var presentedConversation: SDCopilotConversationPresentation?
+  @Published var errorMessage: String?
+
+  private var context: SDCopilotContextToken?
+  private var loadTask: Task<Void, Never>?
+  private var creationKey: UUID?
+
+  func reset() {
+    loadTask?.cancel()
+    loadTask = nil
+    context = nil
+    phase = .idle
+    conversations = []
+    drafts = []
+    suggestedQuestions = []
+    usage = nil
+    hasMore = false
+    isCreating = false
+    isLoadingMore = false
+    presentedConversation = nil
+    errorMessage = nil
+    creationKey = nil
+  }
+
+  @discardableResult
+  func presentConversation(
+    _ conversation: SDCopilotConversation,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    initialQuestion: String? = nil
+  ) -> Bool {
+    let token = SDCopilotContextToken(
+      organizationId: organizationId,
+      userId: userId,
+      playerId: playerId,
+      audience: audience
+    )
+    guard context == token,
+          conversation.organizationId == organizationId,
+          conversation.playerId == playerId,
+          conversation.audience == audience,
+          audience == .coach || conversation.createdBy == userId else {
+      errorMessage = SDCopilotClientScopeError.invalidResponseScope.localizedDescription
+      return false
+    }
+    presentedConversation = SDCopilotConversationPresentation(
+      conversation: conversation,
+      initialQuestion: initialQuestion
+    )
+    return true
+  }
+
+  func dismissPresentedConversation() {
+    presentedConversation = nil
+  }
+
+  func loadMoreConversations(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience
+  ) async {
+    guard hasMore, !isLoadingMore else { return }
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    guard context == token else { return }
+    isLoadingMore = true
+    defer { isLoadingMore = false }
+    do {
+      let response = try await client.listCopilotConversations(
+        organizationId: organizationId,
+        playerId: playerId,
+        audience: audience,
+        offset: conversations.count,
+        limit: 25
+      )
+      guard context == token else { return }
+      guard response.conversations.allSatisfy({ conversation in
+        conversation.organizationId == organizationId &&
+          conversation.playerId == playerId &&
+          conversation.audience == audience &&
+          (audience == .coach || conversation.createdBy == userId)
+      }) else {
+        throw SDCopilotClientScopeError.invalidResponseScope
+      }
+      let existing = Set(conversations.map(\.id))
+      conversations.append(contentsOf: response.conversations.filter { !existing.contains($0.id) })
+      hasMore = response.pagination.hasMore
+    } catch is CancellationError {
+      return
+    } catch {
+      guard context == token else { return }
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  func load(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience
+  ) async {
+    loadTask?.cancel()
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    if context != nil, context != token {
+      presentedConversation = nil
+      creationKey = nil
+    }
+    context = token
+    phase = .loading
+    errorMessage = nil
+    let task = Task { @MainActor in
+      do {
+        let conversationResponse = try await client.listCopilotConversations(
+          organizationId: organizationId, playerId: playerId, audience: audience, offset: 0, limit: 25
+        )
+        try Task.checkCancellation()
+        guard conversationResponse.conversations.allSatisfy({ conversation in
+          conversation.organizationId == organizationId &&
+            conversation.playerId == playerId &&
+            conversation.audience == audience &&
+            (audience == .coach || conversation.createdBy == userId)
+        }) else {
+          throw SDCopilotClientScopeError.invalidResponseScope
+        }
+        let draftResponse = audience == .coach
+          ? try await client.listParentUpdateDrafts(organizationId: organizationId, playerId: playerId)
+          : []
+        try Task.checkCancellation()
+        let questionResponse = try await client.copilotSuggestedQuestions(
+          organizationId: organizationId, playerId: playerId, audience: audience
+        )
+        try Task.checkCancellation()
+        let usageResponse = try await client.copilotUsage(organizationId: organizationId, audience: audience)
+        guard context == token else { return }
+        conversations = conversationResponse.conversations
+        hasMore = conversationResponse.pagination.hasMore
+        drafts = draftResponse
+        suggestedQuestions = questionResponse.suggestedQuestions
+        usage = usageResponse
+        phase = .loaded
+      } catch is CancellationError {
+        return
+      } catch {
+        guard context == token else { return }
+        errorMessage = error.localizedDescription
+        phase = .failed(error.localizedDescription)
+      }
+    }
+    loadTask = task
+    await task.value
+  }
+
+  func createConversation(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    title: String,
+    reportingWindowDays: Int,
+    initialQuestion: String? = nil
+  ) async -> Bool {
+    guard !isCreating else { return false }
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    guard context == token else { return false }
+    isCreating = true
+    errorMessage = nil
+    if creationKey == nil { creationKey = UUID() }
+    let requestKey = creationKey!
+    defer { isCreating = false }
+    do {
+      let conversation = try await client.createCopilotConversation(
+        organizationId: organizationId,
+        playerId: playerId,
+        audience: audience,
+        title: title,
+        reportingWindowDays: reportingWindowDays,
+        idempotencyKey: requestKey
+      )
+      guard context == token else { return false }
+      guard presentConversation(
+        conversation,
+        organizationId: organizationId,
+        userId: userId,
+        playerId: playerId,
+        audience: audience,
+        initialQuestion: initialQuestion
+      ) else { return false }
+      conversations.removeAll(where: { $0.id == conversation.id })
+      conversations.insert(conversation, at: 0)
+      creationKey = nil
+      return true
+    } catch {
+      guard context == token else { return false }
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+}
+
+@MainActor
+final class PlayerDevelopmentCopilotConversationModel: ObservableObject {
+  @Published private(set) var conversation: SDCopilotConversation?
+  @Published private(set) var messages: [SDCopilotMessage] = []
+  @Published private(set) var suggestedQuestions: [String] = []
+  @Published private(set) var isLoading = false
+  @Published private(set) var isSending = false
+  @Published private(set) var isLoadingMore = false
+  @Published private(set) var hasMore = false
+  @Published private(set) var pendingQuestion: SDCopilotPendingQuestion?
+  @Published var composer = ""
+  @Published var errorMessage: String?
+  @Published private(set) var errorDiagnosticCode: String?
+  @Published var successMessage: String?
+
+  private var context: SDCopilotContextToken?
+  private var requestTask: Task<Void, Never>?
+  private var sendKey: UUID?
+  private var sendQuestion: String?
+  private var retryAllowed = false
+
+  var retryAvailable: Bool {
+    retryAllowed && sendKey != nil && sendQuestion != nil && !isSending
+  }
+
+  private func presentFailure(_ error: Error) {
+    let presentation = SDCopilotFailurePresentation(error: error)
+    errorMessage = presentation.message
+    errorDiagnosticCode = presentation.code
+    retryAllowed = presentation.isRetryable
+  }
+
+  private func restorePersistedFailure() {
+    guard let failed = messages.last(where: { $0.role == .assistant }),
+          [.failed, .rejected].contains(failed.generationStatus) else { return }
+    let presentation = SDCopilotFailurePresentation(
+      code: failed.safeErrorCode
+    )
+    errorMessage = presentation.message
+    errorDiagnosticCode = presentation.code
+    retryAllowed = presentation.isRetryable
+    guard presentation.isRetryable else {
+      sendKey = nil
+      sendQuestion = nil
+      return
+    }
+    let user = messages.last(where: { message in
+      message.role == .user && message.createdAt <= failed.createdAt
+    })
+    sendKey = failed.idempotencyKey ?? user?.idempotencyKey
+    sendQuestion = user?.userQuestion
+    if sendKey == nil || sendQuestion == nil { retryAllowed = false }
+  }
+
+  func prefill(_ question: String?) {
+    guard composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let question = question?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !question.isEmpty,
+          question.count <= 2_000 else { return }
+    composer = question
+  }
+
+  private func messageIsScoped(
+    _ message: SDCopilotMessage,
+    organizationId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID
+  ) -> Bool {
+    message.organizationId == organizationId &&
+      message.playerId == playerId &&
+      message.audience == audience &&
+      message.conversationId == conversationId &&
+      (message.citations ?? []).allSatisfy { citation in
+        citation.organizationId == organizationId &&
+          citation.playerId == playerId &&
+          citation.audience == audience &&
+          citation.messageId == message.id
+      }
+  }
+
+  private func detailIsScoped(
+    _ detail: SDCopilotConversationDetailResponse,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID
+  ) -> Bool {
+    detail.conversation.id == conversationId &&
+      detail.conversation.organizationId == organizationId &&
+      detail.conversation.playerId == playerId &&
+      detail.conversation.audience == audience &&
+      (audience == .coach || detail.conversation.createdBy == userId) &&
+      detail.messages.allSatisfy {
+        messageIsScoped(
+          $0,
+          organizationId: organizationId,
+          playerId: playerId,
+          audience: audience,
+          conversationId: conversationId
+        )
+      }
+  }
+
+  func reset() {
+    requestTask?.cancel()
+    requestTask = nil
+    context = nil
+    conversation = nil
+    messages = []
+    suggestedQuestions = []
+    isLoading = false
+    isSending = false
+    isLoadingMore = false
+    hasMore = false
+    pendingQuestion = nil
+    composer = ""
+    errorMessage = nil
+    errorDiagnosticCode = nil
+    successMessage = nil
+    sendKey = nil
+    sendQuestion = nil
+    retryAllowed = false
+  }
+
+  func loadMoreMessages(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID
+  ) async {
+    guard hasMore, !isLoadingMore else { return }
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    guard context == token else { return }
+    isLoadingMore = true
+    defer { isLoadingMore = false }
+    do {
+      let detail = try await client.copilotConversation(
+        organizationId: organizationId,
+        conversationId: conversationId,
+        audience: audience,
+        offset: messages.count,
+        limit: 40
+      )
+      guard context == token else { return }
+      guard detailIsScoped(
+        detail,
+        organizationId: organizationId,
+        userId: userId,
+        playerId: playerId,
+        audience: audience,
+        conversationId: conversationId
+      ) else {
+        throw SDCopilotClientScopeError.invalidResponseScope
+      }
+      let existing = Set(messages.map(\.id))
+      messages.append(contentsOf: detail.messages.filter { !existing.contains($0.id) })
+      messages.sort(by: { $0.createdAt < $1.createdAt })
+      hasMore = detail.pagination.hasMore
+      restorePersistedFailure()
+    } catch is CancellationError {
+      return
+    } catch {
+      guard context == token else { return }
+      presentFailure(error)
+    }
+  }
+
+  func load(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID
+  ) async {
+    requestTask?.cancel()
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    context = token
+    isLoading = true
+    errorMessage = nil
+    errorDiagnosticCode = nil
+    sendKey = nil
+    sendQuestion = nil
+    retryAllowed = false
+    let task = Task { @MainActor in
+      defer { if context == token { isLoading = false } }
+      do {
+        let detail = try await client.copilotConversation(
+          organizationId: organizationId, conversationId: conversationId, audience: audience, offset: 0, limit: 40
+        )
+        try Task.checkCancellation()
+        guard detailIsScoped(
+          detail,
+          organizationId: organizationId,
+          userId: userId,
+          playerId: playerId,
+          audience: audience,
+          conversationId: conversationId
+        ) else {
+          throw SDCopilotClientScopeError.invalidResponseScope
+        }
+        let questions = try await client.copilotSuggestedQuestions(
+          organizationId: organizationId, playerId: playerId, audience: audience
+        )
+        guard context == token else { return }
+        conversation = detail.conversation
+        messages = detail.messages
+        pendingQuestion = detail.messages.compactMap(\.pendingQuestion).last(where: { pending in
+          pending.status == .pending && (ISO8601DateFormatter().date(from: pending.expiresAt) ?? .distantPast) > Date()
+        })
+        hasMore = detail.pagination.hasMore
+        suggestedQuestions = questions.suggestedQuestions
+        restorePersistedFailure()
+      } catch is CancellationError {
+        return
+      } catch {
+        guard context == token else { return }
+        presentFailure(error)
+      }
+    }
+    requestTask = task
+    await task.value
+  }
+
+  @discardableResult
+  func send(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID,
+    window: SDDevelopmentWindow,
+    retry: Bool = false,
+    responseText: String? = nil,
+    responseMode: SDCopilotPendingResponseMode? = nil
+  ) async -> Bool {
+    guard !isSending else { return false }
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    guard context == token else { return false }
+    let activePending = pendingQuestion?.status == .pending ? pendingQuestion : nil
+    let question = retry
+      ? (sendQuestion ?? "")
+      : (responseText ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !question.isEmpty, question.count <= 2_000 else {
+      errorMessage = question.isEmpty ? "Enter a player-development question." : "Questions are limited to 2,000 characters."
+      return false
+    }
+    if !retry || sendQuestion != question || sendKey == nil {
+      sendQuestion = question
+      sendKey = UUID()
+    }
+    isSending = true
+    errorMessage = nil
+    errorDiagnosticCode = nil
+    retryAllowed = false
+    successMessage = nil
+    defer { isSending = false }
+    do {
+      let response = try await client.askCopilot(
+        organizationId: organizationId,
+        playerId: playerId,
+        conversationId: conversationId,
+        audience: audience,
+        question: question,
+        window: window,
+        idempotencyKey: sendKey!,
+        retry: retry,
+        pendingQuestionId: activePending?.id,
+        pendingResponseMode: activePending == nil ? nil : (responseMode ?? .answer)
+      )
+      guard context == token else { return false }
+      guard [response.userMessage, response.assistantMessage].allSatisfy({
+        messageIsScoped(
+          $0,
+          organizationId: organizationId,
+          playerId: playerId,
+          audience: audience,
+          conversationId: conversationId
+        )
+      }) else {
+        throw SDCopilotClientScopeError.invalidResponseScope
+      }
+      for message in [response.userMessage, response.assistantMessage] {
+        messages.removeAll(where: { $0.id == message.id })
+        messages.append(message)
+      }
+      messages.sort(by: { $0.createdAt < $1.createdAt })
+      suggestedQuestions = response.suggestedQuestions
+      pendingQuestion = response.pendingQuestion
+      composer = ""
+      sendQuestion = nil
+      sendKey = nil
+      retryAllowed = false
+      successMessage = response.reused ? "The existing answer was restored." : nil
+      return true
+    } catch {
+      guard context == token else { return false }
+      presentFailure(error)
+      return false
+    }
+  }
+
+  func submitFeedback(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID,
+    messageId: UUID,
+    type: SDCopilotFeedbackType
+  ) async {
+    do {
+      try await client.submitCopilotFeedback(
+        organizationId: organizationId,
+        conversationId: conversationId,
+        messageId: messageId,
+        audience: audience,
+        type: type,
+        note: nil
+      )
+      successMessage = "Feedback saved."
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  func archiveConversation(
+    client: any PlayerDevelopmentCopilotClient,
+    organizationId: UUID,
+    userId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    conversationId: UUID
+  ) async -> Bool {
+    let token = SDCopilotContextToken(organizationId: organizationId, userId: userId, playerId: playerId, audience: audience)
+    guard context == token else { return false }
+    do {
+      let archived = try await client.archiveCopilotConversation(
+        organizationId: organizationId,
+        conversationId: conversationId,
+        audience: audience
+      )
+      guard context == token else { return false }
+      guard archived.organizationId == organizationId,
+            archived.playerId == playerId,
+            archived.audience == audience,
+            audience == .coach || archived.createdBy == userId else {
+        throw SDCopilotClientScopeError.invalidResponseScope
+      }
+      conversation = archived
+      return true
+    } catch {
+      guard context == token else { return false }
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+}
+
+struct PlayerDevelopmentCopilotWorkspaceView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  @StateObject private var model = PlayerDevelopmentCopilotWorkspaceModel()
+  @State private var reportingDays = 90
+  let player: Profile
+  let audience: SDCopilotAudience
+  let presentationStyle: SDCopilotWorkspacePresentationStyle
+
+  init(
+    player: Profile,
+    audience: SDCopilotAudience = .coach,
+    presentationStyle: SDCopilotWorkspacePresentationStyle = .pushed
+  ) {
+    self.player = player
+    self.audience = audience
+    self.presentationStyle = presentationStyle
+  }
+
+  private var contextKey: String {
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(audience.rawValue)"
+  }
+  private var presentation: SDCopilotPresentationPolicy {
+    SDCopilotPresentationPolicy(audience: audience)
+  }
+  private var presentedConversation: Binding<SDCopilotConversationPresentation?> {
+    Binding(
+      get: { model.presentedConversation },
+      set: { value in
+        if value == nil { model.dismissPresentedConversation() }
+      }
+    )
+  }
+
+  var body: some View {
+    Group {
+      if !SDDevelopmentPresentationAuthorization.isCopilotVisible(
+        membership: appState.activeOrgMembership,
+        audience: audience,
+        userId: appState.myProfile?.id,
+        playerId: player.id
+      ) {
+        ContentUnavailableView("Copilot access unavailable", systemImage: "lock.fill")
+      } else if let service = appState.supabase,
+                let organizationId = appState.activeOrgId,
+                let userId = appState.myProfile?.id {
+        content(service: service, organizationId: organizationId, userId: userId)
+      } else {
+        ProgressView("Loading organization…")
+      }
+    }
+    .navigationTitle(audience == .player ? "Player Copilot" : "Coach Copilot")
+    .toolbar {
+      if presentationStyle == .modal {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Close") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
+        }
+      }
+    }
+    .background(DHDTheme.pageBackground)
+    .task(id: contextKey) {
+      guard let service = appState.supabase,
+            let organizationId = appState.activeOrgId,
+            let userId = appState.myProfile?.id else { return }
+      model.reset()
+      await model.load(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience)
+    }
+    .copilotConversationPresentation(
+      item: presentedConversation,
+      player: player,
+      audience: audience,
+      appState: appState
+    )
+  }
+
+  private func content(
+    service: SupabaseService,
+    organizationId: UUID,
+    userId: UUID
+  ) -> some View {
+    List {
+      Section {
+        VStack(alignment: .leading, spacing: 8) {
+          Text(player.displayName).font(.title3.weight(.semibold))
+          Text("Ask evidence-grounded questions. Facts and interpretations remain separate, and every supported claim keeps its citation.")
+            .font(.footnote)
+            .foregroundStyle(DHDTheme.textSecondary)
+          Picker("Default window", selection: $reportingDays) {
+            Text("30 days").tag(30)
+            Text("90 days").tag(90)
+            Text("180 days").tag(180)
+            Text("1 year").tag(365)
+          }
+          Button {
+            Task {
+              _ = await model.createConversation(
+                client: service,
+                organizationId: organizationId,
+                userId: userId,
+                playerId: player.id,
+                audience: audience,
+                title: "\(player.displayName) development",
+                reportingWindowDays: reportingDays
+              )
+            }
+          } label: {
+            Label(model.isCreating ? "Creating…" : "New Conversation", systemImage: "plus.bubble.fill")
+          }
+          .disabled(model.isCreating)
+        }
+        .padding(.vertical, 6)
+      }
+
+      if let error = model.errorMessage {
+        Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
+      }
+
+      Section("Suggested questions") {
+        if model.suggestedQuestions.isEmpty {
+          Text("Suggestions will appear when supported evidence is available.")
+            .foregroundStyle(DHDTheme.textSecondary)
+        } else {
+          ForEach(model.suggestedQuestions, id: \.self) { question in
+            Button(question) {
+              Task {
+                _ = await model.createConversation(
+                  client: service,
+                  organizationId: organizationId,
+                  userId: userId,
+                  playerId: player.id,
+                  audience: audience,
+                  title: "\(player.displayName) development",
+                  reportingWindowDays: reportingDays,
+                  initialQuestion: question
+                )
+              }
+            }
+            .disabled(model.isCreating)
+          }
+        }
+      }
+
+      Section("Conversations") {
+        if model.phase == .loading { ProgressView("Loading conversations…") }
+        if model.conversations.isEmpty, model.phase != .loading {
+          Text("No Copilot conversations yet.").foregroundStyle(DHDTheme.textSecondary)
+        }
+        ForEach(model.conversations) { conversation in
+          Button {
+            _ = model.presentConversation(
+              conversation,
+              organizationId: organizationId,
+              userId: userId,
+              playerId: player.id,
+              audience: audience
+            )
+          } label: {
+            HStack(spacing: 10) {
+              VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                  Text(conversation.title).font(.headline)
+                  Spacer()
+                  copilotQualityBadge(conversation.qualityStatus ?? .unavailable)
+                }
+                if let question = conversation.mostRecentQuestion {
+                  Text(question).font(.subheadline).lineLimit(1)
+                }
+                if let preview = conversation.mostRecentAnswerPreview {
+                  Text(preview).font(.caption).foregroundStyle(DHDTheme.textSecondary).lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                  Text(conversation.generationMode == .deterministic ? "Deterministic mode" : conversation.provider.capitalized)
+                  Text(conversation.updatedAt)
+                  if conversation.status == .archived { Text("Archived • read only") }
+                }
+                .font(.caption2).foregroundStyle(DHDTheme.textSecondary)
+              }
+              Image(systemName: "chevron.right")
+                .foregroundStyle(DHDTheme.textSecondary)
+            }
+          }
+          .buttonStyle(.plain)
+          .contentShape(Rectangle())
+        }
+        if model.hasMore {
+          Button(model.isLoadingMore ? "Loading…" : "Load more conversations") {
+            Task {
+              await model.loadMoreConversations(
+                client: service,
+                organizationId: organizationId,
+                userId: userId,
+                playerId: player.id,
+                audience: audience
+              )
+            }
+          }
+          .disabled(model.isLoadingMore)
+        }
+      }
+
+      if presentation.showsParentDraftControls {
+        Section("Parent update drafts") {
+        Text("Not shared with parent.")
+          .font(.footnote.weight(.semibold)).foregroundStyle(.orange)
+        if model.drafts.isEmpty {
+          Text("No parent update drafts.").foregroundStyle(DHDTheme.textSecondary)
+        }
+        ForEach(model.drafts) { draft in
+          NavigationLink {
+            ParentUpdateDraftDetailView(player: player, draftId: draft.id)
+          } label: {
+            HStack {
+              VStack(alignment: .leading) {
+                Text("Parent update").font(.headline)
+                Text(draft.updatedAt).font(.caption).foregroundStyle(DHDTheme.textSecondary)
+              }
+              Spacer()
+              DHDStatusBadge(text: draft.status.rawValue.capitalized, color: draft.status == .approved ? .green : .orange)
+            }
+          }
+        }
+        }
+      }
+
+      if let usage = model.usage {
+        Section("Development usage") {
+          Text("\(usage.organizationQuestionsToday) of \(usage.limits.questionsPerOrganizationDay) organization questions today")
+          Text("\(usage.actorQuestionsThisHour) of \(usage.limits.questionsPerActorHour) questions this hour")
+          if presentation.showsParentDraftUsage {
+            Text("\(usage.organizationParentDraftsToday) of \(usage.limits.parentDraftsPerOrganizationDay) parent drafts today")
+          }
+        }
+        .font(.footnote)
+      }
+    }
+  }
+}
+
+private struct CopilotConversationPresentationModifier: ViewModifier {
+  @Binding var item: SDCopilotConversationPresentation?
+  let player: Profile
+  let audience: SDCopilotAudience
+  let appState: AppState
+
+  func body(content: Content) -> some View {
+    #if os(macOS)
+    content.sheet(item: $item) { route in
+      NavigationStack {
+        PlayerDevelopmentCopilotConversationView(
+          player: player,
+          conversation: route.conversation,
+          audience: audience,
+          initialQuestion: route.initialQuestion,
+          presentationStyle: .modal
+        )
+        .environmentObject(appState)
+      }
+      .frame(minWidth: 720, minHeight: 680)
+    }
+    #else
+    content.fullScreenCover(item: $item) { route in
+      NavigationStack {
+        PlayerDevelopmentCopilotConversationView(
+          player: player,
+          conversation: route.conversation,
+          audience: audience,
+          initialQuestion: route.initialQuestion,
+          presentationStyle: .modal
+        )
+        .environmentObject(appState)
+      }
+    }
+    #endif
+  }
+}
+
+private extension View {
+  func copilotConversationPresentation(
+    item: Binding<SDCopilotConversationPresentation?>,
+    player: Profile,
+    audience: SDCopilotAudience,
+    appState: AppState
+  ) -> some View {
+    modifier(
+      CopilotConversationPresentationModifier(
+        item: item,
+        player: player,
+        audience: audience,
+        appState: appState
+      )
+    )
+  }
+}
+
+struct PlayerDevelopmentCopilotConversationView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  @StateObject private var model = PlayerDevelopmentCopilotConversationModel()
+  @State private var selectedCitation: SDCopilotCitation?
+  @State private var selectedParentDraft: SDParentUpdateDraft?
+  @State private var reportingDays = 90
+  let player: Profile
+  let conversation: SDCopilotConversation
+  let audience: SDCopilotAudience
+  let initialQuestion: String?
+  let presentationStyle: SDCopilotWorkspacePresentationStyle
+
+  private var conversationId: UUID { conversation.id }
+
+  private var contextKey: String {
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(conversationId):\(audience.rawValue)"
+  }
+  private var presentation: SDCopilotPresentationPolicy {
+    SDCopilotPresentationPolicy(audience: audience)
+  }
+  private var window: SDDevelopmentWindow { .trailingDays(reportingDays) }
+  private var isArchived: Bool { (model.conversation ?? conversation).status == .archived }
+
+  var body: some View {
+    Group {
+      if let service = appState.supabase,
+         let organizationId = appState.activeOrgId,
+         let userId = appState.myProfile?.id {
+        conversationContent(service: service, organizationId: organizationId, userId: userId)
+      } else {
+        ProgressView()
+      }
+    }
+    .navigationTitle(model.conversation?.title ?? conversation.title)
+    #if !os(macOS)
+    .navigationBarTitleDisplayMode(.inline)
+    #endif
+    .toolbar {
+      if presentationStyle == .modal {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Close") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
+        }
+      }
+      ToolbarItem(placement: .primaryAction) {
+        Menu {
+          Picker("Reporting window", selection: $reportingDays) {
+            Text("30 days").tag(30)
+            Text("90 days").tag(90)
+            Text("180 days").tag(180)
+            Text("1 year").tag(365)
+          }
+          if presentation.showsParentDraftControls {
+            Button("Generate Parent Update") {
+            guard let service = appState.supabase,
+                  let organizationId = appState.activeOrgId else { return }
+            Task {
+              do {
+                selectedParentDraft = try await service.createParentUpdateDraft(
+                  organizationId: organizationId,
+                  playerId: player.id,
+                  conversationId: conversationId,
+                  sourceMessageId: model.messages.last(where: { $0.role == .assistant })?.id,
+                  window: window,
+                  idempotencyKey: UUID()
+                )
+              } catch { model.errorMessage = error.localizedDescription }
+            }
+            }
+          }
+          if model.conversation?.status == .active,
+             let service = appState.supabase,
+             let organizationId = appState.activeOrgId,
+             let userId = appState.myProfile?.id {
+            Button("Archive conversation", role: .destructive) {
+              Task {
+                if await model.archiveConversation(
+                  client: service,
+                  organizationId: organizationId,
+                  userId: userId,
+                  playerId: player.id,
+                  audience: audience,
+                  conversationId: conversationId
+                ) { dismiss() }
+              }
+            }
+          }
+        } label: { Image(systemName: "ellipsis.circle") }
+      }
+    }
+    .background(DHDTheme.pageBackground)
+    .task(id: contextKey) {
+      guard let service = appState.supabase,
+            let organizationId = appState.activeOrgId,
+            let userId = appState.myProfile?.id else { return }
+      model.reset()
+      await model.load(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId)
+      model.prefill(initialQuestion)
+    }
+    .sheet(item: $selectedCitation) { EvidenceCitationDetailView(citation: $0) }
+    .sheet(item: $selectedParentDraft) { draft in
+      NavigationStack {
+        ParentUpdateDraftDetailView(player: player, draftId: draft.id)
+          .environmentObject(appState)
+      }
+    }
+  }
+
+  private func conversationContent(
+    service: SupabaseService,
+    organizationId: UUID,
+    userId: UUID
+  ) -> some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+          DHDCard {
+            HStack {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(player.displayName).font(.headline)
+                Text(audience == .player ? "Player Copilot • Private to you" : "Coach Copilot • Staff workspace")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(DHDTheme.accent)
+                Text("\(reportingDays)-day evidence window").font(.caption).foregroundStyle(DHDTheme.textSecondary)
+              }
+              Spacer()
+              let mode = model.conversation?.generationMode ?? conversation.generationMode
+              DHDStatusBadge(text: mode == .deterministic ? "Deterministic" : mode.rawValue.capitalized, color: mode == .unavailable ? .red : .blue)
+            }
+          }
+          if model.isLoading { ProgressView("Loading messages…") }
+          if let error = model.errorMessage {
+            DHDCard {
+              VStack(alignment: .leading, spacing: 8) {
+                Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                #if DEBUG
+                if let code = model.errorDiagnosticCode {
+                  DisclosureGroup("Technical details") {
+                    Text("Code: \(code)")
+                      .font(.caption.monospaced())
+                      .textSelection(.enabled)
+                  }
+                }
+                #endif
+                if model.retryAvailable {
+                  Button("Retry failed answer") {
+                    Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window, retry: true) }
+                  }
+                  .disabled(model.isSending)
+                } else if model.conversation == nil {
+                  Button("Retry conversation") {
+                    Task {
+                      await model.load(
+                        client: service,
+                        organizationId: organizationId,
+                        userId: userId,
+                        playerId: player.id,
+                        audience: audience,
+                        conversationId: conversationId
+                      )
+                      model.prefill(initialQuestion)
+                    }
+                  }
+                  .disabled(model.isLoading)
+                }
+              }
+            }
+          }
+          if let success = model.successMessage { Label(success, systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+          if model.messages.isEmpty, !model.isLoading {
+            ContentUnavailableView("Ask a player-development question", systemImage: "bubble.left.and.text.bubble.right")
+          }
+          ForEach(model.messages) { message in
+            if message.role == .user {
+              HStack { Spacer(minLength: 32); Text(message.userQuestion ?? "").padding(12).background(DHDTheme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 14)) }
+            } else if let pending = message.pendingQuestion,
+                      message.assistantTurnType?.isQuestion == true {
+              CopilotQuestionCard(
+                message: message,
+                pending: pending,
+                isActive: model.pendingQuestion?.id == pending.id,
+                isSending: model.isSending
+              ) { text, mode in
+                Task {
+                  _ = await model.send(
+                    client: service,
+                    organizationId: organizationId,
+                    userId: userId,
+                    playerId: player.id,
+                    audience: audience,
+                    conversationId: conversationId,
+                    window: window,
+                    responseText: text,
+                    responseMode: mode
+                  )
+                }
+              }
+            } else {
+              CopilotAnswerCard(message: message, onCitation: { selectedCitation = $0 }) { feedback in
+                Task { await model.submitFeedback(client: service, organizationId: organizationId, audience: audience, conversationId: conversationId, messageId: message.id, type: feedback) }
+              }
+            }
+          }
+          if model.hasMore {
+            Button(model.isLoadingMore ? "Loading…" : "Load more messages") {
+              Task {
+                await model.loadMoreMessages(
+                  client: service,
+                  organizationId: organizationId,
+                  userId: userId,
+                  playerId: player.id,
+                  audience: audience,
+                  conversationId: conversationId
+                )
+              }
+            }
+            .disabled(model.isLoadingMore)
+          }
+          if !model.suggestedQuestions.isEmpty {
+            DHDCard {
+              VStack(alignment: .leading, spacing: 8) {
+                Text("Suggested follow-ups").font(.headline)
+                ForEach(model.suggestedQuestions, id: \.self) { question in
+                  Button(question) { model.composer = question }
+                    .buttonStyle(.plain).foregroundStyle(DHDTheme.accent)
+                    .disabled(isArchived)
+                }
+              }
+            }
+          }
+          Color.clear.frame(height: 1).id("copilot-conversation-bottom")
+        }
+        .padding()
+        .padding(.bottom, 110)
+      }
+      .onChange(of: model.messages.count) { _, _ in
+        withAnimation { proxy.scrollTo("copilot-conversation-bottom", anchor: .bottom) }
+      }
+      .onChange(of: model.isLoading) { _, loading in
+        if !loading { proxy.scrollTo("copilot-conversation-bottom", anchor: .bottom) }
+      }
+    }
+    .safeAreaInset(edge: .bottom) {
+      if isArchived {
+        Label("Archived conversation • Read only", systemImage: "archivebox.fill")
+          .frame(maxWidth: .infinity)
+          .padding()
+          .background(.regularMaterial)
+      } else {
+        VStack(spacing: 8) {
+          HStack(alignment: .bottom, spacing: 8) {
+            TextField(
+              model.pendingQuestion == nil ? "Ask about supported player evidence…" : "Answer Copilot’s question…",
+              text: $model.composer,
+              axis: .vertical
+            )
+              .textFieldStyle(.roundedBorder).lineLimit(1...5)
+            Button {
+              Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window) }
+            } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+            .disabled(model.isSending || model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.composer.count > 2_000)
+          }
+          HStack {
+            Text("\(model.composer.count)/2,000")
+            Spacer()
+            Text(model.pendingQuestion?.isOptional == true ? "Optional response • Copilot never changes official records." : "Copilot never changes official player records.")
+          }
+          .font(.caption2).foregroundStyle(DHDTheme.textSecondary)
+        }
+        .padding().background(.regularMaterial)
+      }
+    }
+  }
+}
+
+private struct CopilotQuestionCard: View {
+  let message: SDCopilotMessage
+  let pending: SDCopilotPendingQuestion
+  let isActive: Bool
+  let isSending: Bool
+  let onResponse: (String, SDCopilotPendingResponseMode) -> Void
+
+  private var isExpired: Bool {
+    guard pending.status == .pending else { return pending.status == .expired }
+    return (ISO8601DateFormatter().date(from: pending.expiresAt) ?? .distantPast) <= Date()
+  }
+
+  private var title: String {
+    switch pending.questionType {
+    case .clarificationQuestion: "One clarification"
+    case .evidenceGapQuestion: "Evidence context needed"
+    case .reflectionQuestion: "Optional reflection"
+    case .confirmationQuestion: "Confirmation required"
+    default: "Copilot question"
+    }
+  }
+
+  var body: some View {
+    DHDCard {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Label(title, systemImage: pending.isOptional ? "questionmark.bubble" : "checkmark.shield")
+            .font(.headline)
+          Spacer()
+          DHDStatusBadge(
+            text: pending.isOptional ? "Optional" : "Required",
+            color: pending.isOptional ? .blue : .orange
+          )
+        }
+        Text(message.structuredAnswer?.answer ?? pending.questionText ?? "Copilot needs a response.")
+          .font(.body.weight(.medium))
+        Text(pending.whyAsked)
+          .font(.footnote)
+          .foregroundStyle(DHDTheme.textSecondary)
+        if pending.mayLaterBeSaved {
+          Text("Your response stays in this private conversation unless you separately confirm a supported save action.")
+            .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+        }
+        if isSending && isActive {
+          ProgressView("Sending response…")
+        } else if isExpired {
+          Label("This question expired. Ask Copilot again for a current question.", systemImage: "clock.badge.exclamationmark")
+            .foregroundStyle(.orange)
+        } else if pending.status != .pending || !isActive {
+          Label(
+            pending.status == .superseded ? "Superseded by a newer question" : "Response recorded",
+            systemImage: "checkmark.circle.fill"
+          )
+          .foregroundStyle(DHDTheme.textSecondary)
+        } else {
+          if !pending.choices.isEmpty {
+            FlowLayout(spacing: 8) {
+              ForEach(pending.choices.prefix(6), id: \.self) { choice in
+                Button(choice) { onResponse(choice, .answer) }
+                  .buttonStyle(.bordered)
+              }
+            }
+          }
+          if pending.expectedResponseType == "free_text" {
+            Text("Type your response in the composer below.")
+              .font(.footnote).foregroundStyle(DHDTheme.textSecondary)
+          }
+          HStack {
+            if pending.isOptional {
+              Button("Skip") { onResponse("Skip", .skip) }
+                .buttonStyle(.bordered)
+            }
+            Button("Use available evidence") {
+              onResponse("Use available evidence", .useAvailableEvidence)
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct FlowLayout<Content: View>: View {
+  let spacing: CGFloat
+  let content: Content
+
+  init(spacing: CGFloat, @ViewBuilder content: () -> Content) {
+    self.spacing = spacing
+    self.content = content()
+  }
+
+  var body: some View {
+    #if os(macOS)
+    HStack(spacing: spacing) { content }
+    #else
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: spacing) { content }
+      VStack(alignment: .leading, spacing: spacing) { content }
+    }
+    #endif
+  }
+}
+
+private struct CopilotAnswerCard: View {
+  let message: SDCopilotMessage
+  let onCitation: (SDCopilotCitation) -> Void
+  let onFeedback: (SDCopilotFeedbackType) -> Void
+
+  var body: some View {
+    DHDCard {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Label("Home Plate Copilot", systemImage: "sparkles")
+            .font(.headline)
+          Spacer()
+          copilotQualityBadge(message.qualityStatus)
+        }
+        if let answer = message.structuredAnswer {
+          Text(answer.answer)
+          claimSection("Facts", rows: answer.facts.map { ($0.text, $0.evidenceIds) })
+          claimSection("Calculations", rows: answer.calculations.map { ($0.text, $0.evidenceIds) })
+          claimSection("Interpretation", rows: answer.interpretations.map { ($0.text, $0.evidenceIds) })
+          claimSection("Recommendations", rows: answer.recommendations.map { ($0.text, $0.evidenceIds) })
+          if !answer.missingData.isEmpty { warningSection("Missing information", rows: answer.missingData) }
+          if !answer.warnings.isEmpty { warningSection("Warnings", rows: answer.warnings) }
+          if !answer.proposedActions.isEmpty {
+            Divider()
+            Text("Proposed coach actions").font(.headline)
+            ForEach(answer.proposedActions) { action in
+              VStack(alignment: .leading, spacing: 3) {
+                Text(action.actionType.rawValue.replacingOccurrences(of: "_", with: " ").capitalized).font(.subheadline.weight(.semibold))
+                Text(action.explanation).font(.footnote)
+                Text("Requires coach approval").font(.caption).foregroundStyle(.orange)
+              }
+            }
+          }
+        } else {
+          let failure = SDCopilotFailurePresentation(code: message.safeErrorCode)
+          Text(failure.message)
+            .foregroundStyle(DHDTheme.textSecondary)
+          #if DEBUG
+          if let code = failure.code {
+            DisclosureGroup("Technical details") {
+              Text("Code: \(code)")
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+            }
+          }
+          #endif
+        }
+        if let citations = message.citations, !citations.isEmpty {
+          Divider()
+          Text("Evidence citations").font(.headline)
+          ForEach(citations) { citation in
+            Button { onCitation(citation) } label: {
+              HStack {
+                Image(systemName: "doc.text.magnifyingglass")
+                Text(citation.displayLabel).lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.right")
+              }
+            }
+            .buttonStyle(.plain).foregroundStyle(DHDTheme.accent)
+          }
+        }
+        Menu("Rate this answer") {
+          ForEach(SDCopilotFeedbackType.allCases, id: \.self) { type in
+            Button(type.title) { onFeedback(type) }
+          }
+        }
+        .font(.footnote)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func claimSection(_ title: String, rows: [(String, [String])]) -> some View {
+    if !rows.isEmpty {
+      Divider()
+      Text(title).font(.headline)
+      ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+        VStack(alignment: .leading, spacing: 3) {
+          Text(row.0)
+          Text("\(row.1.count) citation\(row.1.count == 1 ? "" : "s")")
+            .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+        }
+      }
+    }
+  }
+
+  private func warningSection(_ title: String, rows: [String]) -> some View {
+    VStack(alignment: .leading, spacing: 5) {
+      Divider()
+      Text(title).font(.headline)
+      ForEach(rows, id: \.self) { Label($0, systemImage: "info.circle").font(.footnote) }
+    }
+  }
+}
+
+private struct EvidenceCitationDetailView: View {
+  @Environment(\.dismiss) private var dismiss
+  let citation: SDCopilotCitation
+
+  private var displayValue: String {
+    if let value = citation.normalizedValue { return String(value) }
+    return citation.observedValue ?? "Unavailable"
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Evidence") {
+          LabeledContent("Metric", value: citation.canonicalMetricKey ?? citation.displayLabel)
+          LabeledContent("Value", value: displayValue)
+          LabeledContent("Unit", value: citation.unit ?? "Not applicable")
+          LabeledContent("Date", value: citation.observedAt ?? "Unavailable")
+        }
+        Section("Provenance") {
+          LabeledContent("Source", value: citation.sourceEntityType)
+          LabeledContent("Provider", value: citation.sourceProvider ?? "Home Plate")
+          LabeledContent("Verification", value: citation.verificationStatus ?? "Not supplied")
+          if let rule = citation.deterministicRuleId { LabeledContent("Calculation rule", value: rule) }
+        }
+        Section("Why this supports the answer") { Text(citation.explanation) }
+      }
+      .navigationTitle("Evidence citation")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Close") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
+        }
+      }
+    }
+  }
+}
+
+struct ParentUpdateDraftDetailView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  @State private var detail: SDParentDraftDetailResponse?
+  @State private var edited: SDParentUpdateContent?
+  @State private var isWorking = false
+  @State private var errorMessage: String?
+  let player: Profile
+  let draftId: UUID
+
+  var body: some View {
+    draftBody
+    .navigationTitle("Parent update draft")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Close") { dismiss() }
+          #if os(macOS)
+          .keyboardShortcut(.cancelAction)
+          #endif
+      }
+    }
+    .task(id: "\(appState.activeOrgAuthorizationKey):\(draftId)") { await load() }
+  }
+
+  @ViewBuilder
+  private var draftBody: some View {
+    if let detail, edited != nil {
+      draftForm(detail)
+    } else if let errorMessage {
+      ContentUnavailableView(
+        "Draft unavailable",
+        systemImage: "exclamationmark.triangle",
+        description: Text(errorMessage)
+      )
+    } else {
+      ProgressView("Loading draft…")
+    }
+  }
+
+  private func draftForm(_ detail: SDParentDraftDetailResponse) -> some View {
+    Form {
+      Section {
+        Label("Not shared with parent.", systemImage: "person.crop.circle.badge.exclamationmark")
+          .foregroundStyle(.orange).font(.headline)
+        LabeledContent("Status", value: detail.draft.status.rawValue.capitalized)
+        LabeledContent("Player", value: player.displayName)
+      }
+      Section("Coach-edited version") { contentEditors(editedContentBinding) }
+      DisclosureGroup("Compare generated original") {
+        parentContent(detail.draft.generatedOriginal)
+      }
+      Section("Review history") {
+        ForEach(detail.reviewEvents) { event in
+          VStack(alignment: .leading) {
+            Text(event.eventType.capitalized).font(.headline)
+            Text(event.createdAt).font(.caption).foregroundStyle(DHDTheme.textSecondary)
+          }
+        }
+      }
+      if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red) } }
+      Section { lifecycleButtons(detail.draft.status) }
+    }
+  }
+
+  private var editedContentBinding: Binding<SDParentUpdateContent> {
+    Binding(
+      get: { edited ?? detail!.draft.editedContent },
+      set: { edited = $0 }
+    )
+  }
+
+  @ViewBuilder
+  private func lifecycleButtons(_ status: SDParentDraftStatus) -> some View {
+    Button("Save edits") { Task { await save(markReviewed: false) } }
+      .disabled(isWorking || !canEdit(status))
+    Button("Mark reviewed") { Task { await save(markReviewed: true) } }
+      .disabled(isWorking || status != .generated)
+    Button("Approve") { Task { await transition("approve_parent_draft") } }
+      .disabled(isWorking || status != .reviewed)
+    Button("Reject", role: .destructive) { Task { await transition("reject_parent_draft") } }
+      .disabled(isWorking || ![.generated, .reviewed].contains(status))
+    Button("Archive") { Task { await transition("archive_parent_draft") } }
+      .disabled(isWorking || status == .archived)
+  }
+
+  private func canEdit(_ status: SDParentDraftStatus) -> Bool { [.generated, .reviewed].contains(status) }
+
+  @ViewBuilder
+  private func contentEditors(_ content: Binding<SDParentUpdateContent>) -> some View {
+    TextField("Recent work", text: content.recentWork, axis: .vertical)
+    TextField("Positive developments", text: content.positiveDevelopments, axis: .vertical)
+    TextField("Current focus", text: content.currentFocus, axis: .vertical)
+    TextField("Consistency", text: content.consistency, axis: .vertical)
+    TextField("Recent testing", text: content.recentTesting, axis: .vertical)
+    TextField("Evidence limitations", text: content.evidenceLimitations, axis: .vertical)
+    TextField("Upcoming next steps", text: content.upcomingNextSteps, axis: .vertical)
+  }
+
+  private func parentContent(_ content: SDParentUpdateContent) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      parentSection("Recent work", content.recentWork)
+      parentSection("Positive developments", content.positiveDevelopments)
+      parentSection("Current focus", content.currentFocus)
+      parentSection("Consistency", content.consistency)
+      parentSection("Recent testing", content.recentTesting)
+      parentSection("Evidence limitations", content.evidenceLimitations)
+      parentSection("Upcoming next steps", content.upcomingNextSteps)
+    }
+  }
+
+  private func parentSection(_ title: String, _ value: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) { Text(title).font(.caption.weight(.semibold)); Text(value) }
+  }
+
+  private func load() async {
+    guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    do {
+      let loaded = try await service.parentUpdateDraft(organizationId: organizationId, draftId: draftId)
+      guard appState.activeOrgId == organizationId, loaded.draft.playerId == player.id else { return }
+      detail = loaded
+      edited = loaded.draft.editedContent
+    } catch { errorMessage = error.localizedDescription }
+  }
+
+  private func save(markReviewed: Bool) async {
+    guard !isWorking, let service = appState.supabase, let organizationId = appState.activeOrgId, let edited else { return }
+    isWorking = true; defer { isWorking = false }
+    do {
+      _ = try await service.updateParentUpdateDraft(organizationId: organizationId, draftId: draftId, content: markReviewed ? nil : edited, markReviewed: markReviewed, note: nil)
+      await load()
+    } catch { errorMessage = error.localizedDescription }
+  }
+
+  private func transition(_ action: String) async {
+    guard !isWorking, let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    isWorking = true; defer { isWorking = false }
+    do {
+      _ = try await service.transitionParentUpdateDraft(organizationId: organizationId, draftId: draftId, action: action, note: nil)
+      await load()
+    } catch { errorMessage = error.localizedDescription }
+  }
+}
+
+private func copilotQualityBadge(_ quality: SDCopilotQualityStatus) -> some View {
+  let color: Color = switch quality {
+  case .sufficient: .green
+  case .limited, .stale, .conflicting: .orange
+  case .rejected, .unknown: .red
+  case .unavailable: .gray
+  }
+  return DHDStatusBadge(text: quality.rawValue.capitalized, color: color)
+}

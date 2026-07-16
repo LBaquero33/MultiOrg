@@ -1,0 +1,3 @@
+external_player_id,player,date,metric,value,unit
+fiction-101,Fictional Blair,2026-06-01,hitting.max_exit_velocity,148.1,km/h
+fiction-101,Fictional Blair,2026-06-02,physical.body_weight,72.5,kg

@@ -148,6 +148,7 @@ final class SupabaseService: ObservableObject {
 
   struct ChatMessageInsert: Sendable, Equatable {
     let messageId: UUID
+    let organizationId: UUID
     let channelId: UUID
     let senderId: UUID?
     let body: String
@@ -155,14 +156,20 @@ final class SupabaseService: ObservableObject {
   }
 
   func startChatMessageListener(
+    organizationId: UUID,
     onInsert: @escaping @Sendable (ChatMessageInsert) -> Void
   ) async throws {
     if chatMessagesChannel != nil { return }
 
-    let channel = client.channel("sd_chat_messages")
+    let channel = client.channel("sd_chat_messages_\(organizationId.uuidString.lowercased())")
     chatMessagesChannel = channel
 
-    let inserts = channel.postgresChange(InsertAction.self, schema: "public", table: "sd_chat_messages")
+    let inserts = channel.postgresChange(
+      InsertAction.self,
+      schema: "public",
+      table: "sd_chat_messages",
+      filter: .eq("org_id", value: organizationId)
+    )
 
     chatMessagesTask = Task.detached(priority: .background) {
 
@@ -182,13 +189,22 @@ final class SupabaseService: ObservableObject {
         let rec = ins.record
         guard
           let messageId = parseUUID(rec["id"]),
+          let messageOrganizationId = parseUUID(rec["org_id"]),
           let channelId = parseUUID(rec["channel_id"]),
           let createdAt = parseDate(rec["created_at"]),
           let body = rec["body"]?.stringValue
         else { continue }
 
         let senderId = parseUUID(rec["sender_id"])
-        onInsert(ChatMessageInsert(messageId: messageId, channelId: channelId, senderId: senderId, body: body, createdAt: createdAt))
+        guard messageOrganizationId == organizationId else { continue }
+        onInsert(ChatMessageInsert(
+          messageId: messageId,
+          organizationId: messageOrganizationId,
+          channelId: channelId,
+          senderId: senderId,
+          body: body,
+          createdAt: createdAt
+        ))
       }
     }
 
@@ -234,7 +250,9 @@ final class SupabaseService: ObservableObject {
     let uid = session.user.id
     return try await client
       .from("sd_org_memberships")
-      .select("org_id,user_id,role,status,created_at,created_by")
+      // Authorization must not depend on optional audit timestamp decoding.
+      // The selected-org role path needs only these authoritative columns.
+      .select("org_id,user_id,role,status")
       .eq("user_id", value: uid.uuidString)
       .eq("status", value: "active")
       .execute()
@@ -585,6 +603,101 @@ final class SupabaseService: ObservableObject {
     ])
   }
 
+  func platformOrganizationMembers(orgId: UUID) async throws -> SDPlatformMembersResponse {
+    struct Request: Encodable {
+      let action = "list_members"
+      let org_id: UUID
+    }
+    return try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request(org_id: orgId)
+    )
+  }
+
+  func platformUpdateMembership(
+    orgId: UUID,
+    userId: UUID,
+    role: String,
+    status: String,
+    reason: String?,
+    requestId: UUID
+  ) async throws -> SDPlatformMembershipUpdateResponse {
+    struct Request: Encodable {
+      let action = "update_membership"
+      let org_id: UUID
+      let user_id: UUID
+      let role: String
+      let status: String
+      let reason: String?
+      let request_id: UUID
+    }
+    return try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request(
+        org_id: orgId,
+        user_id: userId,
+        role: role,
+        status: status,
+        reason: reason,
+        request_id: requestId
+      )
+    )
+  }
+
+  func platformSearchUsers(query: String) async throws -> [SDPlatformUserDirectoryEntry] {
+    struct Request: Encodable {
+      let action = "search_users"
+      let query: String
+    }
+    let response: SDPlatformUserSearchResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request(query: query)
+    )
+    return response.users
+  }
+
+  func platformAdministrators() async throws -> [SDPlatformAdministrator] {
+    struct Request: Encodable { let action = "list_platform_admins" }
+    let response: SDPlatformAdministratorsResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request()
+    )
+    return response.administrators
+  }
+
+  func platformSetAdministrator(
+    userId: UUID,
+    granted: Bool,
+    reason: String?,
+    requestId: UUID
+  ) async throws {
+    struct Request: Encodable {
+      let action: String
+      let user_id: UUID
+      let reason: String?
+      let request_id: UUID
+    }
+    struct Response: Decodable { let ok: Bool }
+    let _: Response = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request(
+        action: granted ? "grant_platform_admin" : "revoke_platform_admin",
+        user_id: userId,
+        reason: reason,
+        request_id: requestId
+      )
+    )
+  }
+
+  func platformAuditHistory() async throws -> [SDPlatformAuditEntry] {
+    struct Request: Encodable { let action = "audit_log" }
+    let response: SDPlatformAuditResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request()
+    )
+    return response.entries
+  }
+
   struct OrgLoginResponse: Decodable, Sendable {
     let access_token: String
     let refresh_token: String
@@ -674,33 +787,51 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Chat
 
-  func listChatChannels() async throws -> [SDChatChannel] {
+  func listChatChannels(organizationId: UUID) async throws -> [SDChatChannel] {
     // RLS determines what the caller can see (memberships + announcements).
     return try await client
       .from("sd_chat_channels")
       .select("id,org_id,channel_type,title,audience,created_by,is_archived,pinned_rank,created_at,updated_at")
+      .eq("org_id", value: organizationId.uuidString)
       .eq("is_archived", value: false)
       .execute()
       .value
   }
 
-  func listMyChatMemberships() async throws -> [SDChatMembership] {
+  func chatChannel(channelId: UUID, organizationId: UUID) async throws -> SDChatChannel {
+    try await client
+      .from("sd_chat_channels")
+      .select("id,org_id,channel_type,title,audience,created_by,is_archived,pinned_rank,created_at,updated_at")
+      .eq("id", value: channelId.uuidString)
+      .eq("org_id", value: organizationId.uuidString)
+      .eq("is_archived", value: false)
+      .single()
+      .execute()
+      .value
+  }
+
+  func listMyChatMemberships(organizationId: UUID) async throws -> [SDChatMembership] {
     let session = try await client.auth.session
     let uid = session.user.id
     return try await client
       .from("sd_chat_memberships")
-      .select("org_id,channel_id,user_id,member_role,joined_at,last_read_at,muted")
+      .select("org_id,channel_id,user_id,member_role,joined_at,last_read_at,last_read_message_id,muted")
+      .eq("org_id", value: organizationId.uuidString)
       .eq("user_id", value: uid.uuidString)
       .execute()
       .value
   }
 
-  func listChatMemberships(channelIds: [UUID]) async throws -> [SDChatMembership] {
+  func listChatMemberships(
+    channelIds: [UUID],
+    organizationId: UUID
+  ) async throws -> [SDChatMembership] {
     guard !channelIds.isEmpty else { return [] }
     let idList = channelIds.map(\.uuidString).joined(separator: ",")
     return try await client
       .from("sd_chat_memberships")
-      .select("org_id,channel_id,user_id,member_role,joined_at,last_read_at,muted")
+      .select("org_id,channel_id,user_id,member_role,joined_at,last_read_at,last_read_message_id,muted")
+      .eq("org_id", value: organizationId.uuidString)
       .filter("channel_id", operator: "in", value: "(\(idList))")
       .execute()
       .value
@@ -711,7 +842,7 @@ final class SupabaseService: ObservableObject {
     let idList = channelIds.map(\.uuidString).joined(separator: ",")
     return try await client
       .from("sd_chat_channel_last_message")
-      .select("channel_id,body_preview,message_created_at")
+      .select("channel_id,body_preview,message_created_at,message_id")
       .filter("channel_id", operator: "in", value: "(\(idList))")
       .execute()
       .value
@@ -780,10 +911,16 @@ final class SupabaseService: ObservableObject {
     return channel.id
   }
 
-  func listChatMessages(channelId: UUID, before: Date?, limit: Int = 60) async throws -> [SDChatMessage] {
+  func listChatMessages(
+    channelId: UUID,
+    organizationId: UUID,
+    before: Date?,
+    limit: Int = 60
+  ) async throws -> [SDChatMessage] {
     var q = client
       .from("sd_chat_messages")
       .select("id,org_id,channel_id,sender_id,body,created_at,edited_at,deleted_at")
+      .eq("org_id", value: organizationId.uuidString)
       .eq("channel_id", value: channelId.uuidString)
       .is("deleted_at", value: nil)
 
@@ -794,46 +931,42 @@ final class SupabaseService: ObservableObject {
 
     return try await q
       .order("created_at", ascending: false)
+      .order("id", ascending: false)
       .limit(limit)
       .execute()
       .value
   }
 
-  func sendChatMessage(channelId: UUID, body: String) async throws -> SDChatMessage {
-    let session = try await client.auth.session
-    let uid = session.user.id
-    struct Insert: Encodable {
-      let org_id: UUID?
-      let channel_id: UUID
-      let sender_id: UUID
-      let body: String
-    }
+  func sendChatMessage(
+    channelId: UUID,
+    body: String,
+    clientMessageId: UUID
+  ) async throws -> SDChatSendResponse {
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
       throw NSError(domain: "chat", code: 2, userInfo: [NSLocalizedDescriptionKey: "Message is empty."])
     }
     return try await client
-      .from("sd_chat_messages")
-      .insert(Insert(org_id: nil, channel_id: channelId, sender_id: uid, body: trimmed))
-      .select("id,org_id,channel_id,sender_id,body,created_at,edited_at,deleted_at")
-      .single()
+      .rpc("sd_send_chat_message", params: [
+        "p_channel_id": channelId.uuidString.lowercased(),
+        "p_body": trimmed,
+        "p_client_message_id": clientMessageId.uuidString.lowercased(),
+      ])
       .execute()
       .value
   }
 
-  func upsertMyChatReadState(channelId: UUID, lastReadAt: Date) async throws {
-    let session = try await client.auth.session
-    let uid = session.user.id
-    struct Upsert: Encodable {
-      let channel_id: UUID
-      let user_id: UUID
-      let last_read_at: String
-    }
-    let iso = ISO8601DateFormatter().string(from: lastReadAt)
-    _ = try await client
-      .from("sd_chat_memberships")
-      .upsert(Upsert(channel_id: channelId, user_id: uid, last_read_at: iso), onConflict: "channel_id,user_id")
+  func markChatConversationRead(
+    channelId: UUID,
+    throughMessageId: UUID
+  ) async throws -> SDChatReadResult {
+    try await client
+      .rpc("sd_mark_chat_conversation_read", params: [
+        "p_channel_id": channelId.uuidString.lowercased(),
+        "p_through_message_id": throughMessageId.uuidString.lowercased(),
+      ])
       .execute()
+      .value
   }
 
   func listPlayerProfiles() async throws -> [Profile] {
@@ -1681,6 +1814,757 @@ final class SupabaseService: ObservableObject {
     return response.request
   }
 
+  // MARK: - Player Development AI (Phase 11A deterministic foundation)
+
+  private func invokePlayerDevelopmentAI<Request: Encodable, Response: Decodable>(
+    _ request: Request
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("player-development-ai", body: request)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
+  }
+
+  func buildDevelopmentEvidencePack(
+    organizationId: UUID,
+    playerId: UUID,
+    reportType: SDDevelopmentReportType = .playerDevelopmentSummary,
+    window: SDDevelopmentWindow,
+    evidenceCutoff: Date = Date()
+  ) async throws -> SDDevelopmentEvidencePack {
+    let response: SDDevelopmentEvidencePackResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentPlayerRequest(
+        action: "build_evidence_pack",
+        organizationId: organizationId,
+        playerId: playerId,
+        reportType: reportType.rawValue,
+        windowStart: window.start,
+        windowEnd: window.end,
+        evidenceCutoff: Self.developmentISO8601String(evidenceCutoff)
+      )
+    )
+    return response.evidencePack
+  }
+
+  func generateDevelopmentReport(
+    organizationId: UUID,
+    playerId: UUID,
+    reportType: SDDevelopmentReportType = .playerDevelopmentSummary,
+    intendedAudience: String = "coach",
+    window: SDDevelopmentWindow,
+    evidenceCutoff: Date,
+    idempotencyKey: UUID
+  ) async throws -> SDDevelopmentGenerateResponse {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentGenerateRequest(
+        organizationId: organizationId,
+        playerId: playerId,
+        reportType: reportType,
+        intendedAudience: intendedAudience,
+        windowStart: window.start,
+        windowEnd: window.end,
+        evidenceCutoff: Self.developmentISO8601String(evidenceCutoff),
+        idempotencyKey: idempotencyKey
+      )
+    )
+  }
+
+  func generatePlayerDevelopmentReport(
+    organizationId: UUID,
+    playerId: UUID,
+    window: SDDevelopmentWindow,
+    evidenceCutoff: Date,
+    idempotencyKey: UUID
+  ) async throws -> SDDevelopmentGenerateResponse {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentPlayerGenerateRequest(
+        organizationId: organizationId,
+        playerId: playerId,
+        windowStart: window.start,
+        windowEnd: window.end,
+        evidenceCutoff: Self.developmentISO8601String(evidenceCutoff),
+        idempotencyKey: idempotencyKey
+      )
+    )
+  }
+
+  func listDevelopmentReports(
+    organizationId: UUID,
+    playerId: UUID
+  ) async throws -> [SDDevelopmentReport] {
+    let response: SDDevelopmentReportsResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentPlayerRequest(
+        action: "list_player_reports",
+        organizationId: organizationId,
+        playerId: playerId,
+        reportType: nil,
+        windowStart: nil,
+        windowEnd: nil,
+        evidenceCutoff: nil
+      )
+    )
+    return response.reports
+  }
+
+  func developmentReportDetail(
+    organizationId: UUID,
+    reportId: UUID
+  ) async throws -> SDDevelopmentReportDetail {
+    struct Request: Encodable {
+      let action = "get_report"
+      let org_id: UUID
+      let report_id: UUID
+    }
+    return try await invokePlayerDevelopmentAI(
+      Request(org_id: organizationId, report_id: reportId)
+    )
+  }
+
+  func playerDevelopmentReportDetail(
+    organizationId: UUID,
+    reportId: UUID
+  ) async throws -> SDDevelopmentReportDetail {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentReportResourceRequest(
+        action: "get_player_report",
+        organizationId: organizationId,
+        reportId: reportId
+      )
+    )
+  }
+
+  func archivePlayerDevelopmentReport(
+    organizationId: UUID,
+    reportId: UUID
+  ) async throws -> SDDevelopmentReport {
+    let response: SDDevelopmentReportResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentReportResourceRequest(
+        action: "archive_player_report",
+        organizationId: organizationId,
+        reportId: reportId
+      )
+    )
+    return response.report
+  }
+
+  func reviewDevelopmentReport(
+    organizationId: UUID,
+    reportId: UUID,
+    action: SDDevelopmentReviewAction,
+    notes: String?,
+    coachEdits: [String: SDJSONValue] = [:]
+  ) async throws -> SDDevelopmentReport {
+    let response: SDDevelopmentReportResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentReportReviewRequest(
+        organizationId: organizationId,
+        reportId: reportId,
+        reviewAction: action,
+        reviewNotes: notes,
+        coachEdits: coachEdits
+      )
+    )
+    return response.report
+  }
+
+  func listDevelopmentAlerts(
+    organizationId: UUID,
+    playerId: UUID
+  ) async throws -> [SDDevelopmentAlert] {
+    let response: SDDevelopmentAlertsResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentPlayerRequest(
+        action: "list_player_alerts",
+        organizationId: organizationId,
+        playerId: playerId,
+        reportType: nil,
+        windowStart: nil,
+        windowEnd: nil,
+        evidenceCutoff: nil
+      )
+    )
+    return response.alerts
+  }
+
+  func developmentAlertDetail(
+    organizationId: UUID,
+    alertId: UUID
+  ) async throws -> SDDevelopmentAlertDetail {
+    struct Request: Encodable {
+      let action = "get_alert"
+      let org_id: UUID
+      let alert_id: UUID
+    }
+    return try await invokePlayerDevelopmentAI(
+      Request(org_id: organizationId, alert_id: alertId)
+    )
+  }
+
+  func playerDevelopmentAlertDetail(
+    organizationId: UUID,
+    alertId: UUID
+  ) async throws -> SDDevelopmentAlertDetail {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentAlertResourceRequest(
+        action: "get_player_alert",
+        organizationId: organizationId,
+        alertId: alertId
+      )
+    )
+  }
+
+  func dismissPlayerDevelopmentAlert(
+    organizationId: UUID,
+    alertId: UUID
+  ) async throws -> SDDevelopmentAlert {
+    let response: SDDevelopmentAlertResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentAlertResourceRequest(
+        action: "dismiss_player_alert",
+        organizationId: organizationId,
+        alertId: alertId
+      )
+    )
+    return response.alert
+  }
+
+  func runDevelopmentAlertDetection(
+    organizationId: UUID,
+    playerId: UUID,
+    window: SDDevelopmentWindow,
+    evidenceCutoff: Date = Date()
+  ) async throws -> SDDevelopmentAlertDetectionResponse {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentPlayerRequest(
+        action: "run_alert_detection",
+        organizationId: organizationId,
+        playerId: playerId,
+        reportType: SDDevelopmentReportType.developmentAlertReview.rawValue,
+        windowStart: window.start,
+        windowEnd: window.end,
+        evidenceCutoff: Self.developmentISO8601String(evidenceCutoff)
+      )
+    )
+  }
+
+  func reviewDevelopmentAlert(
+    organizationId: UUID,
+    alertId: UUID,
+    action: SDDevelopmentAlertReviewAction,
+    notes: String?
+  ) async throws -> SDDevelopmentAlert {
+    let response: SDDevelopmentAlertResponse = try await invokePlayerDevelopmentAI(
+      SDDevelopmentAlertReviewRequest(
+        organizationId: organizationId,
+        alertId: alertId,
+        reviewAction: action,
+        reviewNotes: notes
+      )
+    )
+    return response.alert
+  }
+
+  func developmentRosterAttention(
+    organizationId: UUID
+  ) async throws -> SDDevelopmentRosterAttentionResponse {
+    try await invokePlayerDevelopmentAI(
+      SDDevelopmentOrganizationRequest(action: "roster_attention", organizationId: organizationId)
+    )
+  }
+
+  private static func developmentISO8601String(_ date: Date) -> String {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter.string(from: date)
+  }
+
+  // MARK: - Player Development Imports (Phase 11B.1)
+
+  private func invokePlayerDevelopmentImports<Request: Encodable, Response: Decodable>(
+    _ request: Request
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("player-development-imports", body: request)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
+  }
+
+  func createDevelopmentImportJob(
+    organizationId: UUID,
+    playerId: UUID?,
+    provider: SDDevelopmentImportProvider,
+    fileName: String,
+    idempotencyKey: UUID
+  ) async throws -> SDDevelopmentImportCreateResponse {
+    struct Request: Encodable {
+      let action = "create_job"
+      let org_id: UUID
+      let player_id: UUID?
+      let provider: String
+      let file_name: String
+      let idempotency_key: UUID
+    }
+    return try await invokePlayerDevelopmentImports(Request(
+      org_id: organizationId,
+      player_id: playerId,
+      provider: provider.rawValue,
+      file_name: fileName,
+      idempotency_key: idempotencyKey
+    ))
+  }
+
+  func uploadDevelopmentImportFile(
+    _ data: Data,
+    target: SDDevelopmentImportUploadTarget,
+    fileType: String
+  ) async throws {
+    let contentType = fileType.lowercased() == "tsv" ? "text/tab-separated-values" : "text/csv"
+    _ = try await client.storage.from(target.bucket).upload(
+      target.path,
+      data: data,
+      options: FileOptions(contentType: contentType, upsert: false)
+    )
+  }
+
+  func inspectDevelopmentImport(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> SDDevelopmentImportInspectResponse {
+    struct Request: Encodable { let action = "inspect_file"; let org_id: UUID; let job_id: UUID }
+    return try await invokePlayerDevelopmentImports(Request(org_id: organizationId, job_id: jobId))
+  }
+
+  func saveDevelopmentImportMapping(
+    organizationId: UUID,
+    jobId: UUID,
+    mapping: SDDevelopmentImportMapping,
+    mappingName: String?
+  ) async throws -> SDDevelopmentImportJob {
+    struct Request: Encodable {
+      let action = "save_mapping"
+      let org_id: UUID
+      let job_id: UUID
+      let mapping: SDDevelopmentImportMapping
+      let mapping_name: String?
+    }
+    let response: SDDevelopmentImportJobResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, job_id: jobId, mapping: mapping, mapping_name: mappingName)
+    )
+    return response.job
+  }
+
+  func validateDevelopmentImport(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> SDDevelopmentImportPreviewResponse {
+    struct Request: Encodable { let action = "validate_job"; let org_id: UUID; let job_id: UUID; let limit = 100 }
+    return try await invokePlayerDevelopmentImports(Request(org_id: organizationId, job_id: jobId))
+  }
+
+  func getDevelopmentImportJob(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> SDDevelopmentImportJob {
+    struct Request: Encodable { let action = "get_job"; let org_id: UUID; let job_id: UUID }
+    let response: SDDevelopmentImportJobResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, job_id: jobId)
+    )
+    return response.job
+  }
+
+  func commitDevelopmentImport(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> SDDevelopmentImportCommitResponse {
+    struct Request: Encodable { let action = "commit_job"; let org_id: UUID; let job_id: UUID }
+    return try await invokePlayerDevelopmentImports(Request(org_id: organizationId, job_id: jobId))
+  }
+
+  func listDevelopmentImportJobs(organizationId: UUID) async throws -> [SDDevelopmentImportJob] {
+    struct Request: Encodable { let action = "list_jobs"; let org_id: UUID; let limit = 100 }
+    let response: SDDevelopmentImportJobsResponse = try await invokePlayerDevelopmentImports(Request(org_id: organizationId))
+    return response.jobs
+  }
+
+  func listDevelopmentImportMappings(
+    organizationId: UUID,
+    provider: SDDevelopmentImportProvider
+  ) async throws -> [SDDevelopmentImportMappingProfile] {
+    struct Request: Encodable { let action = "list_mappings"; let org_id: UUID; let provider: String }
+    let response: SDDevelopmentImportMappingsResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, provider: provider.rawValue)
+    )
+    return response.mappings
+  }
+
+  func archiveDevelopmentImportMapping(
+    organizationId: UUID,
+    mappingProfileId: UUID
+  ) async throws -> SDDevelopmentImportMappingProfile {
+    struct Request: Encodable {
+      let action = "archive_mapping"
+      let org_id: UUID
+      let mapping_profile_id: UUID
+    }
+    let response: SDDevelopmentImportMappingResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, mapping_profile_id: mappingProfileId)
+    )
+    return response.mapping
+  }
+
+  func listDevelopmentMetricDefinitions() async throws -> [SDDevelopmentMetricDefinition] {
+    try await client.from("sd_development_metric_definitions")
+      .select("id,canonical_key,display_name,category,canonical_unit,preferred_direction,target_min,target_max,minimum_sample_size")
+      .eq("status", value: "active")
+      .in("data_type", values: ["number", "duration"])
+      .order("category")
+      .order("display_name")
+      .execute()
+      .value
+  }
+
+  func resolveDevelopmentImportPlayer(
+    organizationId: UUID,
+    jobId: UUID,
+    sourceKey: String,
+    playerId: UUID
+  ) async throws -> SDDevelopmentImportJob {
+    struct Request: Encodable {
+      let action = "resolve_player"
+      let org_id: UUID
+      let job_id: UUID
+      let source_key: String
+      let player_id: UUID
+    }
+    let response: SDDevelopmentImportJobResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, job_id: jobId, source_key: sourceKey, player_id: playerId)
+    )
+    return response.job
+  }
+
+  func listDevelopmentImportRowErrors(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> [SDDevelopmentImportRowError] {
+    struct Request: Encodable {
+      let action = "list_row_errors"
+      let org_id: UUID
+      let job_id: UUID
+      let limit = 100
+    }
+    let response: SDDevelopmentImportErrorsResponse = try await invokePlayerDevelopmentImports(
+      Request(org_id: organizationId, job_id: jobId)
+    )
+    return response.errors
+  }
+
+  func archiveDevelopmentImport(
+    organizationId: UUID,
+    jobId: UUID
+  ) async throws -> SDDevelopmentImportJob {
+    struct Request: Encodable { let action = "archive_job"; let org_id: UUID; let job_id: UUID }
+    let response: SDDevelopmentImportJobResponse = try await invokePlayerDevelopmentImports(Request(org_id: organizationId, job_id: jobId))
+    return response.job
+  }
+
+  // MARK: - Player Development Coach Copilot (Phase 11C-11E)
+
+  private func invokePlayerDevelopmentCopilot<Request: Encodable, Response: Decodable>(
+    _ request: Request
+  ) async throws -> Response {
+    do {
+      return try await invokeAuthenticatedFunction("player-development-copilot", body: request)
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data):
+        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError:
+        throw error
+      }
+    }
+  }
+
+  func listCopilotConversations(
+    organizationId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    offset: Int = 0,
+    limit: Int = 25
+  ) async throws -> SDCopilotConversationsResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "list_conversations",
+        organizationId: organizationId,
+        audience: audience,
+        playerId: playerId,
+        limit: limit,
+        offset: offset
+      )
+    )
+  }
+
+  func createCopilotConversation(
+    organizationId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience,
+    title: String,
+    reportingWindowDays: Int,
+    idempotencyKey: UUID
+  ) async throws -> SDCopilotConversation {
+    let response: SDCopilotConversationResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "create_conversation",
+        organizationId: organizationId,
+        audience: audience,
+        playerId: playerId,
+        title: title,
+        reportingWindowDays: reportingWindowDays,
+        idempotencyKey: idempotencyKey
+      )
+    )
+    return response.conversation
+  }
+
+  func copilotConversation(
+    organizationId: UUID,
+    conversationId: UUID,
+    audience: SDCopilotAudience,
+    offset: Int = 0,
+    limit: Int = 40
+  ) async throws -> SDCopilotConversationDetailResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "get_conversation",
+        organizationId: organizationId,
+        audience: audience,
+        conversationId: conversationId,
+        limit: limit,
+        offset: offset
+      )
+    )
+  }
+
+  func archiveCopilotConversation(
+    organizationId: UUID,
+    conversationId: UUID,
+    audience: SDCopilotAudience
+  ) async throws -> SDCopilotConversation {
+    let response: SDCopilotConversationResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "archive_conversation",
+        organizationId: organizationId,
+        audience: audience,
+        conversationId: conversationId
+      )
+    )
+    return response.conversation
+  }
+
+  func copilotMessage(
+    organizationId: UUID,
+    conversationId: UUID,
+    messageId: UUID,
+    audience: SDCopilotAudience
+  ) async throws -> SDCopilotMessage {
+    let response: SDCopilotMessageResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "get_message",
+        organizationId: organizationId,
+        audience: audience,
+        conversationId: conversationId,
+        messageId: messageId,
+        limit: 100,
+        offset: 0
+      )
+    )
+    return response.message
+  }
+
+  func askCopilot(
+    organizationId: UUID,
+    playerId: UUID,
+    conversationId: UUID,
+    audience: SDCopilotAudience,
+    question: String,
+    window: SDDevelopmentWindow,
+    idempotencyKey: UUID,
+    retry: Bool = false,
+    pendingQuestionId: UUID? = nil,
+    pendingResponseMode: SDCopilotPendingResponseMode? = nil
+  ) async throws -> SDCopilotAskResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: retry ? "retry_message" : "ask",
+        organizationId: organizationId,
+        audience: audience,
+        playerId: playerId,
+        conversationId: conversationId,
+        question: question,
+        windowStart: window.start,
+        windowEnd: window.end,
+        idempotencyKey: idempotencyKey,
+        pendingQuestionId: pendingQuestionId,
+        pendingResponseMode: pendingResponseMode
+      )
+    )
+  }
+
+  func submitCopilotFeedback(
+    organizationId: UUID,
+    conversationId: UUID,
+    messageId: UUID,
+    audience: SDCopilotAudience,
+    type: SDCopilotFeedbackType,
+    note: String?
+  ) async throws {
+    let _: SDCopilotFeedbackResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "submit_feedback",
+        organizationId: organizationId,
+        audience: audience,
+        conversationId: conversationId,
+        messageId: messageId,
+        feedbackType: type,
+        note: note
+      )
+    )
+  }
+
+  func copilotSuggestedQuestions(
+    organizationId: UUID,
+    playerId: UUID,
+    audience: SDCopilotAudience
+  ) async throws -> SDCopilotSuggestedQuestionsResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "suggested_questions",
+        organizationId: organizationId,
+        audience: audience,
+        playerId: playerId
+      )
+    )
+  }
+
+  func playerDevelopmentWorkspace(
+    organizationId: UUID,
+    playerId: UUID
+  ) async throws -> SDPlayerDevelopmentWorkspaceResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "get_player_workspace",
+        organizationId: organizationId,
+        audience: .player,
+        playerId: playerId
+      )
+    )
+  }
+
+  func listParentUpdateDrafts(
+    organizationId: UUID,
+    playerId: UUID
+  ) async throws -> [SDParentUpdateDraft] {
+    let response: SDParentDraftsResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "list_parent_drafts",
+        organizationId: organizationId,
+        playerId: playerId
+      )
+    )
+    return response.drafts
+  }
+
+  func createParentUpdateDraft(
+    organizationId: UUID,
+    playerId: UUID,
+    conversationId: UUID?,
+    sourceMessageId: UUID?,
+    window: SDDevelopmentWindow,
+    idempotencyKey: UUID
+  ) async throws -> SDParentUpdateDraft {
+    let response: SDParentDraftResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "create_parent_draft",
+        organizationId: organizationId,
+        playerId: playerId,
+        conversationId: conversationId,
+        sourceMessageId: sourceMessageId,
+        windowStart: window.start,
+        windowEnd: window.end,
+        idempotencyKey: idempotencyKey
+      )
+    )
+    return response.draft
+  }
+
+  func parentUpdateDraft(
+    organizationId: UUID,
+    draftId: UUID
+  ) async throws -> SDParentDraftDetailResponse {
+    try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "get_parent_draft",
+        organizationId: organizationId,
+        draftId: draftId
+      )
+    )
+  }
+
+  func updateParentUpdateDraft(
+    organizationId: UUID,
+    draftId: UUID,
+    content: SDParentUpdateContent?,
+    markReviewed: Bool,
+    note: String?
+  ) async throws -> SDParentUpdateDraft {
+    let response: SDParentDraftResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: "update_parent_draft",
+        organizationId: organizationId,
+        draftId: draftId,
+        note: note,
+        content: content,
+        markReviewed: markReviewed
+      )
+    )
+    return response.draft
+  }
+
+  func transitionParentUpdateDraft(
+    organizationId: UUID,
+    draftId: UUID,
+    action: String,
+    note: String?
+  ) async throws -> SDParentUpdateDraft {
+    let response: SDParentDraftResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(
+        action: action,
+        organizationId: organizationId,
+        draftId: draftId,
+        note: note
+      )
+    )
+    return response.draft
+  }
+
+  func copilotUsage(
+    organizationId: UUID,
+    audience: SDCopilotAudience
+  ) async throws -> SDCopilotUsage {
+    let response: SDCopilotUsageResponse = try await invokePlayerDevelopmentCopilot(
+      SDCopilotRequest(action: "get_usage", organizationId: organizationId, audience: audience)
+    )
+    return response.usage
+  }
+
   // MARK: - In-app notification center
 
   private func invokeNotificationCenter<Request: Encodable, Response: Decodable>(
@@ -2464,3 +3348,5 @@ struct SDBPEventCreate: Encodable {
   let strike_z: Double?
   let raw: [String: String]
 }
+
+extension SupabaseService: PlayerDevelopmentAIClient, PlayerDevelopmentImportClient, PlayerDevelopmentCopilotClient {}

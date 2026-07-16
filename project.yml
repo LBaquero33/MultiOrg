@@ -33,6 +33,7 @@ targets:
     type: application
     platform: iOS
     sources:
+      # Recursive source discovery includes modular Phase 11A-11E models and coach UI.
       - path: MultiOrg
         excludes:
           - "**/*.md"
@@ -97,6 +98,7 @@ targets:
           - "**/*.md"
           - "Features/Player/**"
           - "Supporting/LaunchScreen.storyboard"
+      - path: MultiOrg/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift
     info:
       path: MultiOrg/Supporting/Info.plist
       properties:

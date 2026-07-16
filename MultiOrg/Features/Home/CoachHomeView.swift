@@ -6,6 +6,7 @@ struct CoachHomeView: View {
   @State private var isLoading = false
   @State private var query = ""
   @State private var showPrograms = false
+  @State private var showRosterAttention = false
   @State private var roleFilter: RoleFilter = .players
 
 #if os(macOS)
@@ -48,6 +49,10 @@ struct CoachHomeView: View {
     }
     .navigationTitle(selectedPlayer?.displayName ?? "Coach")
     .task { await reload() }
+    .sheet(isPresented: $showRosterAttention) {
+      DevelopmentRosterAttentionView(players: players)
+        .environmentObject(appState)
+    }
 #else
     NavigationStack {
       List {
@@ -112,8 +117,9 @@ struct CoachHomeView: View {
       }
       .navigationTitle("Coach")
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+        ToolbarItemGroup(placement: .cancellationAction) {
           Button("Programs") { showPrograms = true }
+          Button("Roster Attention") { showRosterAttention = true }
         }
         ToolbarItem(placement: .primaryAction) {
           Button {
@@ -125,6 +131,10 @@ struct CoachHomeView: View {
       }
       .sheet(isPresented: $showPrograms) {
         CoachProgramsView()
+          .environmentObject(appState)
+      }
+      .sheet(isPresented: $showRosterAttention) {
+        DevelopmentRosterAttentionView(players: players)
           .environmentObject(appState)
       }
       .task {
@@ -214,6 +224,12 @@ struct CoachHomeView: View {
           Task { await reload() }
         } label: {
           Image(systemName: "arrow.clockwise")
+        }
+
+        Button {
+          showRosterAttention = true
+        } label: {
+          Label("Roster Attention", systemImage: "exclamationmark.bubble")
         }
       }
     }
