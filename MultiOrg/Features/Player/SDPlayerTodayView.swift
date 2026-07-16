@@ -269,29 +269,53 @@ struct SDPlayerTodayViewInternal: View {
         HPSectionHeader("Improvement")
         if let latest = testingEntries.first {
           let prev = testingEntries.dropFirst().first
-          HStack(spacing: HP.Space.sm) {
-            ImprovementTile(
-              title: "Latest test",
-              value: latest.entry_date,
-              delta: nil
-            )
-            ImprovementTile(
-              title: "Max EV",
-              value: fmt(latest.max_exit_velo),
-              delta: deltaText(latest.max_exit_velo, prev?.max_exit_velo, unit: "mph")
-            )
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              ImprovementTile(
+                title: "Latest test",
+                value: latest.entry_date,
+                delta: nil
+              )
+              ImprovementTile(
+                title: "Max EV",
+                value: fmt(latest.max_exit_velo),
+                delta: deltaText(latest.max_exit_velo, prev?.max_exit_velo, unit: "mph")
+              )
+            }
+            VStack(spacing: HP.Space.sm) {
+              ImprovementTile(title: "Latest test", value: latest.entry_date, delta: nil)
+              ImprovementTile(
+                title: "Max EV",
+                value: fmt(latest.max_exit_velo),
+                delta: deltaText(latest.max_exit_velo, prev?.max_exit_velo, unit: "mph")
+              )
+            }
           }
-          HStack(spacing: HP.Space.sm) {
-            ImprovementTile(
-              title: "Avg EV",
-              value: fmt(latest.avg_exit_velo),
-              delta: deltaText(latest.avg_exit_velo, prev?.avg_exit_velo, unit: "mph")
-            )
-            ImprovementTile(
-              title: "Strength total",
-              value: fmt(strengthTotal(latest)),
-              delta: deltaText(strengthTotal(latest), prev.flatMap(strengthTotal), unit: "lb")
-            )
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              ImprovementTile(
+                title: "Avg EV",
+                value: fmt(latest.avg_exit_velo),
+                delta: deltaText(latest.avg_exit_velo, prev?.avg_exit_velo, unit: "mph")
+              )
+              ImprovementTile(
+                title: "Strength total",
+                value: fmt(strengthTotal(latest)),
+                delta: deltaText(strengthTotal(latest), prev.flatMap(strengthTotal), unit: "lb")
+              )
+            }
+            VStack(spacing: HP.Space.sm) {
+              ImprovementTile(
+                title: "Avg EV",
+                value: fmt(latest.avg_exit_velo),
+                delta: deltaText(latest.avg_exit_velo, prev?.avg_exit_velo, unit: "mph")
+              )
+              ImprovementTile(
+                title: "Strength total",
+                value: fmt(strengthTotal(latest)),
+                delta: deltaText(strengthTotal(latest), prev.flatMap(strengthTotal), unit: "lb")
+              )
+            }
           }
         } else {
           Text("Add your first Testing entry to see improvement trends.")
@@ -586,6 +610,8 @@ struct ProgressRing: View {
 
   var body: some View {
     HPProgressIndicator(value: min(1, max(0, progress)), style: .ring, lineWidth: 6)
+      .environment(\.dynamicTypeSize, .large)
+      .accessibilityValue("\(Int((min(1, max(0, progress)) * 100).rounded())) percent")
   }
 }
 
@@ -636,10 +662,34 @@ struct StrengthExerciseLogger: View {
             .foregroundStyle(HP.Color.textMuted)
         }
 
-        Toggle("No weight (bodyweight/jumps/etc)", isOn: $noWeight)
-          .font(HP.Font.callout)
-          .foregroundStyle(HP.Color.text)
-          .tint(HP.Color.accent)
+        if let coachInstructions = exercise.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !coachInstructions.isEmpty {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Coach instructions")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.accent)
+            Text(coachInstructions)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(HP.Space.sm)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(HP.Color.surfaceRaised, in: RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous))
+        }
+
+        VStack(alignment: .leading, spacing: 2) {
+          Toggle("No weight", isOn: $noWeight)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .tint(HP.Color.accent)
+          Text("Use for bodyweight, jumps, or other unweighted work.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .contain)
 
         if noWeight {
           Stepper(value: $setsCompleted, in: 0...50) {
@@ -659,14 +709,30 @@ struct StrengthExerciseLogger: View {
                 placeholder: "Weight"
               )
             }
-            HStack(spacing: HP.Space.sm) {
-              HPButton(title: "Add set", systemImage: "plus", variant: .secondary, size: .sm) {
-                weights.append("")
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: HP.Space.sm) {
+                HPButton(title: "Add set", systemImage: "plus", variant: .secondary, size: .sm) {
+                  weights.append("")
+                }
+                HPButton(title: "Remove set", systemImage: "minus", variant: .secondary, size: .sm) {
+                  if !weights.isEmpty { weights.removeLast() }
+                }
+                .disabled(weights.isEmpty)
               }
-              HPButton(title: "Remove set", systemImage: "minus", variant: .secondary, size: .sm) {
-                if !weights.isEmpty { weights.removeLast() }
+              .fixedSize(horizontal: true, vertical: false)
+
+              VStack(spacing: HP.Space.xs) {
+                HPButton(title: "Add set", systemImage: "plus", variant: .secondary, size: .sm, fullWidth: true) {
+                  weights.append("")
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                HPButton(title: "Remove set", systemImage: "minus", variant: .secondary, size: .sm, fullWidth: true) {
+                  if !weights.isEmpty { weights.removeLast() }
+                }
+                .disabled(weights.isEmpty)
+                .fixedSize(horizontal: false, vertical: true)
               }
-              .disabled(weights.isEmpty)
+              .fixedSize(horizontal: false, vertical: true)
             }
           }
         }

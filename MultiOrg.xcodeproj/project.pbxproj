@@ -53,6 +53,7 @@
 		3084E34700D65938A759DFB5 /* NewFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7244FD3221181B77E2162F7 /* NewFacilityBookingSheet.swift */; };
 		332118B1278C83E5C5BFA26F /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401BBBC3896F4AEB73944621 /* HPFilterBar.swift */; };
 		332A1A28D9CDEB79FCC8C218 /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E27AA6116E6C83E10847309 /* HPMetrics.swift */; };
+		34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */; };
 		34E2FAC854814C847C57AD40 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3785F08E82E60961768F2DBD /* NotificationCenterModels.swift */; };
 		358DA85769EF6644E0E54536 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */; };
 		358F7408ACF4837F7B5D64DA /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */; };
@@ -361,6 +362,7 @@
 		CA19017054A973F061AFF997 /* PlotlyChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotlyChartView.swift; sourceTree = "<group>"; };
 		CD18786FB5BE627092918ABF /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
 		CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRootView.swift; sourceTree = "<group>"; };
+		CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTodayRenderTests.swift; sourceTree = "<group>"; };
 		CE32F77DCF9F39A132690AEE /* HPCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCard.swift; sourceTree = "<group>"; };
 		CE855FCD4677311F5E0F940A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D234A0190915CD5FF86744A9 /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
@@ -669,6 +671,7 @@
 				27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */,
 				73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */,
 				8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */,
+				CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */,
 				113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */,
 			);
 			path = MultiOrgTests;
@@ -1124,6 +1127,7 @@
 				3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */,
 				43388DB9F202D91796CA8729 /* OrganizationAuthorizationTests.swift in Sources */,
 				6F5C962B1EB3D8CDA29C857E /* PaymentCheckoutTests.swift in Sources */,
+				34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */,
 				77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

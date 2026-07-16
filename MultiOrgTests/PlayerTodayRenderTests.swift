@@ -18,9 +18,10 @@ import UIKit
 /// `HPFormField`/`HPSegmentedControl`/`HPStatTile`/`HPToast`/`HPLoadingState`/
 /// `HPErrorState`) used by the production screen.
 ///
-/// Captures via a real `UIWindow` + `drawHierarchy(afterScreenUpdates:)` so the
-/// live editable fields (strength weight/notes `TextField`s) rasterize correctly
-/// (a headless `ImageRenderer` shows a yellow prohibited glyph for those).
+/// Full-page evidence uses a real `UIWindow` + `layer.render`; a focused,
+/// viewport-sized live-control harness separately uses
+/// `drawHierarchy(afterScreenUpdates:)` so the strength weight/notes
+/// `TextField`s rasterize correctly.
 ///
 /// Split into several short test methods so each stays well under the per-test
 /// execution timeout. Safe to delete.
@@ -67,6 +68,12 @@ final class PlayerTodayRenderTests: XCTestCase {
     ])
   }
 
+  func testRenderPlayerLiveEditableControls() throws {
+    try renderLiveControls(name: "iphone", width: 393, dts: .large)
+    try renderLiveControls(name: "iphone-ax3", width: 393, dts: .accessibility3)
+    try renderLiveControls(name: "ipad", width: 834, dts: .large)
+  }
+
   private func render(_ specs: [Spec]) throws {
     let dir = FileManager.default.temporaryDirectory
 
@@ -83,31 +90,78 @@ final class PlayerTodayRenderTests: XCTestCase {
           .background(HP.Color.bg)
         let host = UIHostingController(rootView: view)
         host.overrideUserInterfaceStyle = .dark
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: spec.width, height: 2000))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: spec.width, height: 2_000))
         window.overrideUserInterfaceStyle = .dark
         window.rootViewController = host
         window.makeKeyAndVisible()
         host.view.layoutIfNeeded()
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         let fitted = host.sizeThatFits(in: CGSize(width: spec.width, height: .greatestFiniteMagnitude))
-        window.frame = CGRect(x: 0, y: 0, width: spec.width, height: ceil(fitted.height))
-        host.view.frame = window.bounds
+        let contentHeight = ceil(fitted.height)
+        window.frame = CGRect(x: 0, y: 0, width: spec.width, height: contentHeight)
+        host.view.frame = CGRect(x: 0, y: 0, width: spec.width, height: contentHeight)
         host.view.layoutIfNeeded()
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
 
-        // Editable fields (weight / notes TextFields) need drawHierarchy to
-        // rasterize their live content correctly.
-        let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size, format: format)
-        let image = renderer.image { _ in
-          host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+        let renderer = UIGraphicsImageRenderer(
+          size: CGSize(width: spec.width, height: contentHeight),
+          format: format
+        )
+        let image = renderer.image { context in
+          host.view.layer.render(in: context.cgContext)
         }
         let url = dir.appendingPathComponent("player-\(spec.name).png")
         if let data = image.pngData() { try data.write(to: url) }
-        print("PLAYER_PNG \(url.path) size=\(Int(host.view.bounds.width))x\(Int(host.view.bounds.height))")
+        print("PLAYER_PNG \(url.path) size=\(Int(spec.width))x\(Int(contentHeight))")
 
         window.isHidden = true
         window.rootViewController = nil
       }
+    }
+  }
+
+  private func renderLiveControls(
+    name: String,
+    width: CGFloat,
+    dts: DynamicTypeSize
+  ) throws {
+    try autoreleasepool {
+      let view = PlayerTodayLiveControlsHarness()
+        .environment(\.dynamicTypeSize, dts)
+        .frame(width: width)
+        .background(HP.Color.bg)
+      let host = UIHostingController(rootView: view)
+      host.overrideUserInterfaceStyle = .dark
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 1_800))
+      window.overrideUserInterfaceStyle = .dark
+      window.rootViewController = host
+      window.makeKeyAndVisible()
+      host.view.layoutIfNeeded()
+      RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+      let fitted = host.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+      let contentHeight = ceil(fitted.height)
+      XCTAssertLessThanOrEqual(contentHeight, 1_800, "Live controls must remain viewport-sized")
+      window.frame = CGRect(x: 0, y: 0, width: width, height: contentHeight)
+      host.view.frame = window.bounds
+      host.view.layoutIfNeeded()
+      RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = dts.isAccessibilitySize ? 1 : 2
+      let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size, format: format)
+      var captured = false
+      let image = renderer.image { _ in
+        captured = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+      }
+      XCTAssertTrue(captured, "drawHierarchy must capture the live editable controls")
+      let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("player-live-controls-\(name).png")
+      try image.pngData()?.write(to: url)
+      print("PLAYER_PNG \(url.path) size=\(Int(width))x\(Int(contentHeight))")
+
+      window.isHidden = true
+      window.rootViewController = nil
     }
   }
   #else
@@ -116,6 +170,28 @@ final class PlayerTodayRenderTests: XCTestCase {
 }
 
 #if canImport(UIKit)
+private struct PlayerTodayLiveControlsHarness: View {
+  @State private var weights = ["135", "", ""]
+  @State private var noWeight = false
+  @State private var setsCompleted = 1
+  @State private var notes = "Keep the bar path vertical."
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPWorkspaceHeader("Strength entry", context: "Live editable controls")
+      StrengthExerciseLogger(
+        exercise: PlayerMock.exercises[0],
+        weights: $weights,
+        noWeight: $noWeight,
+        setsCompleted: $setsCompleted,
+        notes: $notes
+      )
+    }
+    .padding(HP.Space.md)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
 /// Test-only host composing the reskinned "Today" presentation with mock data.
 /// Mirrors the production card order: header → improvement → program →
 /// strength → BP → self-assessment → submit, varying content per state.
@@ -209,13 +285,25 @@ struct PlayerTodayHarness: View {
           Text("Add your first Testing entry to see improvement trends.")
             .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
         } else {
-          HStack(spacing: HP.Space.sm) {
-            ImprovementTile(title: "Latest test", value: "2026-07-10", delta: nil)
-            ImprovementTile(title: "Max EV", value: "88.4", delta: "+2.3 mph")
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              ImprovementTile(title: "Latest test", value: "2026-07-10", delta: nil)
+              ImprovementTile(title: "Max EV", value: "88.4", delta: "+2.3 mph")
+            }
+            VStack(spacing: HP.Space.sm) {
+              ImprovementTile(title: "Latest test", value: "2026-07-10", delta: nil)
+              ImprovementTile(title: "Max EV", value: "88.4", delta: "+2.3 mph")
+            }
           }
-          HStack(spacing: HP.Space.sm) {
-            ImprovementTile(title: "Avg EV", value: "81.2", delta: "−1 mph")
-            ImprovementTile(title: "Strength total", value: "915", delta: "+35 lb")
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              ImprovementTile(title: "Avg EV", value: "81.2", delta: "−1 mph")
+              ImprovementTile(title: "Strength total", value: "915", delta: "+35 lb")
+            }
+            VStack(spacing: HP.Space.sm) {
+              ImprovementTile(title: "Avg EV", value: "81.2", delta: "−1 mph")
+              ImprovementTile(title: "Strength total", value: "915", delta: "+35 lb")
+            }
           }
         }
       }
