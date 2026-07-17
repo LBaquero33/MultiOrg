@@ -4,29 +4,19 @@ import SwiftUI
 struct ParentRootView: View {
   @EnvironmentObject private var appState: AppState
 #if os(iOS)
-  @State private var selection = Destination.children
-
-  private enum Destination: Hashable {
-    case children, chat, account
-  }
+  @State private var selection: HPAppNavigationDestination = .parentChildren
 #endif
 
   var body: some View {
 #if os(iOS)
-    TabView(selection: $selection) {
-      ParentHomeView()
-        .tabItem { Label(term("players", fallback: "Children"), systemImage: "person.2") }
-        .tag(Destination.children)
-      if feature("chat") {
-        ChatChannelListView()
-          .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
-          .tag(Destination.chat)
-      }
-      NavigationStack { AccountView() }
-        .tabItem { Label("Account", systemImage: "gearshape") }
-        .tag(Destination.account)
+    HPAdaptiveApplicationShell(
+      role: .parent,
+      roleSubtitle: "Parent workspace",
+      inventory: navigationInventory,
+      selection: $selection
+    ) { destination in
+      destinationView(destination)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
       guard channelId != nil, feature("chat") else { return }
       selection = .chat
@@ -36,9 +26,36 @@ struct ParentRootView: View {
       selection = .chat
     }
 #else
-    ParentHomeView()
+    HPApplicationIdentityShell(roleSubtitle: "Parent workspace") {
+      ParentHomeView()
+    }
 #endif
   }
+
+#if os(iOS)
+  private var navigationInventory: HPAppNavigationInventory {
+    .parent(
+      childrenTitle: term("players", fallback: "Children"),
+      chatEnabled: feature("chat")
+    )
+  }
+
+  @ViewBuilder
+  private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
+    switch destination {
+    case .parentChildren:
+      ParentHomeView()
+    case .chat:
+      if feature("chat") {
+        ChatChannelListView()
+      }
+    case .account:
+      NavigationStack { AccountView() }
+    default:
+      EmptyView()
+    }
+  }
+#endif
 
   private func term(_ key: String, fallback: String) -> String {
     appState.activeOrgSettings?.term(key, fallback: fallback) ?? fallback

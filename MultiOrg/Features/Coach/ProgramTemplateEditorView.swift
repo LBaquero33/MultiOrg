@@ -21,20 +21,33 @@ struct ProgramTemplateEditorView: View {
   @State private var confirmDeleteTemplate = false
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        headerCard
-        gridCard
-      }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    HPFormScreenLayout { _ in
+      HPWorkspaceHeader(
+        template.name,
+        context: "\(template.kind.title) • \(template.weeks) weeks • \(template.lift_weekdays.count) days/week • \(weekdayLabel(template.lift_weekdays))"
+      )
+    } sections: { context in
+      templateActionsCard(context)
+      gridCard(context)
+    } primaryAction: { context in
+      HPButton(
+        title: "Duplicate Program",
+        systemImage: "plus.square.on.square",
+        variant: .primary,
+        size: .lg,
+        isLoading: isMutatingTemplate,
+        fullWidth: context.isAccessibilitySize,
+        action: { Task { await duplicateTemplate() } }
+      )
+      .disabled(isMutatingTemplate)
+    } secondaryAction: { _ in
+      EmptyView()
     }
-    .background(DHDTheme.pageBackground)
     .navigationTitle("Edit \(template.kind.title) program")
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
+          .accessibilityLabel("Refresh program")
           .help("Refresh")
       }
     }
@@ -81,75 +94,65 @@ struct ProgramTemplateEditorView: View {
     }
   }
 
-  private var headerCard: some View {
-    DHDHeaderCard {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack(alignment: .firstTextBaseline) {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(template.name)
-              .font(.title3.weight(.semibold))
-            Text("\(template.kind.title) • \(template.weeks) weeks • \(template.lift_weekdays.count) days/week • \(weekdayLabel(template.lift_weekdays))")
-              .font(.caption)
-              .foregroundStyle(Color.white.opacity(0.88))
-          }
-          Spacer()
-        }
+  private func templateActionsCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Program actions")
 
-        HStack(spacing: 10) {
-          Button {
-            Task { await duplicateTemplate() }
-          } label: {
-            Label("Duplicate Program", systemImage: "plus.square.on.square")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-          .tint(.white.opacity(0.9))
+        let layout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+
+        layout {
+          HPButton(
+            title: "Copy…",
+            systemImage: "doc.on.doc",
+            variant: .secondary,
+            size: .md,
+            fullWidth: !context.isExpanded,
+            action: {
+              copyPrefill = nil
+              showCopyMenu = true
+            }
+          )
+
+          HPButton(
+            title: "Clear…",
+            systemImage: "eraser",
+            variant: .secondary,
+            size: .md,
+            fullWidth: !context.isExpanded,
+            action: {
+              clearPrefill = nil
+              showClearMenu = true
+            }
+          )
+
+          HPButton(
+            title: "Delete Program",
+            systemImage: "trash",
+            variant: .destructive,
+            size: .md,
+            fullWidth: !context.isExpanded,
+            action: { confirmDeleteTemplate = true }
+          )
           .disabled(isMutatingTemplate)
 
-          Button {
-            copyPrefill = nil
-            showCopyMenu = true
-          } label: {
-            Label("Copy…", systemImage: "doc.on.doc")
-              .frame(maxWidth: .infinity)
+          if context.isExpanded {
+            Spacer(minLength: 0)
           }
-          .buttonStyle(.bordered)
-          .tint(.white.opacity(0.9))
-
-          Button {
-            clearPrefill = nil
-            showClearMenu = true
-          } label: {
-            Label("Clear…", systemImage: "trash")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-          .tint(.white.opacity(0.85))
-
-          Button(role: .destructive) {
-            confirmDeleteTemplate = true
-          } label: {
-            Label("Delete Program", systemImage: "trash")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-          .tint(.red)
-          .disabled(isMutatingTemplate)
         }
       }
-      .foregroundStyle(.white)
     }
   }
 
-  private var gridCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .firstTextBaseline) {
-          Text("Program grid")
-            .font(.headline)
-          Spacer()
+  private func gridCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Program grid") {
           if isLoading {
-            HStack(spacing: 8) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+            HPProgressIndicator(style: .spinner)
+              .accessibilityLabel("Loading program days")
           }
         }
 
@@ -166,7 +169,8 @@ struct ProgramTemplateEditorView: View {
           onClearCell: { week, dayIndex in
             clearPrefill = .day(week: week, day: dayIndex)
             showClearMenu = true
-          }
+          },
+          isStacked: !context.isExpanded
         )
       }
     }
@@ -324,12 +328,15 @@ struct ProgramTemplateGridView: View {
   let onSelectCell: (Int, Int) -> Void
   let onCopyCell: (Int, Int) -> Void
   let onClearCell: (Int, Int) -> Void
+  let isStacked: Bool
 
-  private let spacing: CGFloat = 10
+  private let spacing = HP.Space.sm
 
   var body: some View {
-    VStack(spacing: spacing) {
-      headerRow
+    VStack(alignment: .leading, spacing: spacing) {
+      if !isStacked {
+        headerRow
+      }
       ForEach(1...template.weeks, id: \.self) { week in
         weekRow(week)
       }
@@ -339,14 +346,14 @@ struct ProgramTemplateGridView: View {
   private var headerRow: some View {
     HStack(spacing: spacing) {
       Text("Week")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
+        .font(HP.Font.caption.weight(.semibold))
+        .foregroundStyle(HP.Color.textMuted)
         .frame(width: 58, alignment: .leading)
       ForEach(1...template.lift_weekdays.count, id: \.self) { dayIndex in
         let weekday = template.lift_weekdays[safe: dayIndex - 1] ?? 1
         Text("Day \(dayIndex)\n(\(weekdayShort(weekday)))")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
+          .font(HP.Font.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
           .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity)
       }
@@ -354,29 +361,73 @@ struct ProgramTemplateGridView: View {
   }
 
   private func weekRow(_ week: Int) -> some View {
-    HStack(spacing: spacing) {
-      Text("W\(week)")
-        .font(.subheadline.weight(.semibold))
-        .frame(width: 58, alignment: .leading)
-        .foregroundStyle(.secondary)
+    Group {
+      if isStacked {
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          Text("Week \(week)")
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+            .accessibilityAddTraits(.isHeader)
 
-      ForEach(1...template.lift_weekdays.count, id: \.self) { dayIndex in
-        let key = "\(week)-\(dayIndex)"
-        let day = dayMap[key]
-        Button {
-          onSelectCell(week, dayIndex)
-        } label: {
-          ProgramGridCell(day: day)
+          ForEach(1...template.lift_weekdays.count, id: \.self) { dayIndex in
+            cellButton(week: week, dayIndex: dayIndex, showsDayLabel: true)
+          }
         }
-        .buttonStyle(.plain)
-        .contextMenu {
-          Button("Edit") { onSelectCell(week, dayIndex) }
-          Divider()
-          Button("Copy…") { onCopyCell(week, dayIndex) }
-          Button("Clear…", role: .destructive) { onClearCell(week, dayIndex) }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        HStack(spacing: spacing) {
+          Text("W\(week)")
+            .font(HP.Font.callout.weight(.semibold))
+            .frame(width: 58, alignment: .leading)
+            .foregroundStyle(HP.Color.textMuted)
+
+          ForEach(1...template.lift_weekdays.count, id: \.self) { dayIndex in
+            cellButton(week: week, dayIndex: dayIndex, showsDayLabel: false)
+          }
         }
       }
     }
+  }
+
+  private func cellButton(week: Int, dayIndex: Int, showsDayLabel: Bool) -> some View {
+    let key = "\(week)-\(dayIndex)"
+    let day = dayMap[key]
+    let weekday = template.lift_weekdays[safe: dayIndex - 1] ?? 1
+    let names = (day?.exercises ?? [])
+      .map(\.name)
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    let summary = names.isEmpty ? "No exercises" : names.joined(separator: ", ")
+
+    return Button {
+      onSelectCell(week, dayIndex)
+    } label: {
+      HStack(alignment: .center, spacing: HP.Space.sm) {
+        if showsDayLabel {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Day \(dayIndex)")
+              .font(HP.Font.callout.weight(.semibold))
+              .foregroundStyle(HP.Color.text)
+            Text(weekdayShort(weekday))
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          .frame(width: 72, alignment: .leading)
+        }
+
+        ProgramGridCell(day: day)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .contextMenu {
+      Button("Edit") { onSelectCell(week, dayIndex) }
+      Divider()
+      Button("Copy…") { onCopyCell(week, dayIndex) }
+      Button("Clear…", role: .destructive) { onClearCell(week, dayIndex) }
+    }
+    .accessibilityLabel("Week \(week), day \(dayIndex), \(weekdayShort(weekday)), \(summary)")
+    .accessibilityHint("Opens the day editor. Additional copy and clear actions are available.")
   }
 
   private func weekdayShort(_ i: Int) -> String {
@@ -385,6 +436,7 @@ struct ProgramTemplateGridView: View {
 }
 
 private struct ProgramGridCell: View {
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   let day: SDProgramDay?
 
   var body: some View {
@@ -392,33 +444,34 @@ private struct ProgramGridCell: View {
     VStack(alignment: .leading, spacing: 6) {
       if names.isEmpty {
         Text("—")
-          .font(.headline)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.textMuted)
         Text("Add")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(DHDTheme.accent.opacity(0.95))
+          .font(HP.Font.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.accent)
       } else {
         Text(names.prefix(2).joined(separator: " • "))
-          .font(.subheadline.weight(.semibold))
-          .lineLimit(2)
-          .foregroundStyle(DHDTheme.textPrimary)
+          .font(HP.Font.callout.weight(.semibold))
+          .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+          .fixedSize(horizontal: false, vertical: true)
+          .foregroundStyle(HP.Color.text)
         if names.count > 2 {
           Text("+\(names.count - 2) more")
-            .font(.caption)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
       }
     }
     .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-    .padding(10)
+    .padding(HP.Space.sm)
     .background(
-      RoundedRectangle(cornerRadius: 14)
-        .fill(DHDTheme.surfaceElevated)
-        .shadow(color: DHDTheme.macShadowColor, radius: 10, x: 0, y: 5)
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .fill(HP.Color.surface)
     )
     .overlay(
-      RoundedRectangle(cornerRadius: 14)
-        .strokeBorder(DHDTheme.separator.opacity(0.35), lineWidth: 1)
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+        .allowsHitTesting(false)
     )
   }
 }
@@ -457,78 +510,40 @@ private struct ProgramCopySheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Picker("Action", selection: $mode) {
-          Text("Copy Day").tag(0)
-          Text("Copy Week").tag(1)
-          Text("Apply Week").tag(2)
-        }
-        .pickerStyle(.segmented)
-
-        if mode == 0 {
-          Section("Source") {
-            Picker("Week", selection: $srcWeek) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-            Picker("Day", selection: $srcDay) { ForEach(1...template.lift_weekdays.count, id: \.self) { Text("Day \($0)").tag($0) } }
-          }
-          Section("Destination") {
-            Picker("Week", selection: $dstWeek) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-            Picker("Day", selection: $dstDay) { ForEach(1...template.lift_weekdays.count, id: \.self) { Text("Day \($0)").tag($0) } }
-          }
-          Section {
-            Text("This overwrites the destination day.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        } else if mode == 1 {
-          Section("Source") {
-            Picker("Week", selection: $srcWeekOnly) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-          }
-          Section("Destination") {
-            Picker("Week", selection: $dstWeekOnly) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-          }
-          Section {
-            Text("This overwrites every day in the destination week.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        } else {
-          Section("Source") {
-            Picker("Week", selection: $applySrcWeek) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-          }
-          Section("Target weeks") {
-            ForEach(1...template.weeks, id: \.self) { w in
-              if w != applySrcWeek {
-                Toggle("Week \(w)", isOn: Binding(
-                  get: { applyTargets.contains(w) },
-                  set: { on in if on { applyTargets.insert(w) } else { applyTargets.remove(w) } }
-                ))
-              }
-            }
-          }
-          Section {
-            Text("This overwrites every selected target week.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Copy program content",
+          context: template.name
+        )
+      } sections: { _ in
+        copyScopeCard
+        operationSections
+      } primaryAction: { context in
+        HPButton(
+          title: "Apply",
+          systemImage: "doc.on.doc",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: apply
+        )
+        .disabled(!canApply)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Copy")
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Apply") {
-            let op: ProgramCopyOperation
-            if mode == 0 {
-              op = .copyDay(src: (srcWeek, srcDay), dst: (dstWeek, dstDay))
-            } else if mode == 1 {
-              op = .copyWeek(srcWeek: srcWeekOnly, dstWeek: dstWeekOnly)
-            } else {
-              op = .applyWeek(srcWeek: applySrcWeek, targets: applyTargets)
-            }
-            onApply(op)
-            dismiss()
-          }
-          .disabled(!canApply)
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
@@ -550,6 +565,123 @@ private struct ProgramCopySheet: View {
         }
       }
     }
+  }
+
+  private var copyScopeCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Copy scope")
+        HPSegmentedControl(
+          options: [
+            (value: 0, label: "Copy Day"),
+            (value: 1, label: "Copy Week"),
+            (value: 2, label: "Apply Week"),
+          ],
+          selection: $mode
+        )
+      }
+    }
+  }
+
+  @ViewBuilder private var operationSections: some View {
+    if mode == 0 {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Source")
+          weekPicker(selection: $srcWeek)
+          dayPicker(selection: $srcDay)
+        }
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Destination")
+          weekPicker(selection: $dstWeek)
+          dayPicker(selection: $dstDay)
+          overwriteNote("This overwrites the destination day.")
+        }
+      }
+    } else if mode == 1 {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Source")
+          weekPicker(selection: $srcWeekOnly)
+        }
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Destination")
+          weekPicker(selection: $dstWeekOnly)
+          overwriteNote("This overwrites every day in the destination week.")
+        }
+      }
+    } else {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Source")
+          weekPicker(selection: $applySrcWeek)
+        }
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          HPSectionHeader("Target weeks")
+          ForEach(1...template.weeks, id: \.self) { w in
+            if w != applySrcWeek {
+              Toggle("Week \(w)", isOn: Binding(
+                get: { applyTargets.contains(w) },
+                set: { on in if on { applyTargets.insert(w) } else { applyTargets.remove(w) } }
+              ))
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .tint(HP.Color.accent)
+              .frame(minHeight: 44)
+            }
+          }
+          overwriteNote("This overwrites every selected target week.")
+        }
+      }
+    }
+  }
+
+  private func weekPicker(selection: Binding<Int>) -> some View {
+    Picker("Week", selection: selection) {
+      ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
+    }
+    .pickerStyle(.menu)
+    .font(HP.Font.body)
+    .foregroundStyle(HP.Color.text)
+    .tint(HP.Color.accent)
+    .frame(minHeight: 44)
+  }
+
+  private func dayPicker(selection: Binding<Int>) -> some View {
+    Picker("Day", selection: selection) {
+      ForEach(1...template.lift_weekdays.count, id: \.self) { Text("Day \($0)").tag($0) }
+    }
+    .pickerStyle(.menu)
+    .font(HP.Font.body)
+    .foregroundStyle(HP.Color.text)
+    .tint(HP.Color.accent)
+    .frame(minHeight: 44)
+  }
+
+  private func overwriteNote(_ text: String) -> some View {
+    Label(text, systemImage: "exclamationmark.triangle")
+      .font(HP.Font.caption)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private func apply() {
+    let op: ProgramCopyOperation
+    if mode == 0 {
+      op = .copyDay(src: (srcWeek, srcDay), dst: (dstWeek, dstDay))
+    } else if mode == 1 {
+      op = .copyWeek(srcWeek: srcWeekOnly, dstWeek: dstWeekOnly)
+    } else {
+      op = .applyWeek(srcWeek: applySrcWeek, targets: applyTargets)
+    }
+    onApply(op)
+    dismiss()
   }
 
   private var canApply: Bool {
@@ -581,36 +713,66 @@ private struct ProgramClearSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Picker("Action", selection: $mode) {
-          Text("Clear Day").tag(0)
-          Text("Clear Week").tag(1)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Clear program content",
+          context: template.name
+        )
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Clear scope")
+            HPSegmentedControl(
+              options: [
+                (value: 0, label: "Clear Day"),
+                (value: 1, label: "Clear Week"),
+              ],
+              selection: $mode
+            )
+          }
         }
-        .pickerStyle(.segmented)
 
-        if mode == 0 {
-          Picker("Week", selection: $week) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
-          Picker("Day", selection: $day) { ForEach(1...template.lift_weekdays.count, id: \.self) { Text("Day \($0)").tag($0) } }
-        } else {
-          Picker("Week", selection: $week) { ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) } }
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Selection")
+            weekPicker
+            if mode == 0 {
+              dayPicker
+            }
+            Label(
+              "This removes all exercises from the selected scope.",
+              systemImage: "exclamationmark.triangle"
+            )
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          }
         }
-
-        Text("This removes all exercises from the selected scope.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
+      } primaryAction: { context in
+        HPButton(
+          title: "Clear",
+          systemImage: "eraser",
+          variant: .destructive,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: clear
+        )
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Clear")
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Clear", role: .destructive) {
-            if mode == 0 {
-              onApply(.clearDay(key: (week, day)))
-            } else {
-              onApply(.clearWeek(week: week))
-            }
-            dismiss()
-          }
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
@@ -627,6 +789,37 @@ private struct ProgramClearSheet: View {
         }
       }
     }
+  }
+
+  private var weekPicker: some View {
+    Picker("Week", selection: $week) {
+      ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
+    }
+    .pickerStyle(.menu)
+    .font(HP.Font.body)
+    .foregroundStyle(HP.Color.text)
+    .tint(HP.Color.accent)
+    .frame(minHeight: 44)
+  }
+
+  private var dayPicker: some View {
+    Picker("Day", selection: $day) {
+      ForEach(1...template.lift_weekdays.count, id: \.self) { Text("Day \($0)").tag($0) }
+    }
+    .pickerStyle(.menu)
+    .font(HP.Font.body)
+    .foregroundStyle(HP.Color.text)
+    .tint(HP.Color.accent)
+    .frame(minHeight: 44)
+  }
+
+  private func clear() {
+    if mode == 0 {
+      onApply(.clearDay(key: (week, day)))
+    } else {
+      onApply(.clearWeek(week: week))
+    }
+    dismiss()
   }
 }
 

@@ -138,6 +138,41 @@ struct OrganizationAuthorizationTests {
     )
   }
 
+  @Test("Unavailable workspace keeps organization switch and sign-out recovery")
+  func unavailableWorkspaceRecoveryWiring() throws {
+    let projectRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let source = try String(
+      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Home/HomeView.swift"),
+      encoding: .utf8
+    )
+
+    #expect(source.contains("case .unavailable:"))
+    #expect(source.contains("Label(\"Switch Organization\""))
+    #expect(source.contains("appState.switchActiveOrganization(to: organization.id)"))
+    #expect(source.contains("title: \"Sign Out\""))
+    #expect(source.contains("appState.signOut()"))
+  }
+
+  @Test("Parent request load failures stay distinct from truthful empty states")
+  func parentRequestLoadFailureWiring() throws {
+    let projectRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let source = try String(
+      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Account/ParentRequestPanels.swift"),
+      encoding: .utf8
+    )
+
+    #expect(source.contains("@State private var loadErrorText: String?"))
+    #expect(source.contains("if linkedParents.isEmpty, loadErrorText == nil"))
+    #expect(source.contains("if requests.isEmpty, loadErrorText == nil"))
+    #expect(source.contains("title: \"Parent access unavailable\""))
+    #expect(source.contains("title: \"Parent requests unavailable\""))
+    #expect(source.contains("onRetry: { Task { await reload() } }"))
+  }
+
   @Test("Platform-only and owner-plus-platform capabilities remain separate")
   func platformCapabilityIsIndependent() {
     #expect(

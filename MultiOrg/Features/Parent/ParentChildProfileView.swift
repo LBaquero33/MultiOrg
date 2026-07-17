@@ -23,26 +23,15 @@ struct ParentChildProfileView: View {
 
   var body: some View {
     content
-      .background(DHDTheme.pageBackground)
+      .background(HP.Color.bg)
       .toolbar {
 #if os(macOS)
         ToolbarItem(placement: .automatic) {
-          Picker("", selection: $tab) {
-            ForEach(Tab.allCases) { t in
-              Text(t.rawValue).tag(t)
-            }
-          }
-          .pickerStyle(.segmented)
-          .frame(maxWidth: 720)
+          adaptiveTabPicker
         }
 #else
         ToolbarItem(placement: .principal) {
-          Picker("", selection: $tab) {
-            ForEach(Tab.allCases) { t in
-              Text(t.rawValue).tag(t)
-            }
-          }
-          .pickerStyle(.segmented)
+          adaptiveTabPicker
         }
 #endif
       }
@@ -50,6 +39,36 @@ struct ParentChildProfileView: View {
       #if !os(macOS)
       .navigationBarTitleDisplayMode(.inline)
       #endif
+  }
+
+  @ViewBuilder
+  private var adaptiveTabPicker: some View {
+    ViewThatFits(in: .horizontal) {
+      segmentedTabPicker
+      menuTabPicker
+    }
+  }
+
+  private var segmentedTabPicker: some View {
+    Picker("Child profile section", selection: $tab) {
+      ForEach(Tab.allCases) { option in
+        Text(option.rawValue).tag(option)
+      }
+    }
+    .pickerStyle(.segmented)
+    .labelsHidden()
+    .fixedSize(horizontal: true, vertical: false)
+    .accessibilityLabel("Child profile section")
+  }
+
+  private var menuTabPicker: some View {
+    Picker("Child profile section", selection: $tab) {
+      ForEach(Tab.allCases) { option in
+        Text(option.rawValue).tag(option)
+      }
+    }
+    .pickerStyle(.menu)
+    .accessibilityLabel("Child profile section")
   }
 
   @ViewBuilder
@@ -83,47 +102,81 @@ private struct ParentChildProgramView: View {
   @State private var errorText: String?
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDHeaderCard {
-          HStack {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Program")
-                .font(.title3.weight(.semibold))
-              Text("View-only")
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.85))
-            }
-            Spacer()
-            if isLoading { ProgressView().tint(.white) }
-          }
-          .foregroundStyle(.white)
+    HPDetailScreenLayout {
+      HPWorkspaceHeader(
+        "Program",
+        context: "View-only · \(child.displayName)"
+      ) {
+        if isLoading {
+          HPProgressIndicator(style: .spinner)
+            .accessibilityLabel("Loading program")
         }
-
-        DHDCard {
-          VStack(alignment: .leading, spacing: 10) {
-            if let assignment, let template {
-              DHDFormRow("Template") { Text(template.name) }
-              DHDFormRow("Start") { Text(assignment.start_date) }
-              DHDFormRow("Weeks") { Text("\(template.weeks)") }
-              DHDFormRow("Days/week") { Text("\(template.lift_weekdays.count)") }
-              DHDFormRow("Weekdays") { Text(weekdayLabel(template.lift_weekdays)) }
-              if let notes = assignment.notes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Divider().overlay(DHDTheme.separator.opacity(0.35))
-                Text(notes).foregroundStyle(DHDTheme.textSecondary)
-              }
-            } else {
-              Text("No active program assigned.")
-                .foregroundStyle(DHDTheme.textSecondary)
+      }
+    } metrics: {
+      if let template {
+        HPMetricCard(
+          title: "Weeks",
+          value: "\(template.weeks)",
+          context: "Program duration"
+        )
+        HPMetricCard(
+          title: "Days per week",
+          value: "\(template.lift_weekdays.count)",
+          context: "Scheduled training days"
+        )
+      }
+    } details: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Assignment")
+          if let assignment, let template {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("TEMPLATE")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              Text(template.name)
+                .font(HP.Font.headline)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
+
+            Divider().overlay(HP.Color.border)
+            HPStatTile(label: "Start", value: assignment.start_date)
+            HPStatTile(
+              label: "Weekdays",
+              value: weekdayLabel(template.lift_weekdays)
+            )
+
+            if let notes = assignment.notes,
+               !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+              Divider().overlay(HP.Color.border)
+              VStack(alignment: .leading, spacing: HP.Space.xs) {
+                Text("NOTES")
+                  .font(HP.Font.eyebrow)
+                  .tracking(HP.Font.eyebrowTracking)
+                  .foregroundStyle(HP.Color.textMuted)
+                Text(notes)
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.textMuted)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .accessibilityElement(children: .combine)
+            }
+          } else {
+            HPEmptyState(
+              title: "No active program assigned.",
+              systemImage: "figure.strengthtraining.traditional"
+            )
           }
         }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    } related: { _ in
+      EmptyView()
+    } primaryAction: {
+      EmptyView()
     }
-    .background(DHDTheme.pageBackground)
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }

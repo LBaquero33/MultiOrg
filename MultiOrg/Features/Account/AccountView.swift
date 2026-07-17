@@ -15,24 +15,39 @@ private struct PushNotificationSettingsCard: View {
   @ObservedObject var manager: PushNotificationManager
 
   var body: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Notifications") { EmptyView() }
-        DHDFormRow("System permission") { Text(permissionLabel) }
-        DHDFormRow("This device") { Text(registrationLabel) }
-        HStack {
-          if manager.canRequestPermission {
-            Button { Task { await manager.requestPermission() } } label: {
-              Label("Enable Notifications", systemImage: "bell")
-            }
-            .buttonStyle(.borderedProminent)
-          }
-          if manager.authorizationStatus == .denied {
-            Button { manager.openSystemSettings() } label: {
-              Label("Open System Settings", systemImage: "gear")
-            }
-            .buttonStyle(.bordered)
-          }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Notifications")
+        HPStatTile(label: "System permission", value: permissionLabel, systemImage: "bell")
+        VStack(alignment: .leading, spacing: 4) {
+          Label("This device", systemImage: "iphone")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+          Text(registrationLabel)
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        if manager.canRequestPermission {
+          HPButton(
+            title: "Enable Notifications",
+            systemImage: "bell",
+            variant: .secondary,
+            size: .md,
+            fullWidth: true,
+            action: { Task { await manager.requestPermission() } }
+          )
+        }
+        if manager.authorizationStatus == .denied {
+          HPButton(
+            title: "Open System Settings",
+            systemImage: "gear",
+            variant: .secondary,
+            size: .md,
+            fullWidth: true,
+            action: { manager.openSystemSettings() }
+          )
         }
       }
     }
@@ -57,6 +72,52 @@ private struct PushNotificationSettingsCard: View {
     case .registered: "Registered"
     case .failed(let message): message
     }
+  }
+}
+
+private struct AccountProfileAvatar: View {
+  let url: URL?
+  let name: String
+  let fallbackInitials: String
+  let size: HPAvatarSize
+
+  var body: some View {
+    Group {
+      if let url {
+        AsyncImage(url: url) { phase in
+          switch phase {
+          case .empty:
+            placeholder
+          case .success(let image):
+            image
+              .resizable()
+              .scaledToFill()
+          case .failure:
+            placeholder
+          @unknown default:
+            placeholder
+          }
+        }
+      } else {
+        placeholder
+      }
+    }
+    .frame(width: size.dim, height: size.dim)
+    .clipShape(Circle())
+    .overlay(
+      Circle()
+        .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(name == "Signed in" ? "Account profile photo" : "\(name) profile photo")
+  }
+
+  private var placeholder: some View {
+    HPAvatar(
+      name: name == "Signed in" ? fallbackInitials : name,
+      size: size
+    )
   }
 }
 
@@ -142,45 +203,38 @@ struct AccountView: View {
   }
 
   private var accountPage: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDHeaderCard {
-          HStack(spacing: 14) {
-            DHDAvatarView(url: avatarURL, initials: initials, size: 54)
-            VStack(alignment: .leading, spacing: 2) {
-              Text(title)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-              Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.78))
-            }
-            Spacer()
+    HPSettingsScreenLayout { _ in
+      HPWorkspaceHeader(
+        title,
+        orgLabel: activeOrganizationName,
+        context: subtitle
+      )
+    } sections: { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        identityCard
+        if isLoading {
+          HPCard(style: .flat) {
+            HPLoadingState(text: "Loading account…")
           }
         }
 
-        if isLoading {
-          DHDCard(style: .flat) { HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(DHDTheme.textSecondary) } }
-        }
-
         organizationCard
-        profileCard
+        profileCard(context: context)
         familyCard
         accessCard
-        if isActiveOrganizationPlayer { paymentRequestsCard }
+        if isActiveOrganizationPlayer { paymentRequestsCard(context: context) }
         PushNotificationSettingsCard(manager: appState.pushNotifications)
-        securityCard
+        securityCard(context: context)
 
         if let toastText, !toastText.isEmpty {
-          DHDToast(text: toastText)
+          HPToast(text: toastText)
             .transition(.opacity)
         }
       }
-      .padding(DHDTheme.pagePadding)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    } destructiveAction: { _ in
+      signOutAction
     }
-    .background(DHDTheme.pageBackground)
     .navigationTitle("Account")
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -208,37 +262,65 @@ struct AccountView: View {
     return String(s.prefix(2)).uppercased()
   }
 
+  private var identityCard: some View {
+    HPCard {
+      HStack(alignment: .center, spacing: HP.Space.md) {
+        AccountProfileAvatar(
+          url: avatarURL,
+          name: subtitle,
+          fallbackInitials: initials,
+          size: .lg
+        )
+        VStack(alignment: .leading, spacing: 2) {
+          Text(subtitle)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(title)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
+      }
+    }
+  }
+
   @ViewBuilder
   private var organizationCard: some View {
     if !appState.availableOrganizations.isEmpty {
-      DHDCard {
-        HStack(spacing: 12) {
-          Group {
-            if let path = appState.activeOrgSettings?.logo_path,
-               let url = appState.supabase?.publicOrganizationLogoURL(path: path) {
-              AsyncImage(url: url) { image in
-                image.resizable().scaledToFill()
-              } placeholder: {
-                ProgressView()
-              }
-              .frame(width: 34, height: 34)
-              .clipShape(RoundedRectangle(cornerRadius: 7))
-            } else {
-              Image(systemName: "building.2.fill")
-                .font(.title3)
-                .foregroundStyle(DHDTheme.accent)
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Organization")
+          HStack(spacing: HP.Space.sm) {
+            Group {
+              if let path = appState.activeOrgSettings?.logo_path,
+                 let url = appState.supabase?.publicOrganizationLogoURL(path: path) {
+                AsyncImage(url: url) { image in
+                  image.resizable().scaledToFill()
+                } placeholder: {
+                  ProgressView()
+                }
                 .frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+              } else {
+                Image(systemName: "building.2.fill")
+                  .font(.title3)
+                  .foregroundStyle(HP.Color.primary)
+                  .frame(width: 34, height: 34)
+              }
             }
+            VStack(alignment: .leading, spacing: 2) {
+              Text("Active organization")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+              Text(activeOrganizationName)
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
           }
-          VStack(alignment: .leading, spacing: 2) {
-            Text("Active organization")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(DHDTheme.textSecondary)
-            Text(activeOrganizationName)
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(DHDTheme.textPrimary)
-          }
-          Spacer()
           if appState.availableOrganizations.count > 1 {
             Menu {
               ForEach(appState.availableOrganizations) { organization in
@@ -254,7 +336,9 @@ struct AccountView: View {
             } label: {
               Label("Switch", systemImage: "arrow.left.arrow.right")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(HPButtonStyle(variant: .secondary, size: .md, fullWidth: true))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
           }
         }
       }
@@ -268,56 +352,37 @@ struct AccountView: View {
     return appState.activeOrgSettings?.display_name ?? "Organization"
   }
 
-  private var profileCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Profile") {
-          HStack(spacing: 8) {
-            Button {
-              Task { await reload() }
-            } label: {
-              Label("Refresh", systemImage: "arrow.clockwise")
-                .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.bordered)
-          }
+  private func profileCard(context: HPScreenLayoutContext) -> some View {
+    let avatarLayout = context.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+      : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
+
+    return HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Profile") {
+          HPButton(
+            title: "Refresh",
+            systemImage: "arrow.clockwise",
+            variant: .secondary,
+            size: .sm,
+            fullWidth: context.isAccessibilitySize,
+            action: { Task { await reload() } }
+          )
         }
 
-        HStack(alignment: .center, spacing: 12) {
-          DHDAvatarView(url: avatarURL, initials: initials, size: 72)
-          VStack(alignment: .leading, spacing: 8) {
-#if canImport(UIKit)
-            PhotosPicker(selection: $photoItem, matching: .images) {
-              Label("Change photo", systemImage: "photo")
-            }
-            .onChange(of: photoItem) { _, newValue in
-              guard let newValue else { return }
-              Task { await loadPhotoPickerItem(newValue) }
-            }
-#else
-            Button {
-              showFilePicker = true
-            } label: {
-              Label("Change photo", systemImage: "photo")
-            }
-            .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.image]) { res in
-              switch res {
-              case .success(let url):
-                macPickedURL = url
-                Task { await loadMacImageURL(url) }
-              case .failure(let err):
-                errorText = err.localizedDescription
-              }
-            }
-#endif
-            if pendingAvatarJPEG != nil {
-              Text("Photo selected • saving automatically")
-                .font(.caption)
-                .foregroundStyle(DHDTheme.textSecondary)
-            }
+        avatarLayout {
+          AccountProfileAvatar(
+            url: avatarURL,
+            name: subtitle,
+            fallbackInitials: initials,
+            size: .lg
+          )
+          avatarChangeControls(context: context)
+          if !context.isAccessibilitySize {
+            Spacer(minLength: 0)
           }
-          Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         if appState.myProfile?.isCoach == true {
           coachProfileFields
@@ -325,182 +390,219 @@ struct AccountView: View {
           athleteProfileFields
         }
 
-        HStack(spacing: 10) {
-          Button {
-            Task { await saveProfile(isAutomatic: false) }
-          } label: {
-            Label("Save now", systemImage: "checkmark.circle.fill")
-              .frame(maxWidth: 220)
-          }
-          .buttonStyle(.borderedProminent)
-
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          HPButton(
+            title: "Save now",
+            systemImage: "checkmark.circle.fill",
+            variant: .primary,
+            size: .md,
+            isLoading: isLoading || isSavingProfile,
+            fullWidth: context.isAccessibilitySize,
+            action: { Task { await saveProfile(isAutomatic: false) } }
+          )
+          .disabled(isLoading || isSavingProfile)
           if isSavingProfile {
             HStack(spacing: 6) {
               ProgressView().controlSize(.small)
               Text("Saving…")
             }
-            .font(.caption)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
           } else {
             Text("Saves automatically")
-              .font(.caption)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
           }
-
-          Spacer()
         }
       }
     }
   }
 
-  private var athleteProfileFields: some View {
-    Group {
-          TextField("Full name", text: $fullName)
-            .textFieldStyle(.roundedBorder)
-          TextField("Phone (optional)", text: $phone)
-            .textFieldStyle(.roundedBorder)
-
-          HStack(spacing: 10) {
-            TextField("Grad year", text: $gradYear)
-              .textFieldStyle(.roundedBorder)
-              .frame(maxWidth: 140)
-            TextField("Primary position", text: $primaryPosition)
-              .textFieldStyle(.roundedBorder)
-          }
-
-          HStack(spacing: 10) {
-            Picker("Bats", selection: $bats) {
-              Text("R").tag("R")
-              Text("L").tag("L")
-              Text("S").tag("S")
-              Text("Unknown").tag("unknown")
-            }
-            .pickerStyle(.menu)
-
-            Picker("Throws", selection: $throwsHand) {
-              Text("R").tag("R")
-              Text("L").tag("L")
-              Text("Unknown").tag("unknown")
-            }
-            .pickerStyle(.menu)
-          }
-
-          HStack(spacing: 10) {
-            TextField("School", text: $school)
-              .textFieldStyle(.roundedBorder)
-            TextField("Team", text: $team)
-              .textFieldStyle(.roundedBorder)
-          }
-
-          HStack(spacing: 10) {
-            TextField("Height (in)", text: $heightIn)
-              .textFieldStyle(.roundedBorder)
-              .frame(maxWidth: 140)
-            TextField("Weight (lb)", text: $weightLb)
-              .textFieldStyle(.roundedBorder)
-              .frame(maxWidth: 140)
-          }
-
-          TextField("Notes", text: $notes, axis: .vertical)
-            .lineLimit(4...10)
-            .textFieldStyle(.roundedBorder)
+  @ViewBuilder
+  private func avatarChangeControls(context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+#if canImport(UIKit)
+      PhotosPicker(selection: $photoItem, matching: .images) {
+        Label("Change photo", systemImage: "photo")
+      }
+      .buttonStyle(
+        HPButtonStyle(
+          variant: .secondary,
+          size: .sm,
+          fullWidth: context.isAccessibilitySize
+        )
+      )
+      .frame(maxWidth: context.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+      .contentShape(Rectangle())
+      .onChange(of: photoItem) { _, newValue in
+        guard let newValue else { return }
+        Task { await loadPhotoPickerItem(newValue) }
+      }
+#else
+      Button {
+        showFilePicker = true
+      } label: {
+        Label("Change photo", systemImage: "photo")
+      }
+      .buttonStyle(
+        HPButtonStyle(
+          variant: .secondary,
+          size: .sm,
+          fullWidth: context.isAccessibilitySize
+        )
+      )
+      .frame(maxWidth: context.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+      .contentShape(Rectangle())
+      .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.image]) { res in
+        switch res {
+        case .success(let url):
+          macPickedURL = url
+          Task { await loadMacImageURL(url) }
+        case .failure(let err):
+          errorText = err.localizedDescription
+        }
+      }
+#endif
+      if pendingAvatarJPEG != nil {
+        Text("Photo selected • saving automatically")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
+  private var athleteProfileFields: some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HPFormField(label: "Full name", text: $fullName, placeholder: "Full name")
+      HPFormField(label: "Phone (optional)", text: $phone, placeholder: "Phone")
+      HPFormField(label: "Grad year", text: $gradYear, placeholder: "Graduation year")
+      HPFormField(label: "Primary position", text: $primaryPosition, placeholder: "Primary position")
+      Picker("Bats", selection: $bats) {
+        Text("R").tag("R")
+        Text("L").tag("L")
+        Text("S").tag("S")
+        Text("Unknown").tag("unknown")
+      }
+      .pickerStyle(.menu)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(minHeight: 44)
+      .contentShape(Rectangle())
+      Picker("Throws", selection: $throwsHand) {
+        Text("R").tag("R")
+        Text("L").tag("L")
+        Text("Unknown").tag("unknown")
+      }
+      .pickerStyle(.menu)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(minHeight: 44)
+      .contentShape(Rectangle())
+      HPFormField(label: "School", text: $school, placeholder: "School")
+      HPFormField(label: "Team", text: $team, placeholder: "Team")
+      HPFormField(label: "Height (in)", text: $heightIn, placeholder: "Height in inches")
+      HPFormField(label: "Weight (lb)", text: $weightLb, placeholder: "Weight in pounds")
+      HPFormField(label: "Notes", text: $notes, kind: .multiline, placeholder: "Notes")
+    }
+    .font(HP.Font.body)
+    .foregroundStyle(HP.Color.text)
+    .tint(HP.Color.accent)
+  }
+
   private var coachProfileFields: some View {
-    Group {
-      TextField("Full name", text: $fullName)
-        .textFieldStyle(.roundedBorder)
-      TextField("Professional title", text: $professionalTitle)
-        .textFieldStyle(.roundedBorder)
-      HStack(spacing: 10) {
-        TextField("Phone (optional)", text: $phone)
-          .textFieldStyle(.roundedBorder)
-        TextField("Organization / school", text: $school)
-          .textFieldStyle(.roundedBorder)
-      }
-      HStack(spacing: 10) {
-        TextField("Specialties", text: $specialties)
-          .textFieldStyle(.roundedBorder)
-        TextField("Years coaching", text: $yearsExperience)
-          .textFieldStyle(.roundedBorder)
-          .frame(maxWidth: 170)
-      }
-      TextField("Website or profile link", text: $website)
-        .textFieldStyle(.roundedBorder)
-      TextField("Professional bio", text: $professionalBio, axis: .vertical)
-        .lineLimit(4...10)
-        .textFieldStyle(.roundedBorder)
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HPFormField(label: "Full name", text: $fullName, placeholder: "Full name")
+      HPFormField(label: "Professional title", text: $professionalTitle, placeholder: "Professional title")
+      HPFormField(label: "Phone (optional)", text: $phone, placeholder: "Phone")
+      HPFormField(label: "Organization / school", text: $school, placeholder: "Organization or school")
+      HPFormField(label: "Specialties", text: $specialties, placeholder: "Specialties")
+      HPFormField(label: "Years coaching", text: $yearsExperience, placeholder: "Years coaching")
+      HPFormField(label: "Website or profile link", text: $website, placeholder: "Website or profile link")
+      HPFormField(label: "Professional bio", text: $professionalBio, kind: .multiline, placeholder: "Professional bio")
     }
   }
 
   private var familyCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Family / Parents") { EmptyView() }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Family / Parents")
 
         if appState.myProfile?.isCoach == true {
           CoachParentRequestsPanel()
             .environmentObject(appState)
         } else if appState.myProfile?.isPlayer == true {
           if let code = myParentCode, !code.isEmpty {
-            DHDFormRow("Parent code") {
-              HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              Text("PARENT CODE")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              VStack(alignment: .leading, spacing: HP.Space.xs) {
                 Text(code)
                   .font(.system(.body, design: .monospaced))
+                  .foregroundStyle(HP.Color.text)
                   .textSelection(.enabled)
-                Button {
-                  copyToPasteboard(code)
-                  toast("Copied parent code.")
-                } label: {
-                  Label("Copy", systemImage: "doc.on.doc")
-                    .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
+                HPButton(
+                  title: "Copy",
+                  systemImage: "doc.on.doc",
+                  variant: .secondary,
+                  size: .sm,
+                  fullWidth: true,
+                  action: {
+                    copyToPasteboard(code)
+                    toast("Copied parent code.")
+                  }
+                )
               }
             }
             Text("Share this code with a parent/guardian so they can create a Parent account and link to you.")
-              .font(.footnote)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           } else {
             Text("Parent code: —")
-              .foregroundStyle(DHDTheme.textSecondary)
-              .font(.subheadline)
+              .foregroundStyle(HP.Color.textMuted)
+              .font(HP.Font.callout)
           }
           PlayerParentRequestsPanel()
             .environmentObject(appState)
         } else if appState.myProfile?.isParent == true {
           Text("Use the Children list to view linked players. Pending invites will appear automatically when available.")
-            .foregroundStyle(DHDTheme.textSecondary)
-            .font(.subheadline)
+            .foregroundStyle(HP.Color.textMuted)
+            .font(HP.Font.callout)
+            .fixedSize(horizontal: false, vertical: true)
         } else {
           Text("—")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .foregroundStyle(HP.Color.textMuted)
         }
       }
     }
   }
 
   private var accessCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Subscription / Access") { EmptyView() }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Subscription / Access")
 
         if appState.myProfile?.isPlayer == true {
           entitlementSummary(entitlement: appState.myEntitlement)
           Text("Access is managed by your organization. Contact an organization administrator if this status is incorrect.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
         } else if appState.myProfile?.isCoach == true {
           Text("Player access is managed individually from Players → Program. Organization owners and platform administrators can grant access or require payment.")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
 
         } else if appState.myProfile?.isParent == true {
           Text("Player access and payment requirements are managed by the organization.")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
         } else {
           Text("—")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .foregroundStyle(HP.Color.textMuted)
         }
       }
     }
@@ -510,30 +612,52 @@ struct AccountView: View {
     "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none")"
   }
 
-  private var paymentRequestsCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Payment Requests") {
-          HStack {
-            if isPaymentRequestLoading { ProgressView() }
-            Button("Refresh") { Task { await reloadPlayerPaymentRequests() } }
-              .disabled(isPaymentRequestLoading)
+  private func paymentRequestsCard(context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Payment Requests") {
+          HStack(spacing: HP.Space.xs) {
+            if isPaymentRequestLoading {
+              ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Loading payment requests")
+            }
+            HPButton(
+              title: "Refresh",
+              systemImage: "arrow.clockwise",
+              variant: .secondary,
+              size: .sm,
+              fullWidth: context.isAccessibilitySize,
+              action: { Task { await reloadPlayerPaymentRequests() } }
+            )
+            .disabled(isPaymentRequestLoading)
           }
         }
 
         Text("Organization payment requests are separate from your Apple player subscription.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
 
         if let paymentRequestErrorText {
-          VStack(alignment: .leading, spacing: 8) {
-            Text(paymentRequestErrorText).font(.footnote).foregroundStyle(.red)
-            Button("Try Again") { Task { await reloadPlayerPaymentRequests() } }
-              .buttonStyle(.bordered)
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            Text(paymentRequestErrorText)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.danger)
+              .fixedSize(horizontal: false, vertical: true)
+            HPButton(
+              title: "Try Again",
+              systemImage: "arrow.clockwise",
+              variant: .secondary,
+              size: .sm,
+              fullWidth: context.isAccessibilitySize,
+              action: { Task { await reloadPlayerPaymentRequests() } }
+            )
           }
         } else if paymentRequestState.requests.isEmpty, !isPaymentRequestLoading {
           Text("No payment requests for this organization.")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
         } else {
           ForEach(paymentRequestState.requests) { request in
             PaymentRequestCard(
@@ -620,14 +744,6 @@ struct AccountView: View {
     return appState.activeOrgSettings?.display_name ?? "Organization"
   }
 
-  private func paymentRequestStatusColor(_ status: SDPaymentRequestStatus) -> Color {
-    switch status {
-    case .open: return .orange
-    case .canceled: return .secondary
-    case .paid: return .green
-    }
-  }
-
   private func displayPaymentRequestDate(_ value: String) -> String {
     let input = DateFormatter()
     input.locale = Locale(identifier: "en_US_POSIX")
@@ -636,41 +752,46 @@ struct AccountView: View {
     return date.formatted(date: .abbreviated, time: .omitted)
   }
 
-  private var securityCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Security") { EmptyView() }
-
-        Button {
-          Task { await sendPasswordResetToMe() }
-        } label: {
-          Label("Send password reset email", systemImage: "key")
-        }
-        .buttonStyle(.bordered)
-
-        Button(role: .destructive) {
-          Task { await appState.signOut() }
-        } label: {
-          Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-        }
-        .buttonStyle(.bordered)
+  private func securityCard(context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Security")
+        HPButton(
+          title: "Send password reset email",
+          systemImage: "key",
+          variant: .secondary,
+          size: .md,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await sendPasswordResetToMe() } }
+        )
       }
     }
   }
 
+  private var signOutAction: some View {
+    HPButton(
+      title: "Sign out",
+      systemImage: "rectangle.portrait.and.arrow.right",
+      variant: .destructive,
+      size: .md,
+      fullWidth: true,
+      action: { Task { await appState.signOut() } }
+    )
+  }
+
 
   private func entitlementSummary(entitlement: SDAccessEntitlement?) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
       let active = entitlement?.is_active == true
       HStack {
-        DHDStatusBadge(text: active ? "Active" : "Inactive", color: active ? .green : .red)
-        Spacer()
+        HPStatusBadge(text: active ? "Active" : "Inactive", kind: active ? .success : .danger)
+        Spacer(minLength: 0)
       }
       if let end = entitlement?.current_period_end {
-        DHDFormRow("Renews/Ends") { Text(end.formatted(date: .abbreviated, time: .omitted)) }
+        HPStatTile(label: "Renews/Ends", value: end.formatted(date: .abbreviated, time: .omitted))
       }
       if let src = entitlement?.source, !src.isEmpty {
-        DHDFormRow("Source") { Text(src) }
+        HPStatTile(label: "Source", value: src)
       }
     }
   }
@@ -820,12 +941,18 @@ struct AccountView: View {
   }
 #else
   private func loadMacImageURL(_ url: URL) async {
+    let isAccessing = url.startAccessingSecurityScopedResource()
+    defer {
+      if isAccessing {
+        url.stopAccessingSecurityScopedResource()
+      }
+    }
     do {
       let data = try Data(contentsOf: url)
       if let jpeg = AvatarImageProcessor.squareJPEG(from: data, side: 512) {
-      pendingAvatarJPEG = jpeg
-      avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
-      scheduleProfileAutosave()
+        pendingAvatarJPEG = jpeg
+        avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
+        scheduleProfileAutosave()
       }
     } catch {
       errorText = error.localizedDescription
@@ -884,15 +1011,19 @@ struct DHDAvatarView: View {
     }
     .frame(width: size, height: size)
     .clipShape(Circle())
-    .overlay(Circle().strokeBorder(DHDTheme.separator.opacity(0.45), lineWidth: 1))
+    .overlay(
+      Circle()
+        .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
   }
 
   private var placeholder: some View {
     ZStack {
-      Circle().fill(DHDTheme.accent.opacity(0.18))
+      Circle().fill(HP.Color.primary.opacity(0.22))
       Text(initials)
         .font(.system(size: size * 0.36, weight: .semibold, design: .rounded))
-        .foregroundStyle(DHDTheme.accent)
+        .foregroundStyle(HP.Color.primary)
     }
   }
 }

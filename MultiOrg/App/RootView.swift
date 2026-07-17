@@ -10,7 +10,6 @@ struct RootView: View {
       MobileRootView {
         content
       }
-      .preferredColorScheme(.dark)
       #else
       DesktopRootView {
         content
@@ -18,15 +17,24 @@ struct RootView: View {
       #endif
     }
     .environment(\.dhdOrgBranding, activeBranding)
-    .tint(activeBranding.accent)
+    .tint(DHDTheme.accent)
     .dhdToast($appState.globalToastText)
-    .overlay(alignment: .topTrailing) {
+    .safeAreaInset(edge: .top, spacing: 0) {
       if appState.isAuthenticated {
-        NotificationBellButton()
-          .environmentObject(appState)
-          .padding(.top, 10)
-          .padding(.trailing, 14)
-          .zIndex(100)
+        HStack {
+          Spacer(minLength: 0)
+          NotificationBellButton()
+            .environmentObject(appState)
+        }
+        .padding(.horizontal, HP.Space.md)
+        .padding(.vertical, HP.Space.xs)
+        .background(HP.Color.bg)
+        .overlay(alignment: .bottom) {
+          Rectangle()
+            .fill(HP.Color.border)
+            .frame(height: 1)
+            .allowsHitTesting(false)
+        }
       }
     }
     .onChange(of: scenePhase) { _, next in
@@ -62,8 +70,8 @@ struct RootView: View {
 
   private var activeBranding: DHDOrgBranding {
     guard let settings = appState.activeOrgSettings else { return .fallback }
-    let name = settings.display_name ?? settings.short_name ?? "MultiOrg"
-    let shortName = settings.short_name ?? settings.display_name ?? "MultiOrg"
+    let name = settings.display_name ?? settings.short_name ?? "Home Plate"
+    let shortName = settings.short_name ?? settings.display_name ?? "Home Plate"
     let logoURL = settings.logo_path.flatMap { appState.supabase?.publicOrganizationLogoURL(path: $0) }
     return DHDOrgBranding(
       name: name,

@@ -1,0 +1,448 @@
+%YAML 1.2
+---
+# HOME PLATE — MACHINE-READABLE UI CONTRACT
+#
+# Universal Implementation Kit — Stage 6.
+# Absolute path: /Users/lb33/Documents/HomePlate-design/Docs/design/HOME_PLATE_UI_CONTRACT.yaml
+#
+# Authoritative, machine-checkable mirror of:
+#   HOME_PLATE_AI_UI_IMPLEMENTATION_GUIDE.md  (binding prose)
+#   HOME_PLATE_SCREEN_TEMPLATES.md            (template anatomy)
+#   HOME_PLATE_VISUAL_REFERENCE.md            (rendered spec)
+#   HOME_PLATE_SCREEN_MIGRATION_MAP.md        (screen -> template)
+#
+# If this file and the Markdown ever disagree, the Markdown guide wins and this
+# file must be corrected. Values mirror MultiOrg/DesignSystem/Tokens/*.swift.
+
+meta:
+  version: "1.0.0"
+  stage: 6
+  status: awaiting_approval
+  generated_at: "2026-07-16"
+  source_commit: b97c1b4
+  worktree: /Users/lb33/Documents/HomePlate-design
+  branch: design/home-plate-os
+  phase: "Phase 10 — Home Plate OS"
+  color_mode: dark_only          # no light mode in Phase 10
+  forbidden_paths:
+    - /Users/lb33/Documents/HomePlate      # Codex checkout — never touch
+
+# ---------------------------------------------------------------- design tokens
+design_tokens:
+  color:
+    namespace: HP.Color
+    space: display_p3
+    surfaces:
+      bg:            "#0F110C"
+      surface:       "#1A1E16"
+      surfaceRaised: "#262B21"
+      surfaceMuted:  "#20241A"
+      input:         "#2E3327"
+      border:        "#333829"
+      borderStrong:  "#474D3B"
+    text:
+      text:          "#ECE8DD"
+      textMuted:     "#A6A394"
+      textTertiary:  "#C8C4B4"
+    semantic:        # HP-owned. Never overridden by organization branding.
+      primary:       "#2E7D57"
+      primaryGlow:   "#46B07C"
+      accent:        "#D6B370"   # gold — the single CTA / focus / value
+      accentText:    "#2B2A1E"
+      focusRing:     "#D6B370"
+      success:       "#46B07C"
+      warning:       "#E0A33E"
+      danger:        "#D0453E"
+      info:          "#5A9BD6"
+  spacing:
+    namespace: HP.Space
+    scale: { xs: 8, sm: 12, md: 16, lg: 24, xl: 32 }
+  radius:
+    namespace: HP.Radius
+    scale: { sm: 8, md: 12, lg: 16, xl: 18 }
+  typography:
+    namespace: HP.Font
+    family_now: "SF Pro (system)"
+    family_planned: { display: Archivo, text: InstrumentSans }
+    swap_mechanism: "HP.Font.displayFamily / textFamily — no component API change"
+    tokens:
+      display:  { size: 34, weight: bold,     relative_to: largeTitle, tracking: -0.5 }
+      title:    { size: 22, weight: bold,     relative_to: title2,     tracking: -0.3 }
+      headline: { size: 17, weight: semibold, relative_to: headline }
+      body:     { size: 16, weight: regular,  relative_to: body }
+      callout:  { size: 15, weight: regular,  relative_to: callout }
+      caption:  { size: 13, weight: medium,   relative_to: caption }
+      eyebrow:  { size: 12, weight: semibold, relative_to: caption, tracking: 0.6, uppercase: true }
+      badge:    { size: 12, weight: bold,     relative_to: caption }
+      number:   { monospaced_digits: true, required_for: [money, metrics, stats] }
+  motion:
+    namespace: HP.Motion
+    tokens: { instant: 0.10, quick: 0.18, standard: 0.25, emphasis: "spring(0.35, 0.85)" }
+    reduce_motion: "route via HP.animation(_:reduceMotion:); HP components already comply"
+  shadow:
+    namespace: HP.Shadow
+    tokens: [subtle, card, modal]
+    apply_via: ".hpShadow(_:)"
+
+# ------------------------------------------------------------------- components
+components:
+  root_namespace: MultiOrg/DesignSystem
+  modification_policy: "read_only — if a component cannot support the screen, STOP and report"
+  approved:
+    - { name: HPWorkspaceHeader,    slots: [title, orgLabel, context, identity, trailing] }
+    - { name: HPCard,               variants: [elevated, flat] }
+    - { name: HPMetricCard,         requires: [title, value], optional: [unit, delta, trend, context, valueColor] }
+    - { name: HPStatTile,           optional: [systemImage, valueColor] }
+    - { name: HPSectionHeader,      slots: [title, accessory] }
+    - { name: HPButton,             variants: [primary, secondary, tertiary, destructive], sizes: { sm: 28, md: 36, lg: 44 } }
+    - { name: HPStatusBadge,        variants: [neutral, success, warning, danger, info, gold] }
+    - { name: HPFormField,          variants: [text, secure, multiline] }
+    - { name: HPMoneyField,         money_representation: integer_cents }
+    - { name: HPSegmentedControl,   max_segments: 4, ax3_behavior: vertical_list }
+    - { name: HPSearchBar }
+    - { name: HPFilterBar,          child: HPDataPill }
+    - { name: HPTable,              layouts: [auto, columns, stacked] }
+    - { name: HPChart,              styles: [line, bar] }
+    - { name: HPProgressIndicator,  styles: [ring, bar, spinner] }
+    - { name: HPLoadingState }
+    - { name: HPSkeleton }
+    - { name: HPEmptyState }
+    - { name: HPErrorState }
+    - { name: HPToast,              presenter: ".hpToast($binding)" }
+    - { name: HPAvatar,             sizes: [xs, sm, md, lg] }
+    - { name: HPModalContainer }
+    - { name: HPConfirmationDialog }
+    - { name: HPSidebar }
+    - { name: HPWorkspaceDirectory }
+  missing:            # documented gaps — building these requires a component stage
+    - { name: HPStepper,           workaround: "native Stepper tinted HP.Color.accent" }
+    - { name: HPToggle,            workaround: "native Toggle tinted HP.Color.accent" }
+    - { name: HPDateRangeControl,  workaround: "HPSegmentedControl + native DatePicker tinted gold" }
+    - { name: HPScoreboard,        blocks: game_day }
+    - { name: HPBaseDiamond,       blocks: game_day }
+    - { name: HPLineupList,        blocks: game_day }
+    - { name: HPPlayByPlayRow,     blocks: game_day }
+    - { name: HPBoxScoreTable,     blocks: game_day }
+    - { name: HPAICard,            blocks: ai_evidence }
+    - { name: HPEvidenceList,      blocks: ai_evidence }
+    - { name: HPConfidenceMeter,   blocks: ai_evidence }
+    - { name: indigo_accent_token, blocks: ai_evidence }
+    - { name: HPRecruitingProfileHeader, blocks: recruiting_profile }
+    - { name: HPVerifiedMetric,    blocks: recruiting_profile }
+    - { name: HPMetricSourceLabel, blocks: recruiting_profile }
+    - { name: HPFilmReel,          blocks: recruiting_profile }
+    - { name: HPCoachEvaluationCard, blocks: recruiting_profile }
+    - { name: HPRecruitingSnapshotCard, blocks: recruiting_profile }
+
+# -------------------------------------------------------------- screen templates
+screen_templates:
+  - { id: workspace_dashboard, shell: MultiOrg/DesignSystem/Templates/HPWorkspaceScreenTemplate.swift, buildable: true,
+      required: [HPWorkspaceHeader, HPCard, HPMetricCard, HPSectionHeader, HPStatusBadge],
+      primary_action: header_trailing, ax3: metric_grid_single_column }
+  - { id: list_search_filter, shell: MultiOrg/DesignSystem/Templates/HPListScreenTemplate.swift, buildable: true,
+      required: [HPWorkspaceHeader, HPSearchBar, HPFilterBar, HPCard, HPTable, HPEmptyState],
+      primary_action: header_trailing, ax3: table_stacked, must_show: result_count }
+  - { id: record_detail, shell: MultiOrg/DesignSystem/Templates/HPDetailScreenTemplate.swift, buildable: true,
+      required: [HPCard, HPAvatar, HPStatusBadge, HPMetricCard, HPSectionHeader, HPStatTile, HPButton],
+      primary_action: bottom_card, ax3: metrics_single_column_identity_stacks }
+  - { id: form_editor, shell: MultiOrg/DesignSystem/Templates/HPFormScreenTemplate.swift, buildable: true,
+      required: [HPFormField, HPCard, HPSectionHeader, HPButton],
+      primary_action: action_row, ax3: actions_stack_full_width,
+      rules: [single_column_at_every_width, money_is_HPMoneyField, inline_validation] }
+  - { id: program_execution, shell: MultiOrg/DesignSystem/Templates/HPProgramExecutionTemplate.swift, buildable: true,
+      canonical_production: MultiOrg/Features/Player/SDPlayerTodayView.swift,
+      required: [HPWorkspaceHeader, HPStatusBadge, HPCard, HPMetricCard, HPProgressIndicator, HPFormField, HPButton, HPToast],
+      primary_action: bottom_full_width_submit,
+      rules: [persist_on_submit_only, no_autosave, no_per_item_save, coach_instructions_read_only] }
+  - { id: calendar_scheduling, shell: MultiOrg/DesignSystem/Templates/HPCalendarScreenTemplate.swift, buildable: true,
+      required: [HPWorkspaceHeader, HPCard, HPSegmentedControl, HPSectionHeader, HPStatusBadge],
+      primary_action: header_trailing, ax3: replace_month_grid_with_agenda_list }
+  - { id: analytics, shell: MultiOrg/DesignSystem/Templates/HPAnalyticsScreenTemplate.swift, buildable: true,
+      required: [HPWorkspaceHeader, HPSegmentedControl, HPMetricCard, HPChart, HPTable, HPCard],
+      primary_action: none, ax3: fixed_chart_height_table_stacked,
+      rules: [chart_must_have_table_equivalent, chart_must_label_range_and_units] }
+  - { id: communication_split, shell: MultiOrg/DesignSystem/Templates/HPCommunicationScreenTemplate.swift, buildable: true,
+      required: [HPCard, HPAvatar, HPStatusBadge, HPFormField, HPButton],
+      primary_action: send_in_thread, ax3: list_only,
+      rules: [unread_is_badge_and_weight, do_not_rebuild_dm_transport] }
+  - { id: finance, shell: "composition(workspace_dashboard + list_search_filter + analytics + form_editor)", buildable: true,
+      canonical_production: MultiOrg/Features/Admin/FinanceDashboardView.swift,
+      required: [HPWorkspaceHeader, HPMetricCard, HPCard, HPTable, HPFilterBar, HPStatusBadge, HPErrorState],
+      primary_action: header_trailing,
+      rules: [integer_cents, page_level_error_only, support_mode_banner_explicit] }
+  - { id: settings_account, shell: MultiOrg/DesignSystem/Templates/HPSettingsScreenTemplate.swift, buildable: true,
+      required: [HPCard, HPAvatar, HPSectionHeader, HPStatTile, HPButton],
+      primary_action: none, ax3: buttons_full_width,
+      rules: [single_column_at_every_width, destructive_last_and_isolated, storekit_presentation_only] }
+  - { id: billing_paywall, shell: "MultiOrg/DesignSystem/Templates/HPStateScreenTemplate.swift(kind: .paywall)", buildable: true,
+      required: [HPCard, HPButton, HPStatusBadge],
+      primary_action: single_subscribe_button,
+      rules: [storekit_presentation_only, never_imply_unverified_entitlement, restore_must_be_visible] }
+  - { id: admin_console, shell: MultiOrg/DesignSystem/Templates/HPAdminScreenTemplate.swift, buildable: true,
+      required: [HPWorkspaceHeader, HPSegmentedControl, HPTable, HPCard, HPStatusBadge, HPButton],
+      primary_action: header_trailing, ax3: section_nav_vertical_table_stacked,
+      rules: [support_mode_banner_explicit, destructive_requires_confirmation, authorization_read_only] }
+  - { id: state_screen, shell: MultiOrg/DesignSystem/Templates/HPStateScreenTemplate.swift, buildable: true,
+      kinds: [locked, paywall, offline, stale, configError, signInRequired],
+      required: [HPCard, HPEmptyState, HPErrorState, HPButton],
+      primary_action: exactly_one, rules: [never_a_dead_end, state_must_be_honest] }
+  - { id: game_day, shell: null, buildable: false, blocked_on: [HPScoreboard, HPBaseDiamond, HPLineupList, HPPlayByPlayRow, HPBoxScoreTable, offline_event_ledger_decision] }
+  - { id: ai_evidence, shell: null, buildable: false, blocked_on: [HPAICard, HPEvidenceList, HPConfidenceMeter, indigo_accent_token, ai_evidence_contract] }
+  - { id: recruiting_profile, shell: null, buildable: false, blocked_on: [HPRecruitingProfileHeader, HPVerifiedMetric, HPMetricSourceLabel, HPFilmReel, HPCoachEvaluationCard, HPRecruitingSnapshotCard, verification_model, consent_sharing_decision] }
+
+# ----------------------------------------------------------------- responsive
+responsive:
+  breakpoints:
+    - { id: compact, name: iPhone, max_width: 699,  render_width: 393 }
+    - { id: regular, name: iPad,   min_width: 700, max_width: 1099, render_width: 834 }
+    - { id: wide,    name: macOS,  min_width: 1100, render_width: 1200 }
+  behaviors:
+    compact: { columns: 1, metric_grid: 2, tables: stacked, panes: one_at_a_time }
+    regular: { columns: 2, metric_grid: "2-3", tables: columns, panes: split }
+    wide:    { columns: 3, metric_grid: "3-4", tables: dense_columns, panes: sidebar_plus_content }
+  rules:
+    - no_horizontal_page_overflow_at: [393, 834, 1200]
+    - wide_content_scrolls_inside_its_own_container
+    - use_ViewThatFits_for_row_to_column_fallbacks
+    - forms_and_settings_single_column_at_every_width
+    - max_content_width: { form: 720, state_screen: 560 }
+
+# -------------------------------------------------------------- accessibility
+accessibility:
+  contract_minimum: accessibility3
+  principle: "change layout, do not scale down"
+  rules:
+    - ax3_metric_grids_collapse_to_one_column
+    - ax3_tables_forced_stacked
+    - ax3_segmented_control_becomes_vertical_list
+    - ax3_button_pairs_stack_full_width
+    - ax3_month_grid_replaced_by_agenda_list
+    - ax3_splits_collapse_to_single_pane
+    - min_tap_target: 44
+    - wrapping_text_requires: ".fixedSize(horizontal: false, vertical: true)"
+    - forbidden_ax_strategy: [minimumScaleFactor, smaller_font, truncation]
+    - icon_only_controls_require: accessibilityLabel
+    - status_must_be_readable_as_text
+    - never_color_alone
+    - respect_reduce_motion
+    - sanctioned_type_size_pin:
+        value: ".environment(\\.dynamicTypeSize, .large)"
+        allowed_only_for: non_textual_chrome        # e.g. progress-ring inner % label
+
+# ------------------------------------------------------------------- states
+state_requirements:
+  required_for_every_screen: [loading, empty, error]
+  conditional: [offline, stale, locked, success]
+  mapping:
+    loading:  { component: [HPLoadingState, HPSkeleton], rule: "prefer skeletons for layout stability; never a bare spinner" }
+    empty:    { component: HPEmptyState, rule: "specific encouraging copy + a next step; distinguish no-data from no-match" }
+    error:    { component: HPErrorState, rule: "human message + retry; never a raw localizedDescription as the UI" }
+    offline:  { component: "HPStateScreenTemplate(.offline)", rule: "state what is shown and how old it is" }
+    stale:    { component: "HPStatusBadge(.warning) + last_updated", rule: "never present stale data as fresh" }
+    locked:   { component: "HPStateScreenTemplate(.locked)", rule: "explain why + who can unlock; never imply unverified entitlement" }
+    success:  { component: "HPToast via .hpToast($binding)", rule: "visual may change; trigger must not" }
+
+# ------------------------------------------------- organization brand usage
+organization_brand:
+  principle: "identity chrome only — HP owns every semantic color"
+  api: HPIdentity
+  permitted:
+    - workspace_header_gradient_mark
+    - HPAvatar_tint
+    - workspace_directory_tile
+  forbidden:
+    - button_fill
+    - status_color
+    - focus_ring
+    - chart_series
+    - any_semantic_meaning
+
+# ---------------------------------------------------------- primary actions
+primary_action_rules:
+  max_per_screen: 1
+  variant: primary
+  color: HP.Color.accent
+  placement_by_template:
+    workspace_dashboard: header_trailing
+    list_search_filter:  header_trailing
+    record_detail:       bottom_card
+    form_editor:         action_row
+    program_execution:   bottom_full_width
+    calendar_scheduling: header_trailing
+    analytics:           none
+    communication_split: send_in_thread
+    finance:             header_trailing
+    settings_account:    none
+    billing_paywall:     subscribe
+    admin_console:       header_trailing
+    state_screen:        single_action
+  rules:
+    - nested_section_ctas_must_be_secondary
+    - destructive_never_adjacent_to_primary
+    - if_no_real_primary_verb_do_not_manufacture_one
+
+# ------------------------------------------------------------------ forbidden
+forbidden:
+  raw_colors:
+    - Color.blue
+    - Color.red
+    - Color.green
+    - Color.orange
+    - "Color(.systemBackground)"
+    - "Color(.systemGray5)"
+    - hex_literals
+    - "any color not from HP.Color.*"
+  default_controls:
+    - ".buttonStyle(.borderedProminent)"
+    - ".buttonStyle(.bordered)"
+    - ".textFieldStyle(.roundedBorder)"
+    - ".pickerStyle(.segmented)"
+    - "bare ProgressView as a loading state"
+    - "ad-hoc .overlay toast"
+  patterns:
+    - two_primary_buttons_on_one_screen
+    - double_for_money
+    - minimumScaleFactor_as_accessibility_strategy
+    - color_only_status
+    - chart_without_table_equivalent
+    - horizontal_page_overflow
+    - magic_numbers_for_spacing_or_radius
+    - raw_shadow_instead_of_hpShadow
+  process:
+    - extracting_a_viewmodel_during_a_reskin
+    - adding_autosave_or_per_item_saving
+    - reordering_or_coalescing_supabase_calls
+    - changing_persistence_timing
+    - hand_editing_project_pbxproj
+    - modifying_DesignSystem_without_authorization
+    - editing_DHDTheme_or_DHDUIComponents_without_codex_coordination
+    - touching_the_codex_checkout
+    - committing_or_pushing_without_being_asked
+    - claiming_success_without_manifest_builds_tests_screenshots
+
+# --------------------------------------------------- protected (read-only)
+protected_boundaries:
+  principle: "presentation only — behavior must be byte-for-byte preserved"
+  manifest_fields: [state_properties, async_functions, supabase_calls, call_order, call_parameters, lifecycle_modifiers]
+  read_only_systems:
+    - supabase
+    - SupabaseService
+    - models            # SDModels.swift
+    - viewmodels
+    - networking
+    - authorization
+    - storekit_entitlements
+    - notifications_apns
+    - finance_reconciliation
+    - player_program_persistence
+    - backend
+  read_only_files:
+    - MultiOrg/Core/AppState.swift
+    - MultiOrg/Core/SDModels.swift
+    - MultiOrg/Core/SupabaseService.swift
+    - MultiOrg/Features/Shared/SDProgramSchedule.swift
+    - MultiOrg/Features/Login/AppleSignInButtonView.swift   # Apple HIG mandates appearance
+  codex_owned:
+    - MultiOrg/Core/DHDTheme.swift
+    - MultiOrg/Core/DHDUIComponents.swift
+
+# -------------------------------------------------------- validation checklist
+validation_checklist:
+  preflight:
+    - "pwd == /Users/lb33/Documents/HomePlate-design"
+    - "git branch --show-current == design/home-plate-os"
+    - "git status --porcelain clean or in-scope only"
+    - "single agent on the worktree (if another is active: STOP and report)"
+    - "record BEFORE manifest"
+  implementation:
+    - only_view_builders_changed
+    - template_selected_from_migration_map
+    - only_approved_HP_components
+    - only_HP_tokens
+    - exactly_one_primary
+    - money_integer_cents
+    - all_required_states_handled
+    - ax3_relayouts_not_scaled
+  build_and_test:
+    - xcodegen_regenerate_if_files_added_or_removed
+    - "iOS build: xcodebuild build-for-testing -scheme MultiOrg -derivedDataPath /tmp/hp-dd-ios CODE_SIGNING_ALLOWED=NO"
+    - "macOS build: xcodebuild build -scheme MultiOrgMac -derivedDataPath /tmp/hp-dd-mac CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=\"\""
+    - "logic tests: 123 Swift Testing tests must pass"
+    - "focused render tests must pass"
+    - "report any skipped harness"
+    - "git diff --check clean"
+  known_tooling_limits:
+    oom_skips:
+      reason: "all offscreen snapshot harnesses in one process exhaust the simulator's memory"
+      skip: [MultiOrgTests/HPGalleryRenderTests, MultiOrgTests/HPLiveControlsRenderTests, MultiOrgTests/FinanceRenderTests]
+      must_not_skip: [logic_tests_123, focused_render_tests]
+    git_index_hang:
+      symptom: "git status/diff hangs on this shared-worktree repo"
+      fix: "git update-index -q --refresh"
+    xcodegen:
+      vendored: false
+      build_from: "temp copy of /Users/lb33/Documents/HomePlate/XcodeGen (explicit permission required)"
+      version_used: "2.45.4"
+    render_harness:
+      ax_scale: 1
+      normal_scale: 2
+      full_page_capture: "UIWindow + layer.render"
+      editable_controls_capture: "drawHierarchy(afterScreenUpdates:)"
+      note: "headless ImageRenderer shows a yellow prohibited glyph for TextField/spinners"
+  screenshots:
+    required: [iphone_393_large, iphone_393_accessibility3, ipad_834_large]
+    conditional: [macos_1200_large]
+  reporting:
+    format: "HOME_PLATE_AI_UI_IMPLEMENTATION_GUIDE.md §13"
+    must_include: [git_state, scope, before_after_manifest, template_used, validation, screenshots, blockers]
+    must_use_absolute_paths: true
+
+# -------------------------------------------------------------- render library
+render_library:
+  curated_contract_set:            # committed — travels with the repo
+    dir: Docs/design/visuals       # repository-relative
+    pattern: "tmpl-<template_id>-<viewport>.png"
+    count: 15
+    contents:
+      baseline_iphone: 11          # one per buildable template (covers all 13; see aliases)
+      canonical_exemplars: 4       # program_execution@ax3, form_editor@ax3, workspace_dashboard@ipad, analytics@macos
+    aliases:
+      billing_paywall: tmpl-state_screen-iphone.png    # billing_paywall IS HPStateScreenTemplate(kind: .paywall)
+      finance: "composition — see workspace_dashboard + list_search_filter + analytics + form_editor"
+    documented_in: Docs/design/HOME_PLATE_VISUAL_REFERENCE.md
+  full_matrix:                     # NOT committed — regenerate on demand
+    committed: false
+    count: 44
+    viewports: [iphone, iphone-ax3, ipad, macos]
+    regenerate_with: "xcodebuild test-without-building -only-testing:MultiOrgTests/HPTemplateRenderTests"
+    produced_by: MultiOrgTests/HPTemplateRenderTests.swift
+  pilots:                          # approved production examples — regenerate on demand
+    player_program_day:
+      status: approved
+      produced_by: MultiOrgTests/PlayerTodayRenderTests.swift
+    finance_overview:
+      status: approved
+      produced_by: MultiOrgTests/FinanceRenderTests.swift
+
+# ------------------------------------------------------------- rollout order
+rollout:
+  layer_a_global_foundation:
+    implemented: false
+    blocked_on: codex_ownership_of_dhd_core_files
+    files: [MultiOrg/Core/DHDTheme.swift, MultiOrg/Core/DHDUIComponents.swift, MultiOrg/Features/Shared/CalendarComponents.swift]
+    expected_reach_files: 36
+    expected_reach_screens_pct: 71
+  layer_b_waves:
+    - { wave: 1, scope: player_iphone }
+    - { wave: 2, scope: authentication_and_access }
+    - { wave: 3, scope: parent_mobile }
+    - { wave: 4, scope: coach_mobile }
+    - { wave: 5, scope: organization_admin }
+    - { wave: 6, scope: notifications_and_chat }
+    - { wave: 7, scope: ipad_adaptations }
+    - { wave: 8, scope: macos_refinements }
+  rules:
+    - shared_components_before_their_consumers
+    - one_high_risk_screen_per_session
+    - never_two_agents_in_the_worktree
+    - each_screen_ships_with_manifest_builds_tests_screenshots

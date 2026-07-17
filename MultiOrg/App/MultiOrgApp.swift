@@ -124,9 +124,6 @@ struct MultiOrgApp: App {
     WindowGroup {
       RootView()
         .environmentObject(appState)
-        #if os(macOS)
-        .preferredColorScheme(.dark)
-        #endif
         .task { await appState.bootstrap() }
     }
     #if os(macOS)

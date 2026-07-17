@@ -3,31 +3,31 @@ import SwiftUI
 struct AccessRequiredView: View {
   @EnvironmentObject private var appState: AppState
 
+  @ViewBuilder
   var body: some View {
-    ScrollView {
-      VStack(spacing: 14) {
-      Image(systemName: "lock.shield")
-        .font(.system(size: 44, weight: .semibold))
-        .foregroundStyle(.secondary)
-
-      Text("Access required")
-        .font(.title3.weight(.semibold))
-
-      Text("This player account needs an active Home Plate subscription or organization-granted access.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-
-      if let playerId = appState.myProfile?.id {
-        DHDCard {
-          PlayerSubscriptionPaywall(playerId: playerId)
+    if let playerId = appState.myProfile?.id {
+      PlayerSubscriptionPaywall(playerId: playerId)
+    } else {
+      HPStateScreenLayout(widthMode: .compact) { _ in
+        HPCard {
+          VStack(spacing: HP.Space.md) {
+            HPEmptyState(
+              title: "Access required",
+              message: "Home Plate couldn’t verify the player account for this session. Sign in again before managing access.",
+              systemImage: "lock.shield"
+            )
+            HPButton(
+              title: "Sign Out",
+              systemImage: "rectangle.portrait.and.arrow.right",
+              variant: .primary,
+              size: .lg,
+              fullWidth: true
+            ) {
+              Task { await appState.signOut() }
+            }
+          }
         }
       }
-      }
-      .padding()
-      .frame(maxWidth: 640)
-      .frame(maxWidth: .infinity)
     }
-    .background(DHDTheme.pageBackground.ignoresSafeArea())
   }
 }

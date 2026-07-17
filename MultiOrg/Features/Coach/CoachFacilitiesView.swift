@@ -34,43 +34,29 @@ struct CoachFacilitiesView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        header
-
-        DHDMonthGridView(
-          visibleMonth: $visibleMonth,
-          selectedDate: $selectedDate,
-          scheduledLiftISOs: approvedISOs,
-          practiceISOs: pendingISOs,
-          gameISOs: deniedISOs,
-          isLoading: isLoading,
-          onPrev: {
-            visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: -1))
-            Task { await reloadMonth() }
-          },
-          onNext: {
-            visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: 1))
-            Task { await reloadMonth() }
-          },
-          onSelect: { d in
-            selectedDate = DateUtils.startOfDayET(d)
-            dayModal = DayModal(date: selectedDate)
-            Task { await loadDay() }
-          }
-        )
-
-        pendingRequestsCard
-
-        Text("Green = approved. Blue = pending. Red = denied/cancelled.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+    HPCalendarScreenLayout(
+      compactPane: dayModal == nil ? .calendar : .agenda,
+      showsPaneContent: showsScheduleContent
+    ) { context in
+      HPWorkspaceHeader(
+        "Facilities",
+        orgLabel: activeOrganizationName,
+        context: "Schedule cages, approve requests, and drag bookings between cages."
+      ) {
+        if isLoading {
+          HPProgressIndicator(style: .spinner)
+            .accessibilityLabel("Loading facilities")
+        }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    } scopeControl: { context in
+      schedulingScopeControl(context)
+    } calendar: { _ in
+      calendarPane
+    } agenda: { context in
+      agendaPane(context)
+    } stateContent: { _ in
+      scheduleStateContent
     }
-    .background(DHDTheme.pageBackground)
     .dhdToast($toastText)
     .toolbar {
       ToolbarItem(placement: .automatic) {
@@ -79,6 +65,7 @@ struct CoachFacilitiesView: View {
         } label: {
           Image(systemName: "arrow.clockwise")
         }
+        .accessibilityLabel("Refresh facilities")
       }
     }
     #if os(macOS)
@@ -165,21 +152,294 @@ struct CoachFacilitiesView: View {
     }
   }
 
-  private var header: some View {
-    DHDHeaderCard {
-      HStack {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Facilities")
-            .font(.title3.weight(.semibold))
-          Text("Schedule cages, approve requests, and drag bookings between cages.")
-            .font(.caption)
-            .foregroundStyle(Color.white.opacity(0.85))
-        }
-        Spacer()
-        if isLoading { ProgressView().tint(.white) }
+  private var activeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var showsScheduleContent: Bool {
+    !facilities.isEmpty || !rangeBookings.isEmpty || !dayBookings.isEmpty
+  }
+
+  @ViewBuilder
+  private var scheduleStateContent: some View {
+    HPCard {
+      if isLoading {
+        HPLoadingState(text: "Loading facilities…")
+      } else if errorText != nil {
+        HPErrorState(
+          message: "Facilities could not be loaded. Try again.",
+          onRetry: { Task { await reloadAll() } }
+        )
+      } else {
+        HPEmptyState(
+          title: "No facilities available",
+          message: "Facilities will appear here after they are configured for this organization.",
+          systemImage: "building.2"
+        )
       }
-      .foregroundStyle(.white)
     }
+  }
+
+  @ViewBuilder
+  private func schedulingScopeControl(_ context: HPScreenLayoutContext) -> some View {
+    if showsScheduleContent {
+      if context.isAccessibilitySize {
+        monthNavigationCard
+      } else if !context.isRegularWidth {
+        HPCard {
+          HPSegmentedControl(
+            options: [(value: "month", label: "Month"), (value: "day", label: "Day")],
+            selection: compactScopeSelection
+          )
+        }
+      }
+    }
+  }
+
+  private var compactScopeSelection: Binding<String> {
+    Binding(
+      get: { dayModal == nil ? "month" : "day" },
+      set: { selection in
+        if selection == "month" {
+          dayModal = nil
+        } else if dayModal == nil {
+          dayModal = DayModal(date: selectedDate)
+          Task { await loadDay() }
+        }
+      }
+    )
+  }
+
+  private var monthNavigationCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(DateUtils.monthTitle(visibleMonth)) {
+          HPStatusBadge(text: "Month agenda", kind: .info)
+        }
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            monthNavigationButton(title: "Previous month", systemImage: "chevron.left", value: -1, fullWidth: false)
+            monthNavigationButton(title: "Next month", systemImage: "chevron.right", value: 1, fullWidth: false)
+          }
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            monthNavigationButton(title: "Previous month", systemImage: "chevron.left", value: -1, fullWidth: true)
+            monthNavigationButton(title: "Next month", systemImage: "chevron.right", value: 1, fullWidth: true)
+          }
+        }
+      }
+    }
+  }
+
+  private func monthNavigationButton(
+    title: String,
+    systemImage: String,
+    value: Int,
+    fullWidth: Bool
+  ) -> some View {
+    HPButton(
+      title: title,
+      systemImage: systemImage,
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { changeVisibleMonth(by: value) }
+    )
+  }
+
+  private var calendarPane: some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      DHDMonthGridView(
+        visibleMonth: $visibleMonth,
+        selectedDate: $selectedDate,
+        scheduledLiftISOs: approvedISOs,
+        practiceISOs: pendingISOs,
+        gameISOs: deniedISOs,
+        isLoading: isLoading,
+        onPrev: { changeVisibleMonth(by: -1) },
+        onNext: { changeVisibleMonth(by: 1) },
+        onSelect: { date in openDay(date) }
+      )
+
+      Text("Green = approved. Blue = pending. Red = denied/cancelled.")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func agendaPane(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      if context.isAccessibilitySize {
+        monthAgendaCard
+      } else {
+        selectedDayAgendaCard
+      }
+      pendingRequestsCard
+    }
+  }
+
+  private var selectedDayAgendaCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(selectedDate.formatted(date: .complete, time: .omitted)) {
+          HPStatusBadge(text: "\(dayBookings.count) bookings", kind: .neutral)
+        }
+
+        if isLoading {
+          HPLoadingState(text: "Loading day schedule…")
+        }
+
+        if dayBookings.isEmpty, !isLoading {
+          HPEmptyState(
+            title: "Nothing scheduled",
+            message: "Open the day schedule to add a booking or facility block.",
+            systemImage: "calendar"
+          )
+        } else {
+          ForEach(dayBookings.sorted { $0.start_at < $1.start_at }) { booking in
+            selectedDayBookingRow(booking)
+          }
+        }
+
+        HPButton(
+          title: "Open day schedule",
+          systemImage: "calendar.day.timeline.left",
+          variant: .secondary,
+          size: .md,
+          fullWidth: true,
+          action: { openDay(selectedDate) }
+        )
+      }
+    }
+  }
+
+  private func selectedDayBookingRow(_ booking: SDFacilityBooking) -> some View {
+    Button {
+      openDay(selectedDate)
+    } label: {
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .center, spacing: HP.Space.sm) {
+          selectedDayBookingDetails(booking)
+          Spacer(minLength: HP.Space.sm)
+          HPStatusBadge(text: booking.status.capitalized, kind: bookingStatusKind(booking.status))
+        }
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          selectedDayBookingDetails(booking)
+          HPStatusBadge(text: booking.status.capitalized, kind: bookingStatusKind(booking.status))
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(
+      "\(dayBookingTitle(booking)), \(booking.start_at.formatted(date: .omitted, time: .shortened)), \(booking.status)"
+    )
+  }
+
+  private func selectedDayBookingDetails(_ booking: SDFacilityBooking) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Text(dayBookingTitle(booking))
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(
+        "\(booking.start_at.formatted(date: .omitted, time: .shortened)) · \(facilities.first(where: { $0.id == booking.facility_id })?.name ?? "Facility")"
+      )
+      .font(HP.Font.caption)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func dayBookingTitle(_ booking: SDFacilityBooking) -> String {
+    if let title = booking.title, !title.isEmpty { return title }
+    if booking.is_block { return "Facility block" }
+    if booking.player_id != nil { return playerName(for: booking) }
+    return booking.activity_type.replacingOccurrences(of: "_", with: " ").capitalized
+  }
+
+  private func bookingStatusKind(_ status: String) -> HPStatusKind {
+    switch status.lowercased() {
+    case "approved": .success
+    case "pending": .warning
+    default: .danger
+    }
+  }
+
+  private var monthAgendaCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Month agenda") {
+          HPStatusBadge(text: DateUtils.monthTitle(visibleMonth), kind: .neutral)
+        }
+        ForEach(monthDates, id: \.self) { date in
+          monthAgendaRow(date)
+        }
+      }
+    }
+  }
+
+  private var monthDates: [Date] {
+    let first = DateUtils.startOfMonthET(visibleMonth)
+    return (0..<DateUtils.daysInMonthET(first)).compactMap {
+      DateUtils.calendarET.date(byAdding: .day, value: $0, to: first)
+    }
+  }
+
+  private func monthAgendaRow(_ date: Date) -> some View {
+    let labels = bookingStatusLabels(for: DateUtils.toISODate(date))
+    return Button {
+      openDay(date)
+    } label: {
+      HStack(alignment: .center, spacing: HP.Space.sm) {
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(labels.isEmpty ? "No facility activity" : labels.joined(separator: " · "))
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: HP.Space.sm)
+        Image(systemName: "chevron.right")
+          .font(HP.Font.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .accessibilityHidden(true)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(
+      labels.isEmpty
+        ? "\(date.formatted(date: .long, time: .omitted)), no facility activity"
+        : "\(date.formatted(date: .long, time: .omitted)), \(labels.joined(separator: ", "))"
+    )
+  }
+
+  private func bookingStatusLabels(for iso: String) -> [String] {
+    var labels: [String] = []
+    if approvedISOs.contains(iso) { labels.append("Approved booking") }
+    if pendingISOs.contains(iso) { labels.append("Pending request") }
+    if deniedISOs.contains(iso) { labels.append("Denied or cancelled") }
+    return labels
+  }
+
+  private func changeVisibleMonth(by value: Int) {
+    visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: value))
+    Task { await reloadMonth() }
+  }
+
+  private func openDay(_ date: Date) {
+    selectedDate = DateUtils.startOfDayET(date)
+    dayModal = DayModal(date: selectedDate)
+    Task { await loadDay() }
   }
 
   private var pendingRequestsCard: some View {
@@ -187,49 +447,96 @@ struct CoachFacilitiesView: View {
       .filter { $0.status.lowercased() == "pending" && !$0.is_block }
       .sorted { $0.start_at < $1.start_at }
 
-    return DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Pending requests") {
-          DHDStatusBadge(text: "\(pending.count)", color: pending.isEmpty ? .green : .orange)
+    return HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Pending requests") {
+          HPStatusBadge(
+            text: "\(pending.count)",
+            kind: pending.isEmpty ? .success : .warning
+          )
         }
 
         if pending.isEmpty {
           Label("All booking requests are handled.", systemImage: "checkmark.circle.fill")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
         } else {
           ForEach(Array(pending.prefix(8).enumerated()), id: \.element.id) { index, booking in
-            HStack(spacing: 12) {
-              VStack(alignment: .leading, spacing: 3) {
-                Text(playerName(for: booking))
-                  .font(.subheadline.weight(.semibold))
-                Text(booking.start_at.formatted(date: .abbreviated, time: .shortened))
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
-                Text(facilities.first(where: { $0.id == booking.facility_id })?.name ?? "Facility")
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .center, spacing: HP.Space.sm) {
+                pendingRequestDetails(booking)
+                Spacer(minLength: HP.Space.sm)
+                pendingRequestActions(booking, stacked: false)
               }
-              Spacer()
-              if bookingActionsInFlight.contains(booking.id) {
-                ProgressView().controlSize(.small)
-              } else {
-                Button("Deny", role: .destructive) {
-                  Task { await setStatus(booking, status: "denied") }
-                }
-                .buttonStyle(.bordered)
-                Button("Approve") {
-                  Task { await setStatus(booking, status: "approved") }
-                }
-                .buttonStyle(.borderedProminent)
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                pendingRequestDetails(booking)
+                pendingRequestActions(booking, stacked: true)
               }
             }
             if index < min(pending.count, 8) - 1 {
-              Divider().overlay(DHDTheme.separator.opacity(0.3))
+              Divider().overlay(HP.Color.border.opacity(0.5))
             }
           }
         }
       }
     }
+  }
+
+  private func pendingRequestDetails(_ booking: SDFacilityBooking) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Text(playerName(for: booking))
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(booking.start_at.formatted(date: .abbreviated, time: .shortened))
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(facilities.first(where: { $0.id == booking.facility_id })?.name ?? "Facility")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  @ViewBuilder
+  private func pendingRequestActions(_ booking: SDFacilityBooking, stacked: Bool) -> some View {
+    if bookingActionsInFlight.contains(booking.id) {
+      HPProgressIndicator(style: .spinner)
+        .accessibilityLabel("Updating booking request")
+    } else if stacked {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        pendingDenyButton(booking, fullWidth: true)
+        pendingApproveButton(booking, fullWidth: true)
+      }
+    } else {
+      HStack(spacing: HP.Space.sm) {
+        pendingDenyButton(booking, fullWidth: false)
+        pendingApproveButton(booking, fullWidth: false)
+      }
+    }
+  }
+
+  private func pendingDenyButton(_ booking: SDFacilityBooking, fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Deny",
+      variant: .destructive,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { Task { await setStatus(booking, status: "denied") } }
+    )
+  }
+
+  private func pendingApproveButton(_ booking: SDFacilityBooking, fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Approve",
+      systemImage: "checkmark",
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { Task { await setStatus(booking, status: "approved") } }
+    )
   }
 
   private func playerName(for booking: SDFacilityBooking) -> String {

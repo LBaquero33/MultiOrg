@@ -33,77 +33,44 @@ struct NewFacilityBookingSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("When") {
-          DatePicker("Start", selection: $start)
-          Picker("Duration", selection: $durationMin) {
-            ForEach([30, 45, 60, 75, 90, 120], id: \.self) { m in
-              Text("\(m) min").tag(m)
-            }
-          }
-        }
-        Section("Resource") {
-          Picker("Cage", selection: $facilityId) {
-            Text("Select…").tag(UUID?.none)
-            ForEach(selectableFacilities) { f in
-              Text(f.name).tag(UUID?.some(f.id))
-            }
-          }
-          if facilityId == cage3_1Id {
-            #if os(macOS)
-            Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
-              .help("Half cage uses Cage 3.1 only. Full cage occupies both Cage 3.1 and Cage 3.2.")
-            #else
-            Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
-            #endif
-          }
-          Toggle("Block cage (unavailable)", isOn: $isBlock)
-          if !isBlock {
-            TextField("Player search", text: $playerSearch)
-              .textFieldStyle(.roundedBorder)
-            Picker("Player", selection: $playerId) {
-              Text("Select…").tag(UUID?.none)
-              ForEach(filteredPlayers) { p in
-                Text(p.displayName).tag(UUID?.some(p.id))
-              }
-            }
-          }
-          Picker("Status", selection: $status) {
-            Text("Approved").tag("approved")
-            Text("Pending").tag("pending")
-          }
-          Picker("Activity", selection: $activityType) {
-            Text("Lesson").tag("lesson")
-            Text("BP").tag("bp")
-            Text("Bullpen").tag("bullpen")
-            Text("Extra work").tag("extra_work")
-            Text("Other").tag("other")
-          }
-        }
-        Section("Notes") {
-          TextField("Notes (optional)", text: $notes, axis: .vertical)
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "New booking",
+          orgLabel: activeOrganizationName,
+          context: isBlock ? "Facility block" : "Player reservation"
+        )
+      } sections: { _ in
+        whenSection
+        resourceSection
+        notesSection
+      } primaryAction: { context in
+        HPButton(
+          title: "Create booking",
+          systemImage: "calendar.badge.plus",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await save() } }
+        )
+        .disabled(isSaving || facilityId == nil || (!isBlock && playerId == nil))
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("New booking")
-      .safeAreaInset(edge: .bottom) {
-        HStack(spacing: 12) {
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-            .buttonStyle(.bordered)
-          Spacer()
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving {
-              ProgressView()
-            } else {
-              Label("Create booking", systemImage: "calendar.badge.plus")
-            }
-          }
-          .buttonStyle(.borderedProminent)
-          .disabled(isSaving || facilityId == nil || (!isBlock && playerId == nil))
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
-        .padding(12)
-        .background(.regularMaterial)
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
@@ -126,6 +93,113 @@ struct NewFacilityBookingSheet: View {
           isFullCage3 = false
         }
       }
+    }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var whenSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("When")
+        DatePicker("Start", selection: $start)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+        Divider().overlay(HP.Color.border)
+        Picker("Duration", selection: $durationMin) {
+          ForEach([30, 45, 60, 75, 90, 120], id: \.self) { m in
+            Text("\(m) min").tag(m)
+          }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  private var resourceSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Resource")
+        Picker("Cage", selection: $facilityId) {
+          Text("Select…").tag(UUID?.none)
+          ForEach(selectableFacilities) { f in
+            Text(f.name).tag(UUID?.some(f.id))
+          }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        if facilityId == cage3_1Id {
+          #if os(macOS)
+          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .help("Half cage uses Cage 3.1 only. Full cage occupies both Cage 3.1 and Cage 3.2.")
+          #else
+          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+          #endif
+        }
+        Toggle("Block cage (unavailable)", isOn: $isBlock)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+        if !isBlock {
+          HPFormField(
+            label: "Player search",
+            text: $playerSearch,
+            placeholder: "Search by name or short ID"
+          )
+          Picker("Player", selection: $playerId) {
+            Text("Select…").tag(UUID?.none)
+            ForEach(filteredPlayers) { p in
+              Text(p.displayName).tag(UUID?.some(p.id))
+            }
+          }
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+        }
+        Picker("Status", selection: $status) {
+          Text("Approved").tag("approved")
+          Text("Pending").tag("pending")
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        Picker("Activity", selection: $activityType) {
+          Text("Lesson").tag("lesson")
+          Text("BP").tag("bp")
+          Text("Bullpen").tag("bullpen")
+          Text("Extra work").tag("extra_work")
+          Text("Other").tag("other")
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  private var notesSection: some View {
+    HPCard {
+      HPFormField(
+        label: "Notes (optional)",
+        text: $notes,
+        kind: .multiline,
+        placeholder: "Booking notes"
+      )
     }
   }
 

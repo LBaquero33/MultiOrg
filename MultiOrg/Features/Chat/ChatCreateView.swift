@@ -29,78 +29,169 @@ struct ChatCreateView: View {
   }
 
   var body: some View {
-    List {
-      Section {
-        Picker("Chat type", selection: $mode) {
-          ForEach(Mode.allCases) { m in
-            Text(m.rawValue).tag(m)
-          }
-        }
-        .pickerStyle(.segmented)
+    HPFormScreenLayout { _ in
+      HPWorkspaceHeader(
+        "New chat",
+        context: mode == .dm
+          ? "Choose one person for a direct message."
+          : "Choose at least two people for a group."
+      )
+    } sections: { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPCard(style: .flat) {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            Text("CHAT TYPE")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            HPSegmentedControl(
+              options: Mode.allCases.map { (value: $0, label: $0.rawValue) },
+              selection: $mode
+            )
 
-        TextField("Search users", text: $query)
-          .textFieldStyle(.roundedBorder)
+            HPSearchBar(text: $query, placeholder: "Search users")
 
-        if mode == .group {
-          TextField("Group name (optional)", text: $groupTitle)
-            .textFieldStyle(.roundedBorder)
-        }
-      }
-
-      if isLoading {
-        Section {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        }
-      } else {
-        Section("Users") {
-          ForEach(filteredProfiles) { p in
-            Button {
-              toggle(p.id)
-            } label: {
-              HStack(spacing: 12) {
-                DHDAvatarView(
-                  url: {
-                    guard let path = p.avatar_path else { return nil }
-                    return appState.supabase?.publicAvatarURL(path: path)
-                  }(),
-                  initials: String(p.displayName.prefix(2)).uppercased(),
-                  size: 30
-                )
-                VStack(alignment: .leading, spacing: 1) {
-                  Text(p.displayName).font(.headline)
-                  Text("\(p.role.capitalized) • \(p.shortId)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: selected.contains(p.id) ? "checkmark.circle.fill" : "circle")
-                  .foregroundStyle(selected.contains(p.id) ? DHDTheme.accent : .secondary)
-              }
-              .padding(.vertical, 4)
+            if mode == .group {
+              HPFormField(
+                label: "Group name (optional)",
+                text: $groupTitle,
+                placeholder: "e.g. 14U coaches"
+              )
             }
-            .buttonStyle(.plain)
+          }
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Users") {
+              HPStatusBadge(
+                text: "\(selected.count) selected",
+                kind: selected.isEmpty ? .neutral : .gold
+              )
+            }
+
+            if isLoading {
+              HPLoadingState(text: "Loading users…")
+            } else if filteredProfiles.isEmpty {
+              HPEmptyState(
+                title: query.isEmpty ? "No users available" : "No users match",
+                message: query.isEmpty
+                  ? "There are no eligible people for this chat."
+                  : "Try a different name or Home Plate ID.",
+                systemImage: "person.2"
+              )
+            } else {
+              LazyVStack(alignment: .leading, spacing: HP.Space.xs) {
+                ForEach(filteredProfiles) { profile in
+                  profileSelectionRow(profile, stacksVertically: context.isAccessibilitySize)
+                }
+              }
+            }
           }
         }
       }
+    } primaryAction: { context in
+      HPButton(
+        title: "Create chat",
+        systemImage: "bubble.left.and.bubble.right",
+        variant: .primary,
+        size: .lg,
+        isLoading: isSaving,
+        fullWidth: context.isAccessibilitySize
+      ) {
+        Task { await create() }
+      }
+      .disabled(!canCreate || isSaving)
+    } secondaryAction: { _ in
+      EmptyView()
     }
     .navigationTitle("New Chat")
     .toolbar {
       ToolbarItem(placement: .cancellationAction) {
         Button("Cancel") { dismiss() }
-      }
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          Task { await create() }
-        } label: {
-          if isSaving { ProgressView() } else { Text("Create") }
-        }
-        .disabled(!canCreate || isSaving)
+          #if os(macOS)
+          .keyboardShortcut(.cancelAction)
+          #endif
       }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
     .task { await loadUsers() }
+  }
+
+  private func profileSelectionRow(
+    _ profile: Profile,
+    stacksVertically: Bool
+  ) -> some View {
+    let isSelected = selected.contains(profile.id)
+
+    return Button {
+      toggle(profile.id)
+    } label: {
+      let layout = stacksVertically
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+        : AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+      layout {
+        profileIdentity(profile)
+        if !stacksVertically {
+          Spacer(minLength: HP.Space.sm)
+        }
+        selectionIndicator(isSelected)
+      }
+      .padding(HP.Space.sm)
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .background(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .fill(isSelected ? HP.Color.accent.opacity(0.10) : HP.Color.surface)
+      )
+      .overlay(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(isSelected ? HP.Color.borderStrong : HP.Color.border, lineWidth: 1)
+          .allowsHitTesting(false)
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("\(profile.displayName), \(profile.role.capitalized), \(profile.shortId)")
+    .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    .accessibilityHint(isSelected ? "Removes this person" : "Adds this person")
+  }
+
+  private func profileIdentity(_ profile: Profile) -> some View {
+    HStack(alignment: .top, spacing: HP.Space.sm) {
+      DHDAvatarView(
+        url: {
+          guard let path = profile.avatar_path else { return nil }
+          return appState.supabase?.publicAvatarURL(path: path)
+        }(),
+        initials: String(profile.displayName.prefix(2)).uppercased(),
+        size: 32
+      )
+      VStack(alignment: .leading, spacing: 2) {
+        Text(profile.displayName)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("\(profile.role.capitalized) • \(profile.shortId)")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private func selectionIndicator(_ isSelected: Bool) -> some View {
+    if isSelected {
+      HPStatusBadge(text: "Selected", kind: .gold)
+    } else {
+      Label("Not selected", systemImage: "circle")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 
   private var filteredProfiles: [Profile] {

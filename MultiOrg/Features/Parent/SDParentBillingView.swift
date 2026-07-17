@@ -14,58 +14,67 @@ struct SDParentBillingView: View {
   @State private var checkoutConfirmationRequest: SDPaymentRequest?
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDHeaderCard {
-          HStack {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Payment Requests")
-                .font(.title3.weight(.semibold))
-              Text(child.displayName)
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.85))
-            }
-            Spacer()
-            if isLoading { ProgressView().tint(.white) }
-          }
-          .foregroundStyle(.white)
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "Payment Requests",
+        orgLabel: activeOrganizationName,
+        context: child.displayName
+      ) {
+        if isLoading {
+          HPProgressIndicator(style: .spinner)
+            .accessibilityLabel("Refreshing payment requests")
         }
-
-        DHDCard {
-          VStack(alignment: .leading, spacing: 10) {
-            Label("Secure payments through Stripe", systemImage: "lock.shield")
-              .font(.headline)
-            Text("Pay Now is available only when your organization link allows payment for this child.")
-              .font(.footnote)
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
+      }
+    } controls: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          Label("Secure payments through Stripe", systemImage: "lock.shield")
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+          Text("Pay Now is available only when your organization link allows payment for this child.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
         }
-
+      }
+    } results: { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
         if let errorText {
-          DHDCard {
-            VStack(alignment: .leading, spacing: 10) {
-              Text(errorText).foregroundStyle(.red)
-              Button("Try Again") { Task { await reload() } }
-                .buttonStyle(.bordered)
+          HPCard {
+            HPErrorState(
+              message: errorText,
+              onRetry: { Task { await reload() } }
+            )
+          }
+        } else if requestState.requests.isEmpty {
+          if isLoading {
+            HPCard {
+              HPLoadingState(text: "Loading payment requests…")
+            }
+          } else {
+            HPCard {
+              HPEmptyState(
+                title: "No Payment Requests",
+                message: "This organization has not requested a payment for \(child.displayName).",
+                systemImage: "doc.text"
+              )
             }
           }
-        } else if requestState.requests.isEmpty, !isLoading {
-          ContentUnavailableView(
-            "No Payment Requests",
-            systemImage: "doc.text",
-            description: Text("This organization has not requested a payment for \(child.displayName).")
-          )
-          .frame(maxWidth: .infinity, minHeight: 220)
         } else {
-          ForEach(requestState.requests) { request in
-            paymentRequestCard(request)
+          HPSectionHeader("Requests") {
+            HPStatusBadge(text: "\(requestState.requests.count)", kind: .neutral)
+          }
+          LazyVGrid(
+            columns: context.gridColumns(compact: 1, regular: 2, wide: 2),
+            spacing: HP.Space.md
+          ) {
+            ForEach(requestState.requests) { request in
+              paymentRequestCard(request)
+            }
           }
         }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(DHDTheme.pageBackground)
     .refreshable { await reload() }
     .task(id: loadKey) { await reload() }
     .sheet(item: $checkoutConfirmationRequest) { request in

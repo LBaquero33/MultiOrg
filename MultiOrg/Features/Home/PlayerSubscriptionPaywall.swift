@@ -14,73 +14,53 @@ struct PlayerSubscriptionPaywall: View {
   @State private var automaticallyAttemptedTransactionIDs = Set<UInt64>()
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      VStack(alignment: .leading, spacing: 5) {
-        Text(store.product?.displayName ?? "Home Plate Player Monthly Access")
-          .font(.headline)
-        Text(store.product?.description ?? "Unlock this player's Home Plate training, scheduling, and development tools.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
-        if let price = store.product?.displayPrice {
-          Text("\(price) per month")
-            .font(.subheadline.weight(.semibold))
+    HPStateScreenLayout(widthMode: .compact) { context in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          paywallHeader
+          benefitList
+          priceCard
+          subscriptionStatus
+
+          if !accessIsPresentedAsActive {
+            HPButton(
+              title: "Subscribe",
+              systemImage: "apple.logo",
+              variant: .primary,
+              size: .lg,
+              isLoading: subscribeIsLoading,
+              fullWidth: true
+            ) {
+              Task { await subscribe() }
+            }
+            .disabled(store.product == nil || isWorking || purchaseIsPending)
+          }
+
+          recoveryActions(context)
+
+          Text("Billed through the App Store. Access is granted only after Apple confirms the purchase and Home Plate verifies the player entitlement.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+
+          legalLinks(context)
+
+          Rectangle()
+            .fill(HP.Color.border)
+            .frame(height: 1)
+            .accessibilityHidden(true)
+
+          HPButton(
+            title: "Sign Out",
+            systemImage: "rectangle.portrait.and.arrow.right",
+            variant: .destructive,
+            size: .md,
+            fullWidth: true
+          ) {
+            Task { await appState.signOut() }
+          }
         }
       }
-
-      subscriptionStatus
-
-      Button {
-        Task { await subscribe() }
-      } label: {
-        Label("Subscribe", systemImage: "apple.logo")
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(store.product == nil || isWorking)
-
-      HStack(spacing: 10) {
-        Button {
-          Task { await restore() }
-        } label: {
-          Label("Restore Purchases", systemImage: "arrow.clockwise")
-        }
-        .disabled(isWorking)
-
-        Button {
-          Task { await retryVerification() }
-        } label: {
-          Label("Retry", systemImage: "arrow.triangle.2.circlepath")
-        }
-        .disabled(isWorking)
-      }
-      .buttonStyle(.bordered)
-
-      HStack(spacing: 10) {
-        Button {
-          Task { await refreshAccess() }
-        } label: {
-          Label("Refresh Access", systemImage: "checkmark.shield")
-        }
-        .disabled(isWorking)
-
-        Button {
-          contactSupport()
-        } label: {
-          Label("Contact Support", systemImage: "envelope")
-        }
-        .disabled(supportEmail == nil)
-      }
-      .buttonStyle(.bordered)
-
-      HStack(spacing: 16) {
-        Link("Privacy", destination: privacyURL)
-        Link("Terms", destination: termsURL)
-        Spacer()
-        Button("Sign Out", role: .destructive) {
-          Task { await appState.signOut() }
-        }
-      }
-      .font(.footnote)
     }
     .task {
       await prepareAndRecover()
@@ -95,61 +75,241 @@ struct PlayerSubscriptionPaywall: View {
     }
   }
 
+  private var paywallHeader: some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Image(systemName: "sparkles")
+        .font(.system(size: 30, weight: .semibold))
+        .foregroundStyle(HP.Color.accent)
+        .accessibilityHidden(true)
+
+      Text("Unlock Player Access")
+        .font(HP.Font.title)
+        .tracking(HP.Font.titleTracking)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityAddTraits(.isHeader)
+
+      Text("This player account needs an active Home Plate subscription or organization-granted access.")
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text(store.product?.displayName ?? "Home Plate Player Monthly Access")
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text(store.product?.description ?? "Unlock this player's Home Plate training, scheduling, and development tools.")
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var benefitList: some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      benefit("Today’s assigned training program")
+      benefit("Scheduling and facility access")
+      benefit("Testing history and development trends")
+    }
+  }
+
+  private func benefit(_ text: String) -> some View {
+    HStack(alignment: .top, spacing: HP.Space.xs) {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(HP.Color.success)
+        .accessibilityHidden(true)
+      Text(text)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Spacer(minLength: 0)
+    }
+  }
+
+  private var priceCard: some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: 4) {
+        if let price = store.product?.displayPrice {
+          HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(price)
+              .font(HP.Font.number(.title, weight: .bold))
+              .foregroundStyle(HP.Color.text)
+            Text("per month")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          .accessibilityElement(children: .combine)
+        } else {
+          Text(pricePlaceholder)
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.textMuted)
+        }
+        Text("Cancel anytime in the App Store.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+      }
+    }
+  }
+
   @ViewBuilder
   private var subscriptionStatus: some View {
     if let contextError {
-      statusRow(contextError, color: .red, symbol: "exclamationmark.triangle")
+      HPCard(style: .flat) {
+        HPErrorState(title: "Subscription unavailable", message: contextError)
+      }
     } else if let accessMessage {
-      statusRow(accessMessage, color: .green, symbol: "checkmark.circle")
+      statusRow("Active", message: accessMessage, kind: .success)
     } else {
       switch store.state {
       case .idle:
-        EmptyView()
+        statusRow("Checking", message: "Checking Apple subscription options…", kind: .neutral, showsProgress: true)
       case .loadingProduct:
-        statusRow("Loading Apple subscription options...", color: DHDTheme.textSecondary, symbol: nil, showsProgress: true)
+        statusRow("Loading", message: "Loading Apple subscription options…", kind: .neutral, showsProgress: true)
       case .ready:
-        statusRow("Ready to subscribe or restore an existing purchase.", color: DHDTheme.textSecondary, symbol: "checkmark.circle")
+        statusRow("Ready", message: "Ready to subscribe or restore an existing purchase.", kind: .info)
       case .purchasing:
-        statusRow("Waiting for Apple to complete the purchase...", color: DHDTheme.textSecondary, symbol: nil, showsProgress: true)
+        statusRow("Purchasing", message: "Waiting for Apple to complete the purchase…", kind: .info, showsProgress: true)
       case .pending:
-        statusRow("Apple is processing this purchase. It will remain recoverable until access is updated.", color: .orange, symbol: "clock")
+        statusRow("Pending", message: "Apple is processing this purchase. It will remain recoverable until access is updated.", kind: .warning, showsProgress: true)
       case .recovering:
-        statusRow("Looking for an existing Apple purchase...", color: DHDTheme.textSecondary, symbol: nil, showsProgress: true)
+        statusRow("Restoring", message: "Looking for an existing Apple purchase…", kind: .info, showsProgress: true)
       case .synchronizing:
-        statusRow("Updating Home Plate access...", color: DHDTheme.textSecondary, symbol: nil, showsProgress: true)
+        statusRow("Verifying", message: "Updating Home Plate access…", kind: .info, showsProgress: true)
       case .active:
-        statusRow("Player access is active.", color: .green, symbol: "checkmark.shield.fill")
+        statusRow("Active", message: "Player access is active.", kind: .success)
       case .canceled:
-        statusRow("Purchase canceled. No charge or access change was made.", color: DHDTheme.textSecondary, symbol: "xmark.circle")
+        statusRow("Canceled", message: "Purchase canceled. No charge or access change was made.", kind: .neutral)
       case .failed(let failure):
-        statusRow(failure.message, color: .red, symbol: "exclamationmark.triangle")
+        HPCard(style: .flat) {
+          HPErrorState(title: "Subscription needs attention", message: failure.message)
+        }
       }
     }
   }
 
   private func statusRow(
-    _ message: String,
-    color: Color,
-    symbol: String?,
+    _ label: String,
+    message: String,
+    kind: HPStatusKind,
     showsProgress: Bool = false
   ) -> some View {
-    HStack(alignment: .top, spacing: 8) {
-      if showsProgress {
-        ProgressView()
-          .controlSize(.small)
-      } else if let symbol {
-        Image(systemName: symbol)
-          .padding(.top, 1)
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        HStack(spacing: HP.Space.xs) {
+          if showsProgress {
+            ProgressView().controlSize(.small)
+          }
+          HPStatusBadge(text: label, kind: kind)
+        }
+        Text(message)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
       }
-      Text(message)
-        .font(.footnote)
-        .fixedSize(horizontal: false, vertical: true)
     }
-    .foregroundStyle(color)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(label). \(message)")
+  }
+
+  @ViewBuilder
+  private func recoveryActions(_ context: HPScreenLayoutContext) -> some View {
+    let layout = context.isAccessibilitySize
+      ? AnyLayout(VStackLayout(spacing: HP.Space.xs))
+      : AnyLayout(HStackLayout(spacing: HP.Space.xs))
+
+    layout {
+      HPButton(
+        title: "Restore Purchases",
+        systemImage: "arrow.clockwise",
+        variant: .tertiary,
+        size: .md,
+        fullWidth: true
+      ) {
+        Task { await restore() }
+      }
+      .disabled(isWorking)
+
+      HPButton(
+        title: "Retry Verification",
+        systemImage: "arrow.triangle.2.circlepath",
+        variant: .secondary,
+        size: .md,
+        fullWidth: true
+      ) {
+        Task { await retryVerification() }
+      }
+      .disabled(isWorking)
+    }
+
+    layout {
+      HPButton(
+        title: "Refresh Access",
+        systemImage: "checkmark.shield",
+        variant: .secondary,
+        size: .md,
+        fullWidth: true
+      ) {
+        Task { await refreshAccess() }
+      }
+      .disabled(isWorking)
+
+      HPButton(
+        title: "Contact Support",
+        systemImage: "envelope",
+        variant: .tertiary,
+        size: .md,
+        fullWidth: true,
+        action: contactSupport
+      )
+      .disabled(supportEmail == nil)
+    }
+  }
+
+  @ViewBuilder
+  private func legalLinks(_ context: HPScreenLayoutContext) -> some View {
+    let layout = context.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+      : AnyLayout(HStackLayout(spacing: HP.Space.md))
+
+    layout {
+      Link("Privacy", destination: privacyURL)
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.textTertiary)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      Link("Terms", destination: termsURL)
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.textTertiary)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    }
   }
 
   private var isWorking: Bool {
     store.isBusy || isRefreshingAccess
+  }
+
+  private var purchaseIsPending: Bool {
+    store.state == .pending
+  }
+
+  private var subscribeIsLoading: Bool {
+    isWorking || purchaseIsPending
+  }
+
+  private var accessIsPresentedAsActive: Bool {
+    accessMessage != nil || store.state == .active
+  }
+
+  private var pricePlaceholder: String {
+    if contextError != nil { return "Monthly price unavailable" }
+    switch store.state {
+    case .failed, .canceled:
+      return "Monthly price unavailable"
+    case .idle, .loadingProduct, .purchasing, .pending, .recovering, .synchronizing:
+      return "Monthly price loading from Apple"
+    case .ready, .active:
+      return "Monthly price unavailable"
+    }
   }
 
   private func prepareAndRecover() async {

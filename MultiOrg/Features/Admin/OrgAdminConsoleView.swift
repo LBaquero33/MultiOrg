@@ -95,6 +95,18 @@ struct OrgAdminConsoleView: View {
     case facilities = "Facilities"
     case members = "Members"
     var id: String { rawValue }
+
+    var systemImage: String {
+      switch self {
+      case .dashboard: "rectangle.3.group"
+      case .branding: "paintbrush"
+      case .features: "switch.2"
+      case .billing: "creditcard"
+      case .finance: "chart.line.uptrend.xyaxis"
+      case .facilities: "building.2"
+      case .members: "person.2.badge.gearshape"
+      }
+    }
   }
 
   private enum BillingAction {
@@ -173,9 +185,11 @@ struct OrgAdminConsoleView: View {
   var body: some View {
     Group {
       if isCheckingAuthorization || authorizationValidatedOrgId != paymentRequestOrganizationId {
-        ProgressView("Checking organization access…")
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .background(DHDTheme.pageBackground)
+        HPScreenScaffold(maxContentWidth: 560) { _ in
+          HPCard {
+            HPLoadingState(text: "Checking organization access…")
+          }
+        }
       } else if canManagePaymentRequests {
         if isPlatformSupportMode || !hasActiveOwnerOrAdminPaymentRequestMembership {
           platformSupportPresentation
@@ -199,43 +213,59 @@ struct OrgAdminConsoleView: View {
   }
 
   private var accessDeniedSurface: some View {
-    ContentUnavailableView(
-      isPlatformSupportMode ? "Platform Support Access Required" : "Organization Admin Access Required",
-      systemImage: "lock.shield",
-      description: Text(isPlatformSupportMode
-        ? "Only a verified platform administrator can manage payment requests in support mode."
-        : "Only an active owner or administrator for the selected organization can open these controls.")
-    )
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(DHDTheme.pageBackground)
+    HPScreenScaffold(maxContentWidth: 560) { _ in
+      HPCard {
+        HPEmptyState(
+          title: isPlatformSupportMode
+            ? "Platform Support Access Required"
+            : "Organization Admin Access Required",
+          message: isPlatformSupportMode
+            ? "Only a verified platform administrator can manage payment requests in support mode."
+            : "Only an active owner or administrator for the selected organization can open these controls.",
+          systemImage: "lock.shield"
+        )
+      }
+    }
     .navigationTitle("Org Admin")
   }
 
   private var platformSupportPresentation: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDCard {
-          Label(
-            "Platform Support — acting on behalf of \(platformSupportOrganization?.name ?? "Organization")",
-            systemImage: "person.badge.shield.checkmark"
-          )
-          .font(.headline)
-          Text("This does not make you an organization owner or member.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-        DHDCard {
-          VStack(alignment: .leading, spacing: 14) {
-            paymentRequestsSection
-          }
+    HPAdminScreenLayout(
+      supportContext: HPAdminSupportContext(
+        organizationName: platformSupportOrganization?.name ?? "Organization",
+        message: "Organization settings remain read-only. Verified platform support may perform only the payment-request operations separately authorized by the server; this does not make you an organization owner or member."
+      )
+    ) { _ in
+      HPWorkspaceHeader(
+        "Payment Support",
+        orgLabel: platformSupportOrganization?.name ?? "Organization",
+        context: "Authorized payment-request operations",
+        identity: supportOrganizationIdentity
+      )
+    } sectionNavigation: { _ in
+      HPCard {
+        HStack(spacing: HP.Space.sm) {
+          Image(systemName: "creditcard.and.123")
+            .foregroundStyle(HP.Color.accent)
+            .accessibilityHidden(true)
+          Text("Payment requests")
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+          Spacer(minLength: 0)
+          HPStatusBadge(text: "Support scope", kind: .gold)
         }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
+    } content: { context in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          paymentRequestsSection(context)
+        }
+      }
+    } dangerZone: { _ in
+      EmptyView()
     }
-    .background(DHDTheme.pageBackground)
     .navigationTitle("Payment Support")
-    .dhdToast($toastText)
+    .hpToast($toastText)
     .sheet(isPresented: createPaymentRequestPresented) {
       PaymentRequestCreateSheet(
         organizationId: paymentRequestOrganizationId,
@@ -267,67 +297,109 @@ struct OrgAdminConsoleView: View {
   }
 
   private var pageSurface: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        header
+    HPAdminScreenLayout { _ in
+      header
+    } sectionNavigation: { context in
+      HPCard {
+        adminSectionNavigation(context)
+      }
+    } content: { context in
+      memberSectionContent(context)
+    } dangerZone: { _ in
+      EmptyView()
+    }
+    .navigationTitle("Org Admin")
+  }
 
-        Picker("Admin section", selection: $selectedTab) {
-          ForEach(visibleTabs) { tab in
-            Text(tab.rawValue).tag(tab)
+  @ViewBuilder
+  private func adminSectionNavigation(_ context: HPScreenLayoutContext) -> some View {
+    if context.isWide || context.isAccessibilitySize {
+      HPSegmentedControl(
+        options: visibleTabs.map { (value: $0, label: $0.rawValue) },
+        selection: $selectedTab
+      )
+    } else {
+      Menu {
+        ForEach(visibleTabs) { tab in
+          Button {
+            selectedTab = tab
+          } label: {
+            Label(tab.rawValue, systemImage: selectedTab == tab ? "checkmark" : tab.systemImage)
           }
         }
-        #if os(macOS)
-        .pickerStyle(.segmented)
-        #else
-        .pickerStyle(.menu)
-        #endif
+      } label: {
+        HStack(spacing: HP.Space.sm) {
+          Label(selectedTab.rawValue, systemImage: selectedTab.systemImage)
+          Spacer(minLength: HP.Space.sm)
+          Image(systemName: "chevron.up.chevron.down")
+            .font(.caption.weight(.semibold))
+        }
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.text)
+        .padding(.horizontal, HP.Space.sm)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .fill(HP.Color.surfaceRaised)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+            .allowsHitTesting(false)
+        )
+      }
+      .accessibilityLabel("Admin section")
+      .accessibilityValue(selectedTab.rawValue)
+    }
+  }
 
-        Group {
-          switch selectedTab {
-          case .dashboard:
-            dashboardCard
-          case .branding:
-            brandingCard
-            bookingPolicyCard
-          case .features:
-            featureFlagsCard
-          case .billing:
-            if appState.canAdminActiveOrg {
-              billingSection
-            } else {
-              DHDCard {
-                Text("Billing controls are available to active organization owners and administrators only.")
-                  .foregroundStyle(DHDTheme.textSecondary)
-              }
-            }
-          case .finance:
-            if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
-              FinanceDashboardView(
-                organizationId: organizationId,
-                organizationName: financeOrganizationName,
-                platformSupportMode: false,
-                embedded: true
-              )
-              .environmentObject(appState)
-            } else {
-              DHDCard {
-                Text("Finance data is available to active organization owners and administrators only.")
-                  .foregroundStyle(DHDTheme.textSecondary)
-              }
-            }
-          case .facilities:
-            facilitiesCard
-          case .members:
-            membersCard
-          }
+  @ViewBuilder
+  private func memberSectionContent(_ context: HPScreenLayoutContext) -> some View {
+    switch selectedTab {
+    case .dashboard:
+      dashboardCard(context)
+    case .branding:
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        brandingCard
+        bookingPolicyCard
+      }
+    case .features:
+      featureFlagsCard
+    case .billing:
+      if appState.canAdminActiveOrg {
+        billingSection(context)
+      } else {
+        HPCard {
+          HPEmptyState(
+            title: "Billing access required",
+            message: "Billing controls are available to active organization owners and administrators only.",
+            systemImage: "lock.shield"
+          )
         }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    case .finance:
+      if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
+        FinanceDashboardView(
+          organizationId: organizationId,
+          organizationName: financeOrganizationName,
+          platformSupportMode: false,
+          embedded: true
+        )
+        .environmentObject(appState)
+      } else {
+        HPCard {
+          HPEmptyState(
+            title: "Finance access required",
+            message: "Finance data is available to active organization owners and administrators only.",
+            systemImage: "lock.shield"
+          )
+        }
+      }
+    case .facilities:
+      facilitiesCard(context)
+    case .members:
+      membersCard(context)
     }
-    .background(DHDTheme.pageBackground)
-    .navigationTitle("Org Admin")
   }
 
   private var visibleTabs: [Tab] {
@@ -348,7 +420,7 @@ struct OrgAdminConsoleView: View {
 
   private var errorPresentation: AnyView {
     AnyView(pageSurface
-      .dhdToast($toastText)
+      .hpToast($toastText)
       .alert("Error", isPresented: errorPresented) {
         Button("OK", role: .cancel) {}
       } message: {
@@ -375,12 +447,15 @@ struct OrgAdminConsoleView: View {
     ) {
       if let facility = facilityPendingDeletion {
         Button("Delete \(facility.name)", role: .destructive) {
+          facilityPendingDeletion = nil
           Task { await deleteFacility(facility) }
         }
       }
-      Button("Cancel", role: .cancel) {}
+      Button("Cancel", role: .cancel) { facilityPendingDeletion = nil }
     } message: {
-      Text("This permanently removes \(facilityPendingDeletion?.name ?? "this facility") and cannot be undone.")
+      if let facility = facilityPendingDeletion {
+        Text("This permanently removes \(facility.name) and cannot be undone.")
+      }
     }
     )
   }
@@ -441,146 +516,188 @@ struct OrgAdminConsoleView: View {
   }
 
   private var header: some View {
-    DHDHeaderCard {
-      HStack(alignment: .center, spacing: 12) {
-        if let logoURL {
-          AsyncImage(url: logoURL) { image in
-            image.resizable().scaledToFill()
-          } placeholder: {
-            ProgressView().tint(.white)
-          }
-          .frame(width: 40, height: 40)
-          .background(Color.white.opacity(0.12))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Organization Admin Console")
-            .font(.title3.weight(.semibold))
-          Text(activeOrgSubtitle)
-            .font(.caption)
-            .foregroundStyle(Color.white.opacity(0.84))
-        }
-        Spacer()
+    HPWorkspaceHeader(
+      "Organization Admin Console",
+      orgLabel: settings?.display_name ?? settings?.short_name ?? "Organization",
+      context: activeOrgSubtitle,
+      identity: organizationIdentity
+    ) {
+      HStack(spacing: HP.Space.xs) {
         if isLoading {
-          ProgressView().tint(.white)
+          ProgressView()
+            .tint(HP.Color.accent)
+            .frame(minWidth: 44, minHeight: 44)
+            .accessibilityLabel("Loading organization data")
         }
         if isSavingSettings {
-          ProgressView().tint(.white)
+          ProgressView()
+            .tint(HP.Color.accent)
+            .frame(minWidth: 44, minHeight: 44)
+            .accessibilityLabel("Saving organization settings")
+        } else {
+          HPStatusBadge(text: "Autosave on", kind: .success)
         }
-        Label("Changes save automatically", systemImage: "checkmark.circle")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.white.opacity(0.86))
       }
-      .foregroundStyle(.white)
     }
   }
 
-  private var dashboardCard: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 14) {
+  private var organizationIdentity: HPIdentity {
+    HPIdentity(
+      name: settings?.display_name ?? settings?.short_name ?? "Organization",
+      shortName: settings?.short_name ?? settings?.display_name ?? "Organization",
+      primary: OrgColorCodec.color(from: primaryHex),
+      secondary: OrgColorCodec.color(from: secondaryHex)
+    )
+  }
+
+  private var supportOrganizationIdentity: HPIdentity {
+    HPIdentity(
+      name: platformSupportOrganization?.name ?? "Organization",
+      shortName: platformSupportOrganization?.name ?? "Organization",
+      primary: HP.Color.primary,
+      secondary: HP.Color.bg
+    )
+  }
+
+  private func dashboardCard(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
           HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
               Text(settings?.display_name ?? settings?.short_name ?? "Organization")
-                .font(.title2.weight(.bold))
+                .font(HP.Font.title)
+                .foregroundStyle(HP.Color.text)
               Text("Admin dashboard")
-                .font(.subheadline)
-                .foregroundStyle(DHDTheme.textSecondary)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
             }
             Spacer()
-            DHDStatusBadge(text: "Live", color: .green)
+            HPStatusBadge(text: "Live", kind: .success)
           }
 
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 10)], spacing: 10) {
-            adminMetric("Members", value: adminMembers.count, symbol: "person.3.fill", color: DHDTheme.accent)
-            adminMetric("Players", value: playerCount, symbol: "figure.baseball", color: .blue)
-            adminMetric("Coaches", value: coachCount, symbol: "person.2.fill", color: .green)
-            adminMetric("Pending bookings", value: pendingBookingCount, symbol: "clock.badge.exclamationmark", color: .orange)
-            adminMetric("Next 7 days", value: upcomingBookings.count, symbol: "calendar", color: .purple)
-            adminMetric("Program plans", value: templateCount, symbol: "square.stack.3d.up.fill", color: .teal)
-            adminMetric("Chat channels", value: channelCount, symbol: "bubble.left.and.bubble.right.fill", color: .indigo)
-            adminMetric("Active facilities", value: facilities.filter(\.is_active).count, symbol: "building.2.fill", color: .mint)
+          LazyVGrid(
+            columns: context.gridColumns(compact: 2, regular: 3, wide: 4),
+            spacing: HP.Space.sm
+          ) {
+            adminMetric("Members", value: adminMembers.count, symbol: "person.3.fill", color: HP.Color.accent)
+            adminMetric("Players", value: playerCount, symbol: "figure.baseball", color: HP.Color.info)
+            adminMetric("Coaches", value: coachCount, symbol: "person.2.fill", color: HP.Color.success)
+            adminMetric("Pending bookings", value: pendingBookingCount, symbol: "clock.badge.exclamationmark", color: HP.Color.warning)
+            adminMetric("Next 7 days", value: upcomingBookings.count, symbol: "calendar", color: HP.Color.info)
+            adminMetric("Program plans", value: templateCount, symbol: "square.stack.3d.up.fill", color: HP.Color.success)
+            adminMetric("Chat channels", value: channelCount, symbol: "bubble.left.and.bubble.right.fill", color: HP.Color.info)
+            adminMetric("Active facilities", value: facilities.filter(\.is_active).count, symbol: "building.2.fill", color: HP.Color.success)
           }
         }
       }
 
-      DHDCard {
-        VStack(alignment: .leading, spacing: 12) {
-          DHDSectionHeader("Operations") {
-            Button {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Operations") {
+            HPButton(
+              title: "Refresh",
+              systemImage: "arrow.clockwise",
+              variant: .secondary,
+              size: .sm
+            ) {
               Task { await reload() }
-            } label: {
-              Label("Refresh", systemImage: "arrow.clockwise")
             }
             .disabled(isLoading)
           }
 
           if upcomingBookings.isEmpty {
-            Text("No facility bookings are scheduled in the next seven days.")
-              .foregroundStyle(DHDTheme.textSecondary)
+            HPEmptyState(
+              title: "No upcoming bookings",
+              message: "No facility bookings are scheduled in the next seven days.",
+              systemImage: "calendar.badge.checkmark"
+            )
           } else {
             let preview = Array(upcomingBookings.prefix(5))
-            ForEach(Array(preview.enumerated()), id: \.element.id) { index, booking in
-              HStack(spacing: 10) {
-                Image(systemName: booking.is_block ? "nosign" : "calendar.badge.clock")
-                  .foregroundStyle(booking.is_block ? .orange : DHDTheme.accent)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(booking.title?.isEmpty == false ? booking.title! : booking.activity_type.capitalized)
-                    .font(.subheadline.weight(.semibold))
-                  Text(booking.start_at.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(DHDTheme.textSecondary)
-                }
-                Spacer()
-                DHDStatusBadge(text: booking.status.capitalized, color: bookingStatusColor(booking.status))
-              }
-              if index < preview.count - 1 {
-                Divider().overlay(DHDTheme.separator.opacity(0.3))
-              }
-            }
+            HPTable(
+              columns: [
+                HPColumn(title: "Booking"),
+                HPColumn(title: "Starts"),
+                HPColumn(title: "Status", alignment: .trailing),
+              ],
+              rows: preview.map { booking in
+                HPTableRow(
+                  id: booking.id,
+                  cells: [
+                    booking.title?.isEmpty == false ? booking.title! : booking.activity_type.capitalized,
+                    booking.start_at.formatted(date: .abbreviated, time: .shortened),
+                    "",
+                  ],
+                  badge: (booking.status.capitalized, bookingStatusKind(booking.status))
+                )
+              },
+              layout: context.tableLayout
+            )
           }
         }
       }
 
-      DHDCard {
-        VStack(alignment: .leading, spacing: 10) {
-          DHDSectionHeader("Quick management") { EmptyView() }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Quick management")
           Text("Manage the people, tools, and facility access for this organization.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-          HStack(spacing: 10) {
-            Button { selectedTab = .members } label: {
-              Label("Members", systemImage: "person.2.badge.gearshape")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+          let actionLayout = context.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          actionLayout {
+            HPButton(
+              title: "Members",
+              systemImage: "person.2.badge.gearshape",
+              variant: .secondary,
+              fullWidth: context.isAccessibilitySize
+            ) {
+              selectedTab = .members
             }
-            Button { selectedTab = .features } label: {
-              Label("Features", systemImage: "switch.2")
+            HPButton(
+              title: "Features",
+              systemImage: "switch.2",
+              variant: .secondary,
+              fullWidth: context.isAccessibilitySize
+            ) {
+              selectedTab = .features
             }
-            Button { selectedTab = .facilities } label: {
-              Label("Facilities", systemImage: "building.2")
+            HPButton(
+              title: "Facilities",
+              systemImage: "building.2",
+              variant: .secondary,
+              fullWidth: context.isAccessibilitySize
+            ) {
+              selectedTab = .facilities
             }
           }
-          .buttonStyle(.bordered)
         }
       }
     }
   }
 
   private func adminMetric(_ title: String, value: Int, symbol: String, color: Color) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Image(systemName: symbol)
-        .foregroundStyle(color)
-        .font(.headline)
-      Text("\(value)")
-        .font(.title2.weight(.bold))
-      Text(title)
-        .font(.caption)
-        .foregroundStyle(DHDTheme.textSecondary)
-        .lineLimit(1)
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Image(systemName: symbol)
+          .foregroundStyle(color)
+          .font(HP.Font.headline)
+          .accessibilityHidden(true)
+        Text("\(value)")
+          .font(HP.Font.number())
+          .foregroundStyle(HP.Color.text)
+          .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
+        Text(title.uppercased())
+          .font(HP.Font.eyebrow)
+          .tracking(HP.Font.eyebrowTracking)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(12)
-    .background(DHDTheme.surfaceElevated.opacity(0.7))
-    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .accessibilityElement(children: .combine)
   }
 
   private var playerCount: Int {
@@ -595,12 +712,12 @@ struct OrgAdminConsoleView: View {
     upcomingBookings.filter { $0.status.lowercased() == "pending" }.count
   }
 
-  private func bookingStatusColor(_ status: String) -> Color {
+  private func bookingStatusKind(_ status: String) -> HPStatusKind {
     switch status.lowercased() {
-    case "approved": return .green
-    case "pending": return .orange
-    case "denied", "cancelled": return .red
-    default: return DHDTheme.accent
+    case "approved": return .success
+    case "pending": return .warning
+    case "denied", "cancelled": return .danger
+    default: return .info
     }
   }
 
@@ -615,11 +732,11 @@ struct OrgAdminConsoleView: View {
   }
 
   private var brandingCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Branding & Contact") { EmptyView() }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Branding & Contact")
 
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           Group {
             if let logoURL {
               AsyncImage(url: logoURL) { image in
@@ -630,85 +747,102 @@ struct OrgAdminConsoleView: View {
             } else {
               Image(systemName: "building.2.fill")
                 .font(.title2)
-                .foregroundStyle(DHDTheme.accent)
+                .foregroundStyle(HP.Color.accent)
             }
           }
-          .frame(width: 58, height: 58)
-          .background(DHDTheme.surfaceElevated)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .frame(width: 64, height: 64)
+          .background(HP.Color.surfaceRaised)
+          .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous))
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
 
           VStack(alignment: .leading, spacing: 5) {
             PhotosPicker(selection: $logoPickerItem, matching: .images) {
               Label("Upload organization logo", systemImage: "photo.badge.plus")
             }
+            .buttonStyle(HPButtonStyle(variant: .secondary, size: .md))
+            .frame(minHeight: 44)
             .onChange(of: logoPickerItem) { _, item in
               guard let item else { return }
               Task { await loadLogoPickerItem(item) }
             }
             Text(pendingLogoJPEG == nil ? "Displays in branded organization surfaces." : "Logo selected and will save automatically.")
-              .font(.footnote)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          Spacer()
         }
 
-        TextField("Display name", text: $displayName)
-          .textFieldStyle(.roundedBorder)
-        TextField("Short name", text: $shortName)
-          .textFieldStyle(.roundedBorder)
-
-        HStack(spacing: 10) {
-          TextField("Support email", text: $supportEmail)
-            .textFieldStyle(.roundedBorder)
-          TextField("Website host", text: $websiteHost)
-            .textFieldStyle(.roundedBorder)
-        }
+        HPFormField(label: "Display name", text: $displayName, placeholder: "Organization name")
+        HPFormField(label: "Short name", text: $shortName, placeholder: "Short organization name")
+        HPFormField(label: "Support email", text: $supportEmail, placeholder: "support@example.com")
+        HPFormField(label: "Website host", text: $websiteHost, placeholder: "example.com")
 
         Text("Brand colors")
-          .font(.headline)
-          .padding(.top, 4)
-        HStack(spacing: 10) {
-          hexField("Primary", text: $primaryHex)
-          hexField("Secondary", text: $secondaryHex)
-          hexField("Accent", text: $accentHex)
-        }
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+          .padding(.top, HP.Space.xs)
+        hexField("Primary", text: $primaryHex)
+        hexField("Secondary", text: $secondaryHex)
+        hexField("Accent", text: $accentHex)
       }
     }
   }
 
   private var featureFlagsCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Feature Flags") { EmptyView() }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Feature Flags")
 
         Toggle("Facilities / booking", isOn: $featureFacilities)
+          .frame(minHeight: 44)
         Toggle("Chat", isOn: $featureChat)
+          .frame(minHeight: 44)
         Toggle("Programs", isOn: $featurePrograms)
+          .frame(minHeight: 44)
         Toggle("Testing", isOn: $featureTesting)
+          .frame(minHeight: 44)
         Toggle("BP analysis", isOn: $featureBPAnalysis)
+          .frame(minHeight: 44)
         Toggle("Parent portal", isOn: $featureParentPortal)
+          .frame(minHeight: 44)
         Toggle("Billing/payment requests", isOn: $featureBilling)
-        Divider()
+          .frame(minHeight: 44)
+        Divider().overlay(HP.Color.border)
         Text("Team permissions")
-          .font(.headline)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
         Toggle("Coaches can view all teams", isOn: $coachesCanViewAllTeams)
+          .frame(minHeight: 44)
         Toggle("Limit coach assignments and evaluations to their own team", isOn: $restrictCoachActionsToTeam)
+          .frame(minHeight: 44)
         Toggle("Allow coaches to manage team assignments", isOn: $coachesCanManageTeams)
+          .frame(minHeight: 44)
         Text("Organization admins always manage all teams. Coaches can be granted team management separately.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
     }
   }
 
-  private var billingCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDSectionHeader("Home Plate Subscription") {
-          Button {
+  private func billingCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Home Plate Subscription") {
+          HPButton(
+            title: "Refresh",
+            systemImage: "arrow.clockwise",
+            variant: .secondary,
+            size: .sm
+          ) {
             Task { await refreshBilling() }
-          } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
           }
           .disabled(isBillingLoading || billingAction != nil)
         }
@@ -716,179 +850,194 @@ struct OrgAdminConsoleView: View {
         HStack(alignment: .top, spacing: 12) {
           VStack(alignment: .leading, spacing: 4) {
             Text("Home Plate Organization")
-              .font(.headline)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
             Text("$200/month")
-              .font(.subheadline)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.number(.callout))
+              .foregroundStyle(HP.Color.textMuted)
           }
           Spacer()
           if let subscription = organizationSubscription {
-            DHDStatusBadge(
+            HPStatusBadge(
               text: subscription.status.replacingOccurrences(of: "_", with: " ").capitalized,
-              color: billingStatusColor(subscription.status)
+              kind: billingStatusKind(subscription.status)
             )
           } else {
-            DHDStatusBadge(text: "No subscription", color: .orange)
+            HPStatusBadge(text: "No subscription", kind: .warning)
           }
         }
 
         if isBillingLoading {
-          HStack(spacing: 8) {
-            ProgressView()
-            Text("Loading subscription status…")
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
+          HPLoadingState(text: "Loading subscription status…")
         } else if let billingErrorText {
-          VStack(alignment: .leading, spacing: 8) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
             Text(billingErrorText)
-              .font(.footnote)
-              .foregroundStyle(.red)
-            Button("Try Again") {
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.danger)
+              .fixedSize(horizontal: false, vertical: true)
+            HPButton(title: "Try Again", systemImage: "arrow.clockwise", variant: .secondary) {
               Task { await refreshBilling() }
             }
-            .buttonStyle(.bordered)
           }
         } else if let subscription = organizationSubscription {
           VStack(alignment: .leading, spacing: 6) {
             if let periodEnd = subscription.current_period_end {
               Text(subscription.cancel_at_period_end ? "Access ends" : "Next billing date")
-                .font(.caption)
-                .foregroundStyle(DHDTheme.textSecondary)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
               Text(displayBillingDate(periodEnd))
-                .font(.subheadline.weight(.semibold))
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
             } else {
               Text("Stripe has not reported a billing period end yet.")
-                .font(.footnote)
-                .foregroundStyle(DHDTheme.textSecondary)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
             }
             if subscription.cancel_at_period_end {
               Label("Cancellation is scheduled at the end of the current period.", systemImage: "calendar.badge.exclamationmark")
-                .font(.footnote)
-                .foregroundStyle(.orange)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.warning)
             }
           }
         } else {
           Text("No Stripe subscription has been synchronized for this organization yet.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
 
-        HStack(spacing: 10) {
-          Button {
+        let actionLayout = context.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+        actionLayout {
+          HPButton(
+            title: billingAction == .checkout ? "Opening Checkout…" : "Subscribe — $200/month",
+            systemImage: "creditcard",
+            variant: .secondary,
+            isLoading: billingAction == .checkout,
+            fullWidth: context.isAccessibilitySize
+          ) {
             Task { await beginCheckout() }
-          } label: {
-            Label(
-              billingAction == .checkout ? "Opening Checkout…" : "Subscribe — $200/month",
-              systemImage: "creditcard"
-            )
           }
-          .buttonStyle(.borderedProminent)
           .disabled(isCurrentSubscription || billingAction != nil || isBillingLoading)
 
-          Button {
+          HPButton(
+            title: billingAction == .portal ? "Opening Portal…" : "Manage Billing",
+            systemImage: "arrow.up.right.square",
+            variant: .secondary,
+            isLoading: billingAction == .portal,
+            fullWidth: context.isAccessibilitySize
+          ) {
             Task { await openBillingPortal() }
-          } label: {
-            Label(
-              billingAction == .portal ? "Opening Portal…" : "Manage Billing",
-              systemImage: "arrow.up.right.square"
-            )
           }
-          .buttonStyle(.bordered)
           .disabled(billingAction != nil || isBillingLoading)
         }
 
         Text("Payment status is updated only after Stripe sends its webhook. Returning from the browser refreshes this screen but does not confirm payment by itself.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 
-  private var billingSection: some View {
+  private func billingSection(_ context: HPScreenLayoutContext) -> some View {
     Group {
       if appState.canAdminActiveOrg {
-        VStack(alignment: .leading, spacing: 14) {
-          customerPaymentsCard
-          billingCard
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          customerPaymentsCard(context)
+          billingCard(context)
         }
       } else {
-        accessDeniedSurface
+        HPCard {
+          HPEmptyState(
+            title: "Billing access required",
+            message: "Only an active organization owner or administrator can open these controls.",
+            systemImage: "lock.shield"
+          )
+        }
       }
     }
   }
 
-  private var customerPaymentsCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 14) {
-        DHDSectionHeader("Customer Payments") {
-          Button {
+  private func customerPaymentsCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Customer Payments") {
+          HPButton(
+            title: "Refresh Status",
+            systemImage: "arrow.clockwise",
+            variant: .secondary,
+            size: .sm
+          ) {
             Task { await refreshConnectStatus() }
-          } label: {
-            Label("Refresh Status", systemImage: "arrow.clockwise")
           }
           .disabled(isConnectLoading || connectAction != nil)
         }
 
-        HStack(alignment: .top, spacing: 12) {
+        let statusLayout = context.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          : AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+        statusLayout {
           Image(systemName: connectStatusSymbol)
             .font(.title2)
             .foregroundStyle(connectStatusColor)
-            .frame(width: 34)
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
           VStack(alignment: .leading, spacing: 4) {
             Text(connectStatusTitle)
-              .font(.headline)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
             Text(connectStatusDetail)
-              .font(.footnote)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          Spacer()
+          if !context.isAccessibilitySize { Spacer(minLength: HP.Space.sm) }
           if let connectStatus {
-            DHDStatusBadge(
+            HPStatusBadge(
               text: connectStatus.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized,
-              color: connectStatusColor
+              kind: connectStatusKind
             )
           }
         }
 
         if isConnectLoading {
-          HStack(spacing: 8) {
-            ProgressView()
-            Text("Checking Stripe account status…")
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
+          HPLoadingState(text: "Checking Stripe account status…")
         } else if let connectErrorText {
           Text(connectErrorText)
-            .font(.footnote)
-            .foregroundStyle(.red)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.danger)
+            .fixedSize(horizontal: false, vertical: true)
         }
 
         if connectStatus?.status != .ready {
-          Button {
+          HPButton(
+            title: connectAction == .onboarding ? "Opening Stripe…" : connectOnboardingButtonTitle,
+            systemImage: "link",
+            variant: .secondary,
+            isLoading: connectAction == .onboarding,
+            fullWidth: context.isAccessibilitySize
+          ) {
             Task { await beginConnectOnboarding() }
-          } label: {
-            Label(
-              connectAction == .onboarding ? "Opening Stripe…" : connectOnboardingButtonTitle,
-              systemImage: "link"
-            )
           }
-          .buttonStyle(.borderedProminent)
           .disabled(isConnectLoading || connectAction != nil)
         }
 
         Text("Stripe onboarding opens in your system browser. Home Plate confirms readiness only after refreshing Stripe's server status.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
 
-        Divider().overlay(DHDTheme.separator.opacity(0.35))
-        paymentRequestsSection
+        Divider().overlay(HP.Color.border)
+        paymentRequestsSection(context)
       }
     }
   }
 
   @ViewBuilder
-  private var paymentRequestsSection: some View {
-    DHDSectionHeader("Payment Requests") {
-      Button {
+  private func paymentRequestsSection(_ context: HPScreenLayoutContext) -> some View {
+    HPSectionHeader("Payment Requests") {
+      HPButton(title: "Create Payment Request", systemImage: "plus", variant: .primary, size: .sm) {
         guard canManagePaymentRequests, paymentRequestMutationId == nil else {
           return
         }
@@ -896,89 +1045,97 @@ struct OrgAdminConsoleView: View {
         paymentRequestPlayerSearchText = ""
         paymentRequestErrorText = nil
         paymentRequestCreatePresentation.present()
-      } label: {
-        Label("Create Payment Request", systemImage: "plus")
       }
-      .buttonStyle(.borderedProminent)
       .disabled(!canManagePaymentRequests || paymentRequestMutationId != nil)
     }
 
     #if DEBUG
     if let paymentRequestCreateDisabledReason {
       Text(paymentRequestCreateDisabledReason)
-        .font(.caption2)
-        .foregroundStyle(DHDTheme.textSecondary)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
         .accessibilityIdentifier("payment-request-create-disabled-reason")
     }
     #endif
 
     Text("Create one-time internal requests now. Stripe Checkout is not enabled until the next phase.")
-      .font(.footnote)
-      .foregroundStyle(DHDTheme.textSecondary)
+      .font(HP.Font.caption)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
 
     if let paymentRequestRosterErrorText = paymentRequestRosterState.errorMessage {
-      VStack(alignment: .leading, spacing: 8) {
-        Text(paymentRequestRosterErrorText).font(.footnote).foregroundStyle(.red)
-        Button("Refresh Eligible Players") {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Text(paymentRequestRosterErrorText)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.danger)
+          .fixedSize(horizontal: false, vertical: true)
+        HPButton(title: "Refresh Eligible Players", systemImage: "arrow.clockwise", variant: .secondary) {
           Task { await refreshEligiblePaymentRequestPlayers() }
         }
-        .buttonStyle(.bordered)
       }
     }
 
     if isPaymentRequestLoading {
-      HStack(spacing: 8) {
-        ProgressView()
-        Text("Loading payment requests…")
-          .foregroundStyle(DHDTheme.textSecondary)
-      }
+      HPLoadingState(text: "Loading payment requests…")
     } else if let paymentRequestErrorText, !paymentRequestCreatePresentation.isPresented {
-      VStack(alignment: .leading, spacing: 8) {
-        Text(paymentRequestErrorText).font(.footnote).foregroundStyle(.red)
-        Button("Try Again") { Task { await refreshPaymentRequests() } }
-          .buttonStyle(.bordered)
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Text(paymentRequestErrorText)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.danger)
+          .fixedSize(horizontal: false, vertical: true)
+        HPButton(title: "Try Again", systemImage: "arrow.clockwise", variant: .secondary) {
+          Task { await refreshPaymentRequests() }
+        }
       }
     } else if paymentRequestState.requests.isEmpty {
-      Text(activePlayerMembers.isEmpty
-        ? (isPlatformSupportMode
-          ? "No eligible active players are available in this organization."
-          : "Add an active player before creating a payment request.")
-        : "No payment requests yet.")
-        .foregroundStyle(DHDTheme.textSecondary)
+      HPEmptyState(
+        title: "No payment requests",
+        message: activePlayerMembers.isEmpty
+          ? (isPlatformSupportMode
+            ? "No eligible active players are available in this organization."
+            : "Add an active player before creating a payment request.")
+          : "No payment requests yet.",
+        systemImage: "creditcard"
+      )
     } else {
       ForEach(paymentRequestState.requests) { request in
-        HStack(alignment: .top, spacing: 12) {
+        let rowLayout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.md))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+        rowLayout {
           VStack(alignment: .leading, spacing: 4) {
-            Text(request.title).font(.headline)
+            Text(request.title)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
             Text(request.player_name ?? playerName(request.player_id))
-              .font(.caption)
-              .foregroundStyle(DHDTheme.textSecondary)
-            HStack(spacing: 8) {
-              Text(request.money?.formatted() ?? "Amount unavailable")
-              if let dueDate = request.due_date {
-                Text("Due \(displayPaymentRequestDate(dueDate))")
-              }
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+            Text(request.money?.formatted() ?? "Amount unavailable")
+              .font(HP.Font.number(.caption))
+              .foregroundStyle(HP.Color.textMuted)
+            if let dueDate = request.due_date {
+              Text("Due \(displayPaymentRequestDate(dueDate))")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
             }
-            .font(.caption)
-            .foregroundStyle(DHDTheme.textSecondary)
           }
-          Spacer()
-          VStack(alignment: .trailing, spacing: 7) {
-            DHDStatusBadge(
+          if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+          VStack(alignment: context.isExpanded ? .trailing : .leading, spacing: HP.Space.xs) {
+            HPStatusBadge(
               text: request.status.rawValue.capitalized,
-              color: paymentRequestStatusColor(request.status)
+              kind: paymentRequestStatusKind(request.status)
             )
             if request.status == .open {
-              Button("Cancel", role: .destructive) {
+              HPButton(title: "Cancel", variant: .destructive, size: .sm) {
                 Task { await cancelPaymentRequest(request) }
               }
-              .buttonStyle(.bordered)
               .disabled(paymentRequestMutationId != nil || !canManagePaymentRequests)
             }
           }
         }
-        .padding(.vertical, 4)
-        Divider().overlay(DHDTheme.separator.opacity(0.25))
+        .padding(.vertical, HP.Space.xs)
+        Divider().overlay(HP.Color.border.opacity(0.5))
       }
     }
   }
@@ -1021,10 +1178,19 @@ struct OrgAdminConsoleView: View {
 
   private var connectStatusColor: Color {
     switch connectStatus?.status {
-    case .ready: return .green
-    case .restricted: return .red
-    case .requirementsDue, .onboardingIncomplete: return .orange
-    case .none, .notConnected: return DHDTheme.accent
+    case .ready: return HP.Color.success
+    case .restricted: return HP.Color.danger
+    case .requirementsDue, .onboardingIncomplete: return HP.Color.warning
+    case .none, .notConnected: return HP.Color.accent
+    }
+  }
+
+  private var connectStatusKind: HPStatusKind {
+    switch connectStatus?.status {
+    case .ready: return .success
+    case .restricted: return .danger
+    case .requirementsDue, .onboardingIncomplete: return .warning
+    case .none, .notConnected: return .info
     }
   }
 
@@ -1043,12 +1209,12 @@ struct OrgAdminConsoleView: View {
     return status == "active" || status == "trialing"
   }
 
-  private func billingStatusColor(_ status: String) -> Color {
+  private func billingStatusKind(_ status: String) -> HPStatusKind {
     switch status.lowercased() {
-    case "active": return .green
-    case "trialing", "incomplete": return .orange
-    case "past_due", "unpaid", "incomplete_expired", "canceled": return .red
-    default: return DHDTheme.accent
+    case "active": return .success
+    case "trialing", "incomplete": return .warning
+    case "past_due", "unpaid", "incomplete_expired", "canceled": return .danger
+    default: return .info
     }
   }
 
@@ -1062,114 +1228,176 @@ struct OrgAdminConsoleView: View {
   }
 
   private var bookingPolicyCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Booking Policy") { EmptyView() }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Booking Policy")
 
-        HStack(spacing: 10) {
-          TextField("Default duration", text: $defaultDuration)
-            .textFieldStyle(.roundedBorder)
-          TextField("Minimum duration", text: $minDuration)
-            .textFieldStyle(.roundedBorder)
-          TextField("Maximum duration", text: $maxDuration)
-            .textFieldStyle(.roundedBorder)
-        }
+        HPFormField(
+          label: "Default duration",
+          text: $defaultDuration,
+          placeholder: "60",
+          helper: "Minutes"
+        )
+        HPFormField(
+          label: "Minimum duration",
+          text: $minDuration,
+          placeholder: "30",
+          helper: "Minutes"
+        )
+        HPFormField(
+          label: "Maximum duration",
+          text: $maxDuration,
+          placeholder: "120",
+          helper: "Minutes"
+        )
         Toggle("Players can request bookings", isOn: $allowPlayerRequests)
+          .frame(minHeight: 44)
         Toggle("Bookings require coach approval", isOn: $requireCoachApproval)
+          .frame(minHeight: 44)
       }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
     }
   }
 
-  private var facilitiesCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Facility Resources") {
-          Button {
+  private func facilitiesCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Facility Resources") {
+          HPButton(title: "Add", systemImage: "plus", variant: .primary, size: .sm) {
             editingFacility = FacilityDraft.new(orgId: appState.activeOrgId)
-          } label: {
-            Label("Add", systemImage: "plus")
           }
         }
 
         if facilities.isEmpty {
-          Text("No facilities configured yet.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No facilities configured",
+            message: "Add a resource to make it available for scheduling.",
+            systemImage: "building.2"
+          )
         } else {
           ForEach(facilities) { facility in
-            HStack(spacing: 12) {
-              Circle()
-                .fill(colorFromHex(facility.color_hex) ?? DHDTheme.accent)
-                .frame(width: 12, height: 12)
-              VStack(alignment: .leading, spacing: 2) {
-                Text(facility.name)
-                  .font(.headline)
-                Text("\(facility.resource_type ?? "resource") • capacity \(facility.capacity ?? 1) • sort \(facility.sort_order)")
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
+            let rowLayout = context.isExpanded
+              ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
+              : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+            rowLayout {
+              HStack(alignment: .top, spacing: HP.Space.sm) {
+                Circle()
+                  .fill(colorFromHex(facility.color_hex) ?? HP.Color.accent)
+                  .frame(width: 12, height: 12)
+                  .padding(.top, 5)
+                  .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(facility.name)
+                    .font(HP.Font.headline)
+                    .foregroundStyle(HP.Color.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text("\(facility.resource_type ?? "resource") • capacity \(facility.capacity ?? 1) • sort \(facility.sort_order)")
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
               }
-              Spacer()
-              DHDStatusBadge(text: facility.is_active ? "Active" : "Hidden", color: facility.is_active ? .green : .orange)
-              Button("Edit") {
-                editingFacility = FacilityDraft(facility: facility, orgId: appState.activeOrgId)
+              if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+              HPStatusBadge(text: facility.is_active ? "Active" : "Hidden", kind: facility.is_active ? .success : .warning)
+              let actionLayout = context.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
+              actionLayout {
+                HPButton(
+                  title: "Edit",
+                  variant: .secondary,
+                  size: .sm,
+                  fullWidth: context.isAccessibilitySize
+                ) {
+                  editingFacility = FacilityDraft(facility: facility, orgId: appState.activeOrgId)
+                }
+                HPButton(
+                  title: "Delete",
+                  systemImage: "trash",
+                  variant: .destructive,
+                  size: .sm,
+                  fullWidth: context.isAccessibilitySize
+                ) {
+                  facilityPendingDeletion = facility
+                }
+                .help("Delete \(facility.name)")
               }
-              Button(role: .destructive) {
-                facilityPendingDeletion = facility
-              } label: {
-                Image(systemName: "trash")
-              }
-              .help("Delete \(facility.name)")
             }
-            Divider().overlay(DHDTheme.separator.opacity(0.25))
+            .padding(.vertical, HP.Space.xs)
+            Divider().overlay(HP.Color.border.opacity(0.5))
           }
         }
       }
     }
   }
 
-  private var membersCard: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Users & Org Access") {
-          HStack {
-            Button("Refresh") { Task { await reload() } }
-            Button {
+  private func membersCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Users & Org Access") {
+          let actionLayout = context.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
+          actionLayout {
+            HPButton(title: "Refresh", systemImage: "arrow.clockwise", variant: .secondary, size: .sm) {
+              Task { await reload() }
+            }
+            HPButton(title: "Create User", systemImage: "person.badge.plus", variant: .primary, size: .sm) {
               isShowingCreateMember = true
-            } label: {
-              Label("Create User", systemImage: "person.badge.plus")
             }
           }
         }
 
         Text("Create organization-specific accounts, assign roles, disable access, and update the username used by the org login screen.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
 
         if adminMembers.isEmpty {
-          Text("No memberships visible.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No memberships visible",
+            message: "Organization members will appear here after they are added.",
+            systemImage: "person.2"
+          )
         } else {
           ForEach(adminMembers) { member in
-            HStack(spacing: 12) {
+            let rowLayout = context.isExpanded
+              ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
+              : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+            rowLayout {
               VStack(alignment: .leading, spacing: 2) {
                 Text(member.displayName)
-                  .font(.headline)
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                  .fixedSize(horizontal: false, vertical: true)
                 Text(member.email ?? member.user_id.uuidString)
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+                  .fixedSize(horizontal: false, vertical: true)
                 if let username = member.username {
                   Text("@\(username)")
-                    .font(.caption)
-                    .foregroundStyle(DHDTheme.textSecondary)
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
                 }
               }
-              Spacer()
-              DHDStatusBadge(text: member.status.capitalized, color: member.status == "active" ? .green : .orange)
-              DHDStatusBadge(text: member.role.capitalized, color: member.isAdmin ? .green : DHDTheme.accent)
-              Button("Edit") {
+              if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+              HStack(spacing: HP.Space.xs) {
+                HPStatusBadge(text: member.status.capitalized, kind: member.status == "active" ? .success : .warning)
+                HPStatusBadge(text: member.role.capitalized, kind: member.isAdmin ? .success : .info)
+              }
+              HPButton(
+                title: "Edit",
+                variant: .secondary,
+                size: .sm,
+                fullWidth: context.isAccessibilitySize
+              ) {
                 editingMember = MemberDraft(member: member)
               }
             }
-            Divider().overlay(DHDTheme.separator.opacity(0.25))
+            .padding(.vertical, HP.Space.xs)
+            Divider().overlay(HP.Color.border.opacity(0.5))
           }
         }
       }
@@ -1177,20 +1405,39 @@ struct OrgAdminConsoleView: View {
   }
 
   private func hexField(_ label: String, text: Binding<String>) -> some View {
-    VStack(alignment: .leading, spacing: 5) {
-      Text(label)
-        .font(.caption)
-        .foregroundStyle(DHDTheme.textSecondary)
-      HStack {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(label.uppercased())
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+      HStack(spacing: HP.Space.sm) {
         ColorPicker("\(label) color", selection: colorBinding(text))
           .labelsHidden()
-          .frame(width: 28)
-        RoundedRectangle(cornerRadius: 6)
+          .frame(width: 44, height: 44)
+        RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
           .fill(OrgColorCodec.color(from: text.wrappedValue))
-          .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DHDTheme.separator, lineWidth: 1))
-          .frame(width: 26, height: 26)
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+              .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
+          .frame(width: 44, height: 44)
+          .accessibilityHidden(true)
         TextField("#RRGGBB", text: text)
-          .textFieldStyle(.roundedBorder)
+          .textFieldStyle(.plain)
+          .font(HP.Font.body)
+          .foregroundStyle(HP.Color.text)
+          .padding(.horizontal, HP.Space.sm)
+          .frame(minHeight: 44)
+          .background(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .fill(HP.Color.input)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
       }
     }
   }
@@ -1660,11 +1907,11 @@ struct OrgAdminConsoleView: View {
     activePlayerMembers.first(where: { $0.userId == id })?.displayName ?? "Player"
   }
 
-  private func paymentRequestStatusColor(_ status: SDPaymentRequestStatus) -> Color {
+  private func paymentRequestStatusKind(_ status: SDPaymentRequestStatus) -> HPStatusKind {
     switch status {
-    case .open: return .orange
-    case .canceled: return .secondary
-    case .paid: return .green
+    case .open: return .warning
+    case .canceled: return .neutral
+    case .paid: return .success
     }
   }
 
@@ -2038,118 +2285,193 @@ private struct PaymentRequestCreateSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section {
-          TextField("Search players", text: $playerSearchText)
-            .disabled(rosterLoadState.isLoading)
-          HStack {
-            Button("Select All") {
-              draft.selectedPlayerUserIds = SDPaymentRequestPlayerRoster.selectAll(eligiblePlayers)
-            }
-            .disabled(
-              eligiblePlayers.isEmpty
-                || eligibleSelectedPlayerIds.count == eligiblePlayers.count
-            )
-            Spacer()
-            Button("Clear") {
-              draft.selectedPlayerUserIds.removeAll()
-            }
-            .disabled(draft.selectedPlayerUserIds.isEmpty)
-          }
-          if rosterLoadState.isLoading {
-            HStack(spacing: 8) {
-              ProgressView()
-              Text("Loading eligible players…")
-            }
-            .foregroundStyle(DHDTheme.textSecondary)
-          } else if let rosterErrorText = rosterLoadState.errorMessage {
-            Text(rosterErrorText).font(.footnote).foregroundStyle(.red)
-          } else if case .empty = rosterLoadState {
-            Text("No active players were returned for this organization.")
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
-          if rosterLoadState.shouldShowRetry {
-            Button("Retry") {
-              Task { await loadEligiblePlayers() }
-            }
-          }
-          ForEach(displayedPlayers) { player in
-            Button {
-              if draft.selectedPlayerUserIds.contains(player.userId) {
-                draft.selectedPlayerUserIds.remove(player.userId)
-              } else {
-                draft.selectedPlayerUserIds.insert(player.userId)
-              }
-            } label: {
-              HStack {
-                Text(player.displayName)
-                  .foregroundStyle(DHDTheme.textPrimary)
-                Spacer()
-                Image(systemName: draft.selectedPlayerUserIds.contains(player.userId)
-                      ? "checkmark.circle.fill"
-                      : "circle")
-                  .foregroundStyle(draft.selectedPlayerUserIds.contains(player.userId)
-                                    ? DHDTheme.accent
-                                    : DHDTheme.textSecondary)
-              }
-            }
-            .buttonStyle(.plain)
-          }
-          #if DEBUG
-          Text(
-            "Debug: server=\(decodedPlayerCount), "
-              + "displayed=\(displayedPlayers.count), org=\(shortOrganizationID)"
-          )
-          .font(.caption2)
-          .foregroundStyle(DHDTheme.textSecondary)
-          #endif
-        } header: {
-          Text("Players (\(eligibleSelectedPlayerIds.count) selected)")
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "New Payment Request",
+          context: "Internal request · Stripe Checkout is not enabled"
+        )
+      } sections: { context in
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Players (\(eligibleSelectedPlayerIds.count) selected)")
+              HPFormField(
+                label: "Search players",
+                text: $playerSearchText,
+                placeholder: "Player name",
+                isEnabled: !rosterLoadState.isLoading
+              )
 
-        Section("Request") {
-          TextField("Title", text: $draft.title)
-          TextField("Description (optional)", text: $draft.description, axis: .vertical)
-            .lineLimit(3...6)
-          TextField("Amount (USD)", text: $draft.amountDollars)
-            #if os(iOS)
-            .keyboardType(.decimalPad)
-            #endif
-          Toggle("Set a due date", isOn: $draft.includesDueDate)
-          if draft.includesDueDate {
-            DatePicker("Due date", selection: $draft.dueDate, displayedComponents: .date)
-          }
-        }
+              let selectionLayout = context.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
+              selectionLayout {
+                HPButton(
+                  title: "Select All",
+                  variant: .secondary,
+                  fullWidth: context.isAccessibilitySize
+                ) {
+                  draft.selectedPlayerUserIds = SDPaymentRequestPlayerRoster.selectAll(eligiblePlayers)
+                }
+                .disabled(
+                  eligiblePlayers.isEmpty
+                    || eligibleSelectedPlayerIds.count == eligiblePlayers.count
+                )
+                HPButton(
+                  title: "Clear",
+                  variant: .tertiary,
+                  fullWidth: context.isAccessibilitySize
+                ) {
+                  draft.selectedPlayerUserIds.removeAll()
+                }
+                .disabled(draft.selectedPlayerUserIds.isEmpty)
+              }
 
-        Section {
-          Text("This creates an internal request only. Stripe Checkout and payment processing are not enabled yet.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-          if let validationError = draft.validationError {
-            Text(validationError).font(.footnote).foregroundStyle(.orange)
+              if rosterLoadState.isLoading {
+                HPLoadingState(text: "Loading eligible players…")
+              } else if let rosterErrorText = rosterLoadState.errorMessage {
+                Text(rosterErrorText)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.danger)
+                  .fixedSize(horizontal: false, vertical: true)
+              } else if case .empty = rosterLoadState {
+                HPEmptyState(
+                  title: "No active players",
+                  message: "No active players were returned for this organization.",
+                  systemImage: "person.slash"
+                )
+              }
+              if rosterLoadState.shouldShowRetry {
+                HPButton(title: "Retry", systemImage: "arrow.clockwise", variant: .secondary) {
+                  Task { await loadEligiblePlayers() }
+                }
+              }
+
+              ForEach(displayedPlayers) { player in
+                Button {
+                  if draft.selectedPlayerUserIds.contains(player.userId) {
+                    draft.selectedPlayerUserIds.remove(player.userId)
+                  } else {
+                    draft.selectedPlayerUserIds.insert(player.userId)
+                  }
+                } label: {
+                  HStack(spacing: HP.Space.sm) {
+                    Text(player.displayName)
+                      .font(HP.Font.callout)
+                      .foregroundStyle(HP.Color.text)
+                      .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: HP.Space.sm)
+                    Image(systemName: draft.selectedPlayerUserIds.contains(player.userId)
+                          ? "checkmark.circle.fill"
+                          : "circle")
+                      .foregroundStyle(draft.selectedPlayerUserIds.contains(player.userId)
+                                        ? HP.Color.accent
+                                        : HP.Color.textMuted)
+                  }
+                  .padding(.horizontal, HP.Space.sm)
+                  .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                  .background(
+                    RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                      .fill(draft.selectedPlayerUserIds.contains(player.userId)
+                            ? HP.Color.accent.opacity(0.12)
+                            : HP.Color.surface)
+                  )
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(player.displayName)
+                .accessibilityValue(draft.selectedPlayerUserIds.contains(player.userId) ? "Selected" : "Not selected")
+                .accessibilityAddTraits(draft.selectedPlayerUserIds.contains(player.userId) ? .isSelected : [])
+              }
+              #if DEBUG
+              Text(
+                "Debug: server=\(decodedPlayerCount), "
+                  + "displayed=\(displayedPlayers.count), org=\(shortOrganizationID)"
+              )
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              #endif
+            }
           }
-          if let errorText {
-            Text(errorText).font(.footnote).foregroundStyle(.red)
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Request")
+              HPFormField(label: "Title", text: $draft.title, placeholder: "Request title")
+              HPFormField(
+                label: "Description (optional)",
+                text: $draft.description,
+                kind: .multiline,
+                placeholder: "What this request covers"
+              )
+              paymentAmountField
+              Toggle("Set a due date", isOn: $draft.includesDueDate)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .tint(HP.Color.accent)
+                .frame(minHeight: 44)
+              if draft.includesDueDate {
+                DatePicker("Due date", selection: $draft.dueDate, displayedComponents: .date)
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.text)
+                  .tint(HP.Color.accent)
+                  .frame(minHeight: 44)
+              }
+            }
+          }
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              Label(
+                "This creates an internal request only. Stripe Checkout and payment processing are not enabled yet.",
+                systemImage: "info.circle"
+              )
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+              if let validationError = draft.validationError {
+                Text(validationError)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.warning)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              if let errorText {
+                Text(errorText)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.danger)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
           }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: isSubmitting
+            ? "Creating…"
+            : errorText != nil && draft.pendingIdempotencyKey != nil ? "Retry" : "Create",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSubmitting,
+          fullWidth: context.isAccessibilitySize
+        ) {
+          onCreate(eligiblePlayers)
+        }
+        .disabled(!SDPaymentRequestAuthorization.canSubmitCreateRequest(
+          draftIsValid: draft.isValid,
+          eligibleSelectedPlayerCount: eligibleSelectedPlayerIds.count,
+          isSubmitting: isSubmitting
+        ))
+      } secondaryAction: { _ in
+        EmptyView()
       }
       .navigationTitle("New Payment Request")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
             .disabled(isSubmitting)
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button(
-            isSubmitting
-              ? "Creating…"
-              : errorText != nil && draft.pendingIdempotencyKey != nil ? "Retry" : "Create"
-          ) { onCreate(eligiblePlayers) }
-            .disabled(!SDPaymentRequestAuthorization.canSubmitCreateRequest(
-              draftIsValid: draft.isValid,
-              eligibleSelectedPlayerCount: eligibleSelectedPlayerIds.count,
-              isSubmitting: isSubmitting
-            ))
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
@@ -2167,6 +2489,38 @@ private struct PaymentRequestCreateSheet: View {
         selectedPlayerUserIds: draft.selectedPlayerUserIds,
         eligiblePlayers: eligiblePlayers
       )
+    }
+  }
+
+  private var paymentAmountField: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Amount (USD)".uppercased())
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+      TextField("0.00", text: $draft.amountDollars)
+        .textFieldStyle(.plain)
+        .font(HP.Font.number(.body))
+        .foregroundStyle(HP.Color.text)
+        #if os(iOS)
+        .keyboardType(.decimalPad)
+        #endif
+        .padding(.horizontal, HP.Space.sm)
+        .padding(.vertical, 10)
+        .frame(minHeight: 44)
+        .background(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .fill(HP.Color.input)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .strokeBorder(HP.Color.border, lineWidth: 1)
+            .allowsHitTesting(false)
+        )
+      Text("Entered as dollars and converted to authoritative integer cents when the request is prepared.")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -2324,7 +2678,7 @@ private enum OrgColorCodec {
   static func color(from rawValue: String) -> Color {
     let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
     let hex = value.hasPrefix("#") ? String(value.dropFirst()) : value
-    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return DHDTheme.accent }
+    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return HP.Color.accent }
     return Color(
       red: Double((rgb & 0xFF0000) >> 16) / 255,
       green: Double((rgb & 0x00FF00) >> 8) / 255,
@@ -2422,41 +2776,74 @@ private struct FacilityAdminEditorSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Resource") {
-          TextField("Name", text: $draft.name)
-          TextField("Type", text: $draft.resourceType)
-          Toggle("Active / visible", isOn: $draft.isActive)
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(draft.id == nil ? "New Facility" : "Edit Facility")
+      } sections: { _ in
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Resource")
+              HPFormField(label: "Name", text: $draft.name, placeholder: "Facility name")
+              HPFormField(label: "Type", text: $draft.resourceType, placeholder: "cage")
+              Toggle("Active / visible", isOn: $draft.isActive)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .tint(HP.Color.accent)
+                .frame(minHeight: 44)
+            }
+          }
 
-        Section("Display") {
-          TextField("Sort order", text: $draft.sortOrder)
-          TextField("Color hex", text: $draft.colorHex)
-          ColorPicker(
-            "Color wheel",
-            selection: Binding(
-              get: { OrgColorCodec.color(from: draft.colorHex) },
-              set: { draft.colorHex = OrgColorCodec.hex(from: $0) }
-            )
-          )
-          TextField("Capacity", text: $draft.capacity)
-        }
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Display")
+              HPFormField(label: "Sort order", text: $draft.sortOrder, placeholder: "0")
+              HPFormField(label: "Color hex", text: $draft.colorHex, placeholder: "#4D9EF9")
+              ColorPicker(
+                "Color wheel",
+                selection: Binding(
+                  get: { OrgColorCodec.color(from: draft.colorHex) },
+                  set: { draft.colorHex = OrgColorCodec.hex(from: $0) }
+                )
+              )
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .frame(minHeight: 44)
+              HPFormField(label: "Capacity", text: $draft.capacity, placeholder: "1")
+            }
+          }
 
-        Section("Advanced") {
-          TextField("Full-resource group (optional)", text: $draft.fullResourceGroup)
-          TextField("Notes", text: $draft.notes, axis: .vertical)
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Advanced")
+              HPFormField(
+                label: "Full-resource group (optional)",
+                text: $draft.fullResourceGroup,
+                placeholder: "Group name"
+              )
+              HPFormField(label: "Notes", text: $draft.notes, kind: .multiline, placeholder: "Resource notes")
+            }
+          }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: "Save",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize
+        ) {
+          onSave(draft)
+        }
+        .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      } secondaryAction: { _ in
+        EmptyView()
       }
       .navigationTitle(draft.id == nil ? "New Facility" : "Edit Facility")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
-            onSave(draft)
-          }
-          .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
@@ -2506,44 +2893,96 @@ private struct CreateOrgMemberSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Identity") {
-          TextField("Full name", text: $draft.fullName)
-          TextField("Email", text: $draft.email)
-            #if os(iOS)
-            .textInputAutocapitalization(.never)
-            .keyboardType(.emailAddress)
-            #endif
-          TextField("Org username", text: $draft.username)
-            #if os(iOS)
-            .textInputAutocapitalization(.never)
-            #endif
-          SecureField("Temporary password", text: $draft.password)
-        }
-
-        Section("Access") {
-          Picker("Role", selection: $draft.role) {
-            ForEach(orgRoleOptions, id: \.self) { role in
-              Text(role.capitalized).tag(role)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader("Create Org User", context: "Organization-specific access")
+      } sections: { _ in
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.md) {
+              HPSectionHeader("Identity")
+              HPFormField(label: "Full name", text: $draft.fullName, placeholder: "Full name")
+              emailField
+              usernameField
+              HPFormField(
+                label: "Temporary password",
+                text: $draft.password,
+                kind: .secure,
+                placeholder: "At least 8 characters"
+              )
             }
           }
-          Text("Active owners and administrators can administer this organization. Coaches, players, and parents do not receive organization-admin authority.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Access")
+              Picker("Role", selection: $draft.role) {
+                ForEach(orgRoleOptions, id: \.self) { role in
+                  Text(role.capitalized).tag(role)
+                }
+              }
+              .pickerStyle(.menu)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .tint(HP.Color.accent)
+              .frame(minHeight: 44)
+              Text("Active owners and administrators can administer this organization. Coaches, players, and parents do not receive organization-admin authority.")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: "Create",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize
+        ) {
+          onCreate(draft)
+        }
+        .disabled(!draft.isValid)
+      } secondaryAction: { _ in
+        EmptyView()
       }
       .navigationTitle("Create Org User")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Create") {
-            onCreate(draft)
-          }
-          .disabled(!draft.isValid)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
+    }
+  }
+
+  private var emailField: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Email".uppercased())
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+      TextField("name@example.com", text: $draft.email)
+        #if os(iOS)
+        .textInputAutocapitalization(.never)
+        .keyboardType(.emailAddress)
+        #endif
+        .modifier(AdminInputChrome())
+    }
+  }
+
+  private var usernameField: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Org username".uppercased())
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+      TextField("username", text: $draft.username)
+        #if os(iOS)
+        .textInputAutocapitalization(.never)
+        #endif
+        .modifier(AdminInputChrome())
     }
   }
 }
@@ -2555,53 +2994,119 @@ private struct EditOrgMemberSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Member") {
-          Text(draft.displayName)
-          if !draft.email.isEmpty {
-            Text(draft.email)
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
-          Text(draft.userId.uuidString)
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-
-        Section("Org Login") {
-          TextField("Username", text: $draft.username)
-            #if os(iOS)
-            .textInputAutocapitalization(.never)
-            #endif
-          Text("Usernames are unique inside this organization only.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-
-        Section("Access") {
-          Picker("Role", selection: $draft.role) {
-            ForEach(orgRoleOptions, id: \.self) { role in
-              Text(role.capitalized).tag(role)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader("Edit Member", context: draft.displayName)
+      } sections: { _ in
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              HPSectionHeader("Member")
+              Text(draft.displayName)
+                .font(HP.Font.headline)
+                .foregroundStyle(HP.Color.text)
+              if !draft.email.isEmpty {
+                Text(draft.email)
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              Text(draft.userId.uuidString)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(HP.Color.textMuted)
+                .textSelection(.enabled)
             }
           }
-          Picker("Status", selection: $draft.status) {
-            ForEach(orgStatusOptions, id: \.self) { status in
-              Text(status.capitalized).tag(status)
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Org Login")
+              usernameField
+              Text("Usernames are unique inside this organization only.")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
             }
           }
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Access")
+              Picker("Role", selection: $draft.role) {
+                ForEach(orgRoleOptions, id: \.self) { role in
+                  Text(role.capitalized).tag(role)
+                }
+              }
+              .pickerStyle(.menu)
+              .frame(minHeight: 44)
+              Picker("Status", selection: $draft.status) {
+                ForEach(orgStatusOptions, id: \.self) { status in
+                  Text(status.capitalized).tag(status)
+                }
+              }
+              .pickerStyle(.menu)
+              .frame(minHeight: 44)
+            }
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .tint(HP.Color.accent)
+          }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: "Save",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize
+        ) {
+          onSave(draft)
+        }
+        .disabled(draft.username.trimmingCharacters(in: .whitespacesAndNewlines).count < 3)
+      } secondaryAction: { _ in
+        EmptyView()
       }
       .navigationTitle("Edit Member")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
-            onSave(draft)
-          }
-          .disabled(draft.username.trimmingCharacters(in: .whitespacesAndNewlines).count < 3)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
+  }
+
+  private var usernameField: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Username".uppercased())
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+      TextField("Username", text: $draft.username)
+        #if os(iOS)
+        .textInputAutocapitalization(.never)
+        #endif
+        .modifier(AdminInputChrome())
+    }
+  }
+}
+
+private struct AdminInputChrome: ViewModifier {
+  func body(content: Content) -> some View {
+    content
+      .textFieldStyle(.plain)
+      .font(HP.Font.body)
+      .foregroundStyle(HP.Color.text)
+      .padding(.horizontal, HP.Space.sm)
+      .padding(.vertical, 10)
+      .frame(minHeight: 44)
+      .background(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .fill(HP.Color.input)
+      )
+      .overlay(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(HP.Color.border, lineWidth: 1)
+          .allowsHitTesting(false)
+      )
   }
 }

@@ -11,51 +11,149 @@ struct CoachPlayerOverviewView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-      }
-
-      Section("Snapshot") {
-        if let latest = entries.first {
-          Text("Latest test: \(latest.entry_date)")
-            .font(.headline)
-          if let maxEV = latest.max_exit_velo {
-            Text("Max EV: \(fmt(maxEV)) mph").font(.subheadline).foregroundStyle(.secondary)
-          }
-          if let avgEV = latest.avg_exit_velo {
-            Text("Avg EV: \(fmt(avgEV)) mph").font(.subheadline).foregroundStyle(.secondary)
-          }
-          if let total = strengthTotal(latest) {
-            Text("Strength total: \(fmt(total))").font(.subheadline).foregroundStyle(.secondary)
-          }
-        } else {
-          Text("No testing entries yet.")
-            .foregroundStyle(.secondary)
+    HPAnalyticsScreenLayout {
+      HPWorkspaceHeader(
+        "Player Overview",
+        context: overviewContext
+      ) {
+        if isLoading {
+          HPProgressIndicator(style: .spinner)
+            .accessibilityLabel("Refreshing player overview")
         }
       }
-
-      if entries.count >= 2 {
-        Section("Max EV trend") {
-          TrendChart(points: chartPoints(entries) { $0.max_exit_velo }, yLabel: "mph")
-            .frame(height: 240)
+    } rangeControls: {
+      EmptyView()
+    } metrics: {
+      if let latest = entries.first {
+        HPMetricCard(
+          title: "Latest test",
+          value: latest.entry_date,
+          context: "Most recent testing entry"
+        )
+        if let maxEV = latest.max_exit_velo {
+          HPMetricCard(
+            title: "Max EV",
+            value: fmt(maxEV),
+            unit: "mph",
+            context: "Latest test"
+          )
         }
-        Section("Strength trend") {
-          TrendChart(points: chartPoints(entries) { strengthTotal($0) }, yLabel: "lb")
-            .frame(height: 240)
+        if let avgEV = latest.avg_exit_velo {
+          HPMetricCard(
+            title: "Avg EV",
+            value: fmt(avgEV),
+            unit: "mph",
+            context: "Latest test"
+          )
+        }
+        if let total = strengthTotal(latest) {
+          HPMetricCard(
+            title: "Strength total",
+            value: fmt(total),
+            unit: "lb",
+            context: "Squat + bench + deadlift"
+          )
+        }
+      }
+    } charts: {
+      chartContent
+    } breakdown: { context in
+      if !entries.isEmpty {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Testing history") {
+              HPStatusBadge(
+                text: "\(entries.count) · newest first",
+                kind: .neutral
+              )
+            }
+            HPTable(
+              columns: testingColumns,
+              rows: testingRows,
+              layout: context.tableLayout
+            )
+          }
         }
       }
     }
-    #if os(macOS)
-    .listStyle(.inset)
-    #else
-    .listStyle(.insetGrouped)
-    #endif
-    .dhdPageBackground()
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
     .task { await reload() }
+  }
+
+  @ViewBuilder
+  private var chartContent: some View {
+    if entries.isEmpty {
+      if isLoading {
+        HPCard {
+          HPLoadingState(text: "Loading player overview…")
+        }
+      } else {
+        HPCard {
+          HPEmptyState(
+            title: "No testing entries yet",
+            message: "Testing trends will appear after results are recorded.",
+            systemImage: "chart.xyaxis.line"
+          )
+        }
+      }
+    } else if entries.count >= 2 {
+      let maxEVPoints = chartPoints(entries) { $0.max_exit_velo }
+      let strengthPoints = chartPoints(entries) { strengthTotal($0) }
+
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Max EV trend") {
+            HPStatusBadge(
+              text: "\(maxEVPoints.count) measurements · mph",
+              kind: .neutral
+            )
+          }
+          TrendChart(points: maxEVPoints, yLabel: "mph")
+            .frame(height: 240)
+        }
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Strength trend") {
+            HPStatusBadge(
+              text: "\(strengthPoints.count) measurements · lb",
+              kind: .neutral
+            )
+          }
+          TrendChart(points: strengthPoints, yLabel: "lb")
+            .frame(height: 240)
+        }
+      }
+    }
+  }
+
+  private var overviewContext: String {
+    guard let newest = entries.first, let oldest = entries.last else {
+      return "\(player.displayName) · Testing snapshot"
+    }
+    return "\(player.displayName) · \(entries.count) entries · \(oldest.entry_date) – \(newest.entry_date)"
+  }
+
+  private var testingColumns: [HPColumn] {
+    [
+      HPColumn(title: "Date"),
+      HPColumn(title: "Max EV (mph)", alignment: .trailing, numeric: true),
+      HPColumn(title: "Avg EV (mph)", alignment: .trailing, numeric: true),
+      HPColumn(title: "Strength (lb)", alignment: .trailing, numeric: true),
+    ]
+  }
+
+  private var testingRows: [HPTableRow] {
+    entries.map { entry in
+      HPTableRow(id: entry.id, cells: [
+        entry.entry_date,
+        entry.max_exit_velo.map(fmt) ?? "—",
+        entry.avg_exit_velo.map(fmt) ?? "—",
+        strengthTotal(entry).map(fmt) ?? "—",
+      ])
+    }
   }
 
   private func reload() async {
@@ -107,12 +205,25 @@ fileprivate struct TrendChart: View {
         x: .value("Date", p.date),
         y: .value("Value", p.value)
       )
+      .foregroundStyle(HP.Color.primaryGlow)
       .interpolationMethod(.catmullRom)
       PointMark(
         x: .value("Date", p.date),
         y: .value("Value", p.value)
       )
+      .foregroundStyle(HP.Color.accent)
     }
     .chartYAxisLabel(yLabel)
+    .chartYAxis {
+      AxisMarks(position: .leading) { _ in
+        AxisGridLine().foregroundStyle(HP.Color.border)
+        AxisValueLabel().foregroundStyle(HP.Color.textMuted)
+      }
+    }
+    .chartXAxis {
+      AxisMarks { _ in
+        AxisValueLabel().foregroundStyle(HP.Color.textMuted)
+      }
+    }
   }
 }

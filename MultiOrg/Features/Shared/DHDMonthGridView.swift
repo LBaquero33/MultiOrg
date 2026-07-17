@@ -14,12 +14,17 @@ struct DHDMonthGridView: View {
   let onSelect: (Date) -> Void
 
   private let weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  private let spacing = DHDTheme.gridSpacing
+  private let spacing = HP.Space.xs
   @State private var measuredWidth: CGFloat = 720
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      header
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      DHDCalendarMonthHeader(
+        title: DateUtils.monthTitle(visibleMonth),
+        subtitle: "Tap a day to view details",
+        onPrevious: onPrev,
+        onNext: onNext
+      )
 
       GeometryReader { geo in
         let cellW = (geo.size.width - spacing * 6) / 7
@@ -30,10 +35,10 @@ struct DHDMonthGridView: View {
 
         VStack(alignment: .leading, spacing: spacing) {
           LazyVGrid(columns: columns, spacing: spacing) {
-            ForEach(weekdayLabels, id: \.self) { d in
-              Text(d)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DHDTheme.textSecondary)
+            ForEach(weekdayLabels, id: \.self) { day in
+              Text(day)
+                .font(HP.Font.eyebrow)
+                .foregroundStyle(HP.Color.textMuted)
                 .frame(width: cellW, height: 18, alignment: .center)
             }
           }
@@ -67,69 +72,17 @@ struct DHDMonthGridView: View {
         // Explicit width so GeometryReader doesn't collapse inside ScrollView layouts.
         .frame(width: geo.size.width, alignment: .leading)
         .onAppear { measuredWidth = geo.size.width }
-        .onChange(of: geo.size.width) { _, w in measuredWidth = w }
+        .onChange(of: geo.size.width) { _, width in measuredWidth = width }
       }
       .frame(maxWidth: .infinity)
       .frame(height: gridHeight(forWidth: measuredWidth))
 
       if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(DHDTheme.textSecondary) }
-          .padding(.top, 2)
+        HPLoadingState(text: "Loading calendar…")
+          .padding(.top, HP.Space.xs)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-#if canImport(UIKit)
-    // Keep the calendar grid readable and stable even with very large Dynamic Type sizes.
-    .dynamicTypeSize(.xSmall ... .xxLarge)
-#endif
-  }
-
-  private var header: some View {
-    HStack(spacing: 10) {
-      Button {
-        onPrev()
-      } label: {
-        Image(systemName: "chevron.left")
-          .font(.headline)
-          .frame(width: 36, height: 36)
-          .background(Color.white.opacity(0.14))
-          .clipShape(RoundedRectangle(cornerRadius: 12))
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel("Previous month")
-
-      Spacer()
-
-      VStack(spacing: 2) {
-        Text(DateUtils.monthTitle(visibleMonth))
-          .font(.title3.weight(.semibold))
-        Text("Tap a day to view details")
-          .font(.caption)
-          .foregroundStyle(Color.white.opacity(0.85))
-      }
-
-      Spacer()
-
-      Button {
-        onNext()
-      } label: {
-        Image(systemName: "chevron.right")
-          .font(.headline)
-          .frame(width: 36, height: 36)
-          .background(Color.white.opacity(0.14))
-          .clipShape(RoundedRectangle(cornerRadius: 12))
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel("Next month")
-    }
-    .padding(DHDTheme.cardPadding)
-    .foregroundStyle(.white)
-    .background(
-      RoundedRectangle(cornerRadius: DHDTheme.cornerRadius)
-        .fill(DHDTheme.headerGradient)
-    )
   }
 
   private struct MonthCell: Identifiable {

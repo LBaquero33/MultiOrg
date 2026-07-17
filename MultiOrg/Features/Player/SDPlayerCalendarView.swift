@@ -18,41 +18,27 @@ struct SDPlayerCalendarView: View {
 
   var body: some View {
     NavigationStack(path: $navPath) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-          DHDMonthGridView(
-            visibleMonth: $visibleMonth,
-            selectedDate: $selectedDate,
-            scheduledLiftISOs: scheduledLiftISOs,
-            practiceISOs: practiceISOs,
-            gameISOs: gameISOs,
-            isLoading: isLoading,
-            onPrev: {
-              visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: -1))
-              rebuildMonthGrid()
-            },
-            onNext: {
-              visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: 1))
-              rebuildMonthGrid()
-            },
-            onSelect: { date in
-              // Ensure the navigation push happens reliably even during grid/layout updates.
-              let sd = DateUtils.startOfDayET(date)
-              selectedDate = sd
-              DispatchQueue.main.async {
-                navPath.append(sd)
-              }
-            }
+      HPCalendarScreenLayout(compactPane: .calendar) { _ in
+        HPWorkspaceHeader(
+          "Calendar",
+          orgLabel: activeOrganizationName,
+          context: DateUtils.monthTitle(visibleMonth)
+        )
+      } scopeControl: { context in
+        if context.isAccessibilitySize {
+          DHDCalendarMonthHeader(
+            title: DateUtils.monthTitle(visibleMonth),
+            subtitle: "Choose a day from the agenda",
+            onPrevious: showPreviousMonth,
+            onNext: showNextMonth
           )
-
-          Text("Green = scheduled lift day. Blue = BP/practice. Red = game reps.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.top, 2)
         }
-        .padding(DHDTheme.pagePadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
+      } calendar: { _ in
+        calendarPane
+      } agenda: { context in
+        agendaPane(context)
+      } stateContent: { _ in
+        EmptyView()
       }
       .navigationTitle("Calendar")
       .toolbar {
@@ -84,6 +70,130 @@ struct SDPlayerCalendarView: View {
       .navigationDestination(for: Date.self) { d in
         SDPlayerDayDetailView(initialDate: d)
       }
+    }
+  }
+
+  private var activeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var calendarPane: some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      DHDMonthGridView(
+        visibleMonth: $visibleMonth,
+        selectedDate: $selectedDate,
+        scheduledLiftISOs: scheduledLiftISOs,
+        practiceISOs: practiceISOs,
+        gameISOs: gameISOs,
+        isLoading: isLoading,
+        onPrev: showPreviousMonth,
+        onNext: showNextMonth,
+        onSelect: openDay
+      )
+
+      Text("Green = scheduled lift day. Blue = BP/practice. Red = game reps.")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func agendaPane(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(context.isAccessibilitySize ? "Month agenda" : "Scheduled days")
+
+        if isLoading {
+          HPLoadingState(text: "Loading calendar…")
+        } else {
+          ForEach(agendaDates(includeEveryDay: context.isAccessibilitySize), id: \.self) { date in
+            agendaRow(date)
+          }
+        }
+      }
+    }
+  }
+
+  private func agendaRow(_ date: Date) -> some View {
+    let iso = DateUtils.toISODate(date)
+    let events = eventLabels(for: iso)
+
+    return Button {
+      openDay(date)
+    } label: {
+      HStack(alignment: .center, spacing: HP.Space.sm) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(events.isEmpty ? "No scheduled activity" : events.joined(separator: " · "))
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: HP.Space.sm)
+        Image(systemName: "chevron.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .accessibilityHidden(true)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(agendaAccessibilityLabel(date: date, events: events))
+  }
+
+  private func agendaDates(includeEveryDay: Bool) -> [Date] {
+    let first = DateUtils.startOfMonthET(visibleMonth)
+    let dates = (0..<DateUtils.daysInMonthET(first)).compactMap {
+      DateUtils.calendarET.date(byAdding: .day, value: $0, to: first)
+    }
+    guard !includeEveryDay else { return dates }
+
+    let scheduled = dates.filter { !eventLabels(for: DateUtils.toISODate($0)).isEmpty }
+    if !scheduled.isEmpty { return scheduled }
+
+    let selectedISO = DateUtils.toISODate(selectedDate)
+    return dates.filter { DateUtils.toISODate($0) == selectedISO }.isEmpty
+      ? Array(dates.prefix(1))
+      : dates.filter { DateUtils.toISODate($0) == selectedISO }
+  }
+
+  private func eventLabels(for iso: String) -> [String] {
+    var labels: [String] = []
+    if scheduledLiftISOs.contains(iso) { labels.append("Scheduled lift") }
+    if practiceISOs.contains(iso) { labels.append("BP or practice") }
+    if gameISOs.contains(iso) { labels.append("Game reps") }
+    return labels
+  }
+
+  private func agendaAccessibilityLabel(date: Date, events: [String]) -> String {
+    let dateLabel = date.formatted(date: .long, time: .omitted)
+    return events.isEmpty ? "\(dateLabel), no scheduled activity" : "\(dateLabel), \(events.joined(separator: ", "))"
+  }
+
+  private func showPreviousMonth() {
+    visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: -1))
+    rebuildMonthGrid()
+  }
+
+  private func showNextMonth() {
+    visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: 1))
+    rebuildMonthGrid()
+  }
+
+  private func openDay(_ date: Date) {
+    // Preserve the asynchronous push so grid/layout updates cannot race the
+    // NavigationStack path mutation.
+    let startOfDay = DateUtils.startOfDayET(date)
+    selectedDate = startOfDay
+    DispatchQueue.main.async {
+      navPath.append(startOfDay)
     }
   }
 

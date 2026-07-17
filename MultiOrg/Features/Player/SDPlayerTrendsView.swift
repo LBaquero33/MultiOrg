@@ -16,51 +16,56 @@ struct SDPlayerTrendsView: View {
 
   var body: some View {
     NavigationStack {
-      List {
+      HPAnalyticsScreenLayout {
+        HPWorkspaceHeader("Trends", context: trendContext)
+      } rangeControls: {
         if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        }
-
-        Section("Snapshot") {
-          if let latest = entries.first {
-            HStack {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Latest test").font(.caption).foregroundStyle(.secondary)
-                Text(latest.entry_date).font(.headline)
-              }
-              Spacer()
+          HPCard {
+            HStack(spacing: HP.Space.xs) {
+              HPProgressIndicator(style: .spinner)
+              Text("Refreshing testing trends…")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
             }
-            if let maxEV = latest.max_exit_velo {
-              MetricPill(title: "Max EV (mph)", value: fmt(maxEV))
-            }
-            if let avgEV = latest.avg_exit_velo {
-              MetricPill(title: "Avg EV (mph)", value: fmt(avgEV))
-            }
-            let strength = strengthTotal(latest)
-            if let strength {
-              MetricPill(title: "Strength total", value: fmt(strength))
-            }
-          } else {
-            Text("Add your first Testing entry to see improvement trends.")
-              .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
           }
         }
-
+      } metrics: {
+        if let latest = entries.first {
+          HPMetricCard(title: "Latest test", value: latest.entry_date,
+                       context: "Most recent entry")
+          if let maxEV = latest.max_exit_velo {
+            HPMetricCard(title: "Max EV", value: fmt(maxEV), unit: "mph",
+                         context: "Latest test")
+          }
+          if let avgEV = latest.avg_exit_velo {
+            HPMetricCard(title: "Avg EV", value: fmt(avgEV), unit: "mph",
+                         context: "Latest test")
+          }
+          if let strength = strengthTotal(latest) {
+            HPMetricCard(title: "Strength total", value: fmt(strength), unit: "lb",
+                         context: "Squat + bench + deadlift")
+          }
+        }
+      } charts: {
+        chartContent
+      } breakdown: { context in
         if !entries.isEmpty {
-          Section("Max EV trend") {
-            TrendChart(
-              points: chartPoints(entries) { $0.max_exit_velo },
-              yLabel: "mph"
-            )
-            .frame(height: 240)
-          }
-
-          Section("Strength trend") {
-            TrendChart(
-              points: chartPoints(entries) { strengthTotal($0) },
-              yLabel: "lb"
-            )
-            .frame(height: 240)
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Testing history") {
+                HPStatusBadge(text: "Newest first", kind: .neutral)
+              }
+              HPTable(
+                columns: [
+                  HPColumn(title: "Date"),
+                  HPColumn(title: "Max EV", alignment: .trailing, numeric: true),
+                  HPColumn(title: "Strength", alignment: .trailing, numeric: true),
+                ],
+                rows: breakdownRows,
+                layout: context.tableLayout
+              )
+            }
           }
         }
       }
@@ -83,17 +88,82 @@ struct SDPlayerTrendsView: View {
           }
         }
       }
-      .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
-        Button("OK", role: .cancel) {}
-      } message: {
-        Text(errorText ?? "")
-      }
       .task { await reload() }
+    }
+  }
+
+  @ViewBuilder
+  private var chartContent: some View {
+    if errorText != nil {
+      HPCard {
+        HPErrorState(
+          message: "We couldn’t load testing trends. Check your connection and try again.",
+          onRetry: { Task { await reload() } }
+        )
+      }
+    }
+
+    if entries.isEmpty {
+      if isLoading {
+        HPCard { HPLoadingState(text: "Loading testing trends…") }
+      } else if errorText == nil {
+        HPCard {
+          HPEmptyState(
+            title: "Not enough data yet",
+            message: "Add your first Testing entry to see improvement trends.",
+            systemImage: "chart.xyaxis.line"
+          )
+        }
+      }
+    } else {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Max EV trend") {
+            HPStatusBadge(text: "mph · all entries", kind: .neutral)
+          }
+          TrendChart(
+            points: chartPoints(entries) { $0.max_exit_velo },
+            yLabel: "mph"
+          )
+          .frame(height: 240)
+        }
+      }
+
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Strength trend") {
+            HPStatusBadge(text: "lb · all entries", kind: .neutral)
+          }
+          TrendChart(
+            points: chartPoints(entries) { strengthTotal($0) },
+            yLabel: "lb"
+          )
+          .frame(height: 240)
+        }
+      }
+    }
+  }
+
+  private var trendContext: String {
+    guard let newest = entries.first, let oldest = entries.last else {
+      return "Testing history and progress"
+    }
+    return "\(entries.count) entries · \(oldest.entry_date) – \(newest.entry_date)"
+  }
+
+  private var breakdownRows: [HPTableRow] {
+    entries.map { entry in
+      HPTableRow(cells: [
+        entry.entry_date,
+        entry.max_exit_velo.map { "\(fmt($0)) mph" } ?? "—",
+        strengthTotal(entry).map { "\(fmt($0)) lb" } ?? "—",
+      ])
     }
   }
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    errorText = nil
     isLoading = true
     defer { isLoading = false }
     do {
@@ -107,40 +177,27 @@ struct SDPlayerTrendsView: View {
     }
   }
 
-  private func fmt(_ v: Double) -> String {
-    if v.rounded() == v { return String(Int(v)) }
-    return String(format: "%.1f", v)
+  private func fmt(_ value: Double) -> String {
+    if value.rounded() == value { return String(Int(value)) }
+    return String(format: "%.1f", value)
   }
 
-  private func strengthTotal(_ e: SDTestingEntry) -> Double? {
-    let parts = [e.squat_1rm, e.bench_1rm, e.deadlift_1rm].compactMap { $0 }
+  private func strengthTotal(_ entry: SDTestingEntry) -> Double? {
+    let parts = [entry.squat_1rm, entry.bench_1rm, entry.deadlift_1rm].compactMap { $0 }
     guard !parts.isEmpty else { return nil }
     return parts.reduce(0, +)
   }
 
-  private func chartPoints(_ rows: [SDTestingEntry], value: (SDTestingEntry) -> Double?) -> [TrendPoint] {
+  private func chartPoints(
+    _ rows: [SDTestingEntry],
+    value: (SDTestingEntry) -> Double?
+  ) -> [TrendPoint] {
     rows.compactMap { row in
-      guard let v = value(row) else { return nil }
-      guard let d = DateUtils.fromISODate(row.entry_date) else { return nil }
-      return TrendPoint(date: d, value: v)
+      guard let value = value(row) else { return nil }
+      guard let date = DateUtils.fromISODate(row.entry_date) else { return nil }
+      return TrendPoint(date: date, value: value)
     }
     .sorted { $0.date < $1.date }
-  }
-}
-
-private struct MetricPill: View {
-  let title: String
-  let value: String
-
-  var body: some View {
-    HStack {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title).font(.caption).foregroundStyle(.secondary)
-        Text(value).font(.title3.weight(.semibold))
-      }
-      Spacer()
-    }
-    .padding(.vertical, 6)
   }
 }
 
@@ -150,21 +207,37 @@ private struct TrendChart: View {
 
   var body: some View {
     if points.count < 2 {
-      Text("Add another entry to see a trend line.")
-        .foregroundStyle(.secondary)
+      HPEmptyState(
+        title: "One more test needed",
+        message: "Add another entry to see a trend line.",
+        systemImage: "chart.xyaxis.line"
+      )
     } else {
-      Chart(points) { p in
+      Chart(points) { point in
         LineMark(
-          x: .value("Date", p.date),
-          y: .value("Value", p.value)
+          x: .value("Date", point.date),
+          y: .value("Value", point.value)
         )
+        .foregroundStyle(HP.Color.primaryGlow)
         .interpolationMethod(.catmullRom)
         PointMark(
-          x: .value("Date", p.date),
-          y: .value("Value", p.value)
+          x: .value("Date", point.date),
+          y: .value("Value", point.value)
         )
+        .foregroundStyle(HP.Color.accent)
       }
       .chartYAxisLabel(yLabel)
+      .chartYAxis {
+        AxisMarks(position: .leading) { _ in
+          AxisGridLine().foregroundStyle(HP.Color.border)
+          AxisValueLabel().foregroundStyle(HP.Color.textMuted)
+        }
+      }
+      .chartXAxis {
+        AxisMarks { _ in
+          AxisValueLabel().foregroundStyle(HP.Color.textMuted)
+        }
+      }
     }
   }
 }

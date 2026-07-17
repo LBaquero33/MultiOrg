@@ -25,8 +25,14 @@ struct NotificationBellButton: View {
       ZStack(alignment: .topTrailing) {
         Image(systemName: "bell.fill")
           .font(.system(size: 17, weight: .semibold))
-          .frame(width: 38, height: 38)
-          .background(.ultraThinMaterial, in: Circle())
+          .foregroundStyle(HP.Color.text)
+          .frame(width: 44, height: 44)
+          .background(HP.Color.surfaceRaised, in: Circle())
+          .overlay {
+            Circle()
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          }
         if viewModel.totalUnread > 0 {
           NotificationBadge(count: viewModel.totalUnread)
             .offset(x: 5, y: -5)
@@ -36,7 +42,9 @@ struct NotificationBellButton: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Notifications")
-    .accessibilityValue(viewModel.totalUnread == 0 ? "No unread notifications" : "\(viewModel.totalUnread) unread")
+    .accessibilityValue(
+      viewModel.totalUnread == 0 ? "No unread notifications" : "\(viewModel.totalUnread) unread"
+    )
     .sheet(isPresented: $isPresented) {
       NavigationStack {
         NotificationCenterView(
@@ -46,7 +54,7 @@ struct NotificationBellButton: View {
         .environmentObject(appState)
       }
       #if os(macOS)
-      .frame(minWidth: 620, minHeight: 620)
+        .frame(minWidth: 620, minHeight: 620)
       #endif
     }
     .task(id: appState.myProfile?.id) {
@@ -71,7 +79,8 @@ struct NotificationBellButton: View {
 
   private var activeOrganizationAnnouncementContext: NotificationAnnouncementContext? {
     guard appState.canAdminActiveOrg, let organizationId = appState.activeOrgId else { return nil }
-    let name = appState.availableOrganizations.first(where: { $0.id == organizationId })?.name
+    let name =
+      appState.availableOrganizations.first(where: { $0.id == organizationId })?.name
       ?? appState.activeOrgSettings?.display_name
       ?? "Organization"
     return NotificationAnnouncementContext(
@@ -88,11 +97,11 @@ struct NotificationBadge: View {
 
   var body: some View {
     Text(count > 99 ? "99+" : String(count))
-      .font(.caption2.weight(.bold))
-      .foregroundStyle(.white)
+      .font(HP.Font.badge)
+      .foregroundStyle(HP.Color.onDanger)
       .padding(.horizontal, count > 9 ? 5 : 4)
       .frame(minWidth: 18, minHeight: 18)
-      .background(Color.red, in: Capsule())
+      .background(HP.Color.danger, in: Capsule())
       .accessibilityHidden(true)
   }
 }
@@ -135,19 +144,46 @@ struct NotificationCenterView: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "Notifications",
+        orgLabel: scopeToSelectedOrganization ? selectedOrganizationName : "Home Plate",
+        context: notificationContext
+      ) {
+        if announcementContext?.canCreate == true {
+          HPButton(
+            title: "Create announcement",
+            systemImage: "megaphone.fill",
+            variant: .primary,
+            size: .sm,
+            action: {
+              viewModel.clearMessages()
+              isComposing = true
+            }
+          )
+        }
+      }
+    } controls: {
       controls
-      Divider()
-      notificationContent
+    } results: { context in
+      notificationContent(context)
     }
     .navigationTitle("Notifications")
     .toolbar {
-      ToolbarItem(placement: .primaryAction) {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Close") { dismiss() }
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+      }
+      ToolbarItem(placement: .automatic) {
         Button {
           Task { await refresh() }
         } label: {
-          Label("Refresh", systemImage: "arrow.clockwise")
+          Image(systemName: "arrow.clockwise")
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
+        .accessibilityLabel("Refresh notifications")
         .disabled(viewModel.isLoading)
       }
     }
@@ -172,7 +208,7 @@ struct NotificationCenterView: View {
         NotificationDestinationView(notification: notification)
       }
       #if os(macOS)
-      .frame(minWidth: 480, minHeight: 420)
+        .frame(minWidth: 480, minHeight: 420)
       #endif
     }
     .sheet(isPresented: $isComposing) {
@@ -185,10 +221,14 @@ struct NotificationCenterView: View {
           .environmentObject(appState)
         }
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 520)
+          .frame(minWidth: 520, minHeight: 520)
         #endif
       }
     }
+    .refreshable { await refresh() }
+    #if os(macOS)
+      .onExitCommand { dismiss() }
+    #endif
   }
 
   private var refreshIdentity: String {
@@ -213,106 +253,181 @@ struct NotificationCenterView: View {
       ?? "Selected Organization"
   }
 
+  private var notificationContext: String {
+    if viewModel.notifications.isEmpty {
+      return viewModel.unreadOnly ? "Unread notifications" : "Organization updates"
+    }
+    let suffix = viewModel.notifications.count == 1 ? "notification" : "notifications"
+    return "\(viewModel.notifications.count) loaded \(suffix)"
+  }
+
+  private var unreadFilter: Binding<Set<String>> {
+    Binding(
+      get: { viewModel.unreadOnly ? ["Unread only"] : [] },
+      set: { viewModel.unreadOnly = $0.contains("Unread only") }
+    )
+  }
+
   private var controls: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(spacing: 12) {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
         if selectedOrganizationId != nil {
-          Picker("Scope", selection: $scopeToSelectedOrganization) {
-            Text("All Organizations").tag(false)
-            Text(selectedOrganizationName).tag(true)
-          }
-          .pickerStyle(.segmented)
-        }
-
-        if announcementContext?.canCreate == true {
-          Button {
-            viewModel.clearMessages()
-            isComposing = true
-          } label: {
-            Label("Create Announcement", systemImage: "megaphone.fill")
-          }
-          .buttonStyle(.borderedProminent)
-        }
-      }
-
-      HStack {
-        Toggle("Unread only", isOn: $viewModel.unreadOnly)
-          .toggleStyle(.switch)
-        Spacer()
-        Button("Mark All Read") {
-          Task {
-            await viewModel.markAllRead(
-              organizationId: effectiveOrganizationId,
-              service: appState.supabase
+          VStack(alignment: .leading, spacing: 6) {
+            Text("SCOPE")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            HPSegmentedControl(
+              options: [
+                (value: false, label: "All Organizations"),
+                (value: true, label: selectedOrganizationName),
+              ],
+              selection: $scopeToSelectedOrganization
             )
           }
         }
-        .disabled(viewModel.isMarkingAllRead || viewModel.totalUnread == 0)
-      }
 
-      if let message = viewModel.announcementMessage {
-        Text(message)
-          .font(.footnote)
-          .foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 6) {
+          Text("FILTER")
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          HPFilterBar(pills: ["Unread only"], active: unreadFilter)
+        }
+
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            resultSummary
+            Spacer(minLength: HP.Space.sm)
+            markAllReadButton
+          }
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            resultSummary
+            markAllReadButton
+          }
+        }
+
+        if let message = viewModel.announcementMessage {
+          Label(message, systemImage: "checkmark.circle.fill")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.success)
+            .fixedSize(horizontal: false, vertical: true)
+        }
       }
     }
-    .padding()
+  }
+
+  private var resultSummary: some View {
+    HStack(spacing: HP.Space.xs) {
+      Text("\(viewModel.notifications.count) loaded")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+      if viewModel.isLoading {
+        HPStatusBadge(text: "Refreshing", kind: .info)
+      } else if viewModel.errorMessage != nil, viewModel.notifications.isEmpty {
+        HPStatusBadge(text: "Unavailable", kind: .danger)
+      } else {
+        HPStatusBadge(
+          text: viewModel.totalUnread == 0 ? "All caught up" : "\(viewModel.totalUnread) unread",
+          kind: viewModel.totalUnread == 0 ? .success : .gold
+        )
+      }
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private var markAllReadButton: some View {
+    HPButton(
+      title: "Mark all read",
+      systemImage: "checkmark.circle",
+      variant: .secondary,
+      size: .sm,
+      isLoading: viewModel.isMarkingAllRead,
+      action: {
+        Task {
+          await viewModel.markAllRead(
+            organizationId: effectiveOrganizationId,
+            service: appState.supabase
+          )
+        }
+      }
+    )
+    .disabled(viewModel.isMarkingAllRead || viewModel.totalUnread == 0)
   }
 
   @ViewBuilder
-  private var notificationContent: some View {
-    if viewModel.isLoading && viewModel.notifications.isEmpty {
-      ProgressView("Loading notifications…")
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    } else if let error = viewModel.errorMessage, viewModel.notifications.isEmpty {
-      ContentUnavailableView(
-        "Notifications unavailable",
-        systemImage: "exclamationmark.triangle",
-        description: Text(error)
-      )
-      .overlay(alignment: .bottom) {
-        Button("Try Again") { Task { await refresh() } }
-          .buttonStyle(.borderedProminent)
-          .padding()
-      }
-    } else if viewModel.notifications.isEmpty {
-      ContentUnavailableView(
-        viewModel.unreadOnly ? "No unread notifications" : "No notifications yet",
-        systemImage: "bell.slash",
-        description: Text("Important organization updates will appear here.")
-      )
-    } else {
-      List {
-        if let error = viewModel.errorMessage {
-          Text(error)
-            .font(.footnote)
-            .foregroundStyle(.red)
+  private func notificationContent(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Inbox") {
+          HPStatusBadge(text: "\(viewModel.notifications.count)", kind: .neutral)
         }
-        ForEach(viewModel.notifications) { notification in
-          Button {
-            open(notification)
-          } label: {
-            NotificationRow(notification: notification)
+
+        if viewModel.isLoading && viewModel.notifications.isEmpty {
+          HPLoadingState(text: "Loading notifications…")
+        } else if let error = viewModel.errorMessage, viewModel.notifications.isEmpty {
+          HPErrorState(title: "Notifications unavailable", message: error)
+          HPButton(
+            title: "Try again",
+            systemImage: "arrow.clockwise",
+            variant: .secondary,
+            size: .md,
+            fullWidth: context.isAccessibilitySize,
+            action: { Task { await refresh() } }
+          )
+          .frame(maxWidth: .infinity, alignment: .center)
+        } else if viewModel.notifications.isEmpty {
+          HPEmptyState(
+            title: viewModel.unreadOnly ? "No unread notifications" : "No notifications yet",
+            message: "Important organization updates will appear here.",
+            systemImage: "bell.slash"
+          )
+        } else {
+          if let error = viewModel.errorMessage {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.danger)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          .buttonStyle(.plain)
-        }
-        if viewModel.hasMore {
-          HStack {
-            Spacer()
-            Button(viewModel.isLoadingMore ? "Loading…" : "Load More") {
-              Task {
-                await viewModel.loadMore(
-                  organizationId: effectiveOrganizationId,
-                  service: appState.supabase
-                )
-              }
+
+          ForEach(viewModel.notifications) { notification in
+            Button {
+              open(notification)
+            } label: {
+              NotificationRow(notification: notification)
             }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .accessibilityHint("Opens this notification")
+
+            if notification.id != viewModel.notifications.last?.id {
+              Divider()
+                .overlay(HP.Color.border.opacity(0.5))
+                .allowsHitTesting(false)
+            }
+          }
+
+          if viewModel.hasMore {
+            HPButton(
+              title: "Load more",
+              systemImage: "arrow.down.circle",
+              variant: .secondary,
+              size: .md,
+              isLoading: viewModel.isLoadingMore,
+              action: {
+                Task {
+                  await viewModel.loadMore(
+                    organizationId: effectiveOrganizationId,
+                    service: appState.supabase
+                  )
+                }
+              }
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
             .disabled(viewModel.isLoadingMore)
-            Spacer()
           }
         }
       }
-      .refreshable { await refresh() }
     }
   }
 
@@ -331,7 +446,8 @@ struct NotificationCenterView: View {
         return
       }
       _ = await viewModel.markRead(notification, service: appState.supabase)
-      selectedNotification = viewModel.notifications.first(where: { $0.id == notification.id }) ?? notification
+      selectedNotification =
+        viewModel.notifications.first(where: { $0.id == notification.id }) ?? notification
     }
   }
 }
@@ -343,36 +459,55 @@ struct NotificationRow: View {
     HStack(alignment: .top, spacing: 12) {
       Image(systemName: notification.category.systemImage)
         .font(.title3)
-        .foregroundStyle(notification.isUnread ? Color.accentColor : DHDTheme.textSecondary)
-        .frame(width: 28)
-      VStack(alignment: .leading, spacing: 5) {
-        HStack(alignment: .firstTextBaseline) {
-          Text(notification.title)
-            .font(.headline)
-            .foregroundStyle(DHDTheme.textPrimary)
-          Spacer()
-          if notification.isUnread {
-            Circle()
-              .fill(Color.accentColor)
-              .frame(width: 8, height: 8)
-              .accessibilityLabel("Unread")
+        .foregroundStyle(notification.isUnread ? HP.Color.accent : HP.Color.textMuted)
+        .frame(width: 28, height: 44, alignment: .top)
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        ViewThatFits(in: .horizontal) {
+          HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
+            notificationTitle
+            Spacer(minLength: 0)
+            if notification.isUnread {
+              HPStatusBadge(text: "Unread", kind: .gold)
+            }
+          }
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            notificationTitle
+            if notification.isUnread {
+              HPStatusBadge(text: "Unread", kind: .gold)
+            }
           }
         }
         Text(notification.body)
-          .font(.subheadline)
-          .foregroundStyle(DHDTheme.textSecondary)
-          .lineLimit(2)
-        HStack {
-          Text(notification.organizationName)
-          Spacer()
-          Text(relativeTimestamp)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            Text(notification.organizationName)
+            Spacer(minLength: HP.Space.sm)
+            Text(relativeTimestamp)
+          }
+          VStack(alignment: .leading, spacing: 2) {
+            Text(notification.organizationName)
+            Text(relativeTimestamp)
+          }
         }
-        .font(.caption)
-        .foregroundStyle(DHDTheme.textSecondary)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
       }
     }
-    .padding(.vertical, 5)
+    .padding(.vertical, HP.Space.xs)
+    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
+  }
+
+  private var notificationTitle: some View {
+    Text(notification.title)
+      .font(HP.Font.headline)
+      .foregroundStyle(HP.Color.text)
+      .fixedSize(horizontal: false, vertical: true)
   }
 
   private var relativeTimestamp: String {
@@ -389,50 +524,82 @@ struct AnnouncementComposerView: View {
   @State private var draft = AnnouncementDraft()
 
   var body: some View {
-    Form {
-      if context.supportMode {
-        Section {
-          Text("Platform Support — sending on behalf of \(context.organizationName)")
-            .font(.headline)
-          Text("This does not make you an organization owner or member.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-      }
+    HPScreenScaffold(maxContentWidth: 720) { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          "Create Announcement",
+          orgLabel: context.organizationName,
+          context: context.supportMode
+            ? "Platform Support · sending on behalf of this organization"
+            : "Organization announcement"
+        )
 
-      Section("Audience") {
-        Picker("Recipients", selection: $draft.audience) {
-          ForEach(AnnouncementAudience.allCases) { audience in
-            Text(audience.title).tag(audience)
+        if context.supportMode {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              Label(
+                "Platform Support — sending on behalf of \(context.organizationName)",
+                systemImage: "person.badge.shield.checkmark"
+              )
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.accent)
+              Text("This does not make you an organization owner or member.")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
         }
-      }
 
-      Section("Announcement") {
-        TextField("Title", text: $draft.title)
-        Text("\(draft.title.count)/\(AnnouncementDraft.maximumTitleLength)")
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
-        TextEditor(text: $draft.body)
-          .frame(minHeight: 150)
-        Text("\(draft.body.count)/\(AnnouncementDraft.maximumBodyLength)")
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
-      }
-
-      if let validation = draft.validationError,
-         !draft.title.isEmpty || !draft.body.isEmpty {
-        Section {
-          Text(validation)
-            .font(.footnote)
-            .foregroundStyle(.red)
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Audience")
+            Picker("Recipients", selection: $draft.audience) {
+              ForEach(AnnouncementAudience.allCases) { audience in
+                Text(audience.title).tag(audience)
+              }
+            }
+            .pickerStyle(.menu)
+            .tint(HP.Color.accent)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          }
         }
-      }
-      if let error = viewModel.errorMessage {
-        Section {
-          Text(error)
-            .font(.footnote)
-            .foregroundStyle(.red)
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Announcement")
+            HPFormField(
+              label: "Title",
+              text: $draft.title,
+              placeholder: "Announcement title",
+              helper: "\(draft.title.count)/\(AnnouncementDraft.maximumTitleLength)"
+            )
+            HPFormField(
+              label: "Message",
+              text: $draft.body,
+              kind: .multiline,
+              placeholder: "Write your announcement",
+              helper: "\(draft.body.count)/\(AnnouncementDraft.maximumBodyLength)"
+            )
+
+            if let validation = draft.validationError,
+              !draft.title.isEmpty || !draft.body.isEmpty
+            {
+              Label(validation, systemImage: "exclamationmark.circle.fill")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.danger)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+
+        if let error = viewModel.errorMessage {
+          HPCard(style: .flat) {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.danger)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
       }
     }
@@ -440,24 +607,37 @@ struct AnnouncementComposerView: View {
     .toolbar {
       ToolbarItem(placement: .cancellationAction) {
         Button("Cancel") { dismiss() }
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
           .disabled(viewModel.isSendingAnnouncement)
       }
       ToolbarItem(placement: .confirmationAction) {
-        Button(viewModel.isSendingAnnouncement ? "Sending…" : "Send") {
-          Task {
-            let sent = await viewModel.sendAnnouncement(
-              organizationId: context.organizationId,
-              draft: draft,
-              supportMode: context.supportMode,
-              service: appState.supabase
-            )
-            if sent { dismiss() }
+        HPButton(
+          title: "Send",
+          variant: .primary,
+          size: .sm,
+          isLoading: viewModel.isSendingAnnouncement,
+          action: {
+            Task {
+              let sent = await viewModel.sendAnnouncement(
+                organizationId: context.organizationId,
+                draft: draft,
+                supportMode: context.supportMode,
+                service: appState.supabase
+              )
+              if sent { dismiss() }
+            }
           }
-        }
+        )
         .disabled(!draft.isValid || viewModel.isSendingAnnouncement || !context.canCreate)
       }
     }
     .onAppear { viewModel.clearMessages() }
+    #if os(macOS)
+      .onExitCommand {
+        if !viewModel.isSendingAnnouncement { dismiss() }
+      }
+    #endif
   }
 }
 
@@ -466,16 +646,23 @@ struct NotificationDestinationView: View {
   @EnvironmentObject private var appState: AppState
   let notification: AppNotification
 
-  @ViewBuilder
   var body: some View {
+    destination
+      #if os(macOS)
+        .onExitCommand { dismiss() }
+      #endif
+  }
+
+  @ViewBuilder
+  private var destination: some View {
     switch NotificationRouter.destination(for: notification) {
     case .paymentRequest where appState.activeOrgId == notification.organizationId,
-         .payment where appState.activeOrgId == notification.organizationId:
+      .payment where appState.activeOrgId == notification.organizationId:
       AccountView()
         .navigationTitle("Billing")
         .notificationDismissToolbar(dismiss: dismiss)
     case .finance
-      where appState.activeOrgId == notification.organizationId && appState.canAdminActiveOrg:
+    where appState.activeOrgId == notification.organizationId && appState.canAdminActiveOrg:
       FinanceDashboardView(
         organizationId: notification.organizationId,
         organizationName: notification.organizationName,
@@ -489,25 +676,62 @@ struct NotificationDestinationView: View {
   }
 
   private var detail: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
-        Label(notification.organizationName, systemImage: notification.category.systemImage)
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(Color.accentColor)
-        Text(notification.title)
-          .font(.title2.weight(.bold))
-        Text(notification.body)
-          .font(.body)
-        Divider()
-        Text(fallbackSummary)
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+    HPScreenScaffold(maxContentWidth: 760) { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          "Notification",
+          orgLabel: notification.organizationName,
+          context: notification.isUnread ? "Unread organization update" : "Organization update"
+        )
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .center, spacing: HP.Space.sm) {
+                notificationCategoryLabel
+                Spacer(minLength: HP.Space.sm)
+                HPStatusBadge(
+                  text: notification.isUnread ? "Unread" : "Read",
+                  kind: notification.isUnread ? .gold : .success
+                )
+              }
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                notificationCategoryLabel
+                HPStatusBadge(
+                  text: notification.isUnread ? "Unread" : "Read",
+                  kind: notification.isUnread ? .gold : .success
+                )
+              }
+            }
+            Text(notification.title)
+              .font(HP.Font.title)
+              .tracking(HP.Font.titleTracking)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+              .accessibilityAddTraits(.isHeader)
+            Text(notification.body)
+              .font(HP.Font.body)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+            Divider()
+              .overlay(HP.Color.border)
+              .allowsHitTesting(false)
+            Text(fallbackSummary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
       }
-      .padding()
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Notification")
     .notificationDismissToolbar(dismiss: dismiss)
+  }
+
+  private var notificationCategoryLabel: some View {
+    Label(notification.organizationName, systemImage: notification.category.systemImage)
+      .font(HP.Font.callout.weight(.semibold))
+      .foregroundStyle(HP.Color.accent)
+      .fixedSize(horizontal: false, vertical: true)
   }
 
   private var fallbackSummary: String {
@@ -517,7 +741,8 @@ struct NotificationDestinationView: View {
         ? "Payment details are available in Billing."
         : "Switch to \(notification.organizationName) to open this item in Billing."
     case .finance:
-      return "Finance details require the matching active organization and owner or administrator access."
+      return
+        "Finance details require the matching active organization and owner or administrator access."
     case .chatConversation:
       return "Open Chat to view this conversation."
     case .announcement:
@@ -528,11 +753,13 @@ struct NotificationDestinationView: View {
   }
 }
 
-private extension View {
-  func notificationDismissToolbar(dismiss: DismissAction) -> some View {
+extension View {
+  fileprivate func notificationDismissToolbar(dismiss: DismissAction) -> some View {
     toolbar {
       ToolbarItem(placement: .confirmationAction) {
         Button("Done") { dismiss() }
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
       }
     }
   }

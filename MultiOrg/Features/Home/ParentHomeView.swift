@@ -67,58 +67,110 @@ struct ParentHomeView: View {
       .task(id: appState.activeOrgId) { await reload() }
 #else
       NavigationStack {
-        List {
+        HPWorkspaceScreenLayout {
+          HPWorkspaceHeader(
+            "Parent",
+            context: "Linked player profiles"
+          )
+        } attention: {
           if isLoading {
-            HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+            HPCard {
+              HPLoadingState(text: "Loading linked children…")
+            }
           }
-          if children.isEmpty, !isLoading {
-            Text("No children linked yet.")
-              .foregroundStyle(.secondary)
-          } else {
-            Section("Children") {
-              ForEach(children) { c in
-                NavigationLink {
-                  ParentChildProfileView(child: c)
-                    .environmentObject(appState)
-                } label: {
-                HStack(spacing: 12) {
-                  DHDAvatarView(
-                    url: {
-                      guard let path = c.avatar_path else { return nil }
-                      return appState.supabase?.publicAvatarURL(path: path)
-                    }(),
-                    initials: String(c.displayName.prefix(2)).uppercased(),
-                    size: 36
-                  )
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(c.displayName).font(.headline)
-                    Text(c.shortId).font(.caption).foregroundStyle(.secondary)
+        } metrics: {
+          HPMetricCard(
+            title: "Linked players",
+            value: "\(children.count)",
+            context: children.count == 1 ? "1 child profile" : "\(children.count) child profiles"
+          )
+        } supporting: {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Children") {
+                HPStatusBadge(text: "\(children.count)", kind: .neutral)
+              }
+
+              if children.isEmpty, !isLoading {
+                HPEmptyState(
+                  title: "No children linked yet",
+                  message: "Accepted parent invitations will appear here.",
+                  systemImage: "person.2"
+                )
+              } else {
+                ForEach(children) { child in
+                  NavigationLink {
+                    ParentChildProfileView(child: child)
+                      .environmentObject(appState)
+                  } label: {
+                    HStack(spacing: HP.Space.sm) {
+                      DHDAvatarView(
+                        url: {
+                          guard let path = child.avatar_path else { return nil }
+                          return appState.supabase?.publicAvatarURL(path: path)
+                        }(),
+                        initials: String(child.displayName.prefix(2)).uppercased(),
+                        size: 36
+                      )
+                      VStack(alignment: .leading, spacing: 2) {
+                        Text(child.displayName)
+                          .font(HP.Font.headline)
+                          .foregroundStyle(HP.Color.text)
+                          .fixedSize(horizontal: false, vertical: true)
+                        Text(child.shortId)
+                          .font(HP.Font.caption)
+                          .foregroundStyle(HP.Color.textMuted)
+                      }
+                      .frame(maxWidth: .infinity, alignment: .leading)
+                      Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HP.Color.textMuted)
+                        .accessibilityHidden(true)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                   }
+                  .buttonStyle(.plain)
+
+                  if child.id != children.last?.id {
+                    Divider().overlay(HP.Color.border.opacity(0.5))
                   }
-                  .padding(.vertical, 4)
                 }
               }
             }
           }
-          Section {
-            Button {
-              Task { await reload() }
+        }
+        .navigationTitle("Parent")
+        .toolbar {
+          ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+              Button {
+                Task { await reload() }
+              } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+              }
+              Button(role: .destructive) {
+                Task { await appState.signOut() }
+              } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+              }
             } label: {
-              Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            Button(role: .destructive) {
-              Task { await appState.signOut() }
-            } label: {
-              Text("Sign Out")
+              Image(systemName: "ellipsis.circle")
             }
           }
         }
-        .navigationTitle("Parent")
         .task(id: appState.activeOrgId) { await reload() }
       }
 #endif
     }
-    .sheet(isPresented: Binding(get: { !invites.isEmpty }, set: { _ in })) {
+    .sheet(
+      isPresented: Binding(
+        get: { !invites.isEmpty },
+        set: { isPresented in
+          if !isPresented { invites = [] }
+        }
+      )
+    ) {
       ParentInviteAcceptanceSheet(invites: $invites, onAccept: { inviteId in
         Task { await accept(inviteId: inviteId) }
       })
@@ -133,7 +185,10 @@ struct ParentHomeView: View {
   private var childList: some View {
     List(selection: $selection) {
       if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+        HStack(spacing: HP.Space.sm) {
+          ProgressView()
+          Text("Loading…").foregroundStyle(HP.Color.textMuted)
+        }
       }
       Section {
         Label("Account", systemImage: "gearshape")
@@ -159,14 +214,15 @@ struct ParentHomeView: View {
   }
 
   private var emptyState: some View {
-    VStack(spacing: 10) {
-      Text("Select a child")
-        .font(.title3.weight(.semibold))
-      Text("Choose a child to view their progress.")
-        .foregroundStyle(DHDTheme.textSecondary)
+    HPStateScreenLayout { _ in
+      HPCard {
+        HPEmptyState(
+          title: "Select a child",
+          message: "Choose a child to view their progress.",
+          systemImage: "person.crop.circle"
+        )
+      }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(DHDTheme.pageBackground)
   }
 #endif
 
@@ -222,35 +278,64 @@ private struct ParentInviteAcceptanceSheet: View {
 
   var body: some View {
     NavigationStack {
-      List {
-        Section {
-          Text("You have been invited to view one or more players as a parent/guardian.")
-            .foregroundStyle(.secondary)
-        }
-        Section("Invites") {
-          ForEach(invites) { inv in
-            HStack {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Player: \(inv.child_id.uuidString.prefix(6).uppercased())")
-                  .font(.headline)
-                if let rel = inv.relationship, !rel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                  Text(rel).font(.caption).foregroundStyle(.secondary)
-                }
-              }
-              Spacer()
-              Button("Accept") {
-                onAccept(inv.id)
-              }
-              .buttonStyle(.borderedProminent)
+      HPListScreenLayout {
+        HPWorkspaceHeader(
+          "Parent invites",
+          context: "You have been invited to view one or more players as a parent/guardian."
+        )
+      } controls: {
+        EmptyView()
+      } results: { context in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Invites") {
+              HPStatusBadge(text: "\(invites.count)", kind: .neutral)
             }
-            .padding(.vertical, 4)
+            ForEach(invites) { invite in
+              let layout = context.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+              layout {
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("Player: \(invite.child_id.uuidString.prefix(6).uppercased())")
+                    .font(HP.Font.headline)
+                    .foregroundStyle(HP.Color.text)
+                  if let relationship = invite.relationship,
+                     !relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(relationship)
+                      .font(HP.Font.caption)
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HPButton(
+                  title: "Accept",
+                  systemImage: "checkmark",
+                  variant: .secondary,
+                  size: .sm,
+                  fullWidth: context.isAccessibilitySize,
+                  action: { onAccept(invite.id) }
+                )
+              }
+              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+
+              if invite.id != invites.last?.id {
+                Divider().overlay(HP.Color.border.opacity(0.5))
+              }
+            }
           }
         }
       }
       .navigationTitle("Parent invites")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Close") { dismiss() }
+          Button("Close") {
+            invites = []
+            dismiss()
+          }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }

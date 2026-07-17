@@ -8,97 +8,124 @@ struct PlayerParentRequestsPanel: View {
   @State private var requests: [SDParentInviteRequest] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var loadErrorText: String?
 
   @State private var parentEmail: String = ""
   @State private var relationship: String = ""
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
       if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(DHDTheme.textSecondary) }
+        HPLoadingState(text: "Loading parent access…")
+      } else if let loadErrorText {
+        HPErrorState(
+          title: "Parent access unavailable",
+          message: loadErrorText,
+          onRetry: { Task { await reload() } }
+        )
       }
 
-      if linkedParents.isEmpty {
-        Text("No parents linked yet.")
-          .foregroundStyle(DHDTheme.textSecondary)
-      } else {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Linked parents")
-            .font(.subheadline.weight(.semibold))
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Linked parents") {
+          if !linkedParents.isEmpty {
+            HPStatusBadge(text: "\(linkedParents.count)", kind: .neutral)
+          }
+        }
+
+        if linkedParents.isEmpty, loadErrorText == nil {
+          HPEmptyState(
+            title: "No linked parents",
+            message: "Approved parent and guardian links will appear here.",
+            systemImage: "person.2"
+          )
+        } else {
           ForEach(linkedParents, id: \.0.id) { parent, link in
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
               Text(parent.displayName)
-              Spacer()
-              if let rel = link.relationship, !rel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                DHDStatusBadge(text: rel, color: .blue)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: HP.Space.sm)
+              if let rel = link.relationship,
+                 !rel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HPStatusBadge(text: rel, kind: .info)
               }
             }
-            .foregroundStyle(DHDTheme.textPrimary)
+            .padding(.vertical, HP.Space.xs)
           }
         }
       }
 
-      Divider().overlay(DHDTheme.separator.opacity(0.5))
+      Divider().overlay(HP.Color.border.opacity(0.5))
 
-      VStack(alignment: .leading, spacing: 8) {
-        Text("Request parent access")
-          .font(.subheadline.weight(.semibold))
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Request parent access")
         Text("Enter a parent/guardian email. A coach will approve it before the parent can link.")
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
 
-        TextField("Parent email", text: $parentEmail)
-          .textFieldStyle(.roundedBorder)
+        HPFormField(
+          label: "Parent email",
+          text: $parentEmail,
+          placeholder: "parent@example.com",
+          isEnabled: !isLoading
+        )
 #if canImport(UIKit)
           .textInputAutocapitalization(.never)
 #endif
           .autocorrectionDisabled()
 
-        TextField("Relationship (optional)", text: $relationship)
-          .textFieldStyle(.roundedBorder)
+        HPFormField(
+          label: "Relationship (optional)",
+          text: $relationship,
+          placeholder: "Parent or guardian",
+          isEnabled: !isLoading
+        )
 
-        Button {
-          Task { await submitRequest() }
-        } label: {
-          Label("Send request", systemImage: "paperplane")
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(parentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        HPButton(
+          title: "Send request",
+          systemImage: "paperplane",
+          variant: .primary,
+          size: .md,
+          action: { Task { await submitRequest() } }
+        )
+        .disabled(
+          isLoading || parentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
       }
 
-      Divider().overlay(DHDTheme.separator.opacity(0.5))
+      Divider().overlay(HP.Color.border.opacity(0.5))
 
-      VStack(alignment: .leading, spacing: 8) {
-        Text("Requests")
-          .font(.subheadline.weight(.semibold))
-        if requests.isEmpty {
-          Text("No requests yet.")
-            .foregroundStyle(DHDTheme.textSecondary)
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Requests") {
+          if !requests.isEmpty {
+            HPStatusBadge(text: "\(requests.count)", kind: .neutral)
+          }
+        }
+        if requests.isEmpty, loadErrorText == nil {
+          HPEmptyState(
+            title: "No requests yet",
+            message: "Parent access requests you send will appear here.",
+            systemImage: "paperplane"
+          )
         } else {
-          ForEach(requests) { r in
-            HStack {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(r.email_norm)
-                Text(r.status.capitalized)
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
-                if let note = r.coach_note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                  Text(note)
-                    .font(.caption)
-                    .foregroundStyle(DHDTheme.textSecondary)
-                }
+          ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .top, spacing: HP.Space.sm) {
+                requestDetails(request)
+                Spacer(minLength: HP.Space.sm)
+                requestActions(request)
               }
-              Spacer()
-              if r.status.lowercased() == "requested" {
-                Button(role: .destructive) {
-                  Task { await cancelRequest(id: r.id) }
-                } label: {
-                  Text("Cancel")
-                }
-                .buttonStyle(.bordered)
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                requestDetails(request)
+                requestActions(request, fullWidth: true)
               }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, HP.Space.xs)
+            if index < requests.count - 1 {
+              Divider().overlay(HP.Color.border.opacity(0.5))
+            }
           }
         }
       }
@@ -109,8 +136,43 @@ struct PlayerParentRequestsPanel: View {
     } message: { Text(errorText ?? "") }
   }
 
+  private func requestDetails(_ request: SDParentInviteRequest) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(request.email_norm)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      HPStatusBadge(
+        text: request.status.capitalized,
+        kind: parentRequestStatusKind(request.status)
+      )
+      if let note = request.coach_note,
+         !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(note)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func requestActions(_ request: SDParentInviteRequest, fullWidth: Bool = false) -> some View {
+    if request.status.lowercased() == "requested" {
+      HPButton(
+        title: "Cancel",
+        variant: .destructive,
+        size: .sm,
+        fullWidth: fullWidth,
+        action: { Task { await cancelRequest(id: request.id) } }
+      )
+      .disabled(isLoading)
+    }
+  }
+
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    loadErrorText = nil
     isLoading = true
     defer { isLoading = false }
     do {
@@ -125,6 +187,7 @@ struct PlayerParentRequestsPanel: View {
 
       requests = try await supabase.listMyParentInviteRequests()
     } catch {
+      loadErrorText = error.localizedDescription
       errorText = error.localizedDescription
     }
   }
@@ -170,71 +233,82 @@ struct CoachParentRequestsPanel: View {
   @State private var requests: [SDParentInviteRequest] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var loadErrorText: String?
 
   @State private var noteByRequestId: [UUID: String] = [:]
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Text("Pending requests")
-          .font(.subheadline.weight(.semibold))
-        Spacer()
-        Button {
-          Task { await reload() }
-        } label: {
-          Image(systemName: "arrow.clockwise")
-        }
-        .buttonStyle(.bordered)
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPSectionHeader("Pending requests") {
+        HPButton(
+          title: "Refresh",
+          systemImage: "arrow.clockwise",
+          variant: .secondary,
+          size: .sm,
+          action: { Task { await reload() } }
+        )
+        .disabled(isLoading)
       }
 
       if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(DHDTheme.textSecondary) }
+        HPLoadingState(text: "Loading parent requests…")
+      } else if let loadErrorText {
+        HPErrorState(
+          title: "Parent requests unavailable",
+          message: loadErrorText,
+          onRetry: { Task { await reload() } }
+        )
       } else if requests.isEmpty {
-        Text("No pending requests.")
-          .foregroundStyle(DHDTheme.textSecondary)
+        HPEmptyState(
+          title: "No pending requests",
+          message: "New parent access requests will appear here for review.",
+          systemImage: "person.badge.clock"
+        )
       } else {
-        ForEach(requests) { r in
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(r.email_norm).font(.headline)
-                Text("Child: \(r.child_id.uuidString.prefix(6).uppercased())")
-                  .font(.caption)
-                  .foregroundStyle(DHDTheme.textSecondary)
-                if let rel = r.relationship, !rel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                  Text(rel).font(.caption).foregroundStyle(DHDTheme.textSecondary)
-                }
+        ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            ViewThatFits(in: .horizontal) {
+              HStack(alignment: .top, spacing: HP.Space.sm) {
+                coachRequestDetails(request)
+                Spacer(minLength: HP.Space.sm)
+                HPStatusBadge(
+                  text: request.status.capitalized,
+                  kind: parentRequestStatusKind(request.status)
+                )
               }
-              Spacer()
-              DHDStatusBadge(text: r.status.capitalized, color: .blue)
+              VStack(alignment: .leading, spacing: HP.Space.xs) {
+                coachRequestDetails(request)
+                HPStatusBadge(
+                  text: request.status.capitalized,
+                  kind: parentRequestStatusKind(request.status)
+                )
+              }
             }
 
-            TextField("Coach note (optional)", text: Binding(
-              get: { noteByRequestId[r.id] ?? "" },
-              set: { noteByRequestId[r.id] = $0 }
-            ))
-              .textFieldStyle(.roundedBorder)
+            HPFormField(
+              label: "Coach note (optional)",
+              text: Binding(
+                get: { noteByRequestId[request.id] ?? "" },
+                set: { noteByRequestId[request.id] = $0 }
+              ),
+              placeholder: "Add context for this decision",
+              isEnabled: !isLoading
+            )
 
-            HStack(spacing: 10) {
-              Button {
-                Task { await setStatus(r.id, status: "approved") }
-              } label: {
-                Label("Approve", systemImage: "checkmark.circle")
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: HP.Space.sm) {
+                reviewButtons(request, fullWidth: false)
+                Spacer(minLength: 0)
               }
-              .buttonStyle(.borderedProminent)
-
-              Button(role: .destructive) {
-                Task { await setStatus(r.id, status: "rejected") }
-              } label: {
-                Label("Reject", systemImage: "xmark.circle")
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                reviewButtons(request, fullWidth: true)
               }
-              .buttonStyle(.bordered)
-
-              Spacer()
             }
           }
-          .padding(.vertical, 6)
-          Divider().overlay(DHDTheme.separator.opacity(0.5))
+          .padding(.vertical, HP.Space.xs)
+          if index < requests.count - 1 {
+            Divider().overlay(HP.Color.border.opacity(0.5))
+          }
         }
       }
     }
@@ -244,13 +318,57 @@ struct CoachParentRequestsPanel: View {
     } message: { Text(errorText ?? "") }
   }
 
+  private func coachRequestDetails(_ request: SDParentInviteRequest) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(request.email_norm)
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Child: \(request.child_id.uuidString.prefix(6).uppercased())")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+      if let relationship = request.relationship,
+         !relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(relationship)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func reviewButtons(_ request: SDParentInviteRequest, fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Approve",
+      systemImage: "checkmark.circle",
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { Task { await setStatus(request.id, status: "approved") } }
+    )
+    .disabled(isLoading)
+
+    HPButton(
+      title: "Reject",
+      systemImage: "xmark.circle",
+      variant: .destructive,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { Task { await setStatus(request.id, status: "rejected") } }
+    )
+    .disabled(isLoading)
+  }
+
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    loadErrorText = nil
     isLoading = true
     defer { isLoading = false }
     do {
       requests = try await supabase.coachListParentInviteRequests(status: "requested")
     } catch {
+      loadErrorText = error.localizedDescription
       errorText = error.localizedDescription
     }
   }
@@ -273,5 +391,14 @@ struct CoachParentRequestsPanel: View {
     } catch {
       errorText = error.localizedDescription
     }
+  }
+}
+
+private func parentRequestStatusKind(_ status: String) -> HPStatusKind {
+  switch status.lowercased() {
+  case "approved": .success
+  case "rejected", "cancelled", "canceled": .danger
+  case "requested", "pending": .warning
+  default: .neutral
   }
 }

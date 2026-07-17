@@ -77,65 +77,45 @@ struct PlatformAdminDashboardView: View {
   var body: some View {
     Group {
       if appState.isPlatformAdmin {
-        ScrollView {
-          VStack(alignment: .leading, spacing: 14) {
-            DHDHeaderCard {
-              HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("Platform Admin")
-                    .font(.title2.weight(.bold))
-                  Text("Organizations, access, and billing health across MultiOrg.")
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.84))
-                }
-                Spacer()
-                Button {
-                  creationWorkflow.present()
-                } label: {
-                  Label("New Organization", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                Button { Task { await reload() } } label: {
-                  Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
-              }
-              .foregroundStyle(.white)
-            }
-
-            if isLoading && dashboard == nil {
-              ProgressView("Loading platform health…")
-                .frame(maxWidth: .infinity, minHeight: 180)
-            } else if let dashboard {
-              metricGrid(dashboard)
-              ownerlessOrganizationWarning(dashboard.ownerless_organizations)
-              unmanagedOrganizationWarning(dashboard.unmanaged_organizations)
-              organizationDirectory(dashboard.organizations)
-              if let organization = dashboard.organizations.first(where: { $0.id == selectedOrganizationId }) {
-                organizationMemberCard(organization)
-              }
-              globalUserLookupCard()
-              platformAdministratorsCard()
-              auditHistoryCard()
-            } else {
-              ContentUnavailableView("Platform data unavailable", systemImage: "building.2.crop.circle", description: Text("Refresh to load organization data."))
-            }
+        HPAdminScreenLayout(
+          supportContext: HPAdminSupportContext(
+            organizationName: "all organizations",
+            message: "Platform support does not grant organization membership or ownership. Platform-authorized changes here are separately authenticated and audited by the backend."
+          )
+        ) { _ in
+          HPWorkspaceHeader(
+            "Platform Admin",
+            orgLabel: "Home Plate Platform",
+            context: "Organizations, access, and billing health across MultiOrg."
+          ) {
+            HPButton(
+              title: "New Organization",
+              systemImage: "plus",
+              variant: .primary,
+              size: .md,
+              action: { creationWorkflow.present() }
+            )
           }
-          .padding(DHDTheme.pagePadding)
-          .frame(maxWidth: .infinity, alignment: .leading)
+        } sectionNavigation: { context in
+          refreshCard(context)
+        } content: { context in
+          dashboardContent(context)
+        } dangerZone: { _ in
+          EmptyView()
         }
-        .dhdPageBackground()
       } else {
-        ContentUnavailableView(
-          "Platform Administration forbidden",
-          systemImage: "lock.shield",
-          description: Text("This workspace requires a server-authorized Home Plate platform administrator entitlement.")
-        )
-        .dhdPageBackground()
+        HPScreenScaffold(maxContentWidth: 560) { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Platform Administration forbidden",
+              message: "This workspace requires a server-authorized Home Plate platform administrator entitlement.",
+              systemImage: "lock.shield"
+            )
+          }
+        }
       }
     }
-    .dhdToast($toastText)
+    .hpToast($toastText)
     .navigationTitle("Platform Admin")
     .alert("Platform Admin", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -192,26 +172,104 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
+  private func refreshCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard(style: .flat) {
+      let layout = context.isExpanded
+        ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+        : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+      layout {
+        VStack(alignment: .leading, spacing: 4) {
+          HPSectionHeader("Platform overview")
+          Text("Review organization health, membership access, and platform permissions.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+        let actionLayout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+        actionLayout {
+          HPStatusBadge(text: isLoading ? "Refreshing" : "Ready", kind: isLoading ? .warning : .success)
+          HPButton(
+            title: "Refresh",
+            systemImage: "arrow.clockwise",
+            variant: .secondary,
+            size: .md,
+            isLoading: isLoading,
+            fullWidth: !context.isExpanded,
+            action: { Task { await reload() } }
+          )
+          .disabled(isLoading)
+        }
+        .frame(maxWidth: context.isExpanded ? nil : .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func dashboardContent(_ context: HPScreenLayoutContext) -> some View {
+    if isLoading && dashboard == nil {
+      HPCard {
+        HPLoadingState(text: "Loading platform health…")
+          .frame(maxWidth: .infinity, minHeight: 180)
+      }
+    } else if let dashboard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        metricGrid(dashboard, context: context)
+        ownerlessOrganizationWarning(dashboard.ownerless_organizations)
+        unmanagedOrganizationWarning(dashboard.unmanaged_organizations)
+        organizationDirectory(dashboard.organizations, context: context)
+        if let organization = dashboard.organizations.first(where: { $0.id == selectedOrganizationId }) {
+          organizationMemberCard(organization, context: context)
+        }
+        globalUserLookupCard(context)
+        platformAdministratorsCard(context)
+        auditHistoryCard(context)
+      }
+    } else {
+      HPCard {
+        HPErrorState(
+          title: "Platform data unavailable",
+          message: "Refresh to load organization data."
+        )
+      }
+    }
+  }
+
   @ViewBuilder
   private func ownerlessOrganizationWarning(_ organizations: [SDPlatformOrganization]) -> some View {
     if !organizations.isEmpty {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 10) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           Label("Owner assignment required", systemImage: "exclamationmark.shield.fill")
-            .font(.headline)
-            .foregroundStyle(.orange)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.warning)
           Text("These organizations have no active owner. Active administrators do not satisfy the owner requirement; explicitly add an active owner before removing existing owner access.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
           ForEach(organizations) { organization in
-            HStack {
-              Text(organization.name)
-                .font(.subheadline.weight(.semibold))
-              Spacer()
-              Text(organization.slug)
-                .font(.caption.monospaced())
-                .foregroundStyle(DHDTheme.textSecondary)
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: HP.Space.sm) {
+                Text(organization.name)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Spacer(minLength: HP.Space.sm)
+                Text(organization.slug)
+                  .font(HP.Font.caption.monospaced())
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              VStack(alignment: .leading, spacing: 2) {
+                Text(organization.name)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Text(organization.slug)
+                  .font(HP.Font.caption.monospaced())
+                  .foregroundStyle(HP.Color.textMuted)
+              }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
         }
       }
@@ -221,91 +279,111 @@ struct PlatformAdminDashboardView: View {
   @ViewBuilder
   private func unmanagedOrganizationWarning(_ organizations: [SDPlatformOrganization]) -> some View {
     if !organizations.isEmpty {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 10) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
           Label("No active owner or administrator", systemImage: "person.crop.circle.badge.exclamationmark")
-            .font(.headline)
-            .foregroundStyle(.red)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.danger)
           Text("These organizations have neither an active owner nor an active administrator. They are included in the owner-required diagnostic above and need deliberate platform review.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
           ForEach(organizations) { organization in
-            HStack {
-              Text(organization.name)
-                .font(.subheadline.weight(.semibold))
-              Spacer()
-              Text(organization.slug)
-                .font(.caption.monospaced())
-                .foregroundStyle(DHDTheme.textSecondary)
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: HP.Space.sm) {
+                Text(organization.name)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Spacer(minLength: HP.Space.sm)
+                Text(organization.slug)
+                  .font(HP.Font.caption.monospaced())
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              VStack(alignment: .leading, spacing: 2) {
+                Text(organization.name)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Text(organization.slug)
+                  .font(HP.Font.caption.monospaced())
+                  .foregroundStyle(HP.Color.textMuted)
+              }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
         }
       }
     }
   }
 
-  private func metricGrid(_ dashboard: SDPlatformDashboard) -> some View {
+  private func metricGrid(_ dashboard: SDPlatformDashboard, context: HPScreenLayoutContext) -> some View {
     let orgs = dashboard.organizations
-    return LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
-      metric("Organizations", orgs.count, "building.2.fill", .blue)
-      metric("Active members", orgs.reduce(0) { $0 + $1.active_members }, "person.3.fill", .green)
-      metric("Players", orgs.reduce(0) { $0 + $1.players }, "figure.baseball", .teal)
-      metric("Active access", orgs.reduce(0) { $0 + $1.active_entitlements }, "creditcard.fill", .orange)
-      metric("Teams", orgs.reduce(0) { $0 + $1.teams }, "person.3.sequence.fill", .purple)
+    return LazyVGrid(
+      columns: context.gridColumns(compact: 2, regular: 3, wide: 5),
+      spacing: HP.Space.sm
+    ) {
+      HPMetricCard(
+        title: "Organizations",
+        value: "\(orgs.count)",
+        context: "Across the platform",
+        valueColor: HP.Color.info
+      )
+      HPMetricCard(
+        title: "Active members",
+        value: "\(orgs.reduce(0) { $0 + $1.active_members })",
+        context: "Active organization memberships",
+        valueColor: HP.Color.success
+      )
+      HPMetricCard(
+        title: "Players",
+        value: "\(orgs.reduce(0) { $0 + $1.players })",
+        context: "Player memberships",
+        valueColor: HP.Color.info
+      )
+      HPMetricCard(
+        title: "Active access",
+        value: "\(orgs.reduce(0) { $0 + $1.active_entitlements })",
+        context: "Current entitlements",
+        valueColor: HP.Color.warning
+      )
+      HPMetricCard(
+        title: "Teams",
+        value: "\(orgs.reduce(0) { $0 + $1.teams })",
+        context: "Across all organizations"
+      )
     }
   }
 
-  private func metric(_ title: String, _ value: Int, _ image: String, _ color: Color) -> some View {
-    VStack(alignment: .leading, spacing: 7) {
-      Image(systemName: image).foregroundStyle(color)
-      Text("\(value)").font(.title2.weight(.bold))
-      Text(title).font(.caption).foregroundStyle(DHDTheme.textSecondary)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(12)
-    .background(DHDTheme.surfaceElevated.opacity(0.75))
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-  }
-
-  private func organizationDirectory(_ organizations: [SDPlatformOrganization]) -> some View {
+  private func organizationDirectory(
+    _ organizations: [SDPlatformOrganization],
+    context: HPScreenLayoutContext
+  ) -> some View {
     let filtered = SDPlatformDirectory.organizations(organizations, matching: organizationSearch)
-    return DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Organizations") { EmptyView() }
-        TextField("Search organizations…", text: $organizationSearch)
-          .textFieldStyle(.roundedBorder)
+    return HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Organizations") {
+          HPStatusBadge(text: "\(filtered.count) shown", kind: .neutral)
+        }
+        HPSearchBar(text: $organizationSearch, placeholder: "Search organizations…")
         if filtered.isEmpty {
-          Text("No organizations match this search.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No organizations found",
+            message: "No organizations match this search.",
+            systemImage: "building.2"
+          )
         } else {
           ForEach(Array(filtered.enumerated()), id: \.element.id) { index, organization in
             Button {
               selectedOrganizationId = organization.id
               Task { await loadMembers(for: organization.id) }
             } label: {
-              HStack(alignment: .top, spacing: 12) {
-                Image(systemName: selectedOrganizationId == organization.id ? "checkmark.circle.fill" : "building.2")
-                  .foregroundStyle(selectedOrganizationId == organization.id ? .blue : DHDTheme.textSecondary)
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(organization.name).font(.headline)
-                  Text(organization.id.uuidString.lowercased())
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(DHDTheme.textSecondary)
-                  Text("\(organization.active_members) members • \(organization.players) players • \(organization.coaches) staff")
-                    .font(.caption)
-                    .foregroundStyle(DHDTheme.textSecondary)
-                }
-                Spacer()
-                DHDStatusBadge(
-                  text: organization.status.capitalized,
-                  color: organization.status == "active" ? .green : .orange
-                )
-              }
-              .contentShape(Rectangle())
+              organizationRow(organization, context: context)
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+            .accessibilityHint("Loads members for this organization")
             if index < filtered.count - 1 {
-              Divider().overlay(DHDTheme.separator.opacity(0.3))
+              Divider().overlay(HP.Color.border.opacity(0.5))
             }
           }
         }
@@ -313,183 +391,376 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
-  private func organizationMemberCard(_ organization: SDPlatformOrganization) -> some View {
+  private func organizationRow(
+    _ organization: SDPlatformOrganization,
+    context: HPScreenLayoutContext
+  ) -> some View {
+    let isSelected = selectedOrganizationId == organization.id
+    let layout = context.isExpanded
+      ? AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+    return layout {
+      HStack(alignment: .top, spacing: HP.Space.sm) {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "building.2")
+          .foregroundStyle(isSelected ? HP.Color.accent : HP.Color.textMuted)
+          .frame(width: 24, height: 24)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(organization.name)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(organization.id.uuidString.lowercased())
+            .font(HP.Font.caption.monospaced())
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("\(organization.active_members) members • \(organization.players) players • \(organization.coaches) staff")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: HP.Space.xs) {
+          if isSelected { HPStatusBadge(text: "Selected", kind: .gold) }
+          HPStatusBadge(text: organization.status.capitalized, kind: statusKind(organization.status))
+        }
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          if isSelected { HPStatusBadge(text: "Selected", kind: .gold) }
+          HPStatusBadge(text: organization.status.capitalized, kind: statusKind(organization.status))
+        }
+      }
+    }
+  }
+
+  private func organizationMemberCard(
+    _ organization: SDPlatformOrganization,
+    context: HPScreenLayoutContext
+  ) -> some View {
     let filtered = SDPlatformDirectory.members(
       members,
       matching: memberSearch,
       filter: memberFilter
     )
-    return DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack {
+    return HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        let headerLayout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+        headerLayout {
           VStack(alignment: .leading, spacing: 3) {
-            Text("Organization Details").font(.headline)
+            HPSectionHeader("Organization Details")
             Text("\(organization.name) • \(organization.slug)")
-              .font(.caption)
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          Spacer()
-          Button("Edit Organization") { editingOrganization = PlatformOrganizationDraft(organization) }
-          Button { Task { await loadMembers(for: organization.id) } } label: {
-            Label("Refresh Members", systemImage: "arrow.clockwise")
-          }
-          .disabled(isLoadingMembers)
-        }
-
-        HStack {
-          TextField("Search members by name, username, or email…", text: $memberSearch)
-            .textFieldStyle(.roundedBorder)
-          Picker("Role", selection: $memberFilter) {
-            ForEach(SDPlatformMemberFilter.allCases) { filter in
-              Text(filter.title).tag(filter)
+          if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+          if context.isExpanded {
+            HStack(spacing: HP.Space.sm) {
+              organizationDetailActions(organization, fullWidth: false)
+            }
+          } else {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              organizationDetailActions(organization, fullWidth: true)
             }
           }
-          .frame(maxWidth: 190)
+        }
+
+        let filterLayout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+        filterLayout {
+          HPSearchBar(text: $memberSearch, placeholder: "Search members by name, username, or email…")
+          VStack(alignment: .leading, spacing: 4) {
+            Text("ROLE FILTER")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            Picker("Role", selection: $memberFilter) {
+              ForEach(SDPlatformMemberFilter.allCases) { filter in
+                Text(filter.title).tag(filter)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(HP.Color.accent)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, HP.Space.sm)
+            .background(
+              RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                .fill(HP.Color.input)
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                .strokeBorder(HP.Color.border, lineWidth: 1)
+                .allowsHitTesting(false)
+            )
+          }
+          .frame(maxWidth: context.isExpanded ? 220 : .infinity, alignment: .leading)
         }
 
         if isLoadingMembers {
-          ProgressView("Loading members…")
+          HPLoadingState(text: "Loading members…")
             .frame(maxWidth: .infinity, minHeight: 100)
         } else if filtered.isEmpty {
-          Text("No members match this search and filter.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No members found",
+            message: "No members match this search and filter.",
+            systemImage: "person.3"
+          )
         } else {
           ForEach(Array(filtered.enumerated()), id: \.element.id) { index, member in
-            HStack(alignment: .top, spacing: 12) {
-              VStack(alignment: .leading, spacing: 3) {
-                Text(member.displayName).font(.headline)
-                if let username = member.username {
-                  Text("@\(username)").font(.caption).foregroundStyle(DHDTheme.textSecondary)
-                }
-                if let email = member.email {
-                  Text(email).font(.caption).foregroundStyle(DHDTheme.textSecondary)
-                }
-                HStack(spacing: 5) {
-                  ForEach(member.badges, id: \.self) { badge in
-                    DHDStatusBadge(text: badge, color: badge == "Player" ? .teal : .blue)
-                  }
-                }
-                Text("Created: \(platformDate(member.created_at)) • Last activity: \(platformDate(member.last_activity))")
-                  .font(.caption2)
-                  .foregroundStyle(DHDTheme.textSecondary)
-              }
-              Spacer()
-              VStack(alignment: .trailing, spacing: 8) {
-                DHDStatusBadge(
-                  text: member.status.capitalized,
-                  color: member.isActive ? .green : .orange
-                )
-                Button("Edit Permissions") {
-                  editingMember = PlatformMembershipEditDraft(member: member)
-                }
-              }
-            }
+            memberRow(member, context: context)
             if index < filtered.count - 1 {
-              Divider().overlay(DHDTheme.separator.opacity(0.3))
+              Divider().overlay(HP.Color.border.opacity(0.5))
             }
           }
         }
 
         Text("Ownership transfer is a protected two-step operation: first promote the replacement owner, then demote or deactivate the previous owner. The final active owner cannot be removed.")
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 
-  private func globalUserLookupCard() -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Global User Lookup") { EmptyView() }
-        HStack {
-          TextField("Search name, username, email, or user ID…", text: $userSearch)
-            .textFieldStyle(.roundedBorder)
-            .onSubmit { Task { await searchUsers() } }
-          Button("Search") { Task { await searchUsers() } }
-            .disabled(userSearch.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 || isSearchingUsers)
+  @ViewBuilder
+  private func organizationDetailActions(_ organization: SDPlatformOrganization, fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Edit Organization",
+      variant: .secondary,
+      size: .sm,
+      fullWidth: fullWidth,
+      action: { editingOrganization = PlatformOrganizationDraft(organization) }
+    )
+    HPButton(
+      title: "Refresh Members",
+      systemImage: "arrow.clockwise",
+      variant: .secondary,
+      size: .sm,
+      isLoading: isLoadingMembers,
+      fullWidth: fullWidth,
+      action: { Task { await loadMembers(for: organization.id) } }
+    )
+    .disabled(isLoadingMembers)
+  }
+
+  private func memberRow(_ member: SDPlatformMember, context: HPScreenLayoutContext) -> some View {
+    let layout = context.isExpanded
+      ? AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+    return layout {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(member.displayName)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
+        if let username = member.username {
+          Text("@\(username)")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
-        if isSearchingUsers { ProgressView() }
+        if let email = member.email {
+          Text(email)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.xs) { memberBadges(member) }
+          VStack(alignment: .leading, spacing: HP.Space.xs) { memberBadges(member) }
+        }
+        Text("Created: \(platformDate(member.created_at)) • Last activity: \(platformDate(member.last_activity))")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+      VStack(alignment: context.isExpanded ? .trailing : .leading, spacing: HP.Space.xs) {
+        HPStatusBadge(
+          text: member.status.capitalized,
+          kind: member.isActive ? .success : statusKind(member.status)
+        )
+        HPButton(
+          title: "Edit Permissions",
+          variant: .secondary,
+          size: .sm,
+          fullWidth: !context.isExpanded,
+          action: { editingMember = PlatformMembershipEditDraft(member: member) }
+        )
+      }
+      .frame(maxWidth: context.isExpanded ? nil : .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private func memberBadges(_ member: SDPlatformMember) -> some View {
+    ForEach(member.badges, id: \.self) { badge in
+      HPStatusBadge(text: badge, kind: badge == "Player" ? .info : .neutral)
+    }
+  }
+
+  private func globalUserLookupCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Global User Lookup")
+        let searchLayout = context.isExpanded
+          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+        searchLayout {
+          HPSearchBar(text: $userSearch, placeholder: "Search name, username, email, or user ID…")
+            .onSubmit { Task { await searchUsers() } }
+          HPButton(
+            title: "Search",
+            systemImage: "magnifyingglass",
+            variant: .secondary,
+            size: .md,
+            isLoading: isSearchingUsers,
+            fullWidth: !context.isExpanded,
+            action: { Task { await searchUsers() } }
+          )
+          .disabled(userSearch.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 || isSearchingUsers)
+        }
+        if isSearchingUsers {
+          HPLoadingState(text: "Searching global users…")
+        }
         ForEach(userResults) { user in
-          HStack {
+          let resultLayout = context.isExpanded
+            ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          resultLayout {
             VStack(alignment: .leading, spacing: 2) {
-              Text(user.displayName).font(.subheadline.weight(.semibold))
+              Text(user.displayName)
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
               Text(user.email ?? user.user_id.uuidString.lowercased())
-                .font(.caption)
-                .foregroundStyle(DHDTheme.textSecondary)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
               if !user.usernames.isEmpty {
                 Text(user.usernames.map { "@\($0.username)" }.joined(separator: ", "))
-                  .font(.caption2)
-                  .foregroundStyle(DHDTheme.textSecondary)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+                  .fixedSize(horizontal: false, vertical: true)
               }
             }
-            Spacer()
-            Button("Grant Platform Admin") {
-              pendingPlatformAdminChange = PlatformAdministratorChange(
-                userId: user.user_id,
-                granted: true
-              )
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+            HPButton(
+              title: "Grant Platform Admin",
+              variant: .secondary,
+              size: .sm,
+              fullWidth: !context.isExpanded,
+              action: {
+                pendingPlatformAdminChange = PlatformAdministratorChange(
+                  userId: user.user_id,
+                  granted: true
+                )
+              }
+            )
             .disabled(platformAdministrators.contains(where: { $0.user_id == user.user_id }))
           }
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
     }
   }
 
-  private func platformAdministratorsCard() -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Platform Administrators") { EmptyView() }
+  private func platformAdministratorsCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Platform Administrators")
+        Text("Platform authority is separate from every organization membership and ownership role.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
         if platformAdministrators.isEmpty {
-          Text("No platform administrators were returned.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No platform administrators",
+            message: "No platform administrators were returned.",
+            systemImage: "person.badge.shield.checkmark"
+          )
         }
         ForEach(platformAdministrators) { administrator in
-          HStack {
+          let rowLayout = context.isExpanded
+            ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          rowLayout {
             VStack(alignment: .leading, spacing: 2) {
-              Text(administrator.displayName).font(.subheadline.weight(.semibold))
+              Text(administrator.displayName)
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
               Text("Granted: \(platformDate(administrator.granted_at))")
-                .font(.caption)
-                .foregroundStyle(DHDTheme.textSecondary)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
             }
-            Spacer()
-            Button("Revoke", role: .destructive) {
-              pendingPlatformAdminChange = PlatformAdministratorChange(
-                userId: administrator.user_id,
-                granted: false
-              )
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+            HPButton(
+              title: "Revoke",
+              variant: .destructive,
+              size: .sm,
+              fullWidth: !context.isExpanded,
+              action: {
+                pendingPlatformAdminChange = PlatformAdministratorChange(
+                  userId: administrator.user_id,
+                  granted: false
+                )
+              }
+            )
             .disabled(administrator.user_id == appState.myProfile?.id)
           }
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
       }
     }
   }
 
-  private func auditHistoryCard() -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("Recent Permission Changes") { EmptyView() }
+  private func auditHistoryCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Recent Permission Changes")
         if auditEntries.isEmpty {
-          Text("No recent permission changes.")
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-        ForEach(auditEntries.prefix(25)) { entry in
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(entry.action.replacingOccurrences(of: "_", with: " ").capitalized)
-                .font(.subheadline.weight(.semibold))
-              Text(auditSummary(entry))
-                .font(.caption)
-                .foregroundStyle(DHDTheme.textSecondary)
-            }
-            Spacer()
-            Text(platformDate(entry.created_at))
-              .font(.caption2)
-              .foregroundStyle(DHDTheme.textSecondary)
-          }
+          HPEmptyState(
+            title: "No permission changes",
+            message: "No recent permission changes.",
+            systemImage: "clock.arrow.circlepath"
+          )
+        } else {
+          HPTable(
+            columns: [
+              HPColumn(title: "Action"),
+              HPColumn(title: "Change"),
+              HPColumn(title: "Date", alignment: .trailing),
+            ],
+            rows: auditEntries.prefix(25).map { entry in
+              HPTableRow(
+                id: entry.id,
+                cells: [
+                  entry.action.replacingOccurrences(of: "_", with: " ").capitalized,
+                  auditSummary(entry),
+                  platformDate(entry.created_at),
+                ]
+              )
+            },
+            layout: context.tableLayout
+          )
         }
       }
+    }
+  }
+
+  private func statusKind(_ status: String) -> HPStatusKind {
+    switch status.lowercased() {
+    case "active": .success
+    case "invited", "pending": .warning
+    case "disabled", "suspended", "archived": .danger
+    default: .neutral
     }
   }
 
@@ -764,47 +1035,124 @@ private struct PlatformMembershipEditor: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Member") {
-          Text(draft.member.displayName)
-          if let email = draft.member.email { Text(email).foregroundStyle(.secondary) }
-          Text(draft.member.user_id.uuidString.lowercased())
-            .font(.caption.monospaced())
-            .foregroundStyle(.secondary)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Permission Editor",
+          orgLabel: "Platform Administration",
+          context: draft.member.displayName
+        )
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Member")
+            Text(draft.member.displayName)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+            if let email = draft.member.email {
+              Text(email)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(draft.member.user_id.uuidString.lowercased())
+              .font(HP.Font.caption.monospaced())
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
-        Section("Organization Permissions") {
-          Picker("Role", selection: $draft.role) {
-            ForEach(["owner", "admin", "coach", "player", "parent"], id: \.self) {
-              Text($0.capitalized).tag($0)
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Organization Permissions")
+            VStack(alignment: .leading, spacing: 6) {
+              Text("ROLE")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              Picker("Role", selection: $draft.role) {
+                ForEach(["owner", "admin", "coach", "player", "parent"], id: \.self) {
+                  Text($0.capitalized).tag($0)
+                }
+              }
+              .labelsHidden()
+              .pickerStyle(.menu)
+              .tint(HP.Color.accent)
+              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+              .padding(.horizontal, HP.Space.sm)
+              .background(
+                RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                  .fill(HP.Color.input)
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                  .strokeBorder(HP.Color.border, lineWidth: 1)
+                  .allowsHitTesting(false)
+              )
             }
-          }
-          Picker("Status", selection: $draft.status) {
-            ForEach(["active", "invited", "disabled", "suspended"], id: \.self) {
-              Text($0.capitalized).tag($0)
+            VStack(alignment: .leading, spacing: 6) {
+              Text("STATUS")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: [
+                  (value: "active", label: "Active"),
+                  (value: "invited", label: "Invited"),
+                  (value: "disabled", label: "Disabled"),
+                  (value: "suspended", label: "Suspended"),
+                ],
+                selection: $draft.status
+              )
             }
-          }
-          TextField("Reason (optional)", text: $draft.reason, axis: .vertical)
-          if draft.member.normalizedRole == "owner"
-            && (draft.role != "owner" || draft.status != "active") {
-            Label(
-              "Another active owner must exist before this change can succeed.",
-              systemImage: "exclamationmark.shield.fill"
+            HPFormField(
+              label: "Reason (optional)",
+              text: $draft.reason,
+              kind: .multiline,
+              placeholder: "Reason for this permission change",
+              helper: "Up to 500 characters. The backend audits the submitted change."
             )
-            .foregroundStyle(.orange)
+            if draft.member.normalizedRole == "owner"
+              && (draft.role != "owner" || draft.status != "active") {
+              Label(
+                "Another active owner must exist before this change can succeed.",
+                systemImage: "exclamationmark.shield.fill"
+              )
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.warning)
+              .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("Organization permissions come from this membership only. Platform administrator access is managed separately.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          Text("Organization permissions come from this membership only. Platform administrator access is managed separately.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
         }
+      } primaryAction: { context in
+        HPButton(
+          title: "Review Change",
+          systemImage: "checkmark.shield",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { isConfirming = true }
+        )
+        .disabled(!draft.hasChanges || draft.reason.count > 500)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Permission Editor")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Review Change") { isConfirming = true }
-            .disabled(!draft.hasChanges || draft.reason.count > 500)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
       .confirmationDialog(
@@ -832,56 +1180,109 @@ private struct PlatformOrganizationCreateEditor: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Organization") {
-          TextField("Name", text: $draft.name)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "New Organization",
+          orgLabel: "Platform Administration",
+          context: "Manual organization provisioning"
+        )
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Organization")
+            HPFormField(
+              label: "Name",
+              text: $draft.name,
+              placeholder: "Organization name"
+            )
             .onChange(of: draft.name) { _, newName in
               guard !didEditSlug || draft.slug == generatedSlug else { return }
               let nextSlug = slugify(newName)
               generatedSlug = nextSlug
               draft.slug = nextSlug
             }
-          TextField("Slug", text: $draft.slug)
+            HPFormField(
+              label: "Slug",
+              text: $draft.slug,
+              placeholder: "organization-slug",
+              helper: "The slug identifies this organization at sign-in. Use lowercase letters, numbers, and hyphens."
+            )
             .onChange(of: draft.slug) { _, value in
               if value != generatedSlug { didEditSlug = true }
             }
-          Text("The slug identifies this organization at sign-in. Use lowercase letters, numbers, and hyphens.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-          TextField("Billing email (optional)", text: $draft.billingEmail)
-          TextField("Member limit (optional)", text: $draft.maxMembers)
+            HPFormField(
+              label: "Billing email (optional)",
+              text: $draft.billingEmail,
+              placeholder: "billing@example.com"
+            )
+            HPFormField(
+              label: "Member limit (optional)",
+              text: $draft.maxMembers,
+              placeholder: "Positive whole number"
+            )
+          }
         }
-        Section("Plan") {
-          Picker("Plan", selection: $draft.plan) {
-            Text("Starter").tag("starter")
-            Text("Professional").tag("professional")
-            Text("Enterprise").tag("enterprise")
-          }
-          Text("Temporary manual provisioning: you will become this organization’s initial owner. Add another owner before removing your access.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-          if let errorText {
-            Text(errorText)
-              .font(.footnote)
-              .foregroundStyle(.red)
-          }
-          if isSubmitting {
-            HStack(spacing: 8) {
-              ProgressView()
-              Text("Creating organization…")
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Plan")
+            HPSegmentedControl(
+              options: [
+                (value: "starter", label: "Starter"),
+                (value: "professional", label: "Professional"),
+                (value: "enterprise", label: "Enterprise"),
+              ],
+              selection: $draft.plan
+            )
+            Text("Temporary manual provisioning: you will become this organization’s initial owner. Add another owner before removing your access.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+            if let errorText {
+              Label(errorText, systemImage: "exclamationmark.triangle")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.danger)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if isSubmitting {
+              HStack(spacing: HP.Space.xs) {
+                ProgressView()
+                Text("Creating organization…")
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.text)
+              }
+              .accessibilityElement(children: .combine)
             }
           }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: isSubmitting ? "Creating…" : "Create",
+          systemImage: "building.2.badge.plus",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSubmitting,
+          fullWidth: context.isAccessibilitySize,
+          action: { onCreate(draft) }
+        )
+        .disabled(!draft.isValid || isSubmitting)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
+        .disabled(isSubmitting)
       }
       .navigationTitle("New Organization")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
             .disabled(isSubmitting)
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button(isSubmitting ? "Creating…" : "Create") { onCreate(draft) }
-            .disabled(!draft.isValid || isSubmitting)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }
@@ -907,36 +1308,85 @@ private struct PlatformOrganizationEditor: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Organization") {
-          TextField("Name", text: $draft.name)
-          TextField("Slug", text: $draft.slug)
-          TextField("Billing email", text: $draft.billingEmail)
-          TextField("Member limit", text: $draft.maxMembers)
-        }
-        Section("Plan & Status") {
-          Picker("Plan", selection: $draft.plan) {
-            Text("Starter").tag("starter")
-            Text("Professional").tag("professional")
-            Text("Enterprise").tag("enterprise")
-          }
-          Picker("Status", selection: $draft.status) {
-            Text("Active").tag("active")
-            Text("Suspended").tag("suspended")
-            Text("Archived").tag("archived")
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Edit Organization",
+          orgLabel: "Platform Administration",
+          context: draft.original.name
+        )
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Organization")
+            HPFormField(label: "Name", text: $draft.name, placeholder: "Organization name")
+            HPFormField(label: "Slug", text: $draft.slug, placeholder: "organization-slug")
+            HPFormField(label: "Billing email", text: $draft.billingEmail, placeholder: "billing@example.com")
+            HPFormField(label: "Member limit", text: $draft.maxMembers, placeholder: "Positive whole number")
           }
         }
-      }
-      .navigationTitle("Edit Organization")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Plan & Status")
+            VStack(alignment: .leading, spacing: 6) {
+              Text("PLAN")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: [
+                  (value: "starter", label: "Starter"),
+                  (value: "professional", label: "Professional"),
+                  (value: "enterprise", label: "Enterprise"),
+                ],
+                selection: $draft.plan
+              )
+            }
+            VStack(alignment: .leading, spacing: 6) {
+              Text("STATUS")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: [
+                  (value: "active", label: "Active"),
+                  (value: "suspended", label: "Suspended"),
+                  (value: "archived", label: "Archived"),
+                ],
+                selection: $draft.status
+              )
+            }
+          }
+        }
+      } primaryAction: { context in
+        HPButton(
+          title: "Save",
+          systemImage: "checkmark",
+          variant: .primary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: {
             // Close immediately so a failed refresh cannot trap the admin in
             // this editor. The parent surface reports any save error clearly.
             dismiss()
             onSave(draft)
           }
+        )
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
+      }
+      .navigationTitle("Edit Organization")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
     }

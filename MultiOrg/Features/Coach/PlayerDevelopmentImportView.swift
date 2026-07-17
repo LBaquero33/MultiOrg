@@ -547,6 +547,8 @@ struct PlayerDevelopmentImportWorkspaceView: View {
 
   @EnvironmentObject private var appState: AppState
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @StateObject private var model = PlayerDevelopmentImportWorkspaceModel()
   let player: Profile?
 
@@ -592,16 +594,35 @@ struct PlayerDevelopmentImportWorkspaceView: View {
   var body: some View {
     Group {
       if !SDDevelopmentImportPresentationAuthorization.isVisible(membership: appState.activeOrgMembership) {
-        ContentUnavailableView("Staff access required", systemImage: "lock.fill", description: Text("Only active organization owners, admins, and coaches can import player data."))
+        HPScreenScaffold { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Staff access required",
+              message: "Only active organization owners, admins, and coaches can import player data.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
       } else if let service = appState.supabase, let orgId = appState.activeOrgId, let userId = appState.myProfile?.id {
         workspace(service: service, organizationId: orgId, userId: userId)
       } else {
-        ProgressView("Loading organization…")
+        HPScreenScaffold { _ in
+          HPCard {
+            HPLoadingState(text: "Loading organization…")
+          }
+        }
       }
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .navigationTitle("Import Player Data")
-    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Close") { dismiss() }
+          #if os(macOS)
+          .keyboardShortcut(.cancelAction)
+          #endif
+      }
+    }
     .fileImporter(
       isPresented: $showFileImporter,
       allowedContentTypes: [.commaSeparatedText, UTType(filenameExtension: "tsv") ?? .plainText],
@@ -652,42 +673,41 @@ struct PlayerDevelopmentImportWorkspaceView: View {
 
   private func workspace(service: SupabaseService, organizationId: UUID, userId: UUID) -> some View {
     ScrollViewReader { proxy in
-      ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-          DHDHeaderCard {
-            VStack(alignment: .leading, spacing: 8) {
-              Text("Player Development Data Import").font(.title3.weight(.semibold))
-              Text(player?.displayName ?? "Multiple organization players").font(.caption).foregroundStyle(Color.white.opacity(0.82))
-              Text("Private CSV/TSV upload • explicit player, metric, date, and unit mapping").font(.caption2).foregroundStyle(Color.white.opacity(0.72))
-            }.foregroundStyle(.white)
-          }.foregroundStyle(.white)
-
-          if let error = model.errorMessage {
-            messageCard(error, color: .red, icon: "exclamationmark.triangle.fill")
-            conflictRecoveryCard(
-              service: service,
-              organizationId: organizationId,
-              userId: userId
-            )
-          }
-          if let success = model.successMessage { messageCard(success, color: .green, icon: "checkmark.circle.fill") }
-
-          selectCard(service: service, organizationId: organizationId, userId: userId)
-          if let inspection = model.inspection { inspectionCard(inspection) }
-          if model.inspection != nil && model.phase != .completed {
-            mappingCard(service: service, organizationId: organizationId, userId: userId)
-              .id(WorkspaceAnchor.mapping)
-          }
-          if let preview = model.preview {
-            previewCard(preview, service: service, organizationId: organizationId, userId: userId)
-              .id(WorkspaceAnchor.preview)
-          }
-          historyCard(
+      HPWorkspaceScreenLayout {
+        HPWorkspaceHeader(
+          "Player Development Data Import",
+          context: "\(player?.displayName ?? "Multiple organization players") • Private CSV/TSV upload • explicit player, metric, date, and unit mapping"
+        )
+      } attention: {
+        if let error = model.errorMessage {
+          messageCard(error, color: HP.Color.danger, icon: "exclamationmark.triangle.fill")
+          conflictRecoveryCard(
             service: service,
             organizationId: organizationId,
             userId: userId
           )
-        }.padding()
+        }
+        if let success = model.successMessage {
+          messageCard(success, color: HP.Color.success, icon: "checkmark.circle.fill")
+        }
+      } metrics: {
+        EmptyView()
+      } supporting: {
+        selectCard(service: service, organizationId: organizationId, userId: userId)
+        if let inspection = model.inspection { inspectionCard(inspection) }
+        if model.inspection != nil && model.phase != .completed {
+          mappingCard(service: service, organizationId: organizationId, userId: userId)
+            .id(WorkspaceAnchor.mapping)
+        }
+        if let preview = model.preview {
+          previewCard(preview, service: service, organizationId: organizationId, userId: userId)
+            .id(WorkspaceAnchor.preview)
+        }
+        historyCard(
+          service: service,
+          organizationId: organizationId,
+          userId: userId
+        )
       }
       .onChange(of: model.phase) { _, phase in
         let anchor: WorkspaceAnchor?
@@ -703,104 +723,203 @@ struct PlayerDevelopmentImportWorkspaceView: View {
   }
 
   private func selectCard(service: SupabaseService, organizationId: UUID, userId: UUID) -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("1. Select a private CSV or TSV")
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("1. Select a private CSV or TSV")
         Picker("Provider", selection: $provider) {
           ForEach(SDDevelopmentImportProvider.allCases) { Text($0.label).tag($0) }
         }
+        .pickerStyle(.menu)
+        .tint(HP.Color.accent)
+        .frame(minHeight: 44)
         Text("Only Generic CSV parsing is automatic in Phase 11B.1. Provider labels use the same manual mapper until real fixtures are validated.")
-          .font(.caption).foregroundStyle(.secondary)
-        Button { showFileImporter = true } label: {
-          Label(model.isWorking ? "Uploading…" : "Choose file", systemImage: "doc.badge.plus")
-        }.buttonStyle(.borderedProminent).disabled(model.isWorking)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        HPButton(
+          title: model.isWorking ? "Uploading…" : "Choose file",
+          systemImage: "doc.badge.plus",
+          variant: model.inspection == nil && model.preview == nil && !hasPrimaryRecoveryAction ? .primary : .secondary,
+          size: .lg,
+          isLoading: model.isWorking,
+          fullWidth: stacksControls,
+          action: { showFileImporter = true }
+        )
+        .disabled(model.isWorking)
         if model.isWorking {
-          Button("Cancel operation", role: .cancel) {
-            operationTask?.cancel()
-            operationTask = nil
-            model.cancelCurrentOperation()
-          }
+          HPButton(
+            title: "Cancel operation",
+            variant: .secondary,
+            size: .md,
+            fullWidth: stacksControls,
+            action: {
+              operationTask?.cancel()
+              operationTask = nil
+              model.cancelCurrentOperation()
+            }
+          )
         }
         Text("UTF-8 only • .csv or .tsv • 10 MB • 50,000 rows • 250 columns")
-          .font(.caption2).foregroundStyle(.secondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 
   private func inspectionCard(_ inspection: SDDevelopmentImportInspection) -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("2. Detect and inspect")
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("2. Detect and inspect")
         if let detection = inspection.detection {
-          Text(detection.title).font(.headline)
-          HStack { badge(detection.confidence.capitalized + " confidence"); badge(detection.adapterVersion) }
-          if let name = detection.providerPlayerName { Text("Player candidate: \(name)").font(.caption) }
-          if let id = detection.providerPlayerID { Text("Provider player ID: \(id)").font(.caption.monospaced()) }
+          Text(detection.title)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          responsiveBadgeLayout {
+            badge(detection.confidence.capitalized + " confidence")
+            badge(detection.adapterVersion)
+          }
+          if let name = detection.providerPlayerName {
+            Text("Player candidate: \(name)")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.text)
+          }
+          if let id = detection.providerPlayerID {
+            Text("Provider player ID: \(id)")
+              .font(HP.Font.caption.monospaced())
+              .foregroundStyle(HP.Color.text)
+          }
           if detection.exportType == "trackman_radar" {
             Picker("TrackMan unit system", selection: $trackManUnitSystem) {
               Text("Confirm…").tag("")
               Text("Imperial").tag("imperial")
               Text("Metric").tag("metric")
             }
+            .pickerStyle(.menu)
+            .tint(HP.Color.accent)
+            .frame(minHeight: 44)
           }
           if !detection.protectedColumns.isEmpty {
             Text(detection.providerKey == "rapsodo" ? "Sensitive device and location fields were excluded." : "Protected identifiers are excluded from normal display.")
-              .font(.caption).foregroundStyle(.secondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
           if !detection.unsupportedColumns.isEmpty {
             Text("Unsupported or ambiguous: \(detection.unsupportedColumns.joined(separator: ", "))")
-              .font(.caption).foregroundStyle(.secondary)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
           if detection.automaticMappingSafe {
-            HStack {
-              Button("Review Import Preview") { useAutomaticMapping = true }
-                .buttonStyle(.borderedProminent)
-              Button("Adjust Mapping") { useAutomaticMapping = false }
-              Button("Use Generic CSV Mapping") { useAutomaticMapping = false; provider = .genericCSV }
+            let actionLayout = stacksControls
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+              : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+            actionLayout {
+              HPButton(
+                title: "Review Import Preview",
+                variant: .secondary,
+                size: .md,
+                fullWidth: stacksControls,
+                action: { useAutomaticMapping = true }
+              )
+              HPButton(
+                title: "Adjust Mapping",
+                variant: .secondary,
+                size: .md,
+                fullWidth: stacksControls,
+                action: { useAutomaticMapping = false }
+              )
+              HPButton(
+                title: "Use Generic CSV Mapping",
+                variant: .secondary,
+                size: .md,
+                fullWidth: stacksControls,
+                action: { useAutomaticMapping = false; provider = .genericCSV }
+              )
             }
           }
         }
-        HStack { badge(inspection.detectedFileType.uppercased()); badge(inspection.detectedDelimiter); badge("\(inspection.rowCount) rows") }
-        ScrollView(.horizontal) {
-          HStack { ForEach(inspection.headers, id: \.self) { Text($0).font(.caption.monospaced()).padding(6).background(DHDTheme.pageBackground).clipShape(RoundedRectangle(cornerRadius: 6)) } }
+        responsiveBadgeLayout {
+          badge(inspection.detectedFileType.uppercased())
+          badge(inspection.detectedDelimiter)
+          badge("\(inspection.rowCount) rows")
+        }
+        ScrollView(.horizontal, showsIndicators: true) {
+          HStack(spacing: HP.Space.xs) {
+            ForEach(inspection.headers, id: \.self) { header in
+              Text(header)
+                .font(HP.Font.caption.monospaced())
+                .foregroundStyle(HP.Color.text)
+                .padding(HP.Space.xs)
+                .background(HP.Color.surfaceMuted)
+                .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+            }
+          }
         }
         if !inspection.providerAdapterActive && provider != .genericCSV {
           Label("Automatic \(provider.label) detection is inactive; confirm every mapping manually.", systemImage: "hand.raised.fill")
-            .font(.caption).foregroundStyle(.orange)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.warning)
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
     }
   }
 
   private func mappingCard(service: SupabaseService, organizationId: UUID, userId: UUID) -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("3. Map and validate")
-        TextField("File time zone", text: $timeZone).textFieldStyle(.roundedBorder)
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("3. Map and validate")
+        HPFormField(
+          label: "File time zone",
+          text: $timeZone,
+          placeholder: "Time zone identifier"
+        )
         if useAutomaticMapping, let suggested = model.inspection?.suggestedMapping,
            model.inspection?.detection?.automaticMappingSafe == true {
           Text("Known columns are mapped automatically. Confirm the player, time zone, units, ignored fields, and preview before import.")
-            .font(.caption).foregroundStyle(.secondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
           ForEach(suggested.wideMetrics ?? [], id: \.column) { metric in
-            Text("\(metric.column) → \(metric.metricKey)").font(.caption.monospaced())
+            Text("\(metric.column) → \(metric.metricKey)")
+              .font(HP.Font.caption.monospaced())
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
           }
         } else {
-          Picker("File shape", selection: $shape) { ForEach(SDDevelopmentImportFileShape.allCases) { Text($0.rawValue.capitalized).tag($0) } }.pickerStyle(.segmented)
+          VStack(alignment: .leading, spacing: 6) {
+            formLabel("File shape")
+            HPSegmentedControl(
+              options: SDDevelopmentImportFileShape.allCases.map {
+                (value: $0, label: $0.rawValue.capitalized)
+              },
+              selection: $shape
+            )
+          }
           mappingPicker("Player column", selection: $playerColumn)
           Picker("Player identifier", selection: $playerColumnRole) {
             Text("Full name").tag("player_name")
             Text("Organization username").tag("player_username")
             Text("Provider external ID").tag("player_external_id")
           }
+          .pickerStyle(.menu)
+          .tint(HP.Color.accent)
+          .frame(minHeight: 44)
           mappingPicker("Observation date", selection: $dateColumn)
           Picker("Date format", selection: $dateFormat) {
             Text("ISO date / timestamp").tag("ISO")
             Text("MM/DD/YYYY").tag("MM/DD/YYYY")
           }
+          .pickerStyle(.menu)
+          .tint(HP.Color.accent)
+          .frame(minHeight: 44)
           if shape == .long { longMappingEditor } else { wideMappingEditor }
           mappingPicker("Sample size (optional)", selection: $sampleSizeColumn)
         }
-        Divider()
+        Divider().background(HP.Color.border)
         if !model.profiles.isEmpty {
           Menu("Use saved mapping") {
             ForEach(model.profiles) { profile in
@@ -810,92 +929,227 @@ struct PlayerDevelopmentImportWorkspaceView: View {
               }
             }
           }
+          .font(HP.Font.callout.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+          .tint(HP.Color.accent)
+          .frame(minHeight: 44)
         }
-        TextField("Save mapping as (optional)", text: $mappingName).textFieldStyle(.roundedBorder)
-        Button {
-          operationTask?.cancel()
-          operationTask = Task {
-            await model.validate(client: service, organizationId: organizationId, userId: userId, mapping: makeMapping(), mappingName: mappingName)
+        HPFormField(
+          label: "Save mapping as (optional)",
+          text: $mappingName,
+          placeholder: "Mapping name"
+        )
+        HPButton(
+          title: model.phase == .validating ? "Validating…" : "Build preview",
+          systemImage: "checklist",
+          variant: model.preview == nil && !hasPrimaryRecoveryAction ? .primary : .secondary,
+          size: .lg,
+          isLoading: model.phase == .validating,
+          fullWidth: stacksControls,
+          action: {
+            operationTask?.cancel()
+            operationTask = Task {
+              await model.validate(client: service, organizationId: organizationId, userId: userId, mapping: makeMapping(), mappingName: mappingName)
+            }
           }
-        } label: { Label(model.phase == .validating ? "Validating…" : "Build preview", systemImage: "checklist") }
-          .buttonStyle(.borderedProminent).disabled(model.isWorking || !mappingReady)
-        Text("Preview only — no player development data has been imported.").font(.caption).foregroundStyle(.secondary)
+        )
+        .disabled(model.isWorking || !mappingReady)
+        Label(
+          "Preview only — no player development data has been imported.",
+          systemImage: "eye"
+        )
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 
   private var longMappingEditor: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
       mappingPicker("Metric key / label", selection: $metricColumn)
       mappingPicker("Metric value", selection: $valueColumn)
       mappingPicker("Metric unit", selection: $unitColumn)
       ForEach(longMetricValues, id: \.self) { sourceMetric in
-        HStack {
-          Text(sourceMetric).font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+        let rowLayout = stacksControls
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          : AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+        rowLayout {
+          Text(sourceMetric)
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
           Picker("Canonical metric", selection: Binding(get: { longMetricKeys[sourceMetric] ?? sourceMetric }, set: { longMetricKeys[sourceMetric] = $0 })) {
             Text("Unmapped").tag(sourceMetric)
             ForEach(model.metricDefinitions) { Text("\($0.displayName) (\($0.canonicalUnit ?? "unitless"))").tag($0.canonicalKey) }
-          }.labelsHidden()
-          TextField("Unit", text: Binding(get: { longUnits[sourceMetric] ?? "" }, set: { longUnits[sourceMetric] = $0 })).frame(width: 90).textFieldStyle(.roundedBorder)
+          }
+          .labelsHidden()
+          .accessibilityLabel("Canonical metric for \(sourceMetric)")
+          .pickerStyle(.menu)
+          .tint(HP.Color.accent)
+          .frame(maxWidth: stacksControls ? .infinity : 260, minHeight: 44, alignment: .leading)
+          HPFormField(
+            label: "Source unit",
+            text: Binding(
+              get: { longUnits[sourceMetric] ?? "" },
+              set: { longUnits[sourceMetric] = $0 }
+            ),
+            placeholder: "Unit"
+          )
+          .frame(maxWidth: stacksControls ? .infinity : 120)
         }
+        .padding(.vertical, HP.Space.xs)
       }
     }
   }
 
   private var wideMappingEditor: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Map each metric column; leave non-metric columns ignored.").font(.caption).foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      Text("Map each metric column; leave non-metric columns ignored.")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
       ForEach(model.inspection?.headers ?? [], id: \.self) { header in
         if header != playerColumn && header != dateColumn && header != sampleSizeColumn {
-          HStack {
-            Text(header).font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+          let rowLayout = stacksControls
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+          rowLayout {
+            Text(header)
+              .font(HP.Font.callout.weight(.semibold))
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+              .frame(maxWidth: .infinity, alignment: .leading)
             Picker("Metric", selection: Binding(get: { wideMetricKeys[header] ?? "" }, set: { wideMetricKeys[header] = $0 })) {
               Text("Ignore").tag("")
               ForEach(model.metricDefinitions) { Text($0.displayName).tag($0.canonicalKey) }
-            }.labelsHidden()
-            TextField("Source unit", text: Binding(get: { wideUnits[header] ?? "" }, set: { wideUnits[header] = $0 })).frame(width: 100).textFieldStyle(.roundedBorder)
+            }
+            .labelsHidden()
+            .accessibilityLabel("Metric for \(header)")
+            .pickerStyle(.menu)
+            .tint(HP.Color.accent)
+            .frame(maxWidth: stacksControls ? .infinity : 240, minHeight: 44, alignment: .leading)
+            HPFormField(
+              label: "Source unit",
+              text: Binding(
+                get: { wideUnits[header] ?? "" },
+                set: { wideUnits[header] = $0 }
+              ),
+              placeholder: "Source unit"
+            )
+            .frame(maxWidth: stacksControls ? .infinity : 130)
           }
+          .padding(.vertical, HP.Space.xs)
         }
       }
     }
   }
 
   private func previewCard(_ preview: SDDevelopmentImportPreviewResponse, service: SupabaseService, organizationId: UUID, userId: UUID) -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        DHDSectionHeader("4. Review preview")
-        Text(preview.notice).font(.headline).foregroundStyle(.orange)
-        HStack { badge("\(preview.summary.acceptedRows) accepted"); badge("\(preview.summary.rejectedRows) rejected"); badge("\(preview.summary.warningCount) warnings"); badge("\(preview.summary.duplicateRows) duplicates") }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("4. Review preview")
+        Label(preview.notice, systemImage: "eye.fill")
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.warning)
+          .fixedSize(horizontal: false, vertical: true)
+        LazyVGrid(columns: previewMetricColumns, spacing: HP.Space.sm) {
+          HPMetricCard(
+            title: "Accepted",
+            value: "\(preview.summary.acceptedRows)",
+            context: "Preview rows",
+            valueColor: HP.Color.success
+          )
+          HPMetricCard(
+            title: "Rejected",
+            value: "\(preview.summary.rejectedRows)",
+            context: "Preview rows",
+            valueColor: HP.Color.danger
+          )
+          HPMetricCard(
+            title: "Warnings",
+            value: "\(preview.summary.warningCount)",
+            context: "Review before import",
+            valueColor: HP.Color.warning
+          )
+          HPMetricCard(
+            title: "Duplicates",
+            value: "\(preview.summary.duplicateRows)",
+            context: "Not imported twice",
+            valueColor: HP.Color.textMuted
+          )
+        }
         unresolvedPlayerResolutionSection(
           preview,
           service: service,
           organizationId: organizationId,
           userId: userId
         )
-        Picker("Filter", selection: $model.previewFilter) {
-          ForEach(["all", "accepted", "warning", "rejected", "unmatched", "ambiguous", "duplicate"], id: \.self) { Text($0.capitalized).tag($0) }
-        }.pickerStyle(.segmented)
+        VStack(alignment: .leading, spacing: 6) {
+          formLabel("Preview filter")
+          Picker("Filter", selection: $model.previewFilter) {
+            ForEach(["all", "accepted", "warning", "rejected", "unmatched", "ambiguous", "duplicate"], id: \.self) { Text($0.capitalized).tag($0) }
+          }
+          .labelsHidden()
+          .accessibilityLabel("Preview filter")
+          .pickerStyle(.menu)
+          .tint(HP.Color.accent)
+          .frame(minHeight: 44)
+        }
         ForEach(model.filteredPreviewRows.prefix(100)) { row in
-          VStack(alignment: .leading, spacing: 4) {
-            HStack { Text("Row \(row.sourceRowNumber)").font(.caption.weight(.semibold)); Spacer(); badge(row.acceptanceState) }
-            Text("\(row.playerLabel) • \(row.metricDisplayName ?? row.metricKey ?? "Unmapped metric")").font(.subheadline)
-            Text("Original: \(row.originalValue) \(row.originalUnit) → Normalized: \(row.normalizedValue.map { String(format: "%.4f", $0) } ?? "—") \(row.canonicalUnit ?? "")")
-              .font(.caption.monospaced()).foregroundStyle(.secondary)
-            if !row.errors.isEmpty { Text(row.errors.joined(separator: ", ")).font(.caption).foregroundStyle(.red) }
-          }.padding(10).background(DHDTheme.pageBackground).clipShape(RoundedRectangle(cornerRadius: 8))
+          HPCard(style: .flat) {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              let rowHeaderLayout = stacksControls
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+              rowHeaderLayout {
+                Text("Row \(row.sourceRowNumber)")
+                  .font(HP.Font.caption.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                if !stacksControls { Spacer(minLength: HP.Space.sm) }
+                badge(row.acceptanceState)
+              }
+              Text("\(row.playerLabel) • \(row.metricDisplayName ?? row.metricKey ?? "Unmapped metric")")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Original: \(row.originalValue) \(row.originalUnit) → Normalized: \(row.normalizedValue.map { String(format: "%.4f", $0) } ?? "—") \(row.canonicalUnit ?? "")")
+                .font(HP.Font.caption.monospaced())
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+              if !row.errors.isEmpty {
+                Text(row.errors.joined(separator: ", "))
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.danger)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
         }
         if !model.rowErrors.isEmpty {
           DisclosureGroup("Saved validation errors (\(model.rowErrors.count), capped at 100)") {
             ForEach(model.rowErrors.prefix(100)) { error in
               Text("Row \(error.sourceRowNumber): \(error.safeSummary)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
             }
           }
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .tint(HP.Color.accent)
         }
-        Button { showCommitConfirmation = true } label: { Label(model.phase == .committing ? "Importing…" : "Confirm import", systemImage: "square.and.arrow.down") }
-          .buttonStyle(.borderedProminent)
-          .disabled(model.isWorking || preview.summary.acceptedRows == 0 || model.phase == .completed)
+        HPButton(
+          title: model.phase == .committing ? "Importing…" : "Confirm import",
+          systemImage: "square.and.arrow.down",
+          variant: hasPrimaryRecoveryAction ? .secondary : .primary,
+          size: .lg,
+          isLoading: model.phase == .committing,
+          fullWidth: stacksControls,
+          action: { showCommitConfirmation = true }
+        )
+        .disabled(model.isWorking || preview.summary.acceptedRows == 0 || model.phase == .completed)
       }
     }
   }
@@ -909,89 +1163,103 @@ struct PlayerDevelopmentImportWorkspaceView: View {
   ) -> some View {
     let groups = preview.unresolvedPlayerGroups
     if !groups.isEmpty {
-      Divider()
-      DHDSectionHeader("Resolve imported players") {
-        Text("\(groups.count) identities").font(.caption)
+      Divider().background(HP.Color.border)
+      HPSectionHeader("Resolve imported players") {
+        HPStatusBadge(text: "\(groups.count) identities", kind: .warning)
       }
       Text("Each selection applies once to every preview observation with the same imported-player identity.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
 
       ForEach(groups) { group in
-        VStack(alignment: .leading, spacing: 10) {
-          HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(group.playerLabel).font(.headline)
-              Text("\(group.affectedObservationCount) affected observation\(group.affectedObservationCount == 1 ? "" : "s")")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-              if let providerID = group.providerPlayerIDHint {
-                Text("Provider player ID: \(providerID)")
-                  .font(.caption.monospaced())
-                  .foregroundStyle(.secondary)
-              }
-            }
-            Spacer()
-            badge(group.playerMatchState)
-          }
-
-          Picker(
-            "Resolve all observations to",
-            selection: resolutionSelection(for: group.sourceKey)
-          ) {
-            Text("Choose a Home Plate player").tag(UUID?.none)
-            ForEach(preview.sortedPlayerCandidates) { candidate in
-              Text(candidate.username.map { "\(candidate.fullName) (@\($0))" } ?? candidate.fullName)
-                .tag(Optional(candidate.id))
-            }
-          }
-
-          HStack {
-            Button("Apply resolution") {
-              guard let playerId = selectedResolutionPlayerIds[group.sourceKey] else { return }
-              operationTask?.cancel()
-              operationTask = Task {
-                let applied = await model.resolve(
-                  client: service,
-                  organizationId: organizationId,
-                  userId: userId,
-                  sourceKey: group.sourceKey,
-                  playerId: playerId
-                )
-                if applied {
-                  selectedResolutionPlayerIds.removeValue(forKey: group.sourceKey)
+        HPCard(style: .flat) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            let identityLayout = stacksControls
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+              : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: HP.Space.sm))
+            identityLayout {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(group.playerLabel)
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(group.affectedObservationCount) affected observation\(group.affectedObservationCount == 1 ? "" : "s")")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+                if let providerID = group.providerPlayerIDHint {
+                  Text("Provider player ID: \(providerID)")
+                    .font(HP.Font.caption.monospaced())
+                    .foregroundStyle(HP.Color.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
               }
+              if !stacksControls { Spacer(minLength: HP.Space.sm) }
+              badge(group.playerMatchState)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(selectedResolutionPlayerIds[group.sourceKey] == nil || model.isWorking)
 
-            if model.resolvingSourceKey == group.sourceKey {
-              ProgressView("Applying to \(group.affectedObservationCount)…")
-                .controlSize(.small)
+            Picker(
+              "Resolve all observations to",
+              selection: resolutionSelection(for: group.sourceKey)
+            ) {
+              Text("Choose a Home Plate player").tag(UUID?.none)
+              ForEach(preview.sortedPlayerCandidates) { candidate in
+                Text(candidate.username.map { "\(candidate.fullName) (@\($0))" } ?? candidate.fullName)
+                  .tag(Optional(candidate.id))
+              }
+            }
+            .pickerStyle(.menu)
+            .tint(HP.Color.accent)
+            .frame(minHeight: 44)
+
+            let actionLayout = stacksControls
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+              : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+            actionLayout {
+              HPButton(
+                title: "Apply resolution",
+                variant: .secondary,
+                size: .md,
+                fullWidth: stacksControls,
+                action: {
+                  guard let playerId = selectedResolutionPlayerIds[group.sourceKey] else { return }
+                  operationTask?.cancel()
+                  operationTask = Task {
+                    let applied = await model.resolve(
+                      client: service,
+                      organizationId: organizationId,
+                      userId: userId,
+                      sourceKey: group.sourceKey,
+                      playerId: playerId
+                    )
+                    if applied {
+                      selectedResolutionPlayerIds.removeValue(forKey: group.sourceKey)
+                    }
+                  }
+                }
+              )
+              .disabled(selectedResolutionPlayerIds[group.sourceKey] == nil || model.isWorking)
+
+              if model.resolvingSourceKey == group.sourceKey {
+                HPLoadingState(text: "Applying to \(group.affectedObservationCount)…")
+              }
             }
           }
         }
-        .padding(12)
-        .background(DHDTheme.pageBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-          RoundedRectangle(cornerRadius: 8)
-            .stroke(DHDTheme.separator)
-            .allowsHitTesting(false)
-        )
       }
 
       if preview.sortedPlayerCandidates.isEmpty {
         Label("No active Home Plate players are available in your authorized scope.", systemImage: "person.crop.circle.badge.exclamationmark")
-          .font(.caption)
-          .foregroundStyle(.orange)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.warning)
+          .fixedSize(horizontal: false, vertical: true)
       } else if preview.playerCandidatesTruncated == true {
         Text("The authorized player list is capped. Refine the organization roster if the player is not shown.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
-      Divider()
+      Divider().background(HP.Color.border)
     }
   }
 
@@ -1013,54 +1281,88 @@ struct PlayerDevelopmentImportWorkspaceView: View {
     organizationId: UUID,
     userId: UUID
   ) -> some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Import history")
-        if model.history.isEmpty { Text("No imports yet.").foregroundStyle(.secondary) }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Import history") {
+          HPStatusBadge(text: "\(model.history.count)", kind: .neutral)
+        }
+        if model.history.isEmpty {
+          Text("No imports yet.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+        }
         ForEach(model.history) { job in
-          VStack(alignment: .leading, spacing: 5) {
-            HStack {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(job.fileName ?? "Import").font(.subheadline.weight(.semibold))
-                Text("\(job.provider ?? "generic_csv") • \(job.status.label) • \(job.acceptedRows) accepted / \(job.rejectedRows) rejected")
-                  .font(.caption).foregroundStyle(.secondary)
-              }
-              Spacer()
-              if PlayerDevelopmentImportWorkspaceModel.canResumeValidation(job.status) &&
-                  !(model.job?.id == job.id && model.preview != nil) {
-                Button {
-                  operationTask?.cancel()
-                  guard model.beginValidationResume(
-                    job,
-                    organizationId: organizationId,
-                    userId: userId
-                  ) else { return }
-                  operationTask = Task {
-                    await model.resumeValidation(
-                      client: service,
-                      organizationId: organizationId,
-                      userId: userId
-                    )
-                  }
-                } label: {
-                  HStack(spacing: 5) {
-                    if model.resumingJobId == job.id { ProgressView().controlSize(.small) }
-                    Text(model.resumingJobId == job.id ? "Resuming…" : "Resume Validation")
-                  }
+          HPCard(style: .flat) {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              let historyLayout = stacksControls
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+              historyLayout {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(job.fileName ?? "Import")
+                    .font(HP.Font.callout.weight(.semibold))
+                    .foregroundStyle(HP.Color.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text("\(job.provider ?? "generic_csv") • \(job.status.label) • \(job.acceptedRows) accepted / \(job.rejectedRows) rejected")
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.caption)
-                .disabled(model.isWorking || model.resumingJobId != nil)
-              } else if job.status.isFinished && job.status != .archived {
-                Button("Archive") { Task { _ = try? await service.archiveDevelopmentImport(organizationId: organizationId, jobId: job.id) } }.font(.caption)
+                if !stacksControls { Spacer(minLength: HP.Space.sm) }
+                if PlayerDevelopmentImportWorkspaceModel.canResumeValidation(job.status) &&
+                    !(model.job?.id == job.id && model.preview != nil) {
+                  HPButton(
+                    title: model.resumingJobId == job.id ? "Resuming…" : "Resume Validation",
+                    variant: .secondary,
+                    size: .sm,
+                    isLoading: model.resumingJobId == job.id,
+                    fullWidth: stacksControls,
+                    action: {
+                      operationTask?.cancel()
+                      guard model.beginValidationResume(
+                        job,
+                        organizationId: organizationId,
+                        userId: userId
+                      ) else { return }
+                      operationTask = Task {
+                        await model.resumeValidation(
+                          client: service,
+                          organizationId: organizationId,
+                          userId: userId
+                        )
+                      }
+                    }
+                  )
+                  .disabled(model.isWorking || model.resumingJobId != nil)
+                } else if job.status.isFinished && job.status != .archived {
+                  HPButton(
+                    title: "Archive",
+                    variant: .destructive,
+                    size: .sm,
+                    fullWidth: stacksControls,
+                    action: {
+                      Task {
+                        _ = try? await service.archiveDevelopmentImport(
+                          organizationId: organizationId,
+                          jobId: job.id
+                        )
+                      }
+                    }
+                  )
+                }
               }
-            }
-            if model.resumingJobId == job.id {
-              Text("Reusing the existing private upload and saved mapping.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-            if model.resumeErrorJobId == job.id, let error = model.errorMessage {
-              Text(error).font(.caption).foregroundStyle(.red)
+              if model.resumingJobId == job.id {
+                Text("Reusing the existing private upload and saved mapping.")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              if model.resumeErrorJobId == job.id, let error = model.errorMessage {
+                Text(error)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.danger)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
             }
           }
         }
@@ -1073,6 +1375,9 @@ struct PlayerDevelopmentImportWorkspaceView: View {
       Text("Not mapped").tag("")
       ForEach(model.inspection?.headers ?? [], id: \.self) { Text($0).tag($0) }
     }
+    .pickerStyle(.menu)
+    .tint(HP.Color.accent)
+    .frame(minHeight: 44)
   }
 
   private var mappingReady: Bool {
@@ -1190,69 +1495,100 @@ struct PlayerDevelopmentImportWorkspaceView: View {
     userId: UUID
   ) -> some View {
     if model.recoveryAction == .resumeValidation {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Validation was not saved").font(.headline)
-          Text("The uploaded file and saved mapping are still available. Retrying replaces the incomplete validation details without importing observations.").font(.caption)
-          Button {
-            operationTask?.cancel()
-            guard let job = model.job,
-                  model.beginValidationResume(
-                    job,
-                    organizationId: organizationId,
-                    userId: userId
-                  ) else { return }
-            operationTask = Task {
-              await model.resumeValidation(
-                client: service,
-                organizationId: organizationId,
-                userId: userId
-              )
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Validation was not saved")
+          Text("The uploaded file and saved mapping are still available. Retrying replaces the incomplete validation details without importing observations.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          HPButton(
+            title: model.resumingJobId != nil ? "Resuming…" : "Resume Validation",
+            variant: .primary,
+            size: .md,
+            isLoading: model.resumingJobId != nil,
+            fullWidth: stacksControls,
+            action: {
+              operationTask?.cancel()
+              guard let job = model.job,
+                    model.beginValidationResume(
+                      job,
+                      organizationId: organizationId,
+                      userId: userId
+                    ) else { return }
+              operationTask = Task {
+                await model.resumeValidation(
+                  client: service,
+                  organizationId: organizationId,
+                  userId: userId
+                )
+              }
             }
-          } label: {
-            HStack(spacing: 6) {
-              if model.resumingJobId != nil { ProgressView().controlSize(.small) }
-              Text(model.resumingJobId != nil ? "Resuming…" : "Resume Validation")
-            }
-          }
+          )
           .disabled(model.isWorking || model.resumingJobId != nil)
         }
       }
     } else if model.recoveryAction == .startOver {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("This upload can no longer be resumed").font(.headline)
-          Text("Start Over archives only the incomplete job. No observations are created or removed.").font(.caption)
-          Button("Start Over") {
-            operationTask?.cancel()
-            operationTask = Task {
-              if await model.startOver(
-                client: service,
-                organizationId: organizationId,
-                userId: userId
-              ) {
-                showFileImporter = true
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("This upload can no longer be resumed")
+          Text("Start Over archives only the incomplete job. No observations are created or removed.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          HPButton(
+            title: "Start Over",
+            variant: .destructive,
+            size: .md,
+            fullWidth: stacksControls,
+            action: {
+              operationTask?.cancel()
+              operationTask = Task {
+                if await model.startOver(
+                  client: service,
+                  organizationId: organizationId,
+                  userId: userId
+                ) {
+                  showFileImporter = true
+                }
               }
             }
-          }
+          )
         }
       }
     } else if let code = model.errorCode, ["idempotent_import_already_started", "active_import_exists", "job_not_ready"].contains(code) {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Import state changed").font(.headline)
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Import state changed")
           if let active = model.history.first(where: { !$0.status.isFinished }) {
-            Button("Resume existing import") { model.resumeExistingImport(active) }
+            HPButton(
+              title: "Resume existing import",
+              variant: .primary,
+              size: .md,
+              fullWidth: stacksControls,
+              action: { model.resumeExistingImport(active) }
+            )
           }
-          if code == "job_not_ready" { Text("Refresh import history to use the authoritative next step.").font(.caption) }
+          if code == "job_not_ready" {
+            Text("Refresh import history to use the authoritative next step.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
       }
     } else if let code = model.errorCode, ["duplicate_file_reused", "completed_import_exists"].contains(code) {
-      DHDCard {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("This file and mapping were already imported.").font(.headline)
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("This file and mapping were already imported.")
           if let completed = model.history.first(where: { $0.status == .completed || $0.status == .completedWithErrors }) {
-            Button("View completed import") { model.viewCompletedImport(completed) }
+            HPButton(
+              title: "View completed import",
+              variant: .primary,
+              size: .md,
+              fullWidth: stacksControls,
+              action: { model.viewCompletedImport(completed) }
+            )
           }
         }
       }
@@ -1270,12 +1606,64 @@ struct PlayerDevelopmentImportWorkspaceView: View {
     .joined(separator: " ")
   }
 
+  private var stacksControls: Bool {
+    dynamicTypeSize.isAccessibilitySize || horizontalSizeClass == .compact
+  }
+
+  /// Recovery actions supersede the normal import progression as the screen's
+  /// single primary action. The model's existing lifecycle gates remain authoritative.
+  private var hasPrimaryRecoveryAction: Bool {
+    if model.recoveryAction == .resumeValidation {
+      return true
+    }
+    if let code = model.errorCode,
+       ["idempotent_import_already_started", "active_import_exists", "job_not_ready"].contains(code),
+       model.history.contains(where: { !$0.status.isFinished }) {
+      return true
+    }
+    if let code = model.errorCode,
+       ["duplicate_file_reused", "completed_import_exists"].contains(code),
+       model.history.contains(where: { $0.status == .completed || $0.status == .completedWithErrors }) {
+      return true
+    }
+    return false
+  }
+
+  private var previewMetricColumns: [GridItem] {
+    if stacksControls {
+      return [GridItem(.flexible(), spacing: HP.Space.sm)]
+    }
+    return [GridItem(.adaptive(minimum: 150), spacing: HP.Space.sm)]
+  }
+
+  private func formLabel(_ text: String) -> some View {
+    Text(text.uppercased())
+      .font(HP.Font.eyebrow)
+      .tracking(HP.Font.eyebrowTracking)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private func responsiveBadgeLayout<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    let layout = stacksControls
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+      : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
+    return layout { content() }
+  }
+
   private func badge(_ text: String) -> some View {
-    Text(text).font(.caption2.weight(.semibold)).padding(.horizontal, 7).padding(.vertical, 4).background(Color.secondary.opacity(0.12)).clipShape(Capsule())
+    HPStatusBadge(text: text, kind: .neutral)
   }
 
   private func messageCard(_ text: String, color: Color, icon: String) -> some View {
-    DHDCard { Label(text, systemImage: icon).foregroundStyle(color) }
+    HPCard {
+      Label(text, systemImage: icon)
+        .font(HP.Font.callout)
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 

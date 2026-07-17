@@ -49,76 +49,43 @@ struct EditFacilityBookingSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("When") {
-          DatePicker("Start", selection: $startAt)
-          DatePicker("End", selection: $endAt)
-
-          HStack(spacing: 10) {
-            Text("Nudge")
-              .foregroundStyle(DHDTheme.textSecondary)
-            Spacer()
-            Button("-60m") { nudge(minutes: -60) }
-            Button("-15m") { nudge(minutes: -15) }
-            Button("+15m") { nudge(minutes: 15) }
-            Button("+60m") { nudge(minutes: 60) }
-          }
-        }
-
-        Section("Resource") {
-          Picker("Cage", selection: $facilityId) {
-            ForEach(selectableFacilities) { f in
-              Text(f.name).tag(f.id)
-            }
-          }
-          if facilityId == cage3_1Id {
-            Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
-          }
-          if let onBeginMove {
-            Button {
-              onBeginMove()
-              dismiss()
-            } label: {
-              Label("Move by tapping schedule…", systemImage: "hand.tap")
-            }
-            .foregroundStyle(DHDTheme.accent)
-          }
-          Picker("Status", selection: $status) {
-            Text("Pending").tag("pending")
-            Text("Approved").tag("approved")
-            Text("Denied").tag("denied")
-            Text("Cancelled").tag("cancelled")
-          }
-          Picker("Activity", selection: $activityType) {
-            Text("BP").tag("bp")
-            Text("Bullpen").tag("bullpen")
-            Text("Extra work").tag("extra_work")
-            Text("Lesson").tag("lesson")
-            Text("Other").tag("other")
-          }
-          Picker("Coach", selection: Binding(get: { coachId }, set: { coachId = $0 })) {
-            Text("N/A").tag(UUID?.none)
-            ForEach(coachOptions) { c in
-              Text(c.displayName).tag(UUID?.some(c.id))
-            }
-          }
-        }
-
-        Section("Details") {
-          TextField("Title (optional)", text: $title)
-          TextField("Notes (optional)", text: $notes, axis: .vertical)
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Edit booking",
+          orgLabel: activeOrganizationName,
+          context: "Update reservation details"
+        )
+      } sections: { context in
+        whenSection(context)
+        resourceSection
+        detailsSection
+      } primaryAction: { context in
+        HPButton(
+          title: "Save changes",
+          systemImage: "checkmark",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await save() } }
+        )
+        .disabled(isSaving || endAt <= startAt)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Close",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Edit booking")
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Save") }
-          }
-          .disabled(isSaving || endAt <= startAt)
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Close") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -128,6 +95,155 @@ struct EditFacilityBookingSheet: View {
         if newValue != cage3_1Id {
           isFullCage3 = false
         }
+      }
+    }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private func whenSection(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("When")
+        DatePicker("Start", selection: $startAt)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+        DatePicker("End", selection: $endAt)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
+        if endAt <= startAt {
+          Text("End must be after start.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.danger)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Divider().overlay(HP.Color.border)
+        nudgeControls(stacked: context.isAccessibilitySize || !context.isRegularWidth)
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  @ViewBuilder
+  private func nudgeControls(stacked: Bool) -> some View {
+    if stacked {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        nudgeLabel
+        nudgeButton("-60m", minutes: -60, fullWidth: true)
+        nudgeButton("-15m", minutes: -15, fullWidth: true)
+        nudgeButton("+15m", minutes: 15, fullWidth: true)
+        nudgeButton("+60m", minutes: 60, fullWidth: true)
+      }
+    } else {
+      HStack(spacing: HP.Space.sm) {
+        nudgeLabel
+        Spacer(minLength: 0)
+        nudgeButton("-60m", minutes: -60)
+        nudgeButton("-15m", minutes: -15)
+        nudgeButton("+15m", minutes: 15)
+        nudgeButton("+60m", minutes: 60)
+      }
+    }
+  }
+
+  private var nudgeLabel: some View {
+    Text("Nudge")
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.textMuted)
+  }
+
+  private func nudgeButton(_ label: String, minutes: Int, fullWidth: Bool = false) -> some View {
+    HPButton(
+      title: label,
+      variant: .secondary,
+      size: .sm,
+      fullWidth: fullWidth,
+      action: { nudge(minutes: minutes) }
+    )
+  }
+
+  private var resourceSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Resource")
+        Picker("Cage", selection: $facilityId) {
+          ForEach(selectableFacilities) { f in
+            Text(f.name).tag(f.id)
+          }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        if facilityId == cage3_1Id {
+          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        if let onBeginMove {
+          HPButton(
+            title: "Move by tapping schedule…",
+            systemImage: "hand.tap",
+            variant: .secondary,
+            size: .md,
+            fullWidth: true,
+            action: {
+              onBeginMove()
+              dismiss()
+            }
+          )
+        }
+        Picker("Status", selection: $status) {
+          Text("Pending").tag("pending")
+          Text("Approved").tag("approved")
+          Text("Denied").tag("denied")
+          Text("Cancelled").tag("cancelled")
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        Picker("Activity", selection: $activityType) {
+          Text("BP").tag("bp")
+          Text("Bullpen").tag("bullpen")
+          Text("Extra work").tag("extra_work")
+          Text("Lesson").tag("lesson")
+          Text("Other").tag("other")
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        Picker("Coach", selection: Binding(get: { coachId }, set: { coachId = $0 })) {
+          Text("N/A").tag(UUID?.none)
+          ForEach(coachOptions) { c in
+            Text(c.displayName).tag(UUID?.some(c.id))
+          }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  private var detailsSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Details")
+        HPFormField(label: "Title (optional)", text: $title, placeholder: "Booking title")
+        HPFormField(
+          label: "Notes (optional)",
+          text: $notes,
+          kind: .multiline,
+          placeholder: "Booking notes"
+        )
       }
     }
   }

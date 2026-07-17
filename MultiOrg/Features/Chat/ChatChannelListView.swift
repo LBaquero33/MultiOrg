@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ChatChannelListView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   enum Filter: String, CaseIterable, Identifiable {
     case dms = "DMs"
@@ -25,52 +27,22 @@ struct ChatChannelListView: View {
   @State private var readCursorByChannelId: [UUID: ChatReadCursor] = [:]
 
   @State private var showCreate = false
-
-#if os(macOS)
   @State private var selectedChannelId: UUID?
   @State private var detailRevision = UUID()
-#else
   @State private var navigationPath = NavigationPath()
-#endif
 
   private var myId: UUID? { appState.myProfile?.id }
 
   var body: some View {
     Group {
 #if os(macOS)
-      HStack(spacing: 0) {
-        sidebar
-          .frame(width: 320)
-          .background(DHDTheme.pageBackground)
-          .overlay(alignment: .trailing) {
-            Rectangle()
-              .fill(Color.white.opacity(0.08))
-              .frame(width: 1)
-          }
-
-        detail
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      if usesSplitPresentation {
+        communicationLayout
+      } else {
+        navigationContainer
       }
 #else
-      NavigationStack(path: $navigationPath) {
-        sidebar
-          .navigationTitle("Chat")
-          .navigationDestination(for: UUID.self) { channelId in
-            if let channel = channels.first(where: { $0.id == channelId }) {
-              ChatThreadView(channel: channel)
-                .id(channel.id)
-                .environmentObject(appState)
-            } else {
-              VStack(spacing: 10) {
-                ProgressView()
-                Text("Opening chat...")
-                  .foregroundStyle(.secondary)
-              }
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .task { await reload() }
-            }
-          }
-      }
+      navigationContainer
 #endif
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -115,7 +87,6 @@ struct ChatChannelListView: View {
       guard let channelId else { return }
       Task { await openRequestedChannel(channelId) }
     }
-#if os(macOS)
     .onChange(of: filter) { _, _ in
       syncSelectedChannel()
     }
@@ -125,7 +96,9 @@ struct ChatChannelListView: View {
     .onChange(of: channels.map(\.id)) { _, _ in
       syncSelectedChannel()
     }
-#endif
+    .onChange(of: usesSplitPresentation) { wasSplit, isSplit in
+      reconcilePresentationChange(wasSplit: wasSplit, isSplit: isSplit)
+    }
     .sheet(isPresented: $showCreate) {
       NavigationStack {
         ChatCreateView { channelId in
@@ -136,6 +109,56 @@ struct ChatChannelListView: View {
       #if os(macOS)
       .frame(minWidth: 720, minHeight: 640)
       #endif
+    }
+  }
+
+  private var usesSplitPresentation: Bool {
+#if os(macOS)
+    !dynamicTypeSize.isAccessibilitySize
+#else
+    horizontalSizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
+#endif
+  }
+
+  private var communicationWidthMode: HPScreenWidthMode {
+#if os(macOS)
+    .wide
+#else
+    horizontalSizeClass == .compact ? .compact : .regular
+#endif
+  }
+
+  private var navigationContainer: some View {
+    NavigationStack(path: $navigationPath) {
+      communicationLayout
+        .navigationTitle("Chat")
+        .navigationDestination(for: UUID.self) { channelId in
+          if let channel = channels.first(where: { $0.id == channelId }) {
+            ChatThreadView(channel: channel)
+              .id(channel.id)
+              .environmentObject(appState)
+          } else {
+            HPCard {
+              HPLoadingState(text: "Opening chat…")
+            }
+            .frame(maxWidth: 520)
+            .padding(HP.Space.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(HP.Color.bg)
+            .task { await reload() }
+          }
+        }
+    }
+  }
+
+  private var communicationLayout: some View {
+    HPCommunicationScreenLayout(
+      widthMode: communicationWidthMode,
+      compactPane: .conversations
+    ) { context in
+      sidebar(context)
+    } thread: { _ in
+      detail
     }
   }
 
@@ -173,14 +196,13 @@ struct ChatChannelListView: View {
     if let channel = channels.first(where: { $0.id == channelId }) {
       filter = filterForChannel(channel)
     }
-#if os(macOS)
     select(channelId)
-#else
-    if !navigationPath.isEmpty {
-      navigationPath.removeLast(navigationPath.count)
+    if !usesSplitPresentation {
+      if !navigationPath.isEmpty {
+        navigationPath.removeLast(navigationPath.count)
+      }
+      navigationPath.append(channelId)
     }
-    navigationPath.append(channelId)
-#endif
   }
 
   private func sortChannels(_ items: [SDChatChannel]) -> [SDChatChannel] {
@@ -205,76 +227,94 @@ struct ChatChannelListView: View {
   }
 
   @ViewBuilder
-  private var sidebar: some View {
-    List {
-      Section {
-        Picker("Chat filter", selection: $filter) {
-          ForEach(Filter.allCases) { f in
-            Text(f.rawValue).tag(f)
+  private func sidebar(_ context: HPScreenLayoutContext) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          "Messages",
+          context: "\(filteredChannels.count) conversation\(filteredChannels.count == 1 ? "" : "s")"
+        ) {
+          let layout = context.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
+          layout {
+            headerActions(
+              fullWidth: context.isAccessibilitySize,
+              newChatIsPrimary: !context.isExpanded
+            )
           }
         }
-        .pickerStyle(.segmented)
 
-        TextField("Search", text: $query)
-          .textFieldStyle(.roundedBorder)
-      }
+        HPCard(style: .flat) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            Text("CONVERSATION TYPE")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            HPSegmentedControl(
+              options: Filter.allCases.map { (value: $0, label: $0.rawValue) },
+              selection: $filter
+            )
+            HPSearchBar(text: $query, placeholder: "Search messages")
+          }
+        }
 
-      if isLoading {
-        Section {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        }
-      } else if filteredChannels.isEmpty {
-        Section {
-          Text("No chats yet.")
-            .foregroundStyle(.secondary)
-        }
-      } else {
-        Section {
-          ForEach(filteredChannels) { c in
-#if os(macOS)
-            Button {
-              select(c.id)
-            } label: {
-              ChatChannelRowView(
-                title: titleForChannel(c),
-                subtitle: subtitleForChannel(c),
-                timestamp: timestampForChannel(c),
-                unread: isUnread(c),
-                isAnnouncement: c.isAnnouncement
-              )
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Conversations") {
+              HPStatusBadge(text: "\(filteredChannels.count)", kind: .neutral)
             }
-            .buttonStyle(.plain)
-#else
-            NavigationLink(value: c.id) {
-              ChatChannelRowView(
-                title: titleForChannel(c),
-              subtitle: subtitleForChannel(c),
-              timestamp: timestampForChannel(c),
-              unread: isUnread(c),
-                isAnnouncement: c.isAnnouncement
+
+            if isLoading {
+              HPLoadingState(text: "Loading conversations…")
+            } else if filteredChannels.isEmpty {
+              HPEmptyState(
+                title: "No chats yet",
+                message: query.isEmpty
+                  ? "Start a direct message or group conversation."
+                  : "No conversations match your search.",
+                systemImage: "bubble.left.and.bubble.right"
               )
+            } else {
+              LazyVStack(alignment: .leading, spacing: HP.Space.xs) {
+                ForEach(filteredChannels) { channel in
+                  conversationLink(channel, context: context)
+                }
+              }
             }
-#endif
           }
         }
       }
+      .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-    .toolbar {
-      ToolbarItemGroup(placement: .primaryAction) {
-        Button {
-          Task { await reload() }
-        } label: { Image(systemName: "arrow.clockwise") }
+    .background(HP.Color.bg)
+  }
 
-        if filter != .announcements {
-          Button {
-            showCreate = true
-          } label: { Image(systemName: "square.and.pencil") }
-        }
+  @ViewBuilder
+  private func headerActions(fullWidth: Bool, newChatIsPrimary: Bool) -> some View {
+    HPButton(
+      title: "Refresh",
+      systemImage: "arrow.clockwise",
+      variant: .secondary,
+      size: .sm,
+      fullWidth: fullWidth
+    ) {
+      Task { await reload() }
+    }
+
+    if filter != .announcements {
+      HPButton(
+        title: "New chat",
+        systemImage: "square.and.pencil",
+        variant: newChatIsPrimary ? .primary : .secondary,
+        size: .sm,
+        fullWidth: fullWidth
+      ) {
+        showCreate = true
       }
     }
   }
 
-#if os(macOS)
   @ViewBuilder
   private var detail: some View {
     if let selectedChannelId, let channel = channels.first(where: { $0.id == selectedChannelId }) {
@@ -282,17 +322,49 @@ struct ChatChannelListView: View {
         .id(detailRevision)
         .environmentObject(appState)
     } else {
-      VStack(spacing: 10) {
-        Text("Select a chat")
-          .font(.title3.weight(.semibold))
-        Text("Choose a DM, group, or announcement to view messages.")
-          .foregroundStyle(.secondary)
+      HPCard {
+        HPEmptyState(
+          title: "Select a chat",
+          message: "Choose a direct message, group, or announcement to view messages.",
+          systemImage: "bubble.left.and.bubble.right"
+        )
       }
+      .frame(maxWidth: 560)
+      .padding(HP.Space.md)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(DHDTheme.pageBackground)
+      .background(HP.Color.bg)
     }
   }
-#endif
+
+  @ViewBuilder
+  private func conversationLink(
+    _ channel: SDChatChannel,
+    context: HPScreenLayoutContext
+  ) -> some View {
+    let row = ChatChannelRowView(
+      title: titleForChannel(channel),
+      subtitle: subtitleForChannel(channel),
+      timestamp: timestampForChannel(channel),
+      unread: isUnread(channel),
+      isAnnouncement: channel.isAnnouncement,
+      isSelected: context.isExpanded && selectedChannelId == channel.id
+    )
+
+    if context.isExpanded {
+      Button { select(channel.id) } label: { row }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this conversation")
+    } else {
+      Button {
+        select(channel.id)
+        navigationPath.append(channel.id)
+      } label: {
+        row
+      }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this conversation")
+    }
+  }
 
   private func titleForChannel(_ c: SDChatChannel) -> String {
     if c.isAnnouncement { return c.title ?? "Announcements" }
@@ -387,9 +459,7 @@ struct ChatChannelListView: View {
       profileById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
       isLoading = false
 
-#if os(macOS)
       syncSelectedChannel()
-#endif
     } catch {
       guard accepts(organizationId: organizationId, token: token) else { return }
       errorText = error.localizedDescription
@@ -418,19 +488,25 @@ struct ChatChannelListView: View {
     query = ""
     errorText = nil
     isLoading = false
-#if os(macOS)
     selectedChannelId = nil
     detailRevision = UUID()
-#else
     navigationPath = NavigationPath()
-#endif
   }
 
-#if os(macOS)
   private func select(_ channelId: UUID) {
     guard selectedChannelId != channelId else { return }
     selectedChannelId = channelId
     detailRevision = UUID()
+  }
+
+  private func reconcilePresentationChange(wasSplit: Bool, isSplit: Bool) {
+    guard wasSplit != isSplit else { return }
+    if isSplit {
+      navigationPath = NavigationPath()
+    } else if let selectedChannelId {
+      navigationPath = NavigationPath()
+      navigationPath.append(selectedChannelId)
+    }
   }
 
   private func syncSelectedChannel() {
@@ -438,14 +514,18 @@ struct ChatChannelListView: View {
     if let selectedChannelId, validIds.contains(selectedChannelId) {
       return
     }
+#if os(macOS)
     if let first = filteredChannels.first {
       select(first.id)
     } else {
       selectedChannelId = nil
       detailRevision = UUID()
     }
-  }
+#else
+    selectedChannelId = nil
+    detailRevision = UUID()
 #endif
+  }
 
   private func filterForChannel(_ channel: SDChatChannel) -> Filter {
     if channel.isGroup { return .groups }
@@ -465,61 +545,85 @@ struct ChatChannelListView: View {
       return
     }
     filter = filterForChannel(channel)
-#if os(macOS)
     select(channelId)
-#else
-    navigationPath = NavigationPath()
-    navigationPath.append(channelId)
-#endif
+    if !usesSplitPresentation {
+      navigationPath = NavigationPath()
+      navigationPath.append(channelId)
+    }
     appState.requestedChatChannelId = nil
   }
 }
 
 private struct ChatChannelRowView: View {
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
   let title: String
   let subtitle: String
   let timestamp: String?
   let unread: Bool
   let isAnnouncement: Bool
+  let isSelected: Bool
 
   var body: some View {
-    HStack(spacing: 12) {
+    HStack(alignment: .top, spacing: HP.Space.sm) {
       ChatAvatarView(title: title, isAnnouncement: isAnnouncement, size: 42)
 
-      VStack(alignment: .leading, spacing: 2) {
-        HStack(spacing: 8) {
-          Text(title)
-            .font(.subheadline.weight(unread ? .semibold : .medium))
-            .foregroundStyle(DHDTheme.textPrimary)
-            .lineLimit(1)
-          Spacer(minLength: 8)
-          if let timestamp {
-            Text(timestamp)
-              .font(.caption2)
-              .foregroundStyle(DHDTheme.textSecondary)
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+          : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: HP.Space.xs))
+        layout {
+          conversationTitle
+          if !dynamicTypeSize.isAccessibilitySize {
+            Spacer(minLength: HP.Space.xs)
           }
-          if unread {
-            Text("New")
-              .font(.caption2.weight(.bold))
-              .foregroundStyle(.white)
-              .padding(.horizontal, 7)
-              .padding(.vertical, 3)
-              .background(Capsule().fill(DHDTheme.accent))
-          }
+          conversationMetadata
         }
 
         Text(subtitle.isEmpty ? "No messages yet" : subtitle)
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
-          .lineLimit(1)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(HP.Space.sm)
+    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    .background(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .fill(isSelected ? HP.Color.surfaceRaised : unread ? HP.Color.accent.opacity(0.10) : .clear)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .strokeBorder(isSelected ? HP.Color.borderStrong : .clear, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
+    .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
+    .accessibilityValue(isSelected ? "Selected" : unread ? "Unread" : "Read")
+  }
+
+  private var conversationTitle: some View {
+    Text(title)
+      .font(unread ? HP.Font.headline : HP.Font.callout.weight(.medium))
+      .foregroundStyle(HP.Color.text)
+      .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private var conversationMetadata: some View {
+    HStack(spacing: HP.Space.xs) {
+      if let timestamp {
+        Text(timestamp)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if unread {
+        HPStatusBadge(text: "New", kind: .gold)
       }
     }
-    .padding(.vertical, 8)
-    .padding(.horizontal, 8)
-    .background(
-      RoundedRectangle(cornerRadius: 14)
-        .fill(unread ? DHDTheme.accent.opacity(0.10) : Color.clear)
-    )
   }
 }
 
@@ -529,30 +633,11 @@ struct ChatAvatarView: View {
   let size: CGFloat
 
   var body: some View {
-    ZStack {
-      Circle()
-        .fill(isAnnouncement ? Color.orange.opacity(0.18) : DHDTheme.accent.opacity(0.16))
-      if isAnnouncement {
-        Image(systemName: "megaphone.fill")
-          .font(.system(size: size * 0.40, weight: .semibold))
-          .foregroundStyle(.orange)
-      } else {
-        Text(initials)
-          .font(.system(size: size * 0.34, weight: .bold))
-          .foregroundStyle(DHDTheme.accent)
-      }
-    }
-    .frame(width: size, height: size)
-    .overlay(Circle().strokeBorder(DHDTheme.accent.opacity(0.18), lineWidth: 1))
-  }
-
-  private var initials: String {
-    let parts = title
-      .split(separator: " ")
-      .prefix(2)
-      .compactMap { $0.first }
-      .map(String.init)
-    let value = parts.joined()
-    return value.isEmpty ? "DM" : value.uppercased()
+    HPAvatar(
+      name: title.isEmpty ? "DM" : title,
+      systemImage: isAnnouncement ? "megaphone.fill" : nil,
+      size: size < 40 ? .sm : size > 54 ? .lg : .md,
+      tint: isAnnouncement ? HP.Color.warning : HP.Color.primary
+    )
   }
 }

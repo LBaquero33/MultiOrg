@@ -51,10 +51,15 @@ targets:
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
         DHD_STRIPE_SUBSCRIBE_URL: $(DHD_STRIPE_SUBSCRIBE_URL)
         DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
-        UIRequiresFullScreen: true
+        UIRequiresFullScreen: false
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app
