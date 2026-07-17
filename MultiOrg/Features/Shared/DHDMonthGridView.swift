@@ -94,6 +94,10 @@ struct DHDMonthGridView: View {
           .frame(width: 36, height: 36)
           .background(Color.white.opacity(0.14))
           .clipShape(RoundedRectangle(cornerRadius: 12))
+          .frame(
+            minWidth: DHDTheme.minimumTouchTarget,
+            minHeight: DHDTheme.minimumTouchTarget
+          )
           .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
@@ -119,6 +123,10 @@ struct DHDMonthGridView: View {
           .frame(width: 36, height: 36)
           .background(Color.white.opacity(0.14))
           .clipShape(RoundedRectangle(cornerRadius: 12))
+          .frame(
+            minWidth: DHDTheme.minimumTouchTarget,
+            minHeight: DHDTheme.minimumTouchTarget
+          )
           .contentShape(Rectangle())
       }
       .buttonStyle(.plain)

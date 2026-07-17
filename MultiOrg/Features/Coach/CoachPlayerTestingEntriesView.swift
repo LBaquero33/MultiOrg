@@ -9,20 +9,55 @@ struct CoachPlayerTestingEntriesView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-      }
-      if entries.isEmpty, !isLoading {
-        Text("No testing entries yet.")
-          .foregroundStyle(.secondary)
-      } else {
-        ForEach(entries) { e in
-          VStack(alignment: .leading, spacing: 4) {
-            Text(e.entry_date).font(.headline)
-            Text(summary(e)).font(.caption).foregroundStyle(.secondary)
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "Testing",
+        orgLabel: activeOrganizationName,
+        context: player.displayName
+      )
+    } controls: {
+      HPCard {
+        HStack(spacing: HP.Space.sm) {
+          Image(systemName: "list.bullet.clipboard")
+            .foregroundStyle(HP.Color.accent)
+            .accessibilityHidden(true)
+          Text("\(entries.count) \(entries.count == 1 ? "entry" : "entries")")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+          Spacer(minLength: 0)
+          if isLoading {
+            HPProgressIndicator(style: .spinner)
+              .accessibilityLabel("Loading testing entries")
           }
-          .padding(.vertical, 4)
+        }
+      }
+    } results: { context in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Entries") {
+            HPStatusBadge(text: "\(entries.count)", kind: .neutral)
+          }
+
+          if isLoading {
+            HPLoadingState(text: "Loading…")
+          }
+
+          if entries.isEmpty, !isLoading {
+            HPEmptyState(
+              title: "No testing entries yet",
+              message: "Testing entries for \(player.displayName) will appear here.",
+              systemImage: "list.bullet.clipboard"
+            )
+          } else if !entries.isEmpty {
+            HPTable(
+              columns: [
+                HPColumn(title: "Date"),
+                HPColumn(title: "Measurements"),
+              ],
+              rows: entryRows,
+              layout: context.tableLayout
+            )
+          }
         }
       }
     }
@@ -31,6 +66,25 @@ struct CoachPlayerTestingEntriesView: View {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
     .task { await reload() }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var entryRows: [HPTableRow] {
+    entries.map { entry in
+      HPTableRow(
+        id: entry.id,
+        cells: [entry.entry_date, summary(entry)]
+      )
+    }
   }
 
   private func reload() async {
@@ -61,4 +115,3 @@ struct CoachPlayerTestingEntriesView: View {
     return String(format: "%.1f", v)
   }
 }
-

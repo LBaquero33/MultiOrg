@@ -48,18 +48,16 @@ struct FacilitiesDayTimelineView: View {
       }
 
       GeometryReader { geo in
-        let headerH: CGFloat = 28
+        let headerH = timelineHeaderHeight
         let labelW: CGFloat = 54
         let colGap: CGFloat = 10
-        // Make the timeline scrollable vertically; keep a stable px/min so drag math is consistent
-        // on small iPhones and when the sheet is resized.
-        let minutesTotal = CGFloat((endHour - startHour) * 60)
-        let pxPerMin: CGFloat = 1.2
-        let contentH = minutesTotal * pxPerMin
+        // Keep a stable px/min so drag math is consistent on small iPhones and
+        // when the sheet is resized. The outer screen owns vertical scrolling.
+        let pxPerMin = timelinePointsPerMinute
+        let contentH = timelineContentHeight
         let colW = max(180, (geo.size.width - labelW - colGap * CGFloat(max(0, facilities.count - 1))) / CGFloat(max(1, facilities.count)))
 
-        // UIKit-backed 2-axis scroll view for better panning feel on iPhone.
-        TwoAxisScrollView(showsIndicators: true) {
+        ScrollView(.horizontal, showsIndicators: true) {
           VStack(spacing: 0) {
             // Facility headers
             HStack(spacing: colGap) {
@@ -155,8 +153,14 @@ struct FacilitiesDayTimelineView: View {
           )
         }
       }
-      .frame(height: 520)
+      .frame(height: timelineHeaderHeight + timelineContentHeight)
     }
+  }
+
+  private var timelineHeaderHeight: CGFloat { 28 }
+  private var timelinePointsPerMinute: CGFloat { 1.2 }
+  private var timelineContentHeight: CGFloat {
+    CGFloat((endHour - startHour) * 60) * timelinePointsPerMinute
   }
 
   private func bookingsForFacility(_ facilityId: UUID) -> [SDFacilityBooking] {
