@@ -19,22 +19,19 @@ struct CoachProgramsView: View {
   var body: some View {
 #if os(macOS)
     NavigationSplitView {
-      templateList
+      templateListLayout
         .navigationTitle("Program Templates")
     } detail: {
       templateDetail
         .navigationTitle(selectedTemplate?.name ?? "Program Templates")
     }
     .task { await reload() }
-    .searchable(text: $query, placement: .toolbar, prompt: "Search templates")
     .toolbar {
-      ToolbarItemGroup(placement: .automatic) {
-        Button {
-          showCreate = true
-        } label: { Image(systemName: "plus") }
+      ToolbarItem(placement: .automatic) {
         Button {
           Task { await reload() }
         } label: { Image(systemName: "arrow.clockwise") }
+          .accessibilityLabel("Refresh programs")
       }
     }
     .sheet(isPresented: $showCreate) {
@@ -50,58 +47,11 @@ struct CoachProgramsView: View {
     } message: { Text(errorText ?? "") }
 #else
     NavigationStack {
-      List {
-        Section {
-          Picker("Program type", selection: $selectedKind) {
-            ForEach(SDProgramKind.allCases) { kind in
-              Label(kind.title, systemImage: kind.systemImage).tag(kind)
-            }
-          }
-          .pickerStyle(.segmented)
-        }
-
-        if isLoading {
-          HStack(spacing: 10) {
-            ProgressView()
-            Text("Loading…").foregroundStyle(.secondary)
-          }
-        } else if visibleTemplates.isEmpty {
-          Text("No \(selectedKind.title) program templates yet.")
-            .foregroundStyle(.secondary)
-        } else {
-          Section("\(selectedKind.title) program templates") {
-            ForEach(visibleTemplates) { t in
-              NavigationLink {
-                ProgramTemplateEditorView(
-                  template: t,
-                  onDuplicated: { templates.insert($0, at: 0) },
-                  onDeleted: { templates.removeAll { $0.id == t.id } }
-                )
-                .id(t.id)
-              } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(t.name).font(.headline)
-                  Text("\(t.weeks) weeks • \(weekdayLabel(t.lift_weekdays))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
-              }
-            }
-          }
-        }
-      }
+      templateListLayout
       .navigationTitle("Programs")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") { dismiss() }
-        }
-        ToolbarItem(placement: .primaryAction) {
-          Button {
-            showCreate = true
-          } label: {
-            Image(systemName: "plus")
-          }
         }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -122,6 +72,180 @@ struct CoachProgramsView: View {
 #endif
   }
 
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var templateListLayout: some View {
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "Programs",
+        orgLabel: activeOrganizationName,
+        context: "\(presentedTemplates.count) \(selectedKind.title.lowercased()) template\(presentedTemplates.count == 1 ? "" : "s")"
+      ) {
+        HPButton(
+          title: "New program",
+          systemImage: "plus",
+          variant: .primary,
+          size: .sm,
+          action: { showCreate = true }
+        )
+      }
+    } controls: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("PROGRAM TYPE")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            HPSegmentedControl(
+              options: SDProgramKind.allCases.map { (value: $0, label: $0.title) },
+              selection: $selectedKind
+            )
+          }
+          #if os(macOS)
+          HPSearchBar(text: $query, placeholder: "Search templates")
+          #endif
+        }
+      }
+    } results: { context in
+      templateResults(context)
+    }
+  }
+
+  private var presentedTemplates: [SDProgramTemplate] {
+    #if os(macOS)
+    filteredTemplates
+    #else
+    visibleTemplates
+    #endif
+  }
+
+  private func templateResults(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("\(selectedKind.title) program templates") {
+          HPStatusBadge(text: "\(presentedTemplates.count)", kind: .neutral)
+        }
+
+        if isLoading {
+          HPLoadingState(text: "Loading…")
+        } else if presentedTemplates.isEmpty {
+          HPEmptyState(
+            title: "No \(selectedKind.title) program templates yet.",
+            message: "Create a \(selectedKind.title.lowercased()) template to get started.",
+            systemImage: selectedKind.systemImage
+          )
+        } else {
+          if context.tableLayout == .columns {
+            templateColumnHeader
+          }
+
+          ForEach(presentedTemplates) { template in
+            templateAction(template, stacked: context.tableLayout != .columns)
+
+            if template.id != presentedTemplates.last?.id {
+              Divider().overlay(HP.Color.border.opacity(0.5))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var templateColumnHeader: some View {
+    HStack(spacing: HP.Space.sm) {
+      Text("NAME")
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Text("WEEKS")
+        .frame(width: 72, alignment: .leading)
+      Text("DAYS")
+        .frame(width: 180, alignment: .leading)
+      Color.clear.frame(width: 20, height: 1).accessibilityHidden(true)
+    }
+    .font(HP.Font.eyebrow)
+    .tracking(HP.Font.eyebrowTracking)
+    .foregroundStyle(HP.Color.textMuted)
+    .padding(.vertical, 6)
+  }
+
+  @ViewBuilder
+  private func templateAction(_ template: SDProgramTemplate, stacked: Bool) -> some View {
+    #if os(macOS)
+    Button {
+      selectedTemplateId = template.id
+    } label: {
+      templateRow(template, stacked: stacked, selected: selectedTemplateId == template.id)
+    }
+    .buttonStyle(.plain)
+    #else
+    NavigationLink {
+      ProgramTemplateEditorView(
+        template: template,
+        onDuplicated: { templates.insert($0, at: 0) },
+        onDeleted: { templates.removeAll { $0.id == template.id } }
+      )
+      .id(template.id)
+    } label: {
+      templateRow(template, stacked: stacked, selected: false)
+    }
+    .buttonStyle(.plain)
+    #endif
+  }
+
+  @ViewBuilder
+  private func templateRow(_ template: SDProgramTemplate, stacked: Bool, selected: Bool) -> some View {
+    if stacked {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Text(template.name)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("\(template.weeks) weeks • \(weekdayLabel(template.lift_weekdays))")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .padding(.horizontal, selected ? HP.Space.xs : 0)
+      .background(selected ? HP.Color.accent.opacity(0.12) : .clear)
+      .contentShape(Rectangle())
+    } else {
+      HStack(spacing: HP.Space.sm) {
+        Text(template.name)
+          .font(HP.Font.callout.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+          .lineLimit(2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        Text("\(template.weeks)")
+          .font(HP.Font.number(.callout))
+          .foregroundStyle(HP.Color.text)
+          .frame(width: 72, alignment: .leading)
+        Text(weekdayLabel(template.lift_weekdays))
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(2)
+          .frame(width: 180, alignment: .leading)
+        Image(systemName: "chevron.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .frame(width: 20)
+          .accessibilityHidden(true)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .padding(.horizontal, selected ? HP.Space.xs : 0)
+      .background(selected ? HP.Color.accent.opacity(0.12) : .clear)
+      .contentShape(Rectangle())
+    }
+  }
+
   private var visibleTemplates: [SDProgramTemplate] {
     templates.filter { $0.kind == selectedKind }
   }
@@ -137,37 +261,6 @@ struct CoachProgramsView: View {
   private var selectedTemplate: SDProgramTemplate? {
     guard let selectedTemplateId else { return nil }
     return templates.first(where: { $0.id == selectedTemplateId })
-  }
-
-  private var templateList: some View {
-    List(selection: $selectedTemplateId) {
-      Section {
-        Picker("Program type", selection: $selectedKind) {
-          ForEach(SDProgramKind.allCases) { kind in
-            Label(kind.title, systemImage: kind.systemImage).tag(kind)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-      }
-      if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-      } else if filteredTemplates.isEmpty {
-        Text("No \(selectedKind.title) program templates yet.")
-          .foregroundStyle(.secondary)
-      } else {
-        ForEach(filteredTemplates) { t in
-          VStack(alignment: .leading, spacing: 2) {
-            Text(t.name).font(.headline)
-            Text("\(t.weeks) weeks • \(weekdayLabel(t.lift_weekdays))")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          .tag(t.id)
-          .padding(.vertical, 4)
-        }
-      }
-    }
   }
 
   @ViewBuilder
@@ -194,7 +287,7 @@ struct CoachProgramsView: View {
           .foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(DHDTheme.pageBackground)
+      .background(HP.Color.bg)
     }
   }
 #endif
@@ -235,44 +328,107 @@ private struct CreateProgramTemplateSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Template") {
-          TextField("\(kind.title) program name", text: $name)
-          Picker("Weeks", selection: $weeks) {
-            Text("2 weeks").tag(2)
-            Text("4 weeks").tag(4)
-          }
-        }
-
-        Section(kind == .strength ? "Lift days (weekdays)" : "Training days (weekdays)") {
-          ForEach(1...7, id: \.self) { i in
-            Toggle(weekday(i), isOn: Binding(
-              get: { liftDays.contains(i) },
-              set: { on in
-                if on { liftDays.insert(i) } else { liftDays.remove(i) }
-              }
-            ))
-          }
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "New \(kind.title) program",
+          orgLabel: activeOrganizationName,
+          context: "\(weeks) weeks • \(liftDays.count) training day\(liftDays.count == 1 ? "" : "s")"
+        )
+      } sections: { _ in
+        templateSection
+        trainingDaysSection
+      } primaryAction: { context in
+        HPButton(
+          title: "Create",
+          systemImage: "plus",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await create() } }
+        )
+        .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || liftDays.isEmpty)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("New \(kind.title) program")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            Task { await create() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Create") }
-          }
-          .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || liftDays.isEmpty)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
       } message: {
         Text(errorText ?? "")
+      }
+    }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var templateSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Template")
+        HPFormField(
+          label: "\(kind.title) program name",
+          text: $name,
+          placeholder: "\(kind.title) program name"
+        )
+        VStack(alignment: .leading, spacing: 6) {
+          Text("WEEKS")
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          Picker("Weeks", selection: $weeks) {
+            Text("2 weeks").tag(2)
+            Text("4 weeks").tag(4)
+          }
+          .pickerStyle(.segmented)
+          .tint(HP.Color.accent)
+        }
+      }
+    }
+  }
+
+  private var trainingDaysSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(kind == .strength ? "Lift days (weekdays)" : "Training days (weekdays)")
+        ForEach(1...7, id: \.self) { index in
+          Toggle(weekday(index), isOn: Binding(
+            get: { liftDays.contains(index) },
+            set: { isSelected in
+              if isSelected { liftDays.insert(index) } else { liftDays.remove(index) }
+            }
+          ))
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .tint(HP.Color.accent)
+          .frame(minHeight: 44)
+
+          if index < 7 {
+            Divider().overlay(HP.Color.border.opacity(0.5))
+          }
+        }
       }
     }
   }

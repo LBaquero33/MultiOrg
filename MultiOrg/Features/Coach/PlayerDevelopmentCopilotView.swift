@@ -582,6 +582,7 @@ final class PlayerDevelopmentCopilotConversationModel: ObservableObject {
 struct PlayerDevelopmentCopilotWorkspaceView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @StateObject private var model = PlayerDevelopmentCopilotWorkspaceModel()
   @State private var reportingDays = 90
   let player: Profile
@@ -799,13 +800,13 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
                       Text(question)
                         .font(HP.Font.callout)
                         .foregroundStyle(HP.Color.text)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     }
                     if let preview = conversation.mostRecentAnswerPreview {
                       Text(preview)
                         .font(HP.Font.caption)
                         .foregroundStyle(HP.Color.textMuted)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     }
                     Text(
                       "\(conversation.generationMode == .deterministic ? "Deterministic mode" : conversation.provider.capitalized) • \(conversation.updatedAt)\(conversation.status == .archived ? " • Archived • read only" : "")"
@@ -1066,7 +1067,10 @@ struct PlayerDevelopmentCopilotConversationView: View {
               }
             }
           }
-        } label: { Image(systemName: "ellipsis.circle") }
+        } label: {
+          Image(systemName: "ellipsis.circle")
+            .accessibilityLabel("More conversation actions")
+        }
       }
     }
     .background(HP.Color.bg)
@@ -1180,6 +1184,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
                   Button("Retry failed answer") {
                     Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window, retry: true) }
                   }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
                   .disabled(model.isSending)
                 } else if model.conversation == nil {
                   Button("Retry conversation") {
@@ -1195,6 +1201,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
                       model.prefill(initialQuestion)
                     }
                   }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
                   .disabled(model.isLoading)
                 }
               }
@@ -1261,6 +1269,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
                 )
               }
             }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
             .disabled(model.isLoadingMore)
           }
           if !model.suggestedQuestions.isEmpty {
@@ -1273,6 +1283,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
                   Button(question) { model.composer = question }
                     .buttonStyle(.plain)
                     .foregroundStyle(HP.Color.primary)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                     .disabled(isArchived)
                 }
               }
@@ -1308,6 +1320,9 @@ struct PlayerDevelopmentCopilotConversationView: View {
             Button {
               Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window) }
             } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityLabel("Send message")
             .disabled(model.isSending || model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.composer.count > 2_000)
           }
           HStack {
@@ -1347,62 +1362,107 @@ private struct CopilotQuestionCard: View {
   }
 
   var body: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack {
-          Label(title, systemImage: pending.isOptional ? "questionmark.bubble" : "checkmark.shield")
-            .font(.headline)
-          Spacer()
-          DHDStatusBadge(
-            text: pending.isOptional ? "Optional" : "Required",
-            color: pending.isOptional ? .blue : .orange
-          )
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            questionIdentity
+            Spacer(minLength: HP.Space.sm)
+            questionStatus
+          }
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            questionIdentity
+            questionStatus
+          }
         }
         Text(message.structuredAnswer?.answer ?? pending.questionText ?? "Copilot needs a response.")
-          .font(.body.weight(.medium))
+          .font(HP.Font.body.weight(.medium))
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
         Text(pending.whyAsked)
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
         if pending.mayLaterBeSaved {
           Text("Your response stays in this private conversation unless you separately confirm a supported save action.")
-            .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
         }
         if isSending && isActive {
-          ProgressView("Sending response…")
+          HPLoadingState(text: "Sending response…")
         } else if isExpired {
-          Label("This question expired. Ask Copilot again for a current question.", systemImage: "clock.badge.exclamationmark")
-            .foregroundStyle(.orange)
+          Label(
+            "This question expired. Ask Copilot again for a current question.",
+            systemImage: "clock.badge.exclamationmark"
+          )
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.warning)
+          .fixedSize(horizontal: false, vertical: true)
         } else if pending.status != .pending || !isActive {
           Label(
             pending.status == .superseded ? "Superseded by a newer question" : "Response recorded",
             systemImage: "checkmark.circle.fill"
           )
-          .foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
         } else {
           if !pending.choices.isEmpty {
-            FlowLayout(spacing: 8) {
+            FlowLayout(spacing: HP.Space.xs) {
               ForEach(pending.choices.prefix(6), id: \.self) { choice in
-                Button(choice) { onResponse(choice, .answer) }
-                  .buttonStyle(.bordered)
+                HPButton(title: choice, variant: .secondary, size: .sm) {
+                  onResponse(choice, .answer)
+                }
               }
             }
           }
           if pending.expectedResponseType == "free_text" {
             Text("Type your response in the composer below.")
-              .font(.footnote).foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
           }
-          HStack {
-            if pending.isOptional {
-              Button("Skip") { onResponse("Skip", .skip) }
-                .buttonStyle(.bordered)
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.xs) {
+              responseButtons(fullWidth: false)
             }
-            Button("Use available evidence") {
-              onResponse("Use available evidence", .useAvailableEvidence)
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              responseButtons(fullWidth: true)
             }
-            .buttonStyle(.bordered)
           }
         }
       }
+    }
+  }
+
+  private var questionIdentity: some View {
+    Label(title, systemImage: pending.isOptional ? "questionmark.bubble" : "checkmark.shield")
+      .font(HP.Font.headline)
+      .foregroundStyle(HP.Color.text)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private var questionStatus: some View {
+    HPStatusBadge(
+      text: pending.isOptional ? "Optional" : "Required",
+      kind: pending.isOptional ? .info : .warning
+    )
+  }
+
+  @ViewBuilder
+  private func responseButtons(fullWidth: Bool) -> some View {
+    if pending.isOptional {
+      HPButton(title: "Skip", variant: .secondary, size: .md, fullWidth: fullWidth) {
+        onResponse("Skip", .skip)
+      }
+    }
+    HPButton(
+      title: "Use available evidence",
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth
+    ) {
+      onResponse("Use available evidence", .useAvailableEvidence)
     }
   }
 }
@@ -1417,14 +1477,10 @@ private struct FlowLayout<Content: View>: View {
   }
 
   var body: some View {
-    #if os(macOS)
-    HStack(spacing: spacing) { content }
-    #else
     ViewThatFits(in: .horizontal) {
       HStack(spacing: spacing) { content }
       VStack(alignment: .leading, spacing: spacing) { content }
     }
-    #endif
   }
 }
 
@@ -1434,16 +1490,24 @@ private struct CopilotAnswerCard: View {
   let onFeedback: (SDCopilotFeedbackType) -> Void
 
   var body: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack {
-          Label("Home Plate Copilot", systemImage: "sparkles")
-            .font(.headline)
-          Spacer()
-          copilotQualityBadge(message.qualityStatus)
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            copilotIdentity
+            Spacer(minLength: HP.Space.sm)
+            copilotQualityBadge(message.qualityStatus)
+          }
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            copilotIdentity
+            copilotQualityBadge(message.qualityStatus)
+          }
         }
         if let answer = message.structuredAnswer {
           Text(answer.answer)
+            .font(HP.Font.body)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
           claimSection("Facts", rows: answer.facts.map { ($0.text, $0.evidenceIds) })
           claimSection("Calculations", rows: answer.calculations.map { ($0.text, $0.evidenceIds) })
           claimSection("Interpretation", rows: answer.interpretations.map { ($0.text, $0.evidenceIds) })
@@ -1451,20 +1515,31 @@ private struct CopilotAnswerCard: View {
           if !answer.missingData.isEmpty { warningSection("Missing information", rows: answer.missingData) }
           if !answer.warnings.isEmpty { warningSection("Warnings", rows: answer.warnings) }
           if !answer.proposedActions.isEmpty {
-            Divider()
-            Text("Proposed coach actions").font(.headline)
+            Divider().overlay(HP.Color.border)
+            Text("Proposed coach actions")
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
             ForEach(answer.proposedActions) { action in
               VStack(alignment: .leading, spacing: 3) {
-                Text(action.actionType.rawValue.replacingOccurrences(of: "_", with: " ").capitalized).font(.subheadline.weight(.semibold))
-                Text(action.explanation).font(.footnote)
-                Text("Requires coach approval").font(.caption).foregroundStyle(.orange)
+                Text(action.actionType.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Text(action.explanation)
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.text)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("Requires coach approval")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.warning)
               }
             }
           }
         } else {
           let failure = SDCopilotFailurePresentation(code: message.safeErrorCode)
           Text(failure.message)
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
           #if DEBUG
           if let code = failure.code {
             DisclosureGroup("Technical details") {
@@ -1476,18 +1551,28 @@ private struct CopilotAnswerCard: View {
           #endif
         }
         if let citations = message.citations, !citations.isEmpty {
-          Divider()
-          Text("Evidence citations").font(.headline)
+          Divider().overlay(HP.Color.border)
+          Text("Evidence citations")
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.text)
           ForEach(citations) { citation in
             Button { onCitation(citation) } label: {
-              HStack {
+              HStack(spacing: HP.Space.sm) {
                 Image(systemName: "doc.text.magnifyingglass")
-                Text(citation.displayLabel).lineLimit(1)
-                Spacer()
+                  .accessibilityHidden(true)
+                Text(citation.displayLabel)
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: HP.Space.sm)
                 Image(systemName: "chevron.right")
+                  .accessibilityHidden(true)
               }
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
             }
-            .buttonStyle(.plain).foregroundStyle(DHDTheme.accent)
+            .buttonStyle(.plain)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.accent)
+            .accessibilityLabel("Evidence citation, \(citation.displayLabel)")
           }
         }
         Menu("Rate this answer") {
@@ -1495,31 +1580,52 @@ private struct CopilotAnswerCard: View {
             Button(type.title) { onFeedback(type) }
           }
         }
-        .font(.footnote)
+        .font(HP.Font.callout)
+        .frame(minHeight: 44)
       }
     }
+  }
+
+  private var copilotIdentity: some View {
+    Label("Home Plate Copilot", systemImage: "sparkles")
+      .font(HP.Font.headline)
+      .foregroundStyle(HP.Color.text)
+      .fixedSize(horizontal: false, vertical: true)
   }
 
   @ViewBuilder
   private func claimSection(_ title: String, rows: [(String, [String])]) -> some View {
     if !rows.isEmpty {
-      Divider()
-      Text(title).font(.headline)
+      Divider().overlay(HP.Color.border)
+      Text(title)
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
       ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
         VStack(alignment: .leading, spacing: 3) {
           Text(row.0)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
           Text("\(row.1.count) citation\(row.1.count == 1 ? "" : "s")")
-            .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
       }
     }
   }
 
   private func warningSection(_ title: String, rows: [String]) -> some View {
-    VStack(alignment: .leading, spacing: 5) {
-      Divider()
-      Text(title).font(.headline)
-      ForEach(rows, id: \.self) { Label($0, systemImage: "info.circle").font(.footnote) }
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Divider().overlay(HP.Color.border)
+      Text(title)
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+      ForEach(rows, id: \.self) {
+        Label($0, systemImage: "info.circle")
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.warning)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 }
@@ -1623,38 +1729,110 @@ struct ParentUpdateDraftDetailView: View {
     if let detail, edited != nil {
       draftForm(detail)
     } else if let errorMessage {
-      ContentUnavailableView(
-        "Draft unavailable",
-        systemImage: "exclamationmark.triangle",
-        description: Text(errorMessage)
-      )
+      HPScreenScaffold(maxContentWidth: 720) { _ in
+        HPCard {
+          HPErrorState(title: "Draft unavailable", message: errorMessage)
+        }
+      }
     } else {
-      ProgressView("Loading draft…")
+      HPScreenScaffold(maxContentWidth: 720) { _ in
+        HPCard {
+          HPLoadingState(text: "Loading draft…")
+        }
+      }
     }
   }
 
   private func draftForm(_ detail: SDParentDraftDetailResponse) -> some View {
-    Form {
-      Section {
-        Label("Not shared with parent.", systemImage: "person.crop.circle.badge.exclamationmark")
-          .foregroundStyle(.orange).font(.headline)
-        LabeledContent("Status", value: detail.draft.status.rawValue.capitalized)
-        LabeledContent("Player", value: player.displayName)
-      }
-      Section("Coach-edited version") { contentEditors(editedContentBinding) }
-      DisclosureGroup("Compare generated original") {
-        parentContent(detail.draft.generatedOriginal)
-      }
-      Section("Review history") {
-        ForEach(detail.reviewEvents) { event in
-          VStack(alignment: .leading) {
-            Text(event.eventType.capitalized).font(.headline)
-            Text(event.createdAt).font(.caption).foregroundStyle(DHDTheme.textSecondary)
+    HPFormScreenLayout { _ in
+      HPWorkspaceHeader(
+        "Parent update draft",
+        context: player.displayName
+      )
+    } sections: { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Draft status") {
+              HPStatusBadge(
+                text: detail.draft.status.rawValue.capitalized,
+                kind: draftStatusKind(detail.draft.status)
+              )
+            }
+            Label(
+              "Not shared with parent.",
+              systemImage: "person.crop.circle.badge.exclamationmark"
+            )
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.warning)
+            .fixedSize(horizontal: false, vertical: true)
+            LabeledContent("Status", value: detail.draft.status.rawValue.capitalized)
+            LabeledContent("Player", value: player.displayName)
+          }
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Coach-edited version")
+            contentEditors(editedContentBinding)
+          }
+        }
+
+        HPCard {
+          DisclosureGroup("Compare generated original") {
+            parentContent(detail.draft.generatedOriginal)
+              .padding(.top, HP.Space.sm)
+          }
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Review history") {
+              HPStatusBadge(text: "\(detail.reviewEvents.count)", kind: .neutral)
+            }
+            ForEach(detail.reviewEvents) { event in
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.eventType.capitalized)
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                Text(event.createdAt)
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+        }
+
+        if let errorMessage {
+          HPCard {
+            HPErrorState(title: "Draft action failed", message: errorMessage)
           }
         }
       }
-      if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red) } }
-      Section { lifecycleButtons(detail.draft.status) }
+    } primaryAction: { context in
+      HPButton(
+        title: "Save edits",
+        systemImage: "square.and.arrow.down",
+        variant: .primary,
+        size: .lg,
+        fullWidth: context.isAccessibilitySize
+      ) {
+        Task { await save(markReviewed: false) }
+      }
+      .disabled(isWorking || !canEdit(detail.draft.status))
+    } secondaryAction: { context in
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: HP.Space.xs) {
+          secondaryLifecycleButtons(detail.draft.status, fullWidth: false)
+        }
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          secondaryLifecycleButtons(detail.draft.status, fullWidth: true)
+        }
+      }
+      .frame(maxWidth: context.isAccessibilitySize ? .infinity : nil, alignment: .leading)
     }
   }
 
@@ -1665,35 +1843,91 @@ struct ParentUpdateDraftDetailView: View {
     )
   }
 
-  @ViewBuilder
-  private func lifecycleButtons(_ status: SDParentDraftStatus) -> some View {
-    Button("Save edits") { Task { await save(markReviewed: false) } }
-      .disabled(isWorking || !canEdit(status))
-    Button("Mark reviewed") { Task { await save(markReviewed: true) } }
-      .disabled(isWorking || status != .generated)
-    Button("Approve") { Task { await transition("approve_parent_draft") } }
-      .disabled(isWorking || status != .reviewed)
-    Button("Reject", role: .destructive) { Task { await transition("reject_parent_draft") } }
-      .disabled(isWorking || ![.generated, .reviewed].contains(status))
-    Button("Archive") { Task { await transition("archive_parent_draft") } }
-      .disabled(isWorking || status == .archived)
+  private func draftStatusKind(_ status: SDParentDraftStatus) -> HPStatusKind {
+    switch status {
+    case .generated: .warning
+    case .reviewed: .info
+    case .approved: .success
+    case .rejected: .danger
+    case .archived, .unknown: .neutral
+    }
   }
 
-  private func canEdit(_ status: SDParentDraftStatus) -> Bool { [.generated, .reviewed].contains(status) }
+  @ViewBuilder
+  private func secondaryLifecycleButtons(
+    _ status: SDParentDraftStatus,
+    fullWidth: Bool
+  ) -> some View {
+    HPButton(
+      title: "Mark reviewed",
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth
+    ) {
+      Task { await save(markReviewed: true) }
+    }
+    .disabled(isWorking || status != .generated)
+
+    HPButton(
+      title: "Approve",
+      variant: .secondary,
+      size: .md,
+      fullWidth: fullWidth
+    ) {
+      Task { await transition("approve_parent_draft") }
+    }
+    .disabled(isWorking || status != .reviewed)
+
+    HPButton(
+      title: "Reject",
+      variant: .destructive,
+      size: .md,
+      fullWidth: fullWidth
+    ) {
+      Task { await transition("reject_parent_draft") }
+    }
+    .disabled(isWorking || ![.generated, .reviewed].contains(status))
+
+    HPButton(
+      title: "Archive",
+      variant: .tertiary,
+      size: .md,
+      fullWidth: fullWidth
+    ) {
+      Task { await transition("archive_parent_draft") }
+    }
+    .disabled(isWorking || status == .archived)
+  }
+
+  private func canEdit(_ status: SDParentDraftStatus) -> Bool {
+    [.generated, .reviewed].contains(status)
+  }
 
   @ViewBuilder
   private func contentEditors(_ content: Binding<SDParentUpdateContent>) -> some View {
-    TextField("Recent work", text: content.recentWork, axis: .vertical)
-    TextField("Positive developments", text: content.positiveDevelopments, axis: .vertical)
-    TextField("Current focus", text: content.currentFocus, axis: .vertical)
-    TextField("Consistency", text: content.consistency, axis: .vertical)
-    TextField("Recent testing", text: content.recentTesting, axis: .vertical)
-    TextField("Evidence limitations", text: content.evidenceLimitations, axis: .vertical)
-    TextField("Upcoming next steps", text: content.upcomingNextSteps, axis: .vertical)
+    HPFormField(label: "Recent work", text: content.recentWork, kind: .multiline)
+    HPFormField(
+      label: "Positive developments",
+      text: content.positiveDevelopments,
+      kind: .multiline
+    )
+    HPFormField(label: "Current focus", text: content.currentFocus, kind: .multiline)
+    HPFormField(label: "Consistency", text: content.consistency, kind: .multiline)
+    HPFormField(label: "Recent testing", text: content.recentTesting, kind: .multiline)
+    HPFormField(
+      label: "Evidence limitations",
+      text: content.evidenceLimitations,
+      kind: .multiline
+    )
+    HPFormField(
+      label: "Upcoming next steps",
+      text: content.upcomingNextSteps,
+      kind: .multiline
+    )
   }
 
   private func parentContent(_ content: SDParentUpdateContent) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
       parentSection("Recent work", content.recentWork)
       parentSection("Positive developments", content.positiveDevelopments)
       parentSection("Current focus", content.currentFocus)
@@ -1705,7 +1939,16 @@ struct ParentUpdateDraftDetailView: View {
   }
 
   private func parentSection(_ title: String, _ value: String) -> some View {
-    VStack(alignment: .leading, spacing: 2) { Text(title).font(.caption.weight(.semibold)); Text(value) }
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title)
+        .font(HP.Font.caption.weight(.semibold))
+        .foregroundStyle(HP.Color.textMuted)
+      Text(value)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func load() async {

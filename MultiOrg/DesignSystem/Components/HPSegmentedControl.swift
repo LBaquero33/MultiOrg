@@ -33,6 +33,7 @@ struct HPSegmentedControl<T: Hashable>: View {
           }
           .padding(.horizontal, HP.Space.sm)
           .padding(.vertical, 10)
+          .frame(minHeight: 44)
           .background(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
             .fill(isSelected ? HP.Color.accent.opacity(0.14) : .clear))
           .foregroundStyle(isSelected ? HP.Color.text : HP.Color.textTertiary)
@@ -45,7 +46,11 @@ struct HPSegmentedControl<T: Hashable>: View {
     }
     .padding(4)
     .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.surfaceRaised))
-    .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
   }
 
   private var horizontalSegments: some View {
@@ -61,6 +66,7 @@ struct HPSegmentedControl<T: Hashable>: View {
             .lineLimit(1).minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background {
               if isSelected {
                 RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
@@ -78,6 +84,10 @@ struct HPSegmentedControl<T: Hashable>: View {
     }
     .padding(4)
     .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.surfaceRaised))
-    .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
   }
 }

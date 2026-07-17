@@ -203,12 +203,18 @@ struct PlayerDevelopmentAITests {
       contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentAIView.swift"),
       encoding: .utf8
     )
+    let formFieldSource = try String(
+      contentsOf: projectRoot.appendingPathComponent("MultiOrg/DesignSystem/Components/HPFormField.swift"),
+      encoding: .utf8
+    )
     #expect(source.contains("@Environment(\\.dismiss) private var dismiss"))
     #expect(source.contains(".navigationBarBackButtonHidden(true)"))
     #expect(source.contains(".accessibilityIdentifier(\"development-report-dismiss\")"))
     #expect(source.contains(".keyboardShortcut(.cancelAction)"))
-    #expect(source.contains("TextEditor(text: $notes)"))
-    #expect(source.contains(".stroke(DHDTheme.separator)\n              .allowsHitTesting(false)"))
+    #expect(source.contains("label: \"Review notes\""))
+    #expect(source.contains("kind: .multiline"))
+    #expect(formFieldSource.contains(".strokeBorder(borderColor"))
+    #expect(formFieldSource.contains(".allowsHitTesting(false)"))
   }
 
   @Test("Ambiguous generation retry retains key/cutoff while material changes replace both")

@@ -13,52 +13,88 @@ struct CoachPlayerTestingCRUDView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-      }
-
-      Section {
-        if !canManagePlayer {
-          Label("Your organization limits testing changes to players on your assigned team.", systemImage: "lock.fill")
-            .font(.footnote)
-            .foregroundStyle(.orange)
-        }
-        Button {
-          showAdd = true
-        } label: {
-          Label("Add entry", systemImage: "plus")
-        }
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "Testing",
+        orgLabel: activeOrganizationName,
+        context: player.displayName
+      ) {
+        HPButton(
+          title: "Add entry",
+          systemImage: "plus",
+          variant: .primary,
+          size: .sm,
+          action: { showAdd = true }
+        )
         .disabled(!canManagePlayer)
       }
-
-      Section("Entries") {
-        if entries.isEmpty, !isLoading {
-          Text("No testing entries yet.")
-            .foregroundStyle(.secondary)
-        } else {
-          ForEach(entries) { e in
-            Button {
-              editingEntry = e
-            } label: {
-              VStack(alignment: .leading, spacing: 4) {
-                Text(e.entry_date).font(.headline)
-                Text(summary(e)).font(.caption).foregroundStyle(.secondary)
-              }
-              .padding(.vertical, 4)
+    } controls: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HStack(spacing: HP.Space.sm) {
+            Image(systemName: "list.bullet.clipboard")
+              .foregroundStyle(HP.Color.accent)
+              .accessibilityHidden(true)
+            Text("\(entries.count) \(entries.count == 1 ? "entry" : "entries")")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+            Spacer(minLength: 0)
+            if isLoading {
+              HPProgressIndicator(style: .spinner)
+                .accessibilityLabel("Loading testing entries")
             }
-            .buttonStyle(.plain)
-            .disabled(!canManagePlayer)
+          }
+
+          if !canManagePlayer {
+            Label("Your organization limits testing changes to players on your assigned team.", systemImage: "lock.fill")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.warning)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    } results: { context in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Entries") {
+            HPStatusBadge(text: "\(entries.count)", kind: .neutral)
+          }
+
+          if isLoading {
+            HPLoadingState(text: "Loading…")
+          } else if entries.isEmpty {
+            HPEmptyState(
+              title: "No testing entries yet.",
+              message: "Testing entries for \(player.displayName) will appear here.",
+              systemImage: "list.bullet.clipboard"
+            )
+          } else {
+            if context.tableLayout == .columns {
+              testingColumnHeader
+            }
+
+            ForEach(entries) { entry in
+              Button {
+                editingEntry = entry
+              } label: {
+                testingEntryRow(entry, stacked: context.tableLayout != .columns)
+              }
+              .buttonStyle(.plain)
+              .disabled(!canManagePlayer)
+              .accessibilityHint(
+                canManagePlayer
+                  ? "Opens the testing entry editor"
+                  : "Testing changes are unavailable for this player"
+              )
+
+              if entry.id != entries.last?.id {
+                Divider().overlay(HP.Color.border.opacity(0.5))
+              }
+            }
           }
         }
       }
     }
-    #if os(macOS)
-    .listStyle(.inset)
-    #else
-    .listStyle(.insetGrouped)
-    #endif
-    .dhdPageBackground()
     .sheet(isPresented: $showAdd) {
       TestingEntryFormSheet(
         title: "Add entry",
@@ -85,6 +121,73 @@ struct CoachPlayerTestingCRUDView: View {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
     .task { await reload() }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var testingColumnHeader: some View {
+    HStack(spacing: HP.Space.sm) {
+      Text("DATE")
+        .frame(width: 140, alignment: .leading)
+      Text("MEASUREMENTS")
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Color.clear
+        .frame(width: 20, height: 1)
+        .accessibilityHidden(true)
+    }
+    .font(HP.Font.eyebrow)
+    .tracking(HP.Font.eyebrowTracking)
+    .foregroundStyle(HP.Color.textMuted)
+    .padding(.vertical, 6)
+  }
+
+  @ViewBuilder
+  private func testingEntryRow(_ entry: SDTestingEntry, stacked: Bool) -> some View {
+    if stacked {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Text(entry.entry_date)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+        Text(summary(entry))
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        if canManagePlayer {
+          Label("Edit entry", systemImage: "pencil")
+            .font(HP.Font.caption.weight(.semibold))
+            .foregroundStyle(HP.Color.accent)
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    } else {
+      HStack(spacing: HP.Space.sm) {
+        Text(entry.entry_date)
+          .font(HP.Font.callout.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+          .frame(width: 140, alignment: .leading)
+        Text(summary(entry))
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        Image(systemName: "chevron.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .frame(width: 20)
+          .accessibilityHidden(true)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .contentShape(Rectangle())
+    }
   }
 
   private func reload() async {
@@ -151,45 +254,46 @@ private struct TestingEntryFormSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Date") {
-          DatePicker("Entry date", selection: $date, displayedComponents: .date)
-        }
-        Section("Body") {
-          TextField("Height (in)", text: $heightIn).modifier(NumericKeyboard())
-          TextField("Weight (lb)", text: $weightLb).modifier(NumericKeyboard())
-        }
-        Section("Strength") {
-          TextField("Squat 1RM", text: $squat).modifier(NumericKeyboard())
-          TextField("Bench 1RM", text: $bench).modifier(NumericKeyboard())
-          TextField("Deadlift 1RM", text: $deadlift).modifier(NumericKeyboard())
-        }
-        Section("Hitting") {
-          TextField("Max EV (mph)", text: $maxEV).modifier(NumericKeyboard())
-          TextField("Avg EV (mph)", text: $avgEV).modifier(NumericKeyboard())
-        }
-        Section("Mobility diffs") {
-          TextField("Hip ER difference", text: $hipER).modifier(NumericKeyboard())
-          TextField("Hip IR difference", text: $hipIR).modifier(NumericKeyboard())
-          TextField("Shoulder IR difference", text: $shoulderIR).modifier(NumericKeyboard())
-          TextField("Shoulder ER difference", text: $shoulderER).modifier(NumericKeyboard())
-        }
-        Section("Notes") {
-          TextField("Notes (optional)", text: $notes, axis: .vertical)
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          title,
+          orgLabel: activeOrganizationName,
+          context: existing == nil ? "New testing entry" : "Testing entry • \(existing?.entry_date ?? "")"
+        )
+      } sections: { _ in
+        dateSection
+        bodySection
+        strengthSection
+        hittingSection
+        mobilitySection
+        notesSection
+      } primaryAction: { context in
+        HPButton(
+          title: "Save",
+          systemImage: "checkmark",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await save() } }
+        )
+        .disabled(isSaving)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle(title)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Save") }
-          }
-          .disabled(isSaving)
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
         }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -197,6 +301,90 @@ private struct TestingEntryFormSheet: View {
       } message: { Text(errorText ?? "") }
       .task { preload() }
     }
+  }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var dateSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Date")
+        DatePicker("Entry date", selection: $date, displayedComponents: .date)
+          .font(HP.Font.body)
+          .foregroundStyle(HP.Color.text)
+          .tint(HP.Color.accent)
+      }
+    }
+  }
+
+  private var bodySection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Body")
+        numericField("Height (in)", text: $heightIn)
+        numericField("Weight (lb)", text: $weightLb)
+      }
+    }
+  }
+
+  private var strengthSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Strength")
+        numericField("Squat 1RM", text: $squat)
+        numericField("Bench 1RM", text: $bench)
+        numericField("Deadlift 1RM", text: $deadlift)
+      }
+    }
+  }
+
+  private var hittingSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Hitting")
+        numericField("Max EV (mph)", text: $maxEV)
+        numericField("Avg EV (mph)", text: $avgEV)
+      }
+    }
+  }
+
+  private var mobilitySection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Mobility diffs")
+        numericField("Hip ER difference", text: $hipER)
+        numericField("Hip IR difference", text: $hipIR)
+        numericField("Shoulder IR difference", text: $shoulderIR)
+        numericField("Shoulder ER difference", text: $shoulderER)
+      }
+    }
+  }
+
+  private var notesSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Notes")
+        HPFormField(
+          label: "Notes (optional)",
+          text: $notes,
+          kind: .multiline,
+          placeholder: "Notes (optional)"
+        )
+      }
+    }
+  }
+
+  private func numericField(_ label: String, text: Binding<String>) -> some View {
+    HPFormField(label: label, text: text, placeholder: label)
+      .modifier(NumericKeyboard())
   }
 
   private func preload() {

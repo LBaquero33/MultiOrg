@@ -9,33 +9,86 @@ struct CoachPlayerBPSessionsView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        "BP sessions",
+        context: player.displayName
+      )
+    } controls: {
+      HPCard {
+        HStack(spacing: HP.Space.sm) {
+          Image(systemName: "baseball.diamond.bases")
+            .foregroundStyle(HP.Color.accent)
+            .accessibilityHidden(true)
+          Text("\(sessions.count) \(sessions.count == 1 ? "session" : "sessions")")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+          Spacer(minLength: 0)
+          if isLoading {
+            HPProgressIndicator(style: .spinner)
+              .accessibilityLabel("Loading BP sessions")
+          }
+        }
       }
-      if sessions.isEmpty, !isLoading {
-        Text("No BP sessions yet.")
-          .foregroundStyle(.secondary)
-      } else {
-        Section("Sessions") {
-          ForEach(sessions) { s in
-            NavigationLink {
-              CoachPlayerBPSessionDetailView(session: s)
-            } label: {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("\(s.session_date) • \(s.reps_type.capitalized)").font(.headline)
-                Text(s.source.capitalized).font(.caption).foregroundStyle(.secondary)
+    } results: { _ in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Sessions") {
+            HPStatusBadge(text: "\(sessions.count)", kind: .neutral)
+          }
+
+          if isLoading {
+            HPLoadingState(text: "Loading…")
+          }
+
+          if sessions.isEmpty, !isLoading {
+            HPEmptyState(
+              title: "No BP sessions yet",
+              message: "Batting-practice sessions for \(player.displayName) will appear here.",
+              systemImage: "baseball.diamond.bases"
+            )
+          } else if !sessions.isEmpty {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              ForEach(sessions) { session in
+                NavigationLink {
+                  CoachPlayerBPSessionDetailView(session: session)
+                } label: {
+                  HStack(spacing: HP.Space.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                      Text("\(session.session_date) • \(session.reps_type.capitalized)")
+                        .font(HP.Font.headline)
+                        .foregroundStyle(HP.Color.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                      Text(session.source.capitalized)
+                        .font(HP.Font.caption)
+                        .foregroundStyle(HP.Color.textMuted)
+                    }
+                    Spacer(minLength: HP.Space.sm)
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(HP.Color.textMuted)
+                      .accessibilityHidden(true)
+                  }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                  "\(session.session_date), \(session.reps_type.capitalized), \(session.source.capitalized)"
+                )
               }
-              .padding(.vertical, 4)
             }
           }
         }
       }
     }
     .navigationTitle("BP")
-    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
+    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil }))
+    {
       Button("OK", role: .cancel) {}
-    } message: { Text(errorText ?? "") }
+    } message: {
+      Text(errorText ?? "")
+    }
     .task { await reload() }
   }
 
@@ -60,36 +113,92 @@ private struct CoachPlayerBPSessionDetailView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      Section("Summary") {
-        if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        } else if events.isEmpty {
-          Text("No events.")
-            .foregroundStyle(.secondary)
-        } else {
-          let maxEV = events.compactMap(\.exit_velo).max() ?? 0
-          let avgEV = avg(events.compactMap(\.exit_velo))
-          Text("Events: \(events.count)")
-          Text("Max EV: \(fmt(maxEV))")
-          Text("Avg EV: \(fmt(avgEV))")
-        }
-      }
-
+    HPDetailScreenLayout {
+      HPWorkspaceHeader(
+        "BP session",
+        context:
+          "\(session.session_date) • \(session.reps_type.capitalized) • \(session.source.capitalized)"
+      )
+    } metrics: {
       if !events.isEmpty {
-        Section("Events (first 30)") {
-          ForEach(Array(events.prefix(30))) { e in
-            Text("EV \(fmt(e.exit_velo ?? 0)) • LA \(fmt(e.launch_angle ?? 0)) • Dist \(fmt(e.distance ?? 0))")
-              .font(.caption)
+        HPMetricCard(
+          title: "Events",
+          value: "\(events.count)",
+          context: "Imported swings"
+        )
+        HPMetricCard(
+          title: "Max EV",
+          value: fmt(events.compactMap(\.exit_velo).max() ?? 0),
+          unit: "mph",
+          context: "This session"
+        )
+        HPMetricCard(
+          title: "Avg EV",
+          value: fmt(avg(events.compactMap(\.exit_velo))),
+          unit: "mph",
+          context: "This session"
+        )
+      }
+    } details: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Summary")
+          if isLoading {
+            HPLoadingState(text: "Loading…")
+          } else if events.isEmpty {
+            HPEmptyState(
+              title: "No events",
+              message: "No pitch events are available for this BP session.",
+              systemImage: "baseball"
+            )
+          } else {
+            HPStatTile(label: "Date", value: session.session_date)
+            HPStatTile(label: "Reps type", value: session.reps_type.capitalized)
+            HPStatTile(label: "Source", value: session.source.capitalized)
           }
         }
       }
+    } related: { context in
+      if !events.isEmpty {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Events (first 30)")
+            HPTable(
+              columns: [
+                HPColumn(title: "Exit velocity", alignment: .trailing, numeric: true),
+                HPColumn(title: "Launch angle", alignment: .trailing, numeric: true),
+                HPColumn(title: "Distance", alignment: .trailing, numeric: true),
+              ],
+              rows: eventRows,
+              layout: context.tableLayout
+            )
+          }
+        }
+      }
+    } primaryAction: {
+      EmptyView()
     }
     .navigationTitle(session.session_date)
-    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
+    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil }))
+    {
       Button("OK", role: .cancel) {}
-    } message: { Text(errorText ?? "") }
+    } message: {
+      Text(errorText ?? "")
+    }
     .task { await reload() }
+  }
+
+  private var eventRows: [HPTableRow] {
+    Array(events.prefix(30)).map { event in
+      HPTableRow(
+        id: event.id,
+        cells: [
+          fmt(event.exit_velo ?? 0),
+          fmt(event.launch_angle ?? 0),
+          fmt(event.distance ?? 0),
+        ]
+      )
+    }
   }
 
   private func reload() async {
@@ -104,6 +213,7 @@ private struct CoachPlayerBPSessionDetailView: View {
   }
 
   private func avg(_ xs: [Double]) -> Double { xs.isEmpty ? 0 : xs.reduce(0, +) / Double(xs.count) }
-  private func fmt(_ v: Double) -> String { v.rounded() == v ? String(Int(v)) : String(format: "%.1f", v) }
+  private func fmt(_ v: Double) -> String {
+    v.rounded() == v ? String(Int(v)) : String(format: "%.1f", v)
+  }
 }
-

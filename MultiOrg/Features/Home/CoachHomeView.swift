@@ -52,80 +52,82 @@ struct CoachHomeView: View {
     .sheet(isPresented: $showRosterAttention) {
       DevelopmentRosterAttentionView(players: players)
         .environmentObject(appState)
+        .onExitCommand { showRosterAttention = false }
     }
 #else
     NavigationStack {
-      List {
-        Section {
-          TextField("Search players", text: $query)
-          #if canImport(UIKit)
-            .textInputAutocapitalization(.never)
-          #endif
-            .autocorrectionDisabled()
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-          Picker("Show", selection: $roleFilter) {
-            ForEach(RoleFilter.allCases) { f in
-              Text(f.rawValue).tag(f)
-            }
-          }
-          .pickerStyle(.segmented)
+      HPWorkspaceScreenLayout {
+        HPWorkspaceHeader(
+          "Coach",
+          orgLabel: activeOrganizationName,
+          context: "Roster workspace • \(filteredPlayers.count) shown"
+        ) {
+          HPButton(
+            title: "Programs",
+            systemImage: "list.clipboard",
+            variant: .primary,
+            size: .sm,
+            action: { showPrograms = true }
+          )
         }
-
-        Section(roleFilter.rawValue) {
-          if isLoading {
-            HStack(spacing: 10) {
-              ProgressView()
-              Text("Loading…").foregroundStyle(.secondary)
-            }
-          } else if filteredPlayers.isEmpty {
-            Text("No players found.")
-              .foregroundStyle(.secondary)
-          } else {
-            ForEach(filteredPlayers) { p in
-              NavigationLink {
-                CoachPlayerProfileView(player: p)
-              } label: {
-                HStack(spacing: 12) {
-                  DHDAvatarView(
-                    url: {
-                      guard let path = p.avatar_path else { return nil }
-                      return appState.supabase?.publicAvatarURL(path: path)
-                    }(),
-                    initials: String(p.displayName.prefix(2)).uppercased(),
-                    size: 36
-                  )
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(p.displayName).font(.headline)
-                    Text("\(p.isCoach ? "Coach" : "Player") • \(p.shortId)")
-                      .font(.caption)
-                      .foregroundStyle(.secondary)
-                  }
-                }
-                .padding(.vertical, 4)
-              }
+      } attention: {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSearchBar(text: $query, placeholder: "Search players")
+              #if canImport(UIKit)
+              .textInputAutocapitalization(.never)
+              #endif
+              .autocorrectionDisabled()
+            VStack(alignment: .leading, spacing: 6) {
+              Text("SHOW")
+                .font(HP.Font.eyebrow)
+                .tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: RoleFilter.allCases.map { (value: $0, label: $0.rawValue) },
+                selection: $roleFilter
+              )
             }
           }
         }
-
-        Section {
-          Button(role: .destructive) {
-            Task { await appState.signOut() }
-          } label: {
-            Text("Sign Out")
-          }
-        }
+      } metrics: {
+        HPMetricCard(
+          title: "Roster",
+          value: "\(players.count)",
+          context: "All profiles"
+        )
+        HPMetricCard(
+          title: "Showing",
+          value: "\(filteredPlayers.count)",
+          context: roleFilter.rawValue
+        )
+      } supporting: {
+        rosterResults
       }
       .navigationTitle("Coach")
       .toolbar {
-        ToolbarItemGroup(placement: .cancellationAction) {
-          Button("Programs") { showPrograms = true }
-          Button("Roster Attention") { showRosterAttention = true }
-        }
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItem(placement: .topBarTrailing) {
           Button {
-            Task { await reload() }
+            showRosterAttention = true
           } label: {
-            Image(systemName: "arrow.clockwise")
+            Label("Roster Attention", systemImage: "exclamationmark.bubble")
+          }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu {
+            Button {
+              Task { await reload() }
+            } label: {
+              Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            Button(role: .destructive) {
+              Task { await appState.signOut() }
+            } label: {
+              Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+          } label: {
+            Image(systemName: "ellipsis.circle")
+              .accessibilityLabel("More coach actions")
           }
         }
       }
@@ -143,6 +145,97 @@ struct CoachHomeView: View {
     }
 #endif
   }
+
+  private var activeOrganizationName: String {
+    if let organizationId = appState.activeOrgId,
+       let organization = appState.availableOrganizations.first(where: { $0.id == organizationId }) {
+      return organization.displayName
+    }
+    return appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+#if !os(macOS)
+  private var rosterResults: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(roleFilter.rawValue) {
+          HPStatusBadge(text: "\(filteredPlayers.count)", kind: .neutral)
+        }
+
+        if isLoading {
+          HPLoadingState(text: "Loading…")
+        } else if filteredPlayers.isEmpty {
+          HPEmptyState(
+            title: "No players found.",
+            message: "Try another search or role filter.",
+            systemImage: "person.2"
+          )
+        } else {
+          ForEach(filteredPlayers) { player in
+            NavigationLink {
+              CoachPlayerProfileView(player: player)
+            } label: {
+              rosterRow(player)
+            }
+            .buttonStyle(.plain)
+
+            if player.id != filteredPlayers.last?.id {
+              Divider().overlay(HP.Color.border.opacity(0.5))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func rosterRow(_ player: Profile) -> some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: HP.Space.sm) {
+        rosterIdentity(player)
+          .fixedSize(horizontal: true, vertical: false)
+        Spacer(minLength: HP.Space.xs)
+        Image(systemName: "chevron.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .accessibilityHidden(true)
+      }
+
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        rosterIdentity(player)
+        Label("Open profile", systemImage: "chevron.right")
+          .font(HP.Font.caption.weight(.semibold))
+          .foregroundStyle(HP.Color.accent)
+      }
+    }
+    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    .contentShape(Rectangle())
+  }
+
+  private func rosterIdentity(_ player: Profile) -> some View {
+    HStack(spacing: HP.Space.sm) {
+      DHDAvatarView(
+        url: {
+          guard let path = player.avatar_path else { return nil }
+          return appState.supabase?.publicAvatarURL(path: path)
+        }(),
+        initials: String(player.displayName.prefix(2)).uppercased(),
+        size: 36
+      )
+      VStack(alignment: .leading, spacing: 2) {
+        Text(player.displayName)
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("\(player.isCoach ? "Coach" : "Player") • \(player.shortId)")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+#endif
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }
@@ -168,6 +261,19 @@ struct CoachHomeView: View {
 
   private var rosterPane: some View {
     VStack(spacing: 0) {
+      HPWorkspaceHeader(
+        "Roster",
+        orgLabel: activeOrganizationName,
+        context: "\(filteredPlayers.count) \(filteredPlayers.count == 1 ? "person" : "people") shown"
+      )
+      .padding(HP.Space.sm)
+
+      if isLoading {
+        HPLoadingState(text: "Loading roster…")
+          .padding(.horizontal, HP.Space.md)
+          .padding(.bottom, HP.Space.sm)
+      }
+
       Table(filteredPlayers, selection: $selectedPlayerId) {
         TableColumn("Name") { p in
           HStack(spacing: 10) {
@@ -180,29 +286,32 @@ struct CoachHomeView: View {
               size: 26
             )
             Text(p.displayName)
-              .foregroundStyle(DHDTheme.textPrimary)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
           }
         }
         TableColumn("Role") { p in
           Text(p.isCoach ? "Coach" : "Player")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
         TableColumn("Last test") { p in
           Text(latestTestByPlayerId[p.id] ?? "—")
-            .foregroundStyle(DHDTheme.textSecondary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
         }
         TableColumn("Program") { p in
           let name = activeProgramByPlayerId[p.id]
           if let name, !name.isEmpty {
-            DHDStatusBadge(text: name, color: .green)
+            HPStatusBadge(text: name, kind: .success)
           } else {
-            Text("—").foregroundStyle(DHDTheme.textSecondary)
+            Text("—").foregroundStyle(HP.Color.textMuted)
           }
         }
         TableColumn("ID") { p in
           Text(p.shortId)
             .font(.caption.monospaced())
-            .foregroundStyle(DHDTheme.textSecondary)
+            .foregroundStyle(HP.Color.textMuted)
         }
       }
       .tableStyle(.inset)
@@ -210,7 +319,7 @@ struct CoachHomeView: View {
         selectedPlayerIdStorage = newValue?.uuidString ?? ""
       }
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .toolbar {
       ToolbarItemGroup(placement: .automatic) {
         Picker("Show", selection: $roleFilter) {
@@ -219,12 +328,14 @@ struct CoachHomeView: View {
           }
         }
         .pickerStyle(.segmented)
+        .tint(HP.Color.accent)
 
         Button {
           Task { await reload() }
         } label: {
           Image(systemName: "arrow.clockwise")
         }
+        .accessibilityLabel("Refresh roster")
 
         Button {
           showRosterAttention = true
@@ -243,14 +354,15 @@ struct CoachHomeView: View {
         .id(p.id)
         .environmentObject(appState)
     } else {
-      VStack(spacing: 10) {
-        Text("Select a player")
-          .font(.title3.weight(.semibold))
-        Text("Choose a player from the roster to view their profile.")
-          .foregroundStyle(DHDTheme.textSecondary)
+      HPStateScreenLayout { _ in
+        HPCard {
+          HPEmptyState(
+            title: "Select a player",
+            message: "Choose a player from the roster to view their profile.",
+            systemImage: "person.crop.circle"
+          )
+        }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(DHDTheme.pageBackground)
     }
   }
 

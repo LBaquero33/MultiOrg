@@ -20,65 +20,43 @@ struct ProgramDayEditorSheet: View {
 
   var body: some View {
     NavigationStack {
-      VStack(spacing: 0) {
-        List {
-          Section {
-            HStack {
-              Text("Week \(week) • Day \(dayIndex)")
-                .font(.headline)
-              Spacer()
-              if isLoadingLibrary {
-                ProgressView().controlSize(.small)
-              }
-            }
-          }
-
-          Section(template.kind == .strength ? "Exercises (in order)" : "Drills (in order)") {
-            if items.isEmpty {
-              Text("No exercises yet. Click Add.")
-                .foregroundStyle(.secondary)
-            }
-
-            ForEach($items) { $ex in
-              let exId = ex.id
-              ExerciseRow(
-                ex: $ex,
-                suggestions: suggestions(for: ex.name),
-                unitOptions: unitOptions,
-                onDuplicate: { duplicate(exId) },
-                onDelete: { delete(exId) },
-                onMoveUp: { moveUp(exId) },
-                onMoveDown: { moveDown(exId) }
-              )
-              .padding(.vertical, 4)
-            }
-
-            Button {
-              items.append(EditableExercise())
-            } label: {
-              Label("Add exercise", systemImage: "plus")
-            }
-          }
-        }
-
-        // Bottom bar (fast actions, clean)
-        HStack(spacing: 10) {
-          // Cross-platform reordering uses per-row menu actions (Move up/down).
-          Spacer()
-          Button("Cancel") { dismiss() }
-            .buttonStyle(.bordered)
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Save").fontWeight(.semibold) }
-          }
-          .buttonStyle(.borderedProminent)
-          .disabled(!canSave || isSaving)
-        }
-        .padding()
-        .background(.thinMaterial)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Edit day",
+          context: "Week \(week) • Day \(dayIndex) • \(template.kind.title)"
+        )
+      } sections: { context in
+        dayStatusCard
+        exercisesCard(context)
+      } primaryAction: { context in
+        HPButton(
+          title: "Save",
+          systemImage: "checkmark",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await save() } }
+        )
+        .disabled(!canSave || isSaving)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Edit day")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+            #if os(macOS)
+            .keyboardShortcut(.cancelAction)
+            #endif
+        }
+      }
       #if os(macOS)
       .frame(minWidth: 820, minHeight: 620)
       #endif
@@ -88,6 +66,67 @@ struct ProgramDayEditorSheet: View {
       .task {
         preload()
         await loadLibraryIfNeeded()
+      }
+    }
+  }
+
+  private var dayStatusCard: some View {
+    HPCard {
+      HPSectionHeader("Week \(week) • Day \(dayIndex)") {
+        if isLoadingLibrary {
+          HPProgressIndicator(style: .spinner)
+            .accessibilityLabel("Loading exercise suggestions")
+        }
+      }
+    }
+  }
+
+  private func exercisesCard(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader(template.kind == .strength ? "Exercises (in order)" : "Drills (in order)") {
+          HPStatusBadge(text: "\(items.count)", kind: .neutral)
+        }
+
+        if items.isEmpty {
+          Text("No exercises yet. Click Add.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        ForEach($items) { $ex in
+          let exId = ex.id
+          ExerciseRow(
+            ex: $ex,
+            suggestions: suggestions(for: ex.name),
+            unitOptions: unitOptions,
+            isStacked: !context.isExpanded,
+            onDuplicate: { duplicate(exId) },
+            onDelete: { delete(exId) },
+            onMoveUp: { moveUp(exId) },
+            onMoveDown: { moveDown(exId) }
+          )
+          .padding(HP.Space.sm)
+          .background(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .fill(HP.Color.surface)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
+        }
+
+        HPButton(
+          title: "Add exercise",
+          systemImage: "plus",
+          variant: .secondary,
+          size: .md,
+          fullWidth: !context.isExpanded,
+          action: { items.append(EditableExercise()) }
+        )
       }
     }
   }
@@ -251,6 +290,7 @@ private struct ExerciseRow: View {
   @Binding var ex: EditableExercise
   let suggestions: [String]
   let unitOptions: [String]
+  let isStacked: Bool
   let onDuplicate: () -> Void
   let onDelete: () -> Void
   let onMoveUp: () -> Void
@@ -276,10 +316,19 @@ private struct ExerciseRow: View {
       set: { newValue in ex.sets = newValue <= 0 ? nil : newValue }
     )
 
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top, spacing: 10) {
+    let nameLayout = isStacked
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+      : AnyLayout(HStackLayout(alignment: .top, spacing: HP.Space.sm))
+    let fieldLayout = AnyLayout(
+      VStackLayout(alignment: .leading, spacing: HP.Space.md)
+    )
+
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      nameLayout {
         ExerciseNameAutocompleteField(text: $ex.name, suggestions: suggestions)
-        Spacer()
+        if !isStacked {
+          Spacer(minLength: HP.Space.sm)
+        }
         Menu {
           Button("Move up", action: onMoveUp)
           Button("Move down", action: onMoveDown)
@@ -288,67 +337,92 @@ private struct ExerciseRow: View {
           Button("Delete", role: .destructive, action: onDelete)
         } label: {
           Image(systemName: "ellipsis.circle")
-            .font(.headline)
-            .foregroundStyle(.secondary)
+            .font(HP.Font.headline)
+            .foregroundStyle(HP.Color.textTertiary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
         }
+        .accessibilityLabel("Exercise actions")
       }
 
-      HStack(spacing: 10) {
-        HStack(spacing: 8) {
-          Text("Sets")
-            .foregroundStyle(DHDTheme.textSecondary)
-          TextField("—", text: setsText)
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .frame(width: 54)
-            .multilineTextAlignment(.center)
-          Stepper("", value: setsStepper, in: 0...20)
-            .labelsHidden()
-        }
-        .frame(maxWidth: 210, alignment: .leading)
-
-        TextField("Reps", text: $ex.reps)
-          .textFieldStyle(RoundedBorderTextFieldStyle())
-          .frame(maxWidth: 160)
-
-        Picker("Unit", selection: $ex.unitChoice) {
-          ForEach(unitOptions, id: \.self) { u in
-            Text(u).tag(u)
+      fieldLayout {
+        VStack(alignment: .leading, spacing: 6) {
+          fieldLabel("Sets")
+          HStack(spacing: HP.Space.xs) {
+            TextField("—", text: setsText)
+              .textFieldStyle(.plain)
+              .font(HP.Font.body)
+              .foregroundStyle(HP.Color.text)
+              .multilineTextAlignment(.center)
+              .padding(.horizontal, HP.Space.xs)
+              .frame(minWidth: 54, maxWidth: 54, minHeight: 44)
+              .background(
+                RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                  .fill(HP.Color.input)
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+                  .strokeBorder(HP.Color.border, lineWidth: 1)
+                  .allowsHitTesting(false)
+              )
+            Stepper("", value: setsStepper, in: 0...20)
+              .labelsHidden()
+              .accessibilityLabel("Sets")
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
           }
         }
-        .pickerStyle(.menu)
-        .frame(maxWidth: 160)
+        .frame(maxWidth: isStacked ? .infinity : 210, alignment: .leading)
 
-        if ex.unitChoice == "other" {
-          TextField("Custom", text: $ex.customUnit)
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .frame(maxWidth: 180)
-        }
-      }
+        HPFormField(label: "Reps", text: $ex.reps, placeholder: "Reps")
+          .frame(maxWidth: isStacked ? .infinity : 160)
 
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Notes")
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(DHDTheme.textSecondary)
-        TextEditor(text: $ex.notes)
-          .frame(minHeight: 64)
-          .padding(8)
-          .background(Color.black.opacity(0.04))
-          .clipShape(RoundedRectangle(cornerRadius: 10))
-          .overlay(
-            RoundedRectangle(cornerRadius: 10)
-              .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-          )
-          .overlay(alignment: .topLeading) {
-            if ex.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-              Text("Optional coaching cues, tempo, setup, or intent")
-                .foregroundStyle(DHDTheme.textSecondary.opacity(0.7))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 16)
-                .allowsHitTesting(false)
+        VStack(alignment: .leading, spacing: 6) {
+          fieldLabel("Unit")
+          Picker("Unit", selection: $ex.unitChoice) {
+            ForEach(unitOptions, id: \.self) { u in
+              Text(u).tag(u)
             }
           }
+          .labelsHidden()
+          .accessibilityLabel("Unit")
+          .pickerStyle(.menu)
+          .tint(HP.Color.accent)
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          .padding(.horizontal, HP.Space.xs)
+          .background(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .fill(HP.Color.input)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
+        }
+        .frame(maxWidth: isStacked ? .infinity : 160)
+
+        if ex.unitChoice == "other" {
+          HPFormField(label: "Custom unit", text: $ex.customUnit, placeholder: "Custom")
+            .frame(maxWidth: isStacked ? .infinity : 180)
+        }
       }
+
+      HPFormField(
+        label: "Notes",
+        text: $ex.notes,
+        kind: .multiline,
+        placeholder: "Optional coaching cues, tempo, setup, or intent"
+      )
     }
+  }
+
+  private func fieldLabel(_ text: String) -> some View {
+    Text(text.uppercased())
+      .font(HP.Font.eyebrow)
+      .tracking(HP.Font.eyebrowTracking)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
   }
 }
 
@@ -360,9 +434,29 @@ struct ExerciseNameAutocompleteField: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
+      Text("EXERCISE NAME")
+        .font(HP.Font.eyebrow)
+        .tracking(HP.Font.eyebrowTracking)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+
       TextField("Exercise name", text: $text)
-        .textFieldStyle(RoundedBorderTextFieldStyle())
+        .textFieldStyle(.plain)
+        .font(HP.Font.body)
+        .foregroundStyle(HP.Color.text)
         .focused($focused)
+        .accessibilityLabel("Exercise name")
+        .padding(.horizontal, HP.Space.sm)
+        .padding(.vertical, 10)
+        .background(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .fill(HP.Color.input)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .strokeBorder(focused ? HP.Color.focusRing : HP.Color.border, lineWidth: focused ? 2 : 1)
+            .allowsHitTesting(false)
+        )
 
       if focused, !suggestions.isEmpty {
         VStack(alignment: .leading, spacing: 2) {
@@ -372,22 +466,25 @@ struct ExerciseNameAutocompleteField: View {
               focused = false
             } label: {
               Text(s)
-                .font(.caption)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 8)
+                .frame(minHeight: 44)
+                .padding(.horizontal, HP.Space.sm)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(Color.black.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .background(HP.Color.surface)
+            .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
           }
         }
-        .padding(8)
-        .background(DHDTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(HP.Space.xs)
+        .background(HP.Color.surfaceRaised)
+        .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous))
         .overlay(
-          RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .strokeBorder(HP.Color.border, lineWidth: 1)
+            .allowsHitTesting(false)
         )
       }
     }

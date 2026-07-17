@@ -27,89 +27,58 @@ struct FacilityDaySheet: View {
 
   var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 12) {
-          HStack {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(DateUtils.toISODate(date))
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(DHDTheme.textPrimary)
+      HPDetailScreenLayout {
+        HPWorkspaceHeader(
+          title,
+          context: DateUtils.toISODate(date)
+        )
+      } metrics: {
+        HPMetricCard(
+          title: "Facilities",
+          value: "\(facilities.count)",
+          context: "Available spaces"
+        )
+        HPMetricCard(
+          title: "Bookings",
+          value: "\(bookings.count)",
+          context: "Scheduled today"
+        )
+        HPMetricCard(
+          title: "Pending",
+          value: "\(pendingRequests.count)",
+          context: "Awaiting review"
+        )
+      } details: {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            HStack(alignment: .top, spacing: HP.Space.sm) {
+              Image(systemName: "calendar.badge.clock")
+                .foregroundStyle(HP.Color.accent)
+                .accessibilityHidden(true)
               Text(
                 "Approve pending requests below. Tap an empty time slot to add a booking or block."
               )
-              .font(.subheadline)
-              .foregroundStyle(DHDTheme.textSecondary)
-            }
-            Spacer()
-            if isLoading { ProgressView() }
-          }
-
-          if movingBooking != nil {
-            DHDCard(style: .flat) {
-              HStack(spacing: 10) {
-                Image(systemName: "hand.tap")
-                  .foregroundStyle(DHDTheme.accent)
-                Text("Move mode: tap a destination time slot to move this booking.")
-                  .font(.subheadline)
-                  .foregroundStyle(DHDTheme.textPrimary)
-                Spacer()
-                Button("Cancel") { movingBooking = nil }
-                  .buttonStyle(.bordered)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: 0)
+              if isLoading {
+                HPProgressIndicator(style: .spinner)
+                  .accessibilityLabel("Loading facility schedule")
               }
-              .padding(.vertical, 2)
-            }
-          } else if isRearrangeMode {
-            DHDCard(style: .flat) {
-              HStack(spacing: 10) {
-                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                  .foregroundStyle(DHDTheme.accent)
-                Text("Rearrange mode: drag bookings to move. Tap Done when finished.")
-                  .font(.subheadline)
-                  .foregroundStyle(DHDTheme.textPrimary)
-                Spacer()
-              }
-              .padding(.vertical, 2)
             }
           }
 
-          let pendingRequests =
-            bookings
-            .filter { $0.status.lowercased() == "pending" && !$0.is_block }
-            .sorted { $0.start_at < $1.start_at }
+          modeCard
+
           if !pendingRequests.isEmpty {
-            DHDCard(style: .flat) {
-              VStack(alignment: .leading, spacing: 10) {
-                DHDSectionHeader("Pending requests") {
-                  DHDStatusBadge(text: "\(pendingRequests.count)", color: .orange)
-                }
-                ForEach(Array(pendingRequests.enumerated()), id: \.element.id) { index, booking in
-                  HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                      Text(playerName(for: booking))
-                        .font(.subheadline.weight(.semibold))
-                      Text(booking.start_at.formatted(date: .omitted, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(DHDTheme.textSecondary)
-                    }
-                    Spacer()
-                    if bookingActionsInFlight.contains(booking.id) {
-                      ProgressView().controlSize(.small)
-                    } else {
-                      Button("Deny", role: .destructive) { onDeny(booking) }
-                        .buttonStyle(.bordered)
-                      Button("Approve") { onApprove(booking) }
-                        .buttonStyle(.borderedProminent)
-                    }
-                  }
-                  if index < pendingRequests.count - 1 {
-                    Divider().overlay(DHDTheme.separator.opacity(0.3))
-                  }
-                }
-              }
-            }
+            pendingRequestsCard
           }
-
-          DHDCard(style: .flat) {
+        }
+      } related: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Day timeline")
             FacilitiesDayTimelineView(
               mode: .coach,
               date: date,
@@ -130,18 +99,25 @@ struct FacilityDaySheet: View {
                   movingBooking = nil
                   return
                 }
-                createSeed = .init(facilityId: facilityId, startAt: startAt, durationMin: 60)
+                createSeed = .init(
+                  facilityId: facilityId,
+                  startAt: startAt,
+                  durationMin: 60
+                )
               }
             )
           }
         }
-        .padding(DHDTheme.pagePadding)
+      } primaryAction: {
+        EmptyView()
       }
-      .background(DHDTheme.pageBackground)
       .navigationTitle(title)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Close") { onClose() }
+            #if os(macOS)
+              .keyboardShortcut(.cancelAction)
+            #endif
         }
         #if !os(macOS)
           ToolbarItem(placement: .primaryAction) {
@@ -183,6 +159,112 @@ struct FacilityDaySheet: View {
         .environmentObject(appState)
       }
     #endif
+  }
+
+  @ViewBuilder private var modeCard: some View {
+    if movingBooking != nil {
+      HPCard(style: .flat) {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            modeLabel(
+              systemImage: "hand.tap",
+              text: "Move mode: tap a destination time slot to move this booking."
+            )
+            Spacer(minLength: HP.Space.sm)
+            HPButton(title: "Cancel", variant: .secondary, size: .sm) {
+              movingBooking = nil
+            }
+          }
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            modeLabel(
+              systemImage: "hand.tap",
+              text: "Move mode: tap a destination time slot to move this booking."
+            )
+            HPButton(title: "Cancel", variant: .secondary, size: .sm, fullWidth: true) {
+              movingBooking = nil
+            }
+          }
+        }
+      }
+    } else if isRearrangeMode {
+      HPCard(style: .flat) {
+        modeLabel(
+          systemImage: "arrow.up.and.down.and.arrow.left.and.right",
+          text: "Rearrange mode: drag bookings to move. Tap Done when finished."
+        )
+      }
+    }
+  }
+
+  private func modeLabel(systemImage: String, text: String) -> some View {
+    HStack(alignment: .top, spacing: HP.Space.sm) {
+      Image(systemName: systemImage)
+        .foregroundStyle(HP.Color.accent)
+        .accessibilityHidden(true)
+      Text(text)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var pendingRequestsCard: some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Pending requests") {
+          HPStatusBadge(text: "\(pendingRequests.count)", kind: .warning)
+        }
+        ForEach(Array(pendingRequests.enumerated()), id: \.element.id) { index, booking in
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              pendingRequestIdentity(booking)
+              Spacer(minLength: HP.Space.sm)
+              pendingRequestActions(booking)
+            }
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              pendingRequestIdentity(booking)
+              pendingRequestActions(booking)
+            }
+          }
+          if index < pendingRequests.count - 1 {
+            Divider().overlay(HP.Color.border.opacity(0.5))
+          }
+        }
+      }
+    }
+  }
+
+  private func pendingRequestIdentity(_ booking: SDFacilityBooking) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(playerName(for: booking))
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+      Text(booking.start_at.formatted(date: .omitted, time: .shortened))
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+    }
+  }
+
+  @ViewBuilder private func pendingRequestActions(_ booking: SDFacilityBooking) -> some View {
+    if bookingActionsInFlight.contains(booking.id) {
+      HPProgressIndicator(style: .spinner)
+        .accessibilityLabel("Updating booking request")
+    } else {
+      HStack(spacing: HP.Space.xs) {
+        HPButton(title: "Deny", variant: .destructive, size: .sm) {
+          onDeny(booking)
+        }
+        HPButton(title: "Approve", variant: .secondary, size: .sm) {
+          onApprove(booking)
+        }
+      }
+    }
+  }
+
+  private var pendingRequests: [SDFacilityBooking] {
+    bookings
+      .filter { $0.status.lowercased() == "pending" && !$0.is_block }
+      .sorted { $0.start_at < $1.start_at }
   }
 
   private func playerName(for booking: SDFacilityBooking) -> String {

@@ -33,6 +33,7 @@ struct HPFormField: View {
         .overlay(
           RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
             .strokeBorder(borderColor, lineWidth: (focused || error != nil) ? 2 : 1)
+            .allowsHitTesting(false)
         )
 
       if let error {
