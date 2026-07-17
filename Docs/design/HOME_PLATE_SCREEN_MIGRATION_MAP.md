@@ -1,6 +1,6 @@
 # HOME PLATE — SCREEN MIGRATION MAP
 
-**Status:** Implemented through Layer D5 at `9d45f65`; Layer E consistency and Layer F final validation remain separate gates.
+**Status:** Universal UI migration implemented through Layer E `a588cb7`; Layer F acceptance is complete on 2026-07-17.
 **Worktree:** `/Users/lb33/Documents/HomePlate-ui-integration`
 **Branch:** `integration/universal-ui`
 **Companions:** `HOME_PLATE_AI_UI_IMPLEMENTATION_GUIDE.md` · `HOME_PLATE_SCREEN_TEMPLATES.md` · `HOME_PLATE_UI_CONTRACT.yaml` · `HOME_PLATE_DESIGN_QA.md`
@@ -9,17 +9,17 @@ This document is the coverage ledger for the Universal UI migration. It distingu
 
 ## Denominators and coverage
 
-| Measure | Definition | Count | Coverage at `9d45f65` |
+| Measure | Definition | Count | Coverage at `a588cb7` |
 | --- | --- | ---: | ---: |
 | Historical source files | Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**` at `b97c1b4` | **62** | n/a |
 | Historical role-table rows | Rows actually present in the original role tables | **54** | n/a |
 | Original-map contract | 54 rows, excluding component-only `AppleSignInButtonView`, `ParentRequestPanels`, and `PaymentRequestCard`; `RootView` and `HomeView` were already rows and are not added again | **51** | **51/51** |
 | Live original subset | Original-map contract minus six now-unreachable source types | **45** | **45/45** |
-| Current source files | Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**` at `9d45f65` | **67** | n/a |
+| Current source files | Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**` at `a588cb7` | **67** | n/a |
 | Strict live current | Independently routed production roots, screens, and sheets | **79** | **79/79** |
 | Map-compatible current | Strict live current plus three historically mapped embedded targets | **82** | **82/82** |
 
-The old summary overstated the baseline file count by two; the baseline contains 62. Its 51-screen denominator is still a valid historical contract only when derived from the 54 role-table rows as shown above. Coverage completion does not replace the Layer E cleanup or Layer F full test, render, and smoke-test exit gates.
+The old summary overstated the baseline file count by two; the baseline contains 62. Its 51-screen denominator is still a valid historical contract only when derived from the 54 role-table rows as shown above. Layer F independently confirmed all three coverage ratios with clean iOS/macOS builds, 296 logical Swift tests, 310 Swift invocations, 373 shared backend tests, and inspected render evidence.
 
 ## Implemented layers
 
@@ -33,6 +33,9 @@ The old summary overstated the baseline file count by two; the baseline contains
 | D3 | `7de2267` | Coach experiences, including Phase 11 coach AI/import/Copilot |
 | D4 | `4bd8262` | Owner, organization-admin, platform-admin, and account experiences |
 | D5 | `9d45f65` | Auth/access, subscription, notifications, chat, and remaining shared presentation |
+| E | `a588cb7` | Cross-role consistency, state recovery, accessibility, modal/sidebar interaction, and focused regression coverage |
+
+Layer F is the documentation and acceptance closeout for the exact Layer E tree. It does not add another production migration layer.
 
 ## Strict live current inventory — 79
 

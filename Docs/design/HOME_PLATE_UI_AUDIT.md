@@ -1,6 +1,6 @@
 # HOME PLATE — UI AUDIT (HISTORICAL BASELINE AND IMPLEMENTATION RECORD)
 
-**Status:** The Phase 10 Stage 1 audit is retained as historical evidence and is **superseded by the implemented Universal UI migration through Layer D5 (`9d45f65`)**.
+**Status:** The Phase 10 Stage 1 audit is retained as historical evidence and is **superseded by the completed Universal UI migration through Layer E (`a588cb7`) and Layer F acceptance on 2026-07-17**.
 **Historical snapshot:** `b97c1b4` on 2026-07-15
 **Implementation worktree:** `/Users/lb33/Documents/HomePlate-ui-integration`
 **Implementation branch:** `integration/universal-ui`
@@ -17,7 +17,7 @@ This document preserves what the original audit observed and records how the ded
 | iPadOS | Source/target review of the shared iOS paths and size-class behavior. |
 | macOS | Native `MultiOrgMac` build and review of macOS-specific branches. |
 
-The source-of-truth project structure remains `project.yml`. The corrected `b97c1b4` baseline is **62**, not 64, Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**`. The current tree at `9d45f65` contains **67** such files.
+The source-of-truth project structure remains `project.yml`. The corrected `b97c1b4` baseline is **62**, not 64, Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**`. The Layer E tree at `a588cb7` contains **67** such files.
 
 The initial audit itself was read-only: it created design documentation and did not modify production source, backend files, secrets, or project configuration. That statement applies only to the historical audit session; subsequent commits intentionally implemented the migration.
 
@@ -47,7 +47,7 @@ Historical typography evidence was Archivo 700 for display/headings and Instrume
 
 ## 3. Historical findings and implemented disposition
 
-| Historical finding at `b97c1b4` | Implemented disposition through D5 |
+| Historical finding at `b97c1b4` | Implemented disposition through Layer E |
 | --- | --- |
 | App identity was navy/blue rather than Home Plate green/gold/cream. | Layer A introduced the Home Plate semantic color foundation and compatibility mappings. |
 | Fallback UI exposed “MultiOrg” instead of “Home Plate.” | Application identity and auth/access presentation now use Home Plate naming and safe organization context. |
@@ -81,8 +81,9 @@ Therefore, the historical zero-consumer AI-evidence conclusion must not be used 
 | D3 | `7de2267` | Coach and Phase 11 coach migration |
 | D4 | `4bd8262` | Owner/admin migration |
 | D5 | `9d45f65` | Auth/access/subscription/notifications/chat/shared migration |
+| E | `a588cb7` | Final cross-role consistency, recovery-state, accessibility, and interaction hardening |
 
-Coverage at the D5 boundary is:
+Coverage at the Layer E/F boundary is:
 
 - **51/51** historical original-map contract.
 - **79/79** strict live current roots/screens/sheets.
@@ -96,11 +97,12 @@ The strict inventory deliberately excludes leaf components and six preserved but
 | --- | --- |
 | Collision with an unrelated dirty worktree/branch | Resolved by the dedicated `/Users/lb33/Documents/HomePlate-ui-integration` worktree on `integration/universal-ui`. Other protected worktrees are not the implementation location. |
 | Foundation files concurrently owned elsewhere | Resolved for this integration; Layer A is committed. Layer ownership and file manifests remain required for concurrent edits. |
-| Xcode project generation was unavailable/uncertain | Superseded. Project integration is already represented in the committed worktree; regeneration is not a documentation prerequisite and should occur only when source membership actually changes. |
+| Xcode project generation was unavailable/uncertain | Superseded. The Xcode project was regenerated during Layers A–C where new source/test membership and iPad settings required it; `project.yml` remains authoritative. Layers D–F required no additional project-membership change. |
 | Organization branding could override system semantics | HP system roles own CTA, focus, status, finance, and destructive semantics; organization color is constrained to identity context. |
 | Navigation changes could disturb authorization/routing | Screen migrations preserve role/feature/entitlement gates, destinations, service calls, and lifecycle triggers; navigation smoke tests remain mandatory. |
 | macOS scope could be overstated | QA must test the actual `MultiOrgMac` target source set and may not claim excluded feature files as native macOS coverage. |
-| Visual completion could be mistaken for deployment readiness | Layer E consistency and Layer F full tests/renders/smoke/audit are still required after D5. No UI coverage ratio authorizes deployment. |
+| Protected worktree state could be misreported | `/Users/lb33/Documents/HomePlate-design` was verified clean on `design/home-plate-os` at `0116ab1c2c3ff41e9fd7e7e09796f3c9f5a60dd2`. `/Users/lb33/Documents/HomePlate` was read-only but had externally changed to `docs/hpms` at `d109326e7b3e55be85db506c0a8ea9594f6ece9d`, with pre-existing untracked `.agents/`, `.aider-desk/`, `XcodeGen/`, `build/`, `skills-lock.json`, `spatial`, and tools artifacts. This integration did not alter either protected worktree. |
+| Visual completion could be mistaken for deployment readiness | Layer E consistency and Layer F full tests/renders/smoke/audit are complete. The result is ready for release preparation, but no UI coverage ratio or this audit authorizes deployment. |
 
 ## 6. Behavior-preservation conclusions
 
@@ -115,3 +117,23 @@ The redesign is presentation and navigation composition, not a product-logic rew
 - task, refresh, change, appearance, dismissal, file-import, alert, and persistence lifecycle behavior.
 
 Current readiness claims must be supported by the builds, test suites, render matrix, interaction smoke tests, static checks, and exact inventory in the companion QA and migration-map documents.
+
+## 7. Layer F final acceptance audit
+
+Layer F validated the exact production/test tree in Layer E `a588cb77ddda2c884891d390dea5bcfdd7ce0918`. The Layer F closeout commit is documentation-only and therefore does not invalidate the exact build/test evidence below.
+
+| Audit area | Result |
+| --- | --- |
+| Coverage/reachability | **51/51** historical contract, **79/79** strict live current roots/screens/sheets, and **82/82** map-compatible surfaces. The three embedded panes and six preserved unreachable source types remain separately classified. |
+| Swift validation | Non-render: **237** logical / **251** invocations passed. Render: **59/59** passed. Aggregate: **296** logical / **310** invocations, zero failures/skips/expected failures. |
+| Builds | Clean iOS simulator `build-for-testing` passed on iOS 26.5. Clean native arm64 `MultiOrgMac` build passed. |
+| Render/visual QA | 28 render-producing methods emitted 164 exact PNGs across light/dark, compact/regular, iPhone/iPad/macOS-width, live controls, state variants, and Accessibility 3. 162 are content-bearing; two retained final gallery windows are proven background-only height-estimation artifacts after the preceding window completes the gallery. Inspected evidence has no unresolved blocker/high UI finding. |
+| Backend guardrail | Focused Phase 11 shared tests **148/148**; complete shared backend tests **373/373**; relevant 11-file Deno format/type checks passed. No backend file changed. Broad committed baseline findings—17/66 unformatted files and eight Stripe webhook type errors—are pre-existing and outside this presentation-only diff. |
+| Static/security/data integrity | `git diff --check` passed. No migration, Supabase function, `project.yml`, or Xcode project diff in Layer E; no staged/untracked file, ignored build secret/config, tracked secret path, secret symlink, debug marker, merge operation, or repository-history operation remained at its boundary. Authorization, organization scoping, money/data contracts, and lifecycle behavior are unchanged. |
+| Operational exclusions | No deployment, migration application, push/PR, external-AI invocation, APNs/notification delivery, import upload/commit, StoreKit purchase, payment mutation, or secrets change occurred. |
+
+Recurring render-only UIKit diagnostics were classified as informational: 376 FocusState-outside-body messages, 564 flattened representable messages, 85 appearance-transition imbalance messages, one IOSurface message, and one first-responder/window message. Duplicate LazyVGrid ID diagnostics are zero. These arise from off-window evidence rendering; the native builds and all render assertions pass.
+
+The only build warnings are informational local-validation output: two AppIntents metadata skips plus four repeated emissions of two existing unused test-helper results in the unsigned iOS test build, and one AppIntents metadata skip in the unsigned macOS build. No new production compiler warning or error was found.
+
+Conclusion: no blocker or high-severity Universal UI defect remains in the validated scope. The branch is ready for release preparation and product-owner acceptance, not deployment.
