@@ -34,6 +34,7 @@ struct CoachTeamSelector: View {
 
 struct CoachTodayFoundationView: View {
   @EnvironmentObject private var appState: AppState
+  @State private var events: [SDTeamEvent] = []
 
   var body: some View {
     NavigationStack {
@@ -43,11 +44,17 @@ struct CoachTodayFoundationView: View {
         }
       } attention: {
         HPCard {
-          HPEmptyState(
-            title: "No team attention items",
-            message: "Attendance, practice, and game attention will appear here as team operations are scheduled.",
-            systemImage: "checkmark.circle"
-          )
+          if incompleteEvents.isEmpty {
+            HPEmptyState(title: "No schedule attention items", message: "Today’s published events have complete time and location details.", systemImage: "checkmark.circle")
+          } else {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Schedule attention") { HPStatusBadge(text: "\(incompleteEvents.count)", kind: .warning) }
+              ForEach(incompleteEvents) { event in
+                Label("\(event.title) needs a location", systemImage: "mappin.slash")
+                  .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+              }
+            }
+          }
         }
       } metrics: {
         if let team = appState.selectedTeam {
@@ -63,8 +70,20 @@ struct CoachTodayFoundationView: View {
               }
               Text(appState.selectedSeason?.name ?? "No active season")
                 .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
-              Text("The next scheduled team item will appear here when one is available.")
-                .font(HP.Font.body).foregroundStyle(HP.Color.text)
+              if todayEvents.isEmpty {
+                HPEmptyState(title: "No event today", message: "The team has no published event scheduled today.", systemImage: "calendar")
+              } else {
+                ForEach(todayEvents) { event in
+                  TeamEventRow(event: event, teamName: team.name)
+                }
+                NavigationLink {
+                  CoachTeamScheduleView()
+                } label: {
+                  Label(todayEvents.count == 1 ? "Open Event Schedule" : "Open Mission Schedule", systemImage: "arrow.right.circle.fill")
+                    .font(HP.Font.callout.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+              }
             }
           } else {
             noTeamState
@@ -72,7 +91,8 @@ struct CoachTodayFoundationView: View {
         }
       }
       .navigationTitle("Today")
-      .refreshable { await appState.refreshTeamOperationsContext() }
+      .task(id: appState.selectedTeamId) { await reloadEvents() }
+      .refreshable { await appState.refreshTeamOperationsContext(); await reloadEvents() }
     }
   }
 
@@ -93,39 +113,36 @@ struct CoachTodayFoundationView: View {
       systemImage: "person.3"
     )
   }
+
+  private var todayEvents: [SDTeamEvent] {
+    let calendar = Calendar.current
+    return events.filter { calendar.isDateInToday($0.startDate) && $0.status != .draft && $0.status != .cancelled }
+      .sorted { $0.startDate < $1.startDate }
+  }
+
+  private var incompleteEvents: [SDTeamEvent] {
+    todayEvents.filter { ($0.location_name ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+  }
+
+  private func reloadEvents() async {
+    guard let service = appState.supabase, let orgId = appState.activeOrgId else { events = []; return }
+    let start = Calendar.current.startOfDay(for: Date())
+    let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+    do { events = try await service.listTeamEvents(organizationId: orgId, teamId: appState.selectedTeam?.id, rangeStart: start, rangeEnd: end) }
+    catch { events = [] }
+  }
 }
 
 struct CoachScheduleFoundationView: View {
-  @EnvironmentObject private var appState: AppState
-
   var body: some View {
-    NavigationStack {
-      HPListScreenLayout {
-        HPWorkspaceHeader(
-          "Schedule",
-          orgLabel: appState.selectedSeason?.name ?? "Season",
-          context: appState.isAllTeamsSelected ? "All authorized teams" : appState.selectedTeam?.name ?? "Team assignment required"
-        ) { CoachTeamSelector() }
-      } controls: {
-        EmptyView()
-      } results: { _ in
-        HPCard {
-          HPEmptyState(
-            title: "Team schedule foundation ready",
-            message: "Existing team events will appear here as scheduling is connected. Full scheduling is outside Phase 12A.",
-            systemImage: "calendar"
-          )
-        }
-      }
-      .navigationTitle("Schedule")
-      .refreshable { await appState.refreshTeamOperationsContext() }
-    }
+    CoachTeamScheduleView()
   }
 }
 
 struct CoachTeamCommandCenterView: View {
   @EnvironmentObject private var appState: AppState
   @State private var section: Section = .overview
+  @State private var teamEvents: [SDTeamEvent] = []
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -172,6 +189,7 @@ struct CoachTeamCommandCenterView: View {
       .refreshable { await appState.refreshTeamOperationsContext() }
       .onChange(of: appState.selectedTeamId) { _, _ in normalizeSection() }
       .onChange(of: appState.isAllTeamsSelected) { _, _ in normalizeSection() }
+      .task(id: appState.selectedTeamId) { await reloadTeamEvents() }
     }
   }
 
@@ -180,7 +198,8 @@ struct CoachTeamCommandCenterView: View {
     let capabilities = team.capabilitySet
     return Section.allCases.filter { item in
       switch item {
-      case .overview, .players, .schedule: capabilities.contains(.viewTeam)
+      case .overview, .players: capabilities.contains(.viewTeam)
+      case .schedule: capabilities.contains(.viewTeamSchedule)
       case .development: capabilities.contains(.viewDevelopment)
       case .attendance: capabilities.contains(.manageAttendance)
       case .communication: capabilities.contains(.messageTeam)
@@ -199,7 +218,7 @@ struct CoachTeamCommandCenterView: View {
       case .overview: overview(team)
       case .players: peopleCard(title: "Players", people: appState.teamOperationsContext?.players(for: team.id) ?? [])
       case .staff: peopleCard(title: "Assigned Staff", people: appState.teamOperationsContext?.staff(for: team.id) ?? [])
-      case .schedule: placeholder("Schedule", "Scheduled team operations will appear here.", "calendar")
+      case .schedule: scheduleCard(team)
       case .development: placeholder("Development", "Player development tools are available through authorized player profiles.", "chart.line.uptrend.xyaxis")
       case .attendance: placeholder("Attendance", "Attendance operations will use this team context.", "checklist")
       case .communication: placeholder("Communication", "Team-scoped communication will use this authorized roster.", "bubble.left.and.bubble.right")
@@ -256,11 +275,14 @@ struct CoachTeamCommandCenterView: View {
         }
       }
       HPCard {
-        HPEmptyState(
-          title: "No recent team activity",
-          message: "Authorized team operations will appear here as they occur.",
-          systemImage: "clock.arrow.circlepath"
-        )
+        if let next = teamEvents.first(where: { $0.startDate >= Date() && $0.status != .draft && $0.status != .cancelled }) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Next Event") { HPStatusBadge(text: next.event_type.label, kind: .info) }
+            TeamEventRow(event: next, teamName: team.name)
+          }
+        } else {
+          HPEmptyState(title: "No upcoming event", message: "Published team schedule items will appear here.", systemImage: "calendar")
+        }
       }
     }
   }
@@ -287,6 +309,31 @@ struct CoachTeamCommandCenterView: View {
 
   private func placeholder(_ title: String, _ message: String, _ image: String) -> some View {
     HPCard { HPEmptyState(title: title, message: message, systemImage: image) }
+  }
+
+  private func scheduleCard(_ team: SDTeamOperationsTeam) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Upcoming Schedule") { HPStatusBadge(text: "\(teamEvents.count)", kind: .neutral) }
+        if teamEvents.isEmpty {
+          HPEmptyState(title: "No upcoming events", message: "Create events from Schedule.", systemImage: "calendar")
+        } else {
+          ForEach(teamEvents.prefix(5)) { TeamEventRow(event: $0, teamName: team.name) }
+        }
+      }
+    }
+  }
+
+  private func reloadTeamEvents() async {
+    guard let service = appState.supabase, let orgId = appState.activeOrgId, let team = appState.selectedTeam else { teamEvents = []; return }
+    do {
+      teamEvents = try await service.listTeamEvents(
+        organizationId: orgId,
+        teamId: team.id,
+        rangeStart: Date(),
+        rangeEnd: Calendar.current.date(byAdding: .day, value: 60, to: Date())!
+      ).filter { $0.status != .cancelled }
+    } catch { teamEvents = [] }
   }
 
   private func normalizeSection() {

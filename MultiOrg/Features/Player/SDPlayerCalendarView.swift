@@ -6,6 +6,7 @@ struct SDPlayerCalendarView: View {
   @State private var assignment: SDProgramAssignment?
   @State private var template: SDProgramTemplate?
   @State private var bpSessions: [SDBPSession] = []
+  @State private var teamEvents: [SDTeamEvent] = []
   @State private var isLoading = false
   @State private var errorText: String?
 
@@ -169,12 +170,24 @@ struct SDPlayerCalendarView: View {
     if scheduledLiftISOs.contains(iso) { labels.append("Scheduled lift") }
     if practiceISOs.contains(iso) { labels.append("BP or practice") }
     if gameISOs.contains(iso) { labels.append("Game reps") }
+    labels.append(contentsOf: teamEvents.filter { DateUtils.toISODate($0.startDate) == iso }.map(teamEventLabel))
     return labels
   }
 
   private func agendaAccessibilityLabel(date: Date, events: [String]) -> String {
     let dateLabel = date.formatted(date: .long, time: .omitted)
     return events.isEmpty ? "\(dateLabel), no scheduled activity" : "\(dateLabel), \(events.joined(separator: ", "))"
+  }
+
+  private func teamEventLabel(_ event: SDTeamEvent) -> String {
+    let start = event.startDate.formatted(date: .omitted, time: .shortened)
+    var details = "\(event.title) at \(start)"
+    if let arrival = event.arrivalDate {
+      details += ", arrive \(arrival.formatted(date: .omitted, time: .shortened))"
+    }
+    if let location = event.location_name, !location.isEmpty { details += ", \(location)" }
+    if let attire = event.uniformOrDressCode, !attire.isEmpty { details += ", \(attire)" }
+    return details
   }
 
   private func showPreviousMonth() {
@@ -211,6 +224,11 @@ struct SDPlayerCalendarView: View {
         template = nil
       }
       bpSessions = try await supabase.listBPSessions(playerId: uid, limit: 180)
+      if let organizationId = appState.activeOrgId {
+        let start = Calendar.current.date(byAdding: .month, value: -6, to: Date())!
+        let end = Calendar.current.date(byAdding: .month, value: 12, to: Date())!
+        teamEvents = try await supabase.listTeamEvents(organizationId: organizationId, teamId: nil, playerId: uid, rangeStart: start, rangeEnd: end)
+      }
       rebuildMonthGrid()
     } catch {
       errorText = error.localizedDescription
@@ -221,6 +239,8 @@ struct SDPlayerCalendarView: View {
     scheduledLiftISOs = scheduledLiftSet(for: visibleMonth)
     practiceISOs = Set(bpSessions.filter { $0.reps_type == "practice" }.map(\.session_date))
     gameISOs = Set(bpSessions.filter { $0.reps_type == "game" }.map(\.session_date))
+      .union(teamEvents.filter { $0.event_type == .game }.map { DateUtils.toISODate($0.startDate) })
+    practiceISOs.formUnion(teamEvents.filter { $0.event_type == .practice }.map { DateUtils.toISODate($0.startDate) })
   }
 
   private func scheduledLiftSet(for monthStart: Date) -> Set<String> {
