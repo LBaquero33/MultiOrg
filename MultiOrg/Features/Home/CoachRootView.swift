@@ -169,20 +169,14 @@ struct CoachRootView: View {
   }
 
   private func disabledFeatureView(_ name: String) -> some View {
-    VStack(spacing: HP.Space.sm) {
-      Image(systemName: "switch.2")
-        .font(.largeTitle)
-        .foregroundStyle(DHDTheme.textSecondary)
-      Text("\(name) is disabled")
-        .font(HP.Font.headline)
-        .foregroundStyle(DHDTheme.textPrimary)
-      Text("Turn it back on in Org Admin → Features.")
-        .font(HP.Font.body)
-        .foregroundStyle(DHDTheme.textSecondary)
-        .multilineTextAlignment(.center)
+    HPStateScreenLayout { _ in
+      HPCard {
+        HPEmptyState(
+          title: "\(name) is disabled",
+          message: "Turn it back on in Org Admin → Features.",
+          systemImage: "switch.2"
+        )
+      }
     }
-    .padding(DHDTheme.pagePadding)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(DHDTheme.pageBackground)
   }
 }

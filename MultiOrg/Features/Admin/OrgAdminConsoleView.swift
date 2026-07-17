@@ -440,21 +440,21 @@ struct OrgAdminConsoleView: View {
       .frame(minWidth: 560, minHeight: 560)
       #endif
     }
-    .hpModal(isPresented: facilityDeletionPresented) {
+    .confirmationDialog(
+      "Delete facility?",
+      isPresented: facilityDeletionPresented,
+      titleVisibility: .visible
+    ) {
       if let facility = facilityPendingDeletion {
-        HPConfirmationDialog(
-          title: "Delete facility?",
-          message: "This permanently removes \(facility.name) and cannot be undone.",
-          confirmTitle: "Delete \(facility.name)",
-          destructive: true,
-          onConfirm: {
-            facilityPendingDeletion = nil
-            Task { await deleteFacility(facility) }
-          },
-          onCancel: { facilityPendingDeletion = nil }
-        )
-      } else {
-        EmptyView()
+        Button("Delete \(facility.name)", role: .destructive) {
+          facilityPendingDeletion = nil
+          Task { await deleteFacility(facility) }
+        }
+      }
+      Button("Cancel", role: .cancel) { facilityPendingDeletion = nil }
+    } message: {
+      if let facility = facilityPendingDeletion {
+        Text("This permanently removes \(facility.name) and cannot be undone.")
       }
     }
     )

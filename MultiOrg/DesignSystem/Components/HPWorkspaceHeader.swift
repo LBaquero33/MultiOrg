@@ -44,11 +44,7 @@ struct HPWorkspaceHeader<Trailing: View>: View {
       : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
 
     layout {
-      HStack(alignment: .center, spacing: HP.Space.md) {
-        identityMark
-        titleBlock
-        if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: HP.Space.sm) }
-      }
+      identityAndTitle
       trailing
         .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
                alignment: .leading)
@@ -62,7 +58,25 @@ struct HPWorkspaceHeader<Trailing: View>: View {
     .overlay(
       RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous)
         .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+        .allowsHitTesting(false)
     )
+  }
+
+  @ViewBuilder
+  private var identityAndTitle: some View {
+    if dynamicTypeSize.isAccessibilitySize {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        identityMark
+        titleBlock
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      HStack(alignment: .center, spacing: HP.Space.md) {
+        identityMark
+        titleBlock
+        Spacer(minLength: HP.Space.sm)
+      }
+    }
   }
 
   private var identityMark: some View {
@@ -72,7 +86,7 @@ struct HPWorkspaceHeader<Trailing: View>: View {
       .overlay(
         Image(systemName: "diamond.fill")
           .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(.white.opacity(0.92))
+        .foregroundStyle(DHDTheme.identityText.opacity(0.92))
       )
       .accessibilityHidden(true)
   }

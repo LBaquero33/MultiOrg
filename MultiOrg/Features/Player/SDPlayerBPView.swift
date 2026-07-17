@@ -162,18 +162,7 @@ struct SDPlayerBPView: View {
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
       } message: { Text(errorText ?? "") }
-      .overlay(alignment: .top) {
-        if let successText {
-          Text(successText)
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.thinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .padding(.top, 10)
-            .transition(.opacity)
-        }
-      }
+      .hpToast($successText)
       .task { await loadSession() }
     }
   }

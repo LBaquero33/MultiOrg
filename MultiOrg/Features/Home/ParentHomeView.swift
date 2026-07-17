@@ -185,7 +185,10 @@ struct ParentHomeView: View {
   private var childList: some View {
     List(selection: $selection) {
       if isLoading {
-        HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+        HStack(spacing: HP.Space.sm) {
+          ProgressView()
+          Text("Loading…").foregroundStyle(HP.Color.textMuted)
+        }
       }
       Section {
         Label("Account", systemImage: "gearshape")

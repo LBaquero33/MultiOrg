@@ -396,9 +396,11 @@ struct AccountView: View {
             systemImage: "checkmark.circle.fill",
             variant: .primary,
             size: .md,
+            isLoading: isLoading || isSavingProfile,
             fullWidth: context.isAccessibilitySize,
             action: { Task { await saveProfile(isAutomatic: false) } }
           )
+          .disabled(isLoading || isSavingProfile)
           if isSavingProfile {
             HStack(spacing: 6) {
               ProgressView().controlSize(.small)

@@ -23,6 +23,7 @@ struct HPCard<Content: View>: View {
       .overlay(
         RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous)
           .strokeBorder(HP.Color.border, lineWidth: 1)
+          .allowsHitTesting(false)
       )
       .modifier(HPCardShadow(style: style))
   }

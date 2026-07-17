@@ -330,7 +330,7 @@ struct ProgramTemplateGridView: View {
   let onClearCell: (Int, Int) -> Void
   let isStacked: Bool
 
-  private let spacing: CGFloat = 10
+  private let spacing = HP.Space.sm
 
   var body: some View {
     VStack(alignment: .leading, spacing: spacing) {
@@ -471,6 +471,7 @@ private struct ProgramGridCell: View {
     .overlay(
       RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
         .strokeBorder(HP.Color.border, lineWidth: 1)
+        .allowsHitTesting(false)
     )
   }
 }

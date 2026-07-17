@@ -98,7 +98,7 @@ struct NotificationBadge: View {
   var body: some View {
     Text(count > 99 ? "99+" : String(count))
       .font(HP.Font.badge)
-      .foregroundStyle(.white)
+      .foregroundStyle(HP.Color.onDanger)
       .padding(.horizontal, count > 9 ? 5 : 4)
       .frame(minWidth: 18, minHeight: 18)
       .background(HP.Color.danger, in: Capsule())

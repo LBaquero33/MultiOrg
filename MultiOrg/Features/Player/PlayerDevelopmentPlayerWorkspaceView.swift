@@ -167,17 +167,9 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
       }
     }
     .navigationTitle("Development AI")
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .task(id: contextKey) {
-      guard let client = appState.supabase,
-            let organizationId = appState.activeOrgId,
-            let userId = appState.myProfile?.id else { return }
-      await model.load(
-        client: client,
-        organizationId: organizationId,
-        userId: userId,
-        playerId: player.id
-      )
+      await loadWorkspace()
     }
     .onDisappear { model.reset() }
   }
@@ -194,7 +186,11 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
     case .failed(let message):
       HPStateScreenLayout { _ in
         HPCard {
-          HPErrorState(title: "Development evidence unavailable", message: message)
+          HPErrorState(
+            title: "Development evidence unavailable",
+            message: message,
+            onRetry: { Task { await loadWorkspace() } }
+          )
         }
       }
     case .loaded:
@@ -202,6 +198,18 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
         workspace(response)
       }
     }
+  }
+
+  private func loadWorkspace() async {
+    guard let client = appState.supabase,
+          let organizationId = appState.activeOrgId,
+          let userId = appState.myProfile?.id else { return }
+    await model.load(
+      client: client,
+      organizationId: organizationId,
+      userId: userId,
+      playerId: player.id
+    )
   }
 
   private func workspace(_ response: SDPlayerDevelopmentWorkspaceResponse) -> some View {

@@ -526,6 +526,11 @@ private struct LayerAFoundationGallery: View {
 }
 
 private struct LayerACalendarPreview: View {
+  private struct GridIndex: Identifiable {
+    let id: String
+    let value: Int
+  }
+
   let availableWidth: CGFloat
 
   var body: some View {
@@ -534,17 +539,21 @@ private struct LayerACalendarPreview: View {
     let cellSize = CGSize(width: cellWidth, height: max(52, cellWidth * 0.78))
     let columns = Array(repeating: GridItem(.fixed(cellWidth), spacing: spacing), count: 7)
     let start = Date(timeIntervalSince1970: 1_783_036_800)
+    let weekdayIndices = (0..<7).map { GridIndex(id: "weekday-\($0)", value: $0) }
+    let dayOffsets = (0..<14).map { GridIndex(id: "day-\($0)", value: $0) }
 
     VStack(spacing: HP.Space.sm) {
       DHDCalendarMonthHeader(title: "July 2026", onPrevious: {}, onNext: {})
       LazyVGrid(columns: columns, spacing: spacing) {
-        ForEach(["S", "M", "T", "W", "T", "F", "S"].indices, id: \.self) { index in
+        ForEach(weekdayIndices) { item in
+          let index = item.value
           Text(["S", "M", "T", "W", "T", "F", "S"][index])
             .font(HP.Font.caption)
             .foregroundStyle(DHDTheme.textSecondary)
             .frame(width: cellWidth)
         }
-        ForEach(0..<14, id: \.self) { offset in
+        ForEach(dayOffsets) { item in
+          let offset = item.value
           let date = DateUtils.calendarET.date(byAdding: .day, value: offset, to: start) ?? start
           DHDCalendarDayCellView(
             date: date,

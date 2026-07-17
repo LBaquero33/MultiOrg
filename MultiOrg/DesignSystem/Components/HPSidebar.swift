@@ -127,26 +127,69 @@ struct HPSidebar: View {
       }
     }
     .padding(HP.Space.sm)
-    .frame(maxWidth: 280, maxHeight: .infinity, alignment: .top)
+    .frame(
+      maxWidth: dts.isAccessibilitySize ? 360 : 280,
+      maxHeight: .infinity,
+      alignment: .top
+    )
     .background(HP.Color.surface)
     .overlay(alignment: .trailing) { Rectangle().fill(HP.Color.border).frame(width: 1) }
   }
 
   private var header: some View {
-    HStack(spacing: HP.Space.sm) {
-      RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
-        .fill(orgIdentity.gradient)
-        .frame(width: 34, height: 34)
-        .overlay(Image(systemName: "diamond.fill").font(.caption).foregroundStyle(.white.opacity(0.92)))
-      VStack(alignment: .leading, spacing: 0) {
-        Text(orgIdentity.shortName).font(HP.Font.headline).foregroundStyle(HP.Color.text).lineLimit(1)
-        Text(role.rawValue).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted).lineLimit(1)
+    Group {
+      if dts.isAccessibilitySize {
+        ViewThatFits(in: .horizontal) {
+          HStack(alignment: .top, spacing: HP.Space.sm) {
+            identityMark
+            identityLabels(lineLimit: 1)
+          }
+          .fixedSize(horizontal: true, vertical: false)
+
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            identityMark
+            identityLabels(lineLimit: nil)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+      } else {
+        HStack(spacing: HP.Space.sm) {
+          identityMark
+          identityLabels(lineLimit: 1)
+          Spacer(minLength: 0)
+        }
       }
-      Spacer(minLength: 0)
     }
     .padding(.horizontal, HP.Space.xs)
     .padding(.vertical, HP.Space.xs)
     .accessibilityElement(children: .combine)
+  }
+
+  private var identityMark: some View {
+    RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+      .fill(orgIdentity.gradient)
+      .frame(width: 34, height: 34)
+      .overlay(
+        Image(systemName: "diamond.fill")
+          .font(.caption)
+          .foregroundStyle(DHDTheme.identityText.opacity(0.92))
+      )
+      .accessibilityHidden(true)
+  }
+
+  private func identityLabels(lineLimit: Int?) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(orgIdentity.shortName)
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+        .lineLimit(lineLimit)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(role.rawValue)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .lineLimit(lineLimit)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 
   @ViewBuilder private func row(_ item: HPWorkspaceItem) -> some View {
@@ -166,7 +209,7 @@ struct HPSidebar: View {
           Text(item.title)
             .font(HP.Font.callout)
             .foregroundStyle(selected ? HP.Color.text : HP.Color.textTertiary)
-            .lineLimit(accessibility ? 3 : 1)
+            .lineLimit(accessibility ? nil : 1)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
           if accessibility { statusMark(item) }

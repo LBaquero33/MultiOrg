@@ -181,7 +181,11 @@ struct FinanceDateRangePicker: View {
           }
           .padding(.horizontal, HP.Space.sm).padding(.vertical, 10)
           .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.input))
-          .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+          .overlay(
+            RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+              .strokeBorder(HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+          )
         }
         .buttonStyle(.plain)
         .disabled(isLoading && serverRange == nil)
@@ -395,13 +399,20 @@ struct FinancePaymentRequestsView: View {
       }
       .padding(4)
       .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.surfaceRaised))
-      .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+      .overlay(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(HP.Color.border, lineWidth: 1)
+          .allowsHitTesting(false)
+      )
     } else {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: HP.Space.sm) {
           ForEach(FinancePaymentRequestFilter.allCases) { option in
-            HPDataPill(label: option.title, isActive: filter == option)
-              .onTapGesture { filter = option }
+            Button { filter = option } label: {
+              HPDataPill(label: option.title, isActive: filter == option)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(filter == option ? [.isButton, .isSelected] : .isButton)
           }
         }
         .padding(.vertical, 2)

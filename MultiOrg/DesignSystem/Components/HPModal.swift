@@ -73,7 +73,10 @@ struct HPConfirmationDialog: View {
                           size: .lg, fullWidth: dts.isAccessibilitySize, action: onCancel)
     if dts.isAccessibilitySize {
       // Full-width, stacked, complete labels — destructive/primary on top.
-      VStack(spacing: HP.Space.sm) { confirm; cancel }
+      VStack(spacing: HP.Space.sm) {
+        confirm.fixedSize(horizontal: false, vertical: true)
+        cancel.fixedSize(horizontal: false, vertical: true)
+      }
     } else {
       HStack(spacing: HP.Space.sm) { Spacer(minLength: 0); cancel; confirm }
     }
@@ -96,7 +99,7 @@ private struct HPModalPresenter<C: View>: ViewModifier {
     content.overlay {
       if isPresented {
         ZStack {
-          Color.black.opacity(0.55).ignoresSafeArea()
+          HP.Color.scrim.ignoresSafeArea()
             .onTapGesture { isPresented = false }
           modalContent()
             .padding(HP.Space.lg)

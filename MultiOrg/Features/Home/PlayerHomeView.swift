@@ -20,12 +20,28 @@ struct PlayerHomeView: View {
       playerMacPlaceholder
     }
     .sheet(isPresented: $showAccount) {
-      AccountView()
-        .environmentObject(appState)
+      NavigationStack {
+        AccountView()
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { showAccount = false }
+                .keyboardShortcut(.cancelAction)
+            }
+          }
+      }
+      .environmentObject(appState)
         .frame(minWidth: 640, minHeight: 640)
     }
     .sheet(isPresented: $showDevelopment) {
-      NavigationStack { playerDevelopmentDestination }
+      NavigationStack {
+        playerDevelopmentDestination
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { showDevelopment = false }
+                .keyboardShortcut(.cancelAction)
+            }
+          }
+      }
         .environmentObject(appState)
         .frame(minWidth: 720, minHeight: 680)
     }

@@ -330,9 +330,8 @@ struct HPAppNavigationInventory: Equatable {
   }
 }
 
-/// Compact authenticated chrome shared by player, parent, staff, and platform
-/// workspaces. The trailing inset reserves the existing notification bell's
-/// hit target without moving or changing its routing behavior.
+/// Compact authenticated identity chrome shared by player, parent, staff, and
+/// platform workspaces. Global actions live in RootView's reserved app chrome.
 struct HPApplicationIdentityShell<Content: View>: View {
   let roleSubtitle: String
   let showsIdentity: Bool
@@ -352,8 +351,7 @@ struct HPApplicationIdentityShell<Content: View>: View {
     VStack(spacing: 0) {
       if showsIdentity {
         DHDOrgMenuHeader(subtitle: roleSubtitle)
-          .padding(.leading, HP.Space.xs)
-          .padding(.trailing, 60)
+          .padding(.horizontal, HP.Space.xs)
           .padding(.vertical, HP.Space.xs)
           .frame(maxWidth: .infinity)
 
@@ -379,6 +377,7 @@ struct HPApplicationIdentityShell<Content: View>: View {
 /// state survive iPad multitasking transitions.
 struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
   @Environment(\.dhdOrgBranding) private var branding
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   let role: HPRole
@@ -410,7 +409,7 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
           groups: inventory.regularGroups,
           selectionKey: selectionKey
         )
-        .frame(width: 272)
+        .frame(width: regularSidebarWidth)
 
         Rectangle()
           .fill(DHDTheme.border)
@@ -437,6 +436,10 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
   private var isRegular: Bool {
     horizontalSizeClass == .regular
+  }
+
+  private var regularSidebarWidth: CGFloat {
+    dynamicTypeSize.isAccessibilitySize ? 320 : 272
   }
 
   private var retainedItems: [HPAppNavigationItem] {
@@ -606,6 +609,7 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 /// and the detail content, while this type owns only presentation.
 struct HPRegularApplicationShell<Detail: View>: View {
   @Environment(\.dhdOrgBranding) private var branding
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   let role: HPRole
   let inventory: HPAppNavigationInventory
@@ -632,7 +636,11 @@ struct HPRegularApplicationShell<Detail: View>: View {
         groups: inventory.regularGroups,
         selectionKey: selectionKey
       )
-      .navigationSplitViewColumnWidth(min: 238, ideal: 272, max: 310)
+      .navigationSplitViewColumnWidth(
+        min: sidebarColumnWidths.minimum,
+        ideal: sidebarColumnWidths.ideal,
+        max: sidebarColumnWidths.maximum
+      )
     } detail: {
       retainedDetail
     }
@@ -657,6 +665,12 @@ struct HPRegularApplicationShell<Detail: View>: View {
       primary: branding.primary,
       secondary: branding.secondary
     )
+  }
+
+  private var sidebarColumnWidths: (minimum: CGFloat, ideal: CGFloat, maximum: CGFloat) {
+    dynamicTypeSize.isAccessibilitySize
+      ? (minimum: 280, ideal: 320, maximum: 360)
+      : (minimum: 238, ideal: 272, maximum: 310)
   }
 
   private var selectionKey: Binding<String?> {

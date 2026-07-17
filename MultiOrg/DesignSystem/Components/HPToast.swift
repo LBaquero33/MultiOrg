@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 
 /// Transient confirmation toast. Single implementation for the whole system
@@ -19,9 +20,19 @@ struct HPToast: View {
     .padding(.horizontal, HP.Space.md)
     .padding(.vertical, HP.Space.sm)
     .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.surfaceRaised))
-    .overlay(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).strokeBorder(HP.Color.border, lineWidth: 1))
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
     .hpShadow(HP.Shadow.modal)
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Status: \(text)")
+    .accessibilityAddTraits(.isStaticText)
+    .onChange(of: text, initial: true) { _, value in
+      AccessibilityNotification.Announcement("Status: \(value)").post()
+    }
+    .allowsHitTesting(false)
   }
 }
 
@@ -45,5 +56,15 @@ private struct HPToastModifier: ViewModifier {
       }
     }
     .animation(HP.Motion.quick, value: text)
+    .task(id: text) {
+      guard let presentedValue = text else { return }
+      do {
+        try await Task.sleep(for: .seconds(3))
+      } catch {
+        return
+      }
+      guard !Task.isCancelled, text == presentedValue else { return }
+      text = nil
+    }
   }
 }

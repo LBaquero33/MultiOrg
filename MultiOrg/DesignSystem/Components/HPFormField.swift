@@ -21,14 +21,18 @@ struct HPFormField: View {
         .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
         .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityHidden(true)
 
       field
         .font(HP.Font.body)
         .foregroundStyle(HP.Color.text)
         .focused($focused)
         .disabled(!isEnabled)
+        .accessibilityLabel(label)
+        .accessibilityHint(accessibilityHint)
         .padding(.horizontal, HP.Space.sm)
         .padding(.vertical, 10)
+        .frame(minHeight: 44)
         .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.input))
         .overlay(
           RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
@@ -39,9 +43,11 @@ struct HPFormField: View {
       if let error {
         Text(error).font(HP.Font.caption).foregroundStyle(HP.Color.danger)
           .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Error: \(error)")
       } else if let helper {
         Text(helper).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
+          .accessibilityHidden(true)
       }
     }
     .opacity(isEnabled ? 1 : 0.6)
@@ -61,5 +67,9 @@ struct HPFormField: View {
   private var borderColor: Color {
     if error != nil { return HP.Color.danger }
     return focused ? HP.Color.focusRing : HP.Color.border
+  }
+
+  private var accessibilityHint: String {
+    error == nil ? (helper ?? "") : ""
   }
 }

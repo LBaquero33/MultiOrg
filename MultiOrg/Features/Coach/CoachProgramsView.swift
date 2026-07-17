@@ -280,14 +280,15 @@ struct CoachProgramsView: View {
         .id(t.id)
         .environmentObject(appState)
     } else {
-      VStack(spacing: 10) {
-        Text("Select a template")
-          .font(.title3.weight(.semibold))
-        Text("Choose a program template to edit, or create a new one.")
-          .foregroundStyle(.secondary)
+      HPStateScreenLayout { _ in
+        HPCard {
+          HPEmptyState(
+            title: "Select a template",
+            message: "Choose a program template to edit, or create a new one.",
+            systemImage: "rectangle.stack"
+          )
+        }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(HP.Color.bg)
     }
   }
 #endif

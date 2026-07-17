@@ -19,13 +19,22 @@ struct RootView: View {
     .environment(\.dhdOrgBranding, activeBranding)
     .tint(DHDTheme.accent)
     .dhdToast($appState.globalToastText)
-    .overlay(alignment: .topTrailing) {
+    .safeAreaInset(edge: .top, spacing: 0) {
       if appState.isAuthenticated {
-        NotificationBellButton()
-          .environmentObject(appState)
-          .padding(.top, 10)
-          .padding(.trailing, 14)
-          .zIndex(100)
+        HStack {
+          Spacer(minLength: 0)
+          NotificationBellButton()
+            .environmentObject(appState)
+        }
+        .padding(.horizontal, HP.Space.md)
+        .padding(.vertical, HP.Space.xs)
+        .background(HP.Color.bg)
+        .overlay(alignment: .bottom) {
+          Rectangle()
+            .fill(HP.Color.border)
+            .frame(height: 1)
+            .allowsHitTesting(false)
+        }
       }
     }
     .onChange(of: scenePhase) { _, next in

@@ -34,7 +34,9 @@ struct FacilitiesDayTimelineView: View {
   private let slotMinutes = 15
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.accessibilityVoiceOverEnabled) private var isVoiceOverEnabled
   @State private var dragging: DragState?
+  @State private var prefersListPresentation = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: HP.Space.sm) {
@@ -50,7 +52,20 @@ struct FacilitiesDayTimelineView: View {
         }
       }
 
-      if dynamicTypeSize.isAccessibilitySize {
+      if !dynamicTypeSize.isAccessibilitySize, !isVoiceOverEnabled {
+        HStack {
+          Spacer(minLength: 0)
+          HPButton(
+            title: prefersListPresentation ? "Show timeline" : "Show list",
+            systemImage: prefersListPresentation ? "calendar.day.timeline.left" : "list.bullet",
+            variant: .secondary,
+            size: .sm,
+            action: { prefersListPresentation.toggle() }
+          )
+        }
+      }
+
+      if usesListPresentation {
         accessibleTimelineList
       } else {
         GeometryReader { geo in
@@ -200,6 +215,10 @@ struct FacilitiesDayTimelineView: View {
 
   private var timelineHeaderHeight: CGFloat { 28 }
   private var timelinePointsPerMinute: CGFloat { 1.2 }
+  private var usesListPresentation: Bool {
+    dynamicTypeSize.isAccessibilitySize || isVoiceOverEnabled || prefersListPresentation
+  }
+
   private var timelineContentHeight: CGFloat {
     CGFloat((endHour - startHour) * 60) * timelinePointsPerMinute
   }
@@ -655,6 +674,7 @@ private struct BookingBlockView: View {
         compactStatusIndicator
           .font(.caption)
           .padding(6)
+          .allowsHitTesting(false)
       }
     }
     .overlay(alignment: .trailing) {

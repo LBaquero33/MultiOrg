@@ -613,6 +613,10 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
       }
     )
   }
+  private var canRetryInitialLoad: Bool {
+    if case .failed = model.phase { return true }
+    return false
+  }
 
   var body: some View {
     Group {
@@ -622,13 +626,27 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
         userId: appState.myProfile?.id,
         playerId: player.id
       ) {
-        ContentUnavailableView("Copilot access unavailable", systemImage: "lock.fill")
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Copilot access unavailable",
+              message: audience == .player
+                ? "Player Copilot is available only for your signed-in player profile."
+                : "Coach Copilot requires an active coach, administrator, or owner membership in the selected organization.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
       } else if let service = appState.supabase,
                 let organizationId = appState.activeOrgId,
                 let userId = appState.myProfile?.id {
         content(service: service, organizationId: organizationId, userId: userId)
       } else {
-        ProgressView("Loading organization…")
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPLoadingState(text: "Loading organization…")
+          }
+        }
       }
     }
     .navigationTitle(audience == .player ? "Player Copilot" : "Coach Copilot")
@@ -709,10 +727,23 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
       VStack(alignment: .leading, spacing: HP.Space.md) {
         if let error = model.errorMessage {
           HPCard {
-            Label(error, systemImage: "exclamationmark.triangle.fill")
-              .font(HP.Font.callout)
-              .foregroundStyle(HP.Color.danger)
-              .fixedSize(horizontal: false, vertical: true)
+            HPErrorState(
+              title: "Copilot unavailable",
+              message: error,
+              onRetry: canRetryInitialLoad
+                ? {
+                  Task {
+                    await model.load(
+                      client: service,
+                      organizationId: organizationId,
+                      userId: userId,
+                      playerId: player.id,
+                      audience: audience
+                    )
+                  }
+                }
+                : nil
+            )
           }
         }
 
@@ -971,6 +1002,7 @@ private extension View {
 struct PlayerDevelopmentCopilotConversationView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @StateObject private var model = PlayerDevelopmentCopilotConversationModel()
   @State private var selectedCitation: SDCopilotCitation?
   @State private var selectedParentDraft: SDParentUpdateDraft?
@@ -1008,7 +1040,11 @@ struct PlayerDevelopmentCopilotConversationView: View {
           )
         }
       } else {
-        ProgressView()
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPLoadingState(text: "Loading organization…")
+          }
+        }
       }
     }
     .navigationTitle(model.conversation?.title ?? conversation.title)
@@ -1165,12 +1201,59 @@ struct PlayerDevelopmentCopilotConversationView: View {
             conversationContextCard()
             evidenceGroundingCard
           }
-          if model.isLoading { ProgressView("Loading messages…") }
+          if model.isLoading {
+            HPLoadingState(text: "Loading messages…")
+          }
           if let error = model.errorMessage {
             HPCard {
               VStack(alignment: .leading, spacing: HP.Space.sm) {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                  .foregroundStyle(HP.Color.danger)
+                if model.retryAvailable {
+                  HPErrorState(
+                    title: "Answer unavailable",
+                    message: error,
+                    retryTitle: "Retry failed answer",
+                    onRetry: {
+                      Task {
+                        _ = await model.send(
+                          client: service,
+                          organizationId: organizationId,
+                          userId: userId,
+                          playerId: player.id,
+                          audience: audience,
+                          conversationId: conversationId,
+                          window: window,
+                          retry: true
+                        )
+                      }
+                    }
+                  )
+                  .disabled(model.isSending)
+                } else if model.conversation == nil {
+                  HPErrorState(
+                    title: "Conversation unavailable",
+                    message: error,
+                    retryTitle: "Retry conversation",
+                    onRetry: {
+                      Task {
+                        await model.load(
+                          client: service,
+                          organizationId: organizationId,
+                          userId: userId,
+                          playerId: player.id,
+                          audience: audience,
+                          conversationId: conversationId
+                        )
+                        model.prefill(initialQuestion)
+                      }
+                    }
+                  )
+                  .disabled(model.isLoading)
+                } else {
+                  HPErrorState(
+                    title: "Conversation unavailable",
+                    message: error
+                  )
+                }
                 #if DEBUG
                 if let code = model.errorDiagnosticCode {
                   DisclosureGroup("Technical details") {
@@ -1180,31 +1263,6 @@ struct PlayerDevelopmentCopilotConversationView: View {
                   }
                 }
                 #endif
-                if model.retryAvailable {
-                  Button("Retry failed answer") {
-                    Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window, retry: true) }
-                  }
-                  .frame(minHeight: 44)
-                  .contentShape(Rectangle())
-                  .disabled(model.isSending)
-                } else if model.conversation == nil {
-                  Button("Retry conversation") {
-                    Task {
-                      await model.load(
-                        client: service,
-                        organizationId: organizationId,
-                        userId: userId,
-                        playerId: player.id,
-                        audience: audience,
-                        conversationId: conversationId
-                      )
-                      model.prefill(initialQuestion)
-                    }
-                  }
-                  .frame(minHeight: 44)
-                  .contentShape(Rectangle())
-                  .disabled(model.isLoading)
-                }
               }
             }
           }
@@ -1213,7 +1271,13 @@ struct PlayerDevelopmentCopilotConversationView: View {
               .foregroundStyle(HP.Color.success)
           }
           if model.messages.isEmpty, !model.isLoading {
-            ContentUnavailableView("Ask a player-development question", systemImage: "bubble.left.and.text.bubble.right")
+            HPCard(style: .flat) {
+              HPEmptyState(
+                title: "Ask a player-development question",
+                message: "Use the composer below to ask about supported player evidence.",
+                systemImage: "bubble.left.and.text.bubble.right"
+              )
+            }
           }
           ForEach(model.messages) { message in
             if message.role == .user {
@@ -1257,7 +1321,13 @@ struct PlayerDevelopmentCopilotConversationView: View {
             }
           }
           if model.hasMore {
-            Button(model.isLoadingMore ? "Loading…" : "Load more messages") {
+            HPButton(
+              title: model.isLoadingMore ? "Loading…" : "Load more messages",
+              variant: .secondary,
+              size: .md,
+              isLoading: model.isLoadingMore,
+              fullWidth: dynamicTypeSize.isAccessibilitySize
+            ) {
               Task {
                 await model.loadMoreMessages(
                   client: service,
@@ -1269,8 +1339,6 @@ struct PlayerDevelopmentCopilotConversationView: View {
                 )
               }
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
             .disabled(model.isLoadingMore)
           }
           if !model.suggestedQuestions.isEmpty {
@@ -1304,36 +1372,77 @@ struct PlayerDevelopmentCopilotConversationView: View {
     }
     .safeAreaInset(edge: .bottom) {
       if isArchived {
-        Label("Archived conversation • Read only", systemImage: "archivebox.fill")
-          .frame(maxWidth: .infinity)
-          .padding()
-          .background(.regularMaterial)
-      } else {
-        VStack(spacing: 8) {
-          HStack(alignment: .bottom, spacing: 8) {
-            TextField(
-              model.pendingQuestion == nil ? "Ask about supported player evidence…" : "Answer Copilot’s question…",
-              text: $model.composer,
-              axis: .vertical
-            )
-              .textFieldStyle(.roundedBorder).lineLimit(1...5)
-            Button {
-              Task { _ = await model.send(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId, window: window) }
-            } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-            .accessibilityLabel("Send message")
-            .disabled(model.isSending || model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.composer.count > 2_000)
-          }
-          HStack {
-            Text("\(model.composer.count)/2,000")
-            Spacer()
-            Text(model.pendingQuestion?.isOptional == true ? "Optional response • Copilot never changes official records." : "Copilot never changes official player records.")
-          }
-          .font(HP.Font.caption)
-          .foregroundStyle(HP.Color.textMuted)
+        HPCard(style: .flat) {
+          Label("Archived conversation • Read only", systemImage: "archivebox.fill")
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.textMuted)
+            .frame(maxWidth: .infinity)
         }
-        .padding().background(.regularMaterial)
+        .padding(.horizontal, HP.Space.sm)
+        .padding(.vertical, HP.Space.xs)
+        .background(.regularMaterial)
+      } else {
+        HPCard(style: .flat) {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+              : AnyLayout(HStackLayout(alignment: .bottom, spacing: HP.Space.sm))
+
+            layout {
+              HPFormField(
+                label: "Message",
+                text: $model.composer,
+                kind: .multiline,
+                placeholder: model.pendingQuestion == nil
+                  ? "Ask about supported player evidence…"
+                  : "Answer Copilot’s question…"
+              )
+
+              HPButton(
+                title: "Send",
+                systemImage: "arrow.up.circle.fill",
+                variant: .primary,
+                size: .md,
+                isLoading: model.isSending,
+                fullWidth: dynamicTypeSize.isAccessibilitySize
+              ) {
+                Task {
+                  _ = await model.send(
+                    client: service,
+                    organizationId: organizationId,
+                    userId: userId,
+                    playerId: player.id,
+                    audience: audience,
+                    conversationId: conversationId,
+                    window: window
+                  )
+                }
+              }
+              .accessibilityLabel("Send message")
+              .disabled(
+                model.isSending
+                  || model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                  || model.composer.count > 2_000
+              )
+            }
+
+            HStack {
+              Text("\(model.composer.count)/2,000")
+              Spacer()
+              Text(
+                model.pendingQuestion?.isOptional == true
+                  ? "Optional response • Copilot never changes official records."
+                  : "Copilot never changes official player records."
+              )
+            }
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, HP.Space.sm)
+        .padding(.vertical, HP.Space.xs)
+        .background(.regularMaterial)
       }
     }
   }

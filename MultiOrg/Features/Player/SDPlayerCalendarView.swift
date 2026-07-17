@@ -96,7 +96,7 @@ struct SDPlayerCalendarView: View {
 
       Text("Green = scheduled lift day. Blue = BP/practice. Red = game reps.")
         .font(HP.Font.caption)
-        .foregroundStyle(DHDTheme.textSecondary)
+        .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)
     }
   }

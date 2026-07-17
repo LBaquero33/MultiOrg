@@ -23,37 +23,80 @@ struct HomeView: View {
         case .platformOnly:
           PlatformRootView()
         case .unavailable:
-          ContentUnavailableView(
-            "No active organization membership",
-            systemImage: "building.2.crop.circle",
-            description: Text("Organization access comes from your active membership in the selected organization.")
-          )
+          HPStateScreenLayout { _ in
+            HPCard {
+              VStack(spacing: HP.Space.sm) {
+                HPEmptyState(
+                  title: "No active organization membership",
+                  message: "Organization access comes from your active membership in the selected organization.",
+                  systemImage: "building.2.crop.circle"
+                )
+
+                if !alternativeOrganizations.isEmpty {
+                  Menu {
+                    ForEach(alternativeOrganizations) { organization in
+                      Button {
+                        Task { await appState.switchActiveOrganization(to: organization.id) }
+                      } label: {
+                        Label(organization.displayName, systemImage: "building.2")
+                      }
+                    }
+                  } label: {
+                    Label("Switch Organization", systemImage: "arrow.left.arrow.right")
+                  }
+                  .buttonStyle(HPButtonStyle(variant: .secondary, size: .md, fullWidth: true))
+                  .frame(maxWidth: .infinity, minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+
+                HPButton(
+                  title: "Sign Out",
+                  variant: .destructive,
+                  size: .md,
+                  fullWidth: true,
+                  action: { Task { await appState.signOut() } }
+                )
+              }
+            }
+          }
         }
       } else {
-        VStack(spacing: 12) {
-          ProgressView()
-          Text("Loading your profile…")
-            .foregroundStyle(.secondary)
-          if let msg = appState.profileLoadError, !msg.isEmpty {
-            Text(msg)
-              .font(.footnote)
-              .foregroundStyle(.red)
-              .multilineTextAlignment(.center)
-              .padding(.top, 4)
-          }
-          Button("Retry") {
-            Task { await appState.loadMyProfile() }
-          }
-          .buttonStyle(.bordered)
-          Button(role: .destructive) {
-            Task { await appState.signOut() }
-          } label: {
-            Text("Sign Out")
+        HPStateScreenLayout { _ in
+          HPCard {
+            VStack(spacing: HP.Space.sm) {
+              HPLoadingState(text: "Loading your profile…")
+
+              if let message = appState.profileLoadError, !message.isEmpty {
+                HPErrorState(
+                  title: "Profile unavailable",
+                  message: message,
+                  onRetry: { Task { await appState.loadMyProfile() } }
+                )
+              } else {
+                HPButton(
+                  title: "Retry",
+                  systemImage: "arrow.clockwise",
+                  variant: .secondary,
+                  size: .md,
+                  action: { Task { await appState.loadMyProfile() } }
+                )
+              }
+
+              HPButton(
+                title: "Sign Out",
+                variant: .destructive,
+                size: .md,
+                action: { Task { await appState.signOut() } }
+              )
+            }
           }
         }
-        .padding()
       }
     }
+  }
+
+  private var alternativeOrganizations: [SDOrg] {
+    appState.availableOrganizations.filter { $0.id != appState.activeOrgId }
   }
 }
 

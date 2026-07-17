@@ -28,18 +28,32 @@ struct HPStatusBadge: View {
   var kind: HPStatusKind = .neutral
 
   var body: some View {
-    Text(text)
-      .font(HP.Font.badge)
-      .lineLimit(1)
-      .fixedSize()
+    ViewThatFits(in: .horizontal) {
+      badgeText
+        .lineLimit(1)
+        .fixedSize()
+      badgeText
+        .lineLimit(3)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+    }
       .padding(.horizontal, HP.Space.sm)
       .padding(.vertical, 6)
       .background(
         Capsule()
           .fill(kind.color.opacity(0.20))
-          .overlay(Capsule().strokeBorder(kind.color.opacity(0.40), lineWidth: 1))
+          .overlay(
+            Capsule()
+              .strokeBorder(kind.color.opacity(0.40), lineWidth: 1)
+              .allowsHitTesting(false)
+          )
       )
       .foregroundStyle(kind.textColor)
       .accessibilityLabel(text)
+  }
+
+  private var badgeText: some View {
+    Text(text)
+      .font(HP.Font.badge)
   }
 }

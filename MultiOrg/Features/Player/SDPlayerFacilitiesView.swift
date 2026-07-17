@@ -101,7 +101,7 @@ struct SDPlayerFacilitiesView: View {
     } stateContent: { _ in
       EmptyView()
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .dhdToast($toastText)
     .toolbar {
       ToolbarItem(placement: .automatic) {
@@ -179,7 +179,7 @@ struct SDPlayerFacilitiesView: View {
 
       Text("Green = approved booking. Blue = your pending request.")
         .font(HP.Font.caption)
-        .foregroundStyle(DHDTheme.textSecondary)
+        .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)
     }
   }

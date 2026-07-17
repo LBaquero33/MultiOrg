@@ -37,12 +37,15 @@ private struct HPProgressRing: View {
 
   var body: some View {
     ZStack {
-      Circle().stroke(HP.Color.surfaceRaised, lineWidth: lineWidth)
+      Circle()
+        .stroke(HP.Color.surfaceRaised, lineWidth: lineWidth)
+        .allowsHitTesting(false)
       if let value {
         Circle()
           .trim(from: 0, to: min(1, max(0, value)))
           .stroke(HP.Color.accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
           .rotationEffect(.degrees(-90))
+          .allowsHitTesting(false)
         Text("\(Int((min(1, max(0, value)) * 100).rounded()))%")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
       } else {
@@ -50,6 +53,7 @@ private struct HPProgressRing: View {
           .trim(from: 0, to: 0.25)
           .stroke(HP.Color.accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
           .rotationEffect(.degrees(spin ? 360 : 0))
+          .allowsHitTesting(false)
           .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) { spin = true }
@@ -58,5 +62,11 @@ private struct HPProgressRing: View {
     }
     .accessibilityElement()
     .accessibilityLabel(value != nil ? "Progress" : "Loading")
+    .accessibilityValue(accessibilityValue)
+  }
+
+  private var accessibilityValue: String {
+    guard let value else { return "In progress" }
+    return "\(Int((min(1, max(0, value)) * 100).rounded())) percent"
   }
 }

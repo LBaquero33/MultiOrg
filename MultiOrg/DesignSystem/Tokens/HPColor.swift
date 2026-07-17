@@ -14,6 +14,7 @@ extension HP {
     static let border        = DHDTheme.border
     static let borderStrong  = DHDTheme.borderStrong
     static let input         = DHDTheme.inputBackground
+    static let scrim         = DHDTheme.scrim
 
     // Text
     static let text          = DHDTheme.textPrimary
@@ -27,6 +28,7 @@ extension HP {
     static let accentText    = DHDTheme.accentText
     static let focusRing     = DHDTheme.focusRing
     static let danger        = DHDTheme.danger
+    static let onDanger      = SwiftUI.Color.white
     static let success       = DHDTheme.success
     static let warning       = DHDTheme.warning
     static let info          = DHDTheme.info

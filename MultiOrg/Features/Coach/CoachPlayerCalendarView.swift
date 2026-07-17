@@ -582,9 +582,9 @@ private struct CoachPlayerDailyLogDetailView: View {
       Text(label)
       Spacer()
       if value == true {
-        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        Image(systemName: "checkmark.circle.fill").foregroundStyle(HP.Color.success)
       } else if value == false {
-        Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        Image(systemName: "xmark.circle.fill").foregroundStyle(HP.Color.danger)
       } else {
         Text("—").foregroundStyle(HP.Color.textMuted)
       }

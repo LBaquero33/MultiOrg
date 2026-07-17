@@ -63,7 +63,9 @@ struct HPSegmentedControl<T: Hashable>: View {
         } label: {
           Text(option.label)
             .font(HP.Font.callout.weight(.semibold))
-            .lineLimit(1).minimumScaleFactor(0.8)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .frame(minHeight: 44)

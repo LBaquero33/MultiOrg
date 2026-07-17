@@ -45,86 +45,85 @@ struct ExpenseManagementView: View {
   }
 
   var body: some View {
-    DHDCard {
-      VStack(alignment: .leading, spacing: 10) {
-        DHDSectionHeader("Expenses") {
-          HStack(spacing: 8) {
-            Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
-              .buttonStyle(.borderless)
-              .disabled(isLoading || viewModel.isExpenseMutationInFlight)
-              .accessibilityLabel("Refresh Expenses")
-            if canMutate {
-              Button {
-                viewModel.clearExpenseMessage()
-                editor = ExpenseEditorPresentation(expense: nil)
-              } label: {
-                Label("Add Expense", systemImage: "plus")
-              }
-              .buttonStyle(.borderedProminent)
-              .disabled(viewModel.isExpenseMutationInFlight)
-            }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Expenses")
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: HP.Space.sm) {
+            expenseActions(fullWidth: false)
+            Spacer(minLength: 0)
+          }
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            expenseActions(fullWidth: true)
           }
         }
 
         if supportMode {
-          Label(
-            "Platform Support — read-only financial access",
-            systemImage: "lock.shield"
-          )
-          .font(.footnote.weight(.semibold))
-          .foregroundStyle(DHDTheme.textSecondary)
+          HStack(alignment: .top, spacing: HP.Space.sm) {
+            Image(systemName: "lock.shield")
+              .foregroundStyle(HP.Color.accent)
+              .accessibilityHidden(true)
+            Text("Platform Support — read-only financial access")
+              .font(HP.Font.caption.weight(.semibold))
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            HPStatusBadge(text: "Read-only", kind: .gold)
+          }
+          .accessibilityElement(children: .combine)
         }
 
         if let success = viewModel.expenseSuccessMessage {
-          Text(success).font(.footnote).foregroundStyle(.green)
+          expenseFeedback(success, kind: .success)
         }
         if let mutationError = viewModel.expenseMutationError {
-          Text(mutationError).font(.footnote).foregroundStyle(.red)
+          expenseFeedback(mutationError, kind: .danger)
         }
 
         if let expenses, !expenses.isEmpty {
-          HStack(spacing: 10) {
-            TextField("Search expenses", text: $searchText)
-              .textFieldStyle(.roundedBorder)
-            Picker("Category", selection: $selectedCategory) {
-              Text("All Categories").tag("all")
-              ForEach(categories, id: \.self) { category in
-                Text(category).tag(category)
-              }
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.sm) {
+              HPSearchBar(text: $searchText, placeholder: "Search expenses")
+              categoryMenu(fullWidth: false)
             }
-            .frame(maxWidth: 220)
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSearchBar(text: $searchText, placeholder: "Search expenses")
+              categoryMenu(fullWidth: true)
+            }
           }
         }
 
         if isLoading, expenses == nil {
-          HStack {
-            ProgressView()
-            Text("Loading expenses…").foregroundStyle(DHDTheme.textSecondary)
-          }
+          HPLoadingState(text: "Loading expenses…")
         } else if let errorMessage {
-          VStack(alignment: .leading, spacing: 8) {
-            Text(errorMessage).font(.footnote).foregroundStyle(.red)
-            Button("Try Again", action: onRefresh).buttonStyle(.bordered)
-          }
+          HPErrorState(message: errorMessage, retryTitle: "Try Again", onRetry: onRefresh)
         } else if let expenses, expenses.isEmpty {
-          Text("No expenses in this date range.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No expenses",
+            message: "No expenses were recorded in this date range.",
+            systemImage: "receipt"
+          )
         } else if filteredExpenses.isEmpty {
-          Text("No expenses match the current search and category filter.")
-            .foregroundStyle(DHDTheme.textSecondary)
+          HPEmptyState(
+            title: "No matching expenses",
+            message: "Try changing the search or category filter.",
+            systemImage: "magnifyingglass"
+          )
         } else {
-          ForEach(filteredExpenses) { expense in
+          ForEach(Array(filteredExpenses.enumerated()), id: \.element.id) { index, expense in
             ExpenseRow(
               expense: expense,
               canMutate: canMutate,
-              mutationDisabled: viewModel.isExpenseMutationInFlight,
+              mutationDisabled: isLoading || viewModel.isExpenseMutationInFlight,
               onEdit: {
                 viewModel.clearExpenseMessage()
                 editor = ExpenseEditorPresentation(expense: expense)
               },
               onArchive: { archiveCandidate = expense }
             )
-            Divider().overlay(DHDTheme.separator.opacity(0.3))
+            if index < filteredExpenses.count - 1 {
+              Divider().overlay(HP.Color.border.opacity(0.5))
+            }
           }
         }
       }
@@ -190,6 +189,100 @@ struct ExpenseManagementView: View {
       }
     }
   }
+
+  @ViewBuilder
+  private func expenseActions(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Refresh",
+      systemImage: "arrow.clockwise",
+      variant: .secondary,
+      size: .sm,
+      fullWidth: fullWidth,
+      action: onRefresh
+    )
+    .disabled(isLoading || viewModel.isExpenseMutationInFlight)
+    .accessibilityLabel("Refresh Expenses")
+
+    if canMutate {
+      HPButton(
+        title: "Add Expense",
+        systemImage: "plus",
+        variant: .primary,
+        size: .sm,
+        fullWidth: fullWidth,
+        action: {
+          viewModel.clearExpenseMessage()
+          editor = ExpenseEditorPresentation(expense: nil)
+        }
+      )
+      .disabled(isLoading || viewModel.isExpenseMutationInFlight)
+    }
+  }
+
+  private func expenseFeedback(_ message: String, kind: HPStatusKind) -> some View {
+    HStack(alignment: .top, spacing: HP.Space.xs) {
+      Image(systemName: kind == .success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+        .foregroundStyle(kind.color)
+        .accessibilityHidden(true)
+      Text(message)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private func categoryMenu(fullWidth: Bool) -> some View {
+    Menu {
+      Button {
+        selectedCategory = "all"
+      } label: {
+        if selectedCategory == "all" {
+          Label("All Categories", systemImage: "checkmark")
+        } else {
+          Text("All Categories")
+        }
+      }
+      ForEach(categories, id: \.self) { category in
+        Button {
+          selectedCategory = category
+        } label: {
+          if selectedCategory == category {
+            Label(category, systemImage: "checkmark")
+          } else {
+            Text(category)
+          }
+        }
+      }
+    } label: {
+      HStack(spacing: HP.Space.sm) {
+        Text(selectedCategory == "all" ? "All Categories" : selectedCategory)
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .lineLimit(1)
+        Spacer(minLength: HP.Space.sm)
+        Image(systemName: "chevron.up.chevron.down")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .accessibilityHidden(true)
+      }
+      .padding(.horizontal, HP.Space.sm)
+      .frame(maxWidth: fullWidth ? .infinity : 220, minHeight: 44)
+      .background(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .fill(HP.Color.input)
+      )
+      .overlay(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(HP.Color.border, lineWidth: 1)
+          .allowsHitTesting(false)
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Category")
+    .accessibilityValue(selectedCategory == "all" ? "All Categories" : selectedCategory)
+  }
 }
 
 struct ExpenseRow: View {
@@ -200,30 +293,102 @@ struct ExpenseRow: View {
   let onArchive: () -> Void
 
   var body: some View {
+    ViewThatFits(in: .horizontal) {
+      compactRow
+      stackedRow
+    }
+    .padding(.vertical, HP.Space.xs)
+  }
+
+  private var compactRow: some View {
     HStack(alignment: .top, spacing: 12) {
-      VStack(alignment: .leading, spacing: 3) {
-        Text(expense.description ?? "Expense").font(.headline)
-        Text([expense.vendor, expense.category, expense.expense_date].compactMap { $0 }.joined(separator: " • "))
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
-        if let notes = expense.notes, !notes.isEmpty {
-          Text(notes).font(.caption2).foregroundStyle(DHDTheme.textSecondary)
-            .lineLimit(2)
-        }
-      }
-      Spacer()
+      expenseDetails
+      Spacer(minLength: HP.Space.sm)
       VStack(alignment: .trailing, spacing: 6) {
-        Text(expense.money.formatted()).font(.subheadline.weight(.semibold))
-        if canMutate {
-          HStack(spacing: 8) {
-            Button("Edit", action: onEdit).buttonStyle(.borderless)
-            Button("Archive", role: .destructive, action: onArchive)
-              .buttonStyle(.borderless)
-          }
-          .disabled(mutationDisabled)
+        expenseAmount
+        mutationActions(fullWidth: false)
+      }
+    }
+  }
+
+  private var stackedRow: some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      expenseDetails
+      expenseAmount
+      mutationActions(fullWidth: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var expenseDetails: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(expense.description ?? "Expense")
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(
+        [expense.vendor, expense.category, expense.expense_date]
+          .compactMap { $0 }
+          .joined(separator: " • ")
+      )
+      .font(HP.Font.caption)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
+      if let notes = expense.notes, !notes.isEmpty {
+        Text(notes)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(2)
+      }
+    }
+  }
+
+  private var expenseAmount: some View {
+    Text(expense.money.formatted())
+      .font(HP.Font.callout.weight(.semibold))
+      .foregroundStyle(HP.Color.text)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  @ViewBuilder
+  private func mutationActions(fullWidth: Bool) -> some View {
+    if canMutate {
+      if fullWidth {
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          editButton(fullWidth: true)
+          archiveButton(fullWidth: true)
+        }
+      } else {
+        HStack(spacing: HP.Space.xs) {
+          editButton(fullWidth: false)
+          archiveButton(fullWidth: false)
         }
       }
     }
+  }
+
+  private func editButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Edit",
+      systemImage: "pencil",
+      variant: .tertiary,
+      size: .sm,
+      fullWidth: fullWidth,
+      action: onEdit
+    )
+    .disabled(mutationDisabled)
+  }
+
+  private func archiveButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Archive",
+      systemImage: "archivebox",
+      variant: .destructive,
+      size: .sm,
+      fullWidth: fullWidth,
+      action: onArchive
+    )
+    .disabled(mutationDisabled)
   }
 }
 
@@ -237,6 +402,16 @@ struct ExpenseEditorSheet: View {
   @Environment(\.dismiss) private var dismiss
   @State private var form: FinanceExpenseFormModel
   @State private var isSubmitting = false
+
+  private struct DecimalKeyboard: ViewModifier {
+    func body(content: Content) -> some View {
+      #if canImport(UIKit)
+      return content.keyboardType(.decimalPad)
+      #else
+      return content
+      #endif
+    }
+  }
 
   init(
     expense: FinanceExpense?,
@@ -256,61 +431,124 @@ struct ExpenseEditorSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Expense") {
-          TextField("Category", text: $form.category)
-          TextField("Description", text: $form.description)
-          TextField("Amount", text: $form.amountText)
-          #if os(iOS)
-          .keyboardType(.decimalPad)
-          #endif
-          DatePicker("Expense Date", selection: $form.expenseDate, displayedComponents: .date)
-          TextField("Vendor (optional)", text: $form.vendor)
-          VStack(alignment: .leading, spacing: 6) {
-            Text("Notes (optional)").font(.caption).foregroundStyle(DHDTheme.textSecondary)
-            TextEditor(text: $form.notes).frame(minHeight: 90)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          expense == nil ? "Add Expense" : "Edit Expense",
+          context: "\(form.normalizedCurrency.uppercased()) • Finance"
+        )
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Expense")
+            HPFormField(
+              label: "Category",
+              text: $form.category,
+              placeholder: "Expense category",
+              isEnabled: !isSubmitting
+            )
+            HPFormField(
+              label: "Description",
+              text: $form.description,
+              placeholder: "What was purchased?",
+              isEnabled: !isSubmitting
+            )
+            HPFormField(
+              label: "Amount",
+              text: $form.amountText,
+              placeholder: "0.00",
+              helper: "Enter the amount in \(form.normalizedCurrency.uppercased()).",
+              isEnabled: !isSubmitting
+            )
+            .modifier(DecimalKeyboard())
+            DatePicker(
+              "Expense Date",
+              selection: $form.expenseDate,
+              displayedComponents: .date
+            )
+            .font(HP.Font.body)
+            .foregroundStyle(HP.Color.text)
+            .tint(HP.Color.accent)
+            .frame(minHeight: 44)
+            .disabled(isSubmitting)
+            HPFormField(
+              label: "Vendor (optional)",
+              text: $form.vendor,
+              placeholder: "Vendor name",
+              isEnabled: !isSubmitting
+            )
+            HPFormField(
+              label: "Notes (optional)",
+              text: $form.notes,
+              kind: .multiline,
+              placeholder: "Expense notes",
+              isEnabled: !isSubmitting
+            )
+            LabeledContent("Currency", value: form.normalizedCurrency.uppercased())
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .frame(minHeight: 44)
           }
-          LabeledContent("Currency", value: form.normalizedCurrency.uppercased())
         }
 
-        Section {
-          Text("Receipt attachments are not available yet.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
+        HPCard(style: .flat) {
+          Label(
+            "Receipt attachments are not available yet.",
+            systemImage: "paperclip"
+          )
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
         }
 
         if let validationError = form.validationError {
-          Section {
-            Text(validationError).font(.footnote).foregroundStyle(.red)
+          HPCard(style: .flat) {
+            HPErrorState(title: "Check expense details", message: validationError)
           }
         } else if let mutationError {
-          Section {
-            Text(mutationError).font(.footnote).foregroundStyle(.red)
+          HPCard(style: .flat) {
+            HPErrorState(title: "Expense could not be saved", message: mutationError)
           }
         }
+      } primaryAction: { context in
+        HPButton(
+          title: isSubmitting ? "Saving…" : "Save",
+          systemImage: "checkmark",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSubmitting,
+          fullWidth: context.isAccessibilitySize,
+          action: submit
+        )
+        .disabled(!form.isValid || isSubmitting || isMutationInFlight)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
+        .disabled(isSubmitting)
       }
       .navigationTitle(expense == nil ? "Add Expense" : "Edit Expense")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { dismiss() }.disabled(isSubmitting)
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button(isSubmitting ? "Saving…" : "Save") {
-            guard !isSubmitting else { return }
-            isSubmitting = true
-            Task {
-              let succeeded = await onSave(form)
-              isSubmitting = false
-              if succeeded { dismiss() }
-            }
-          }
-          .disabled(!form.isValid || isSubmitting || isMutationInFlight)
-        }
-      }
     }
     #if os(macOS)
+    .onExitCommand {
+      guard !isSubmitting else { return }
+      dismiss()
+    }
     .frame(minWidth: 520, minHeight: 560)
     #endif
+  }
+
+  private func submit() {
+    guard !isSubmitting else { return }
+    isSubmitting = true
+    Task {
+      let succeeded = await onSave(form)
+      isSubmitting = false
+      if succeeded { dismiss() }
+    }
   }
 }
 
