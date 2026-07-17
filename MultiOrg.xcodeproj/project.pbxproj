@@ -67,6 +67,7 @@
 		34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */; };
 		34E2FAC854814C847C57AD40 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3785F08E82E60961768F2DBD /* NotificationCenterModels.swift */; };
 		34F84830AABD4055FEE17700 /* PlayerDevelopmentCopilotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */; };
+		F11C0A110000000000000001 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11C0A110000000000000002 /* PlayerDevelopmentCopilotResponseContractTests.swift */; };
 		358DA85769EF6644E0E54536 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219F3034B0C6E8F1E9DC5441 /* CoachPlayerOverviewView.swift */; };
 		358F7408ACF4837F7B5D64DA /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9A3E08F301640F2F0A8168 /* HPComponentGallery.swift */; };
 		35C66F5103C8796F59E74262 /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3A1FBB634A62BDCF562698 /* PlayerDevelopmentImportView.swift */; };
@@ -444,6 +445,7 @@
 		DC6D237F484753CFC6B40445 /* FinanceDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardView.swift; sourceTree = "<group>"; };
 		DEFCFA9896A53C59E4DD813A /* AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
 		E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotTests.swift; sourceTree = "<group>"; };
+		F11C0A110000000000000002 /* PlayerDevelopmentCopilotResponseContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotResponseContractTests.swift; sourceTree = "<group>"; };
 		E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPModal.swift; sourceTree = "<group>"; };
 		EA2D344B2DA890D8F660AB44 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatusBadge.swift; sourceTree = "<group>"; };
@@ -780,6 +782,7 @@
 				8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */,
 				C2F9BD40AFC5EF19E074DEE1 /* PlayerDevelopmentAITests.swift */,
 				E00FFC4B27B62B3FF9B4C9EB /* PlayerDevelopmentCopilotTests.swift */,
+				F11C0A110000000000000002 /* PlayerDevelopmentCopilotResponseContractTests.swift */,
 				F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */,
 				CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */,
 				113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */,
@@ -1286,6 +1289,7 @@
 				6F5C962B1EB3D8CDA29C857E /* PaymentCheckoutTests.swift in Sources */,
 				CC6D459656BA45C6F87564A3 /* PlayerDevelopmentAITests.swift in Sources */,
 				34F84830AABD4055FEE17700 /* PlayerDevelopmentCopilotTests.swift in Sources */,
+				F11C0A110000000000000001 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */,
 				D124354D452D6B07D255D625 /* PlayerDevelopmentImportTests.swift in Sources */,
 				34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */,
 				77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */,

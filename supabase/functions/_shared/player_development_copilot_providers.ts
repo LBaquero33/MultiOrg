@@ -267,6 +267,9 @@ async function fetchWithTimeout(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetcher(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("provider_timeout");
+    throw error;
   } finally {
     clearTimeout(timer);
   }

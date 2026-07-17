@@ -359,6 +359,31 @@ class MemoryStore implements CopilotStore {
       }
       : null;
     if (newPending) this.currentPendingQuestion = newPending;
+    const persistedCitations = input.citations.map((citation, index) => ({
+      ...citation,
+      id: `77777777-7777-4777-8777-${String(index + 1).padStart(12, "0")}`,
+      message_id: "88888888-8888-4888-8888-888888888888",
+      org_id: ORG,
+      player_id: PLAYER,
+      audience: input.audience,
+    }));
+    const assistantMessage: CopilotMessage = {
+      ...base,
+      id: "88888888-8888-4888-8888-888888888888",
+      actor_id: null,
+      role: "assistant",
+      assistant_turn_type: input.answer?.assistant_turn_type ?? "answer",
+      in_reply_to_question_id: null,
+      user_question: null,
+      structured_answer: input.answer,
+      rendered_answer: input.renderedAnswer,
+      quality_status: input.qualityStatus,
+      generation_status: input.generationStatus,
+      safe_error_code: input.safeErrorCode,
+      citations: persistedCitations,
+      pending_question: newPending,
+    };
+    this.currentMessage = assistantMessage;
     return Promise.resolve({
       user_message: {
         ...base,
@@ -373,22 +398,7 @@ class MemoryStore implements CopilotStore {
         generation_status: "succeeded",
         safe_error_code: null,
       },
-      assistant_message: {
-        ...base,
-        id: "88888888-8888-4888-8888-888888888888",
-        actor_id: null,
-        role: "assistant",
-        assistant_turn_type: input.answer?.assistant_turn_type ?? "answer",
-        in_reply_to_question_id: null,
-        user_question: null,
-        structured_answer: input.answer,
-        rendered_answer: input.renderedAnswer,
-        quality_status: input.qualityStatus,
-        generation_status: input.generationStatus,
-        safe_error_code: input.safeErrorCode,
-        citations: input.citations,
-        pending_question: newPending,
-      },
+      assistant_message: assistantMessage,
       pending_question: newPending,
       reused: this.persisted > 1,
     });
@@ -428,6 +438,7 @@ function request(
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "x-client-request-id": KEY,
         ...(token ? { authorization: "Bearer test" } : {}),
       },
       body: JSON.stringify({
@@ -1640,7 +1651,60 @@ Deno.test("ask persists user message answer citations and attempt", async () => 
   assertEquals(response.status, 200);
   assertEquals(store.persisted, 1);
   const body = await response.json();
+  assertEquals(body.ok, true);
+  assertEquals(body.error, null);
+  assertEquals(body.data, null);
+  assertEquals(body.request_id, KEY);
+  assertEquals(response.headers.get("x-request-id"), KEY);
+  assertEquals(body.answer.assistant_message.id, body.assistant_message.id);
   assertEquals(body.assistant_message.citations.length, 2);
+  for (const citation of body.assistant_message.citations) {
+    assert(typeof citation.id === "string");
+    assertEquals(citation.message_id, body.assistant_message.id);
+    assertEquals(citation.org_id, ORG);
+    assertEquals(citation.player_id, PLAYER);
+    assertEquals(citation.audience, "coach");
+  }
+});
+
+Deno.test("every failure uses the discriminated Copilot envelope", async () => {
+  const response = await createPlayerDevelopmentCopilotHandler(
+    new MemoryStore(),
+    () => provider(validAnswer()),
+  )(request("ask", { conversation_id: "missing" }));
+  assertEquals(response.status, 400);
+  const body = await response.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.answer, null);
+  assertEquals(body.data, null);
+  assertEquals(body.error.code, "invalid_request");
+  assertEquals(typeof body.error.message, "string");
+  assertEquals(body.error.retryable, false);
+  assertEquals(body.request_id, KEY);
+  assertEquals(response.headers.get("x-request-id"), KEY);
+});
+
+Deno.test("provider timeout is persisted and mapped to a stable retryable code", async () => {
+  const store = new MemoryStore();
+  const response = await createPlayerDevelopmentCopilotHandler(
+    store,
+    () => ({
+      ...provider(null),
+      generate: () => Promise.reject(new Error("provider_timeout")),
+    }),
+    () => new Date("2026-07-16T12:00:00Z"),
+  )(request("ask", {
+    conversation_id: CONVERSATION,
+    question: "Tell me a baseball joke",
+    idempotency_key: KEY,
+  }));
+  assertEquals(response.status, 503);
+  const body = await response.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.answer, null);
+  assertEquals(body.error.code, "provider_timeout");
+  assertEquals(body.error.retryable, true);
+  assertEquals(body.data.assistant_message.safe_error_code, "provider_timeout");
 });
 
 Deno.test("invalid provider evidence is rejected and not marked successful", async () => {
@@ -1656,8 +1720,8 @@ Deno.test("invalid provider evidence is rejected and not marked successful", asy
   }));
   assertEquals(response.status, 503);
   const body = await response.json();
-  assertEquals(body.assistant_message.generation_status, "rejected");
-  assertEquals(body.error, "invalid_evidence_reference");
+  assertEquals(body.data.assistant_message.generation_status, "rejected");
+  assertEquals(body.error.code, "invalid_evidence_reference");
 });
 
 Deno.test("provider unavailable is persisted as failed, never mislabeled deterministic", async () => {
@@ -1673,8 +1737,8 @@ Deno.test("provider unavailable is persisted as failed, never mislabeled determi
     idempotency_key: KEY,
   }));
   const body = await response.json();
-  assertEquals(body.error, "provider_unavailable");
-  assertEquals(body.assistant_message.provider, "mock");
+  assertEquals(body.error.code, "provider_unavailable");
+  assertEquals(body.data.assistant_message.provider, "mock");
 });
 
 Deno.test("supported deterministic intents never invoke the configured external provider", async () => {
@@ -1717,7 +1781,7 @@ Deno.test("unsupported deterministic and unconfigured-provider routes use distin
     idempotency_key: KEY,
   }));
   let body = await response.json();
-  assertEquals(body.error, "deterministic_intent_unrecognized");
+  assertEquals(body.error.code, "deterministic_intent_unrecognized");
 
   store = new MemoryStore();
   response = await createPlayerDevelopmentCopilotHandler(
@@ -1737,7 +1801,7 @@ Deno.test("unsupported deterministic and unconfigured-provider routes use distin
     idempotency_key: KEY,
   }));
   body = await response.json();
-  assertEquals(body.error, "unsupported_without_provider");
+  assertEquals(body.error.code, "unsupported_without_provider");
 });
 
 Deno.test("the live missing-evidence limitation validates instead of becoming unsafe output", async () => {
@@ -1814,7 +1878,7 @@ Deno.test("persistence failure returns a stable safe code without a raw store er
   }));
   const body = await response.json();
   assertEquals(response.status, 500);
-  assertEquals(body.error, "persistence_failed");
+  assertEquals(body.error.code, "persistence_failed");
   assert(!JSON.stringify(body).includes("database connection"));
 });
 
@@ -1838,7 +1902,7 @@ Deno.test("corrected deterministic retry reuses the logical message identity", a
   }));
   const firstBody = await first.json();
   assertEquals(first.status, 503);
-  assertEquals(firstBody.error, "unsafe_generated_content");
+  assertEquals(firstBody.error.code, "unsafe_generated_content");
   store.currentPack = pack();
   const retry = await handler(request("retry_message", {
     conversation_id: CONVERSATION,
@@ -1847,8 +1911,11 @@ Deno.test("corrected deterministic retry reuses the logical message identity", a
   }));
   const retryBody = await retry.json();
   assertEquals(retry.status, 200);
-  assertEquals(retryBody.user_message.id, firstBody.user_message.id);
-  assertEquals(retryBody.assistant_message.id, firstBody.assistant_message.id);
+  assertEquals(retryBody.user_message.id, firstBody.data.user_message.id);
+  assertEquals(
+    retryBody.assistant_message.id,
+    firstBody.data.assistant_message.id,
+  );
   assertEquals(retryBody.assistant_message.generation_status, "succeeded");
   assertEquals(retryBody.reused, true);
 });

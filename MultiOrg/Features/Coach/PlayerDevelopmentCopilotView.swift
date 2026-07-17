@@ -290,10 +290,14 @@ final class PlayerDevelopmentCopilotConversationModel: ObservableObject {
       message.audience == audience &&
       message.conversationId == conversationId &&
       (message.citations ?? []).allSatisfy { citation in
-        citation.organizationId == organizationId &&
-          citation.playerId == playerId &&
-          citation.audience == audience &&
+        let isLegacyInlineCitation = citation.persistedId == nil &&
+          citation.organizationId == nil && citation.playerId == nil &&
+          citation.audience == nil && citation.messageId == nil
+        let isPersistedScopedCitation = citation.persistedId != nil &&
+          citation.organizationId == organizationId &&
+          citation.playerId == playerId && citation.audience == audience &&
           citation.messageId == message.id
+        return isLegacyInlineCitation || isPersistedScopedCitation
       }
   }
 

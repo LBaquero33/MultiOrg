@@ -570,10 +570,17 @@ function exactDate(value: string): number | null {
     : null;
 }
 
-function json(status: number, body: Record<string, unknown>): Response {
+function rawJSON(
+  status: number,
+  body: Record<string, unknown>,
+  requestId?: string,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(requestId ? { "x-request-id": requestId } : {}),
+    },
   });
 }
 
@@ -591,6 +598,8 @@ const safeMessages: Record<string, string> = {
   parent_draft_not_found: "The parent update draft is unavailable.",
   provider_unavailable:
     "Conversational generation is not configured. Deterministic questions remain available.",
+  provider_timeout:
+    "The generation provider did not respond in time. Please try again.",
   unsupported_without_provider:
     "That conversational question needs a configured generation provider. Supported deterministic questions remain available.",
   deterministic_intent_unrecognized:
@@ -624,13 +633,6 @@ const safeMessages: Record<string, string> = {
   copilot_unavailable:
     "Player Development Copilot could not complete the request.",
 };
-
-function failure(status: number, code: string): Response {
-  return json(status, {
-    error: code,
-    message: safeMessages[code] ?? safeMessages.copilot_unavailable,
-  });
-}
 
 async function readBoundedObject(
   request: Request,
@@ -2210,6 +2212,9 @@ function validationFailure(error: unknown): {
   if (message === "provider_unavailable") {
     return { code: "provider_unavailable", stage: "provider" };
   }
+  if (message === "provider_timeout") {
+    return { code: "provider_timeout", stage: "provider" };
+  }
   if (message === "deterministic_intent_unrecognized") {
     return { code: message, stage: "classification" };
   }
@@ -2224,7 +2229,70 @@ export function createPlayerDevelopmentCopilotHandler(
   diagnostic: CopilotDiagnosticLogger = consoleCopilotDiagnosticLogger,
 ) {
   return async (request: Request): Promise<Response> => {
-    const requestId = crypto.randomUUID();
+    const suppliedRequestId =
+      clean(request.headers.get("x-client-request-id")) ||
+      "";
+    const requestId = validUuid(suppliedRequestId.toLowerCase())
+      ? suppliedRequestId.toLowerCase()
+      : crypto.randomUUID();
+    const nonRetryableCodes = new Set([
+      "invalid_auth",
+      "invalid_json",
+      "request_too_large",
+      "invalid_request",
+      "unsupported_action",
+      "organization_unavailable",
+      "staff_access_required",
+      "player_access_denied",
+      "conversation_not_found",
+      "message_not_found",
+      "parent_draft_not_found",
+      "provider_unavailable",
+      "unsupported_without_provider",
+      "deterministic_intent_unrecognized",
+      "evidence_unavailable",
+      "unsafe_question",
+      "stale_context",
+      "pending_question_stale",
+      "pending_question_response_invalid",
+      "invalid_parent_draft_transition",
+    ]);
+    const failure = (
+      status: number,
+      code: string,
+      data: Record<string, unknown> | null = null,
+    ): Response =>
+      rawJSON(status, {
+        ok: false,
+        answer: null,
+        data,
+        error: {
+          code,
+          message: safeMessages[code] ?? safeMessages.copilot_unavailable,
+          retryable: !nonRetryableCodes.has(code) &&
+            (status === 429 || status >= 500),
+        },
+        request_id: requestId,
+      }, requestId);
+    const json = (status: number, body: Record<string, unknown>): Response => {
+      if (status < 200 || status >= 300) {
+        const code = typeof body.error === "string"
+          ? body.error
+          : "copilot_unavailable";
+        return failure(status, code, body);
+      }
+      const isAnswer = "user_message" in body && "assistant_message" in body;
+      return rawJSON(status, {
+        // Transitional top-level fields keep older clients operational while
+        // the discriminated envelope becomes the authoritative contract.
+        ...body,
+        ok: true,
+        answer: isAnswer ? body : null,
+        data: isAnswer ? null : body,
+        error: null,
+        request_id: requestId,
+      }, requestId);
+    };
     if (request.method !== "POST") return failure(405, "unsupported_action");
     const actorId = await store.authenticate(request);
     if (!actorId) return failure(401, "invalid_auth");
@@ -2736,7 +2804,31 @@ export function createPlayerDevelopmentCopilotHandler(
           evidence_count: pack.evidence.length,
           latency_ms: Math.round(performance.now() - started),
         });
-        persisted.assistant_message.citations = citations;
+        try {
+          const hydratedAssistant = await store.message(
+            orgId,
+            conversationId,
+            persisted.assistant_message.id,
+            [...allowedPlayers],
+            audience,
+          );
+          if (!hydratedAssistant) throw new Error("message_not_found");
+          persisted.assistant_message = hydratedAssistant;
+          persisted.pending_question = hydratedAssistant.pending_question ??
+            persisted.pending_question;
+        } catch {
+          diagnostic("copilot_response_hydration_failed", {
+            request_id: requestId,
+            action,
+            audience,
+            intent: classification.intent,
+            generator_version: activeProvider.generatorVersion,
+            validation_code: "persistence_failed",
+            evidence_count: pack.evidence.length,
+            latency_ms: Math.round(performance.now() - started),
+          });
+          return failure(500, "persistence_failed");
+        }
         return json(generationStatus === "succeeded" ? 200 : 503, {
           ...persisted,
           suggested_questions: suggestedQuestions(pack, audience),

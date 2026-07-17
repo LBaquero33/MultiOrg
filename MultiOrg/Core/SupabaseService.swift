@@ -2278,19 +2278,116 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Player Development Coach Copilot (Phase 11C-11E)
 
-  private func invokePlayerDevelopmentCopilot<Request: Encodable, Response: Decodable>(
-    _ request: Request
+  private func invokePlayerDevelopmentCopilot<Response: Decodable>(
+    _ request: SDCopilotRequest,
+    canonicalPayloadKey: SDCopilotCanonicalPayloadKey = .data
   ) async throws -> Response {
+    var correlatedRequest = request
+    let requestId = request.clientRequestId ?? UUID()
+    correlatedRequest.clientRequestId = requestId
+    let requestIdText = requestId.uuidString.lowercased()
     do {
-      return try await invokeAuthenticatedFunction("player-development-copilot", body: request)
+      let session = try await client.auth.session
+      client.functions.setAuth(token: session.accessToken)
+      return try await client.functions.invoke(
+        "player-development-copilot",
+        options: FunctionInvokeOptions(
+          headers: ["x-client-request-id": requestIdText],
+          body: correlatedRequest
+        ),
+        decode: { @Sendable data, httpResponse in
+          let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")
+          Self.logCopilotResponseReceived(
+            data: data,
+            statusCode: httpResponse.statusCode,
+            contentType: contentType,
+            requestId: requestIdText
+          )
+          do {
+            return try SDCopilotResponseContract.decode(
+              Response.self,
+              from: data,
+              statusCode: httpResponse.statusCode,
+              contentType: contentType,
+              requestId: requestIdText,
+              canonicalPayloadKey: canonicalPayloadKey
+            )
+          } catch {
+            Self.logCopilotResponseFailure(error)
+            throw error
+          }
+        }
+      )
     } catch let error as FunctionsError {
       switch error {
       case .httpError(let statusCode, let data):
-        throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+        Self.logCopilotResponseReceived(
+          data: data,
+          statusCode: statusCode,
+          contentType: nil,
+          requestId: requestIdText
+        )
+        do {
+          return try SDCopilotResponseContract.decode(
+            Response.self,
+            from: data,
+            statusCode: statusCode,
+            contentType: nil,
+            requestId: requestIdText,
+            canonicalPayloadKey: canonicalPayloadKey
+          )
+        } catch {
+          Self.logCopilotResponseFailure(error)
+          throw error
+        }
       case .relayError:
         throw error
       }
     }
+  }
+
+  private nonisolated static func logCopilotResponseFailure(_ error: Error) {
+    #if DEBUG
+    guard let response = error as? SDCopilotResponseContractError else {
+      print("[PlayerCopilotResponse] diagnostic_code=transport_error detail=\(error.localizedDescription)")
+      return
+    }
+    if let diagnostic = response.diagnostic {
+      print(
+        "[PlayerCopilotResponse] request_id=\(diagnostic.requestId) "
+          + "http_status=\(diagnostic.statusCode) "
+          + "content_type=\(diagnostic.contentType ?? "missing") "
+          + "diagnostic_code=\(response.diagnosticCode) "
+          + "decoding_case=\(diagnostic.decodingCase) "
+          + "missing_key=\(diagnostic.missingKey ?? "none") "
+          + "coding_path=\(diagnostic.codingPath) "
+          + "detail=\(diagnostic.debugDescription) "
+          + "redacted_body=\(diagnostic.redactedBody)"
+      )
+    } else {
+      print(
+        "[PlayerCopilotResponse] request_id=\(response.requestId) "
+          + "diagnostic_code=\(response.diagnosticCode) "
+          + "detail=\(response.localizedDescription)"
+      )
+    }
+    #endif
+  }
+
+  private nonisolated static func logCopilotResponseReceived(
+    data: Data,
+    statusCode: Int,
+    contentType: String?,
+    requestId: String
+  ) {
+    #if DEBUG
+    print(
+      "[PlayerCopilotResponse] request_id=\(requestId) "
+        + "http_status=\(statusCode) "
+        + "content_type=\(contentType ?? "missing") "
+        + "redacted_body=\(SDCopilotResponseContract.redactedBody(from: data))"
+    )
+    #endif
   }
 
   func listCopilotConversations(
@@ -2414,7 +2511,8 @@ final class SupabaseService: ObservableObject {
         idempotencyKey: idempotencyKey,
         pendingQuestionId: pendingQuestionId,
         pendingResponseMode: pendingResponseMode
-      )
+      ),
+      canonicalPayloadKey: .answer
     )
   }
 

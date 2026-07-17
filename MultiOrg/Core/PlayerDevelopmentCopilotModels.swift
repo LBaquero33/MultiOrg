@@ -174,12 +174,21 @@ struct SDCopilotFailurePresentation: Equatable, Sendable {
   let message: String
   let isRetryable: Bool
 
+  private init(code: String?, message: String, isRetryable: Bool) {
+    self.code = code
+    self.message = message
+    self.isRetryable = isRetryable
+  }
+
   init(code: String?, fallbackMessage: String? = nil) {
     self.code = code
     switch code {
     case "unsupported_without_provider", "provider_unavailable":
       message = "That conversational question needs a configured generation provider. Supported deterministic questions remain available."
       isRetryable = false
+    case "provider_timeout":
+      message = "Copilot took too long to answer. Please try again."
+      isRetryable = true
     case "deterministic_intent_unrecognized":
       message = "Home Plate could not match that question to a supported deterministic answer. Try one of the suggested questions."
       isRetryable = false
@@ -214,7 +223,13 @@ struct SDCopilotFailurePresentation: Equatable, Sendable {
   }
 
   init(error: Error) {
-    if let edge = error as? SDEdgeFunctionHTTPError {
+    if let response = error as? SDCopilotResponseContractError {
+      self.init(
+        code: response.diagnosticCode,
+        message: response.localizedDescription,
+        isRetryable: response.isRetryable
+      )
+    } else if let edge = error as? SDEdgeFunctionHTTPError {
       self.init(code: edge.code, fallbackMessage: edge.message)
     } else {
       self.init(code: nil, fallbackMessage: error.localizedDescription)
@@ -361,11 +376,14 @@ struct SDCopilotStructuredAnswer: Codable, Equatable, Sendable {
 }
 
 struct SDCopilotCitation: Identifiable, Codable, Equatable, Sendable {
-  let id: UUID
-  let messageId: UUID
-  let organizationId: UUID
-  let playerId: UUID
-  let audience: SDCopilotAudience
+  /// Immediate answers from Copilot v3 returned citation evidence before the
+  /// persisted citation row was reloaded. Keep a stable local identity for
+  /// those legacy responses while preferring the authoritative database UUID.
+  let persistedId: UUID?
+  let messageId: UUID?
+  let organizationId: UUID?
+  let playerId: UUID?
+  let audience: SDCopilotAudience?
   let evidenceKey: String
   let sourceEntityType: String
   let sourceRecordId: String
@@ -383,8 +401,14 @@ struct SDCopilotCitation: Identifiable, Codable, Equatable, Sendable {
   let deterministicRuleId: String?
   let evidenceSnapshot: [String: SDJSONValue]
 
+  var id: String {
+    persistedId?.uuidString.lowercased()
+      ?? "inline:\(evidenceKey):\(sectionKey):\(claimIdentifier)"
+  }
+
   enum CodingKeys: String, CodingKey {
-    case id, unit, explanation, audience
+    case unit, explanation, audience
+    case persistedId = "id"
     case messageId = "message_id"
     case organizationId = "org_id"
     case playerId = "player_id"
@@ -701,6 +725,292 @@ struct SDCopilotAskResponse: Codable, Equatable, Sendable {
   }
 }
 
+enum SDCopilotCanonicalPayloadKey: String, Sendable {
+  case data
+  case answer
+}
+
+struct SDCopilotResponseDiagnostic: Equatable, Sendable {
+  let requestId: String
+  let statusCode: Int
+  let contentType: String?
+  let decodingCase: String
+  let missingKey: String?
+  let codingPath: String
+  let debugDescription: String
+  let redactedBody: String
+}
+
+struct SDCopilotAPIErrorPayload: Codable, Equatable, Sendable {
+  let code: String
+  let message: String
+  let retryable: Bool
+}
+
+enum SDCopilotResponseContractError: LocalizedError, Equatable, Sendable {
+  case emptyBody(SDCopilotResponseDiagnostic)
+  case malformedJSON(SDCopilotResponseDiagnostic)
+  case incompleteResponse(SDCopilotResponseDiagnostic)
+  case backend(statusCode: Int, requestId: String, payload: SDCopilotAPIErrorPayload)
+
+  var diagnosticCode: String {
+    switch self {
+    case .emptyBody: return "copilot_empty_response"
+    case .malformedJSON: return "copilot_malformed_response"
+    case .incompleteResponse: return "copilot_incomplete_response"
+    case .backend(_, _, let payload): return payload.code
+    }
+  }
+
+  var requestId: String {
+    switch self {
+    case .emptyBody(let diagnostic), .malformedJSON(let diagnostic), .incompleteResponse(let diagnostic):
+      return diagnostic.requestId
+    case .backend(_, let requestId, _):
+      return requestId
+    }
+  }
+
+  var diagnostic: SDCopilotResponseDiagnostic? {
+    switch self {
+    case .emptyBody(let diagnostic), .malformedJSON(let diagnostic), .incompleteResponse(let diagnostic):
+      return diagnostic
+    case .backend:
+      return nil
+    }
+  }
+
+  var isRetryable: Bool {
+    switch self {
+    case .emptyBody, .malformedJSON, .incompleteResponse:
+      return true
+    case .backend(_, _, let payload):
+      return payload.retryable
+    }
+  }
+
+  var errorDescription: String? {
+    switch self {
+    case .emptyBody, .malformedJSON, .incompleteResponse:
+      return "Copilot received an incomplete response. Please try again."
+    case .backend(_, _, let payload):
+      return payload.message
+    }
+  }
+}
+
+enum SDCopilotResponseContract {
+  static func decode<Response: Decodable>(
+    _ type: Response.Type,
+    from data: Data,
+    statusCode: Int,
+    contentType: String?,
+    requestId: String,
+    canonicalPayloadKey: SDCopilotCanonicalPayloadKey = .data
+  ) throws -> Response {
+    let redactedBody = redactedBody(from: data)
+    func diagnostic(
+      _ decodingCase: String,
+      missingKey: String? = nil,
+      codingPath: String = "<root>",
+      debugDescription: String
+    ) -> SDCopilotResponseDiagnostic {
+      SDCopilotResponseDiagnostic(
+        requestId: requestId,
+        statusCode: statusCode,
+        contentType: contentType,
+        decodingCase: decodingCase,
+        missingKey: missingKey,
+        codingPath: codingPath,
+        debugDescription: debugDescription,
+        redactedBody: redactedBody
+      )
+    }
+
+    guard !data.isEmpty,
+          !String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw SDCopilotResponseContractError.emptyBody(diagnostic(
+        "empty_body",
+        debugDescription: "The response body was empty."
+      ))
+    }
+
+    let rawObject: Any
+    do {
+      rawObject = try JSONSerialization.jsonObject(with: data)
+    } catch {
+      throw SDCopilotResponseContractError.malformedJSON(diagnostic(
+        "malformed_json",
+        debugDescription: "The response body was not valid JSON."
+      ))
+    }
+    guard let object = rawObject as? [String: Any] else {
+      throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+        "invalid_top_level",
+        debugDescription: "The response JSON was not an object."
+      ))
+    }
+
+    var payloadData = data
+    if object.keys.contains("ok") {
+      guard let ok = object["ok"] as? Bool else {
+        throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+          "invalid_discriminator",
+          missingKey: "ok",
+          debugDescription: "The response discriminator was not a Boolean."
+        ))
+      }
+      let responseRequestId = (object["request_id"] as? String) ?? requestId
+      if !ok {
+        let errorObject = object["error"] as? [String: Any]
+        let code = errorObject?["code"] as? String ?? "copilot_unavailable"
+        let message = errorObject?["message"] as? String
+          ?? "Player Development Copilot could not complete the request."
+        let retryable = errorObject?["retryable"] as? Bool
+          ?? (statusCode == 429 || statusCode >= 500)
+        throw SDCopilotResponseContractError.backend(
+          statusCode: statusCode,
+          requestId: responseRequestId,
+          payload: SDCopilotAPIErrorPayload(code: code, message: message, retryable: retryable)
+        )
+      }
+      guard (200..<300).contains(statusCode) else {
+        throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+          "success_envelope_non_success_status",
+          debugDescription: "A success envelope used a non-success HTTP status."
+        ))
+      }
+      let payloadKey = canonicalPayloadKey.rawValue
+      guard let payload = object[payloadKey], !(payload is NSNull) else {
+        throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+          "missing_payload",
+          missingKey: payloadKey,
+          debugDescription: "The success envelope did not contain its required payload."
+        ))
+      }
+      guard JSONSerialization.isValidJSONObject(payload) else {
+        throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+          "invalid_payload",
+          missingKey: payloadKey,
+          debugDescription: "The success payload was not valid JSON."
+        ))
+      }
+      payloadData = try JSONSerialization.data(withJSONObject: payload)
+    } else if !(200..<300).contains(statusCode) {
+      let nestedError = object["error"] as? [String: Any]
+      let legacyCode = object["error"] as? String
+      let code = nestedError?["code"] as? String ?? legacyCode ?? "invalid_error_response"
+      let message = nestedError?["message"] as? String
+        ?? object["message"] as? String
+        ?? "The server rejected the Copilot request (HTTP \(statusCode))."
+      throw SDCopilotResponseContractError.backend(
+        statusCode: statusCode,
+        requestId: requestId,
+        payload: SDCopilotAPIErrorPayload(
+          code: code,
+          message: message,
+          retryable: statusCode == 429 || statusCode >= 500
+        )
+      )
+    }
+
+    do {
+      return try JSONDecoder().decode(type, from: payloadData)
+    } catch let error as DecodingError {
+      throw SDCopilotResponseContractError.incompleteResponse(
+        decodingDiagnostic(
+          error,
+          statusCode: statusCode,
+          contentType: contentType,
+          requestId: requestId,
+          redactedBody: redactedBody
+        )
+      )
+    } catch {
+      throw SDCopilotResponseContractError.incompleteResponse(diagnostic(
+        "decoding_failed",
+        debugDescription: "The response payload could not be decoded."
+      ))
+    }
+  }
+
+  private static func decodingDiagnostic(
+    _ error: DecodingError,
+    statusCode: Int,
+    contentType: String?,
+    requestId: String,
+    redactedBody: String
+  ) -> SDCopilotResponseDiagnostic {
+    let decodingCase: String
+    let missingKey: String?
+    let context: DecodingError.Context
+    switch error {
+    case .keyNotFound(let key, let value):
+      decodingCase = "key_not_found"
+      missingKey = key.stringValue
+      context = value
+    case .valueNotFound(_, let value):
+      decodingCase = "value_not_found"
+      missingKey = value.codingPath.last?.stringValue
+      context = value
+    case .typeMismatch(_, let value):
+      decodingCase = "type_mismatch"
+      missingKey = value.codingPath.last?.stringValue
+      context = value
+    case .dataCorrupted(let value):
+      decodingCase = "data_corrupted"
+      missingKey = value.codingPath.last?.stringValue
+      context = value
+    @unknown default:
+      decodingCase = "unknown_decoding_error"
+      missingKey = nil
+      context = DecodingError.Context(codingPath: [], debugDescription: "Unknown decoding error.")
+    }
+    let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+    return SDCopilotResponseDiagnostic(
+      requestId: requestId,
+      statusCode: statusCode,
+      contentType: contentType,
+      decodingCase: decodingCase,
+      missingKey: missingKey,
+      codingPath: path.isEmpty ? "<root>" : path,
+      debugDescription: context.debugDescription,
+      redactedBody: redactedBody
+    )
+  }
+
+  static func redactedBody(from data: Data) -> String {
+    guard let object = try? JSONSerialization.jsonObject(with: data) else {
+      return "<non-json body: \(data.count) bytes>"
+    }
+    let redacted = redact(object)
+    guard let encoded = try? JSONSerialization.data(withJSONObject: redacted, options: [.sortedKeys]),
+          let string = String(data: encoded, encoding: .utf8) else {
+      return "<unavailable redacted body: \(data.count) bytes>"
+    }
+    return String(string.prefix(8_000))
+  }
+
+  private static func redact(_ value: Any) -> Any {
+    switch value {
+    case let dictionary as [String: Any]:
+      return dictionary.mapValues(redact)
+    case let array as [Any]:
+      var values = array.prefix(10).map(redact)
+      if array.count > 10 { values.append("<\(array.count - 10) additional items>") }
+      return values
+    case let string as String:
+      return "<redacted string: \(string.count) characters>"
+    case is NSNumber:
+      return "<redacted number>"
+    case is NSNull:
+      return NSNull()
+    default:
+      return "<redacted \(String(describing: type(of: value)))>"
+    }
+  }
+}
+
 struct SDCopilotSuggestedQuestionsResponse: Codable, Equatable, Sendable {
   let suggestedQuestions: [String]
   let evidenceQuality: SDCopilotQualityStatus
@@ -768,6 +1078,7 @@ struct SDPlayerDevelopmentWorkspaceResponse: Codable, Equatable, Sendable {
 struct SDCopilotRequest: Encodable, Equatable, Sendable {
   let action: String
   let organizationId: UUID
+  var clientRequestId: UUID? = nil
   var audience: SDCopilotAudience? = nil
   var playerId: UUID?
   var conversationId: UUID?
@@ -793,6 +1104,7 @@ struct SDCopilotRequest: Encodable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey {
     case action, title, question, note, content, limit, offset, audience
     case organizationId = "org_id"
+    case clientRequestId = "client_request_id"
     case playerId = "player_id"
     case conversationId = "conversation_id"
     case messageId = "message_id"
