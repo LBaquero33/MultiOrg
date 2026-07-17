@@ -431,6 +431,216 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  private struct TeamScheduleListRequest: Encodable, Sendable {
+    let action = "list"
+    let organization_id: UUID
+    let season_id: UUID?
+    let team_id: UUID?
+    let player_id: UUID?
+    let range_start: String
+    let range_end: String
+  }
+
+  func listTeamEvents(
+    organizationId: UUID,
+    seasonId: UUID? = nil,
+    teamId: UUID?,
+    playerId: UUID? = nil,
+    rangeStart: Date,
+    rangeEnd: Date
+  ) async throws -> [SDTeamEvent] {
+    let formatter = ISO8601DateFormatter()
+    let response: SDTeamScheduleResponse = try await invokeAuthenticatedFunction(
+      "team-scheduling",
+      body: TeamScheduleListRequest(
+        organization_id: organizationId,
+        season_id: seasonId,
+        team_id: teamId,
+        player_id: playerId,
+        range_start: formatter.string(from: rangeStart),
+        range_end: formatter.string(from: rangeEnd)
+      )
+    )
+    return response.events
+  }
+
+  private struct TeamEventConflictPayload: Encodable, Sendable {
+    let start_at: String
+    let end_at: String
+    let facility_id: UUID?
+    let coach_ids: [UUID]
+  }
+
+  private struct TeamEventConflictRequest: Encodable, Sendable {
+    let action = "conflicts"
+    let organization_id: UUID
+    let season_id: UUID
+    let team_id: UUID
+    let event_id: UUID?
+    let event: TeamEventConflictPayload
+  }
+
+  func teamEventConflicts(
+    organizationId: UUID,
+    seasonId: UUID,
+    teamId: UUID,
+    eventId: UUID? = nil,
+    startAt: Date,
+    endAt: Date,
+    facilityId: UUID?,
+    coachIds: [UUID] = []
+  ) async throws -> [SDTeamEventConflict] {
+    let formatter = ISO8601DateFormatter()
+    let response: SDTeamEventConflictsResponse = try await invokeAuthenticatedFunction(
+      "team-scheduling",
+      body: TeamEventConflictRequest(
+        organization_id: organizationId,
+        season_id: seasonId,
+        team_id: teamId,
+        event_id: eventId,
+        event: TeamEventConflictPayload(
+          start_at: formatter.string(from: startAt),
+          end_at: formatter.string(from: endAt),
+          facility_id: facilityId,
+          coach_ids: coachIds
+        )
+      )
+    )
+    return response.conflicts
+  }
+
+  private struct TeamEventPayload: Encodable, Sendable {
+    let event_type: String
+    let title: String
+    let description: String?
+    let status: String
+    let start_at: String
+    let end_at: String
+    let arrival_at: String?
+    let timezone: String
+    let all_day: Bool
+    let location_name: String?
+    let address: String?
+    let facility_id: UUID?
+    let visibility: String
+    let notes: String?
+    let subtype: [String: SDJSONValue]
+    let coach_ids: [UUID]
+  }
+
+  private struct TeamEventRecurrencePayload: Encodable, Sendable {
+    let frequency: String
+    let interval: Int
+    let weekdays: [Int]?
+    let ends_on: String?
+    let occurrence_count: Int?
+  }
+
+  private struct TeamEventMutationRequest: Encodable, Sendable {
+    let action: String
+    let organization_id: UUID
+    let season_id: UUID
+    let team_id: UUID
+    let event_id: UUID?
+    let request_id: UUID
+    let event: TeamEventPayload
+    let recurrence: TeamEventRecurrencePayload?
+    let reason: String?
+    let override_reason: String?
+  }
+
+  func saveTeamEvent(
+    organizationId: UUID,
+    seasonId: UUID,
+    teamId: UUID,
+    eventId: UUID? = nil,
+    draft: SDTeamEventDraft,
+    publish: Bool,
+    overrideReason: String? = nil,
+    coachIds: [UUID] = [],
+    actionOverride: String? = nil,
+    reason: String? = nil
+  ) async throws -> [SDTeamEvent] {
+    let formatter = ISO8601DateFormatter()
+    var subtype: [String: SDJSONValue] = [:]
+    switch draft.type {
+    case .practice:
+      subtype = [
+        "objectives": .array(draft.objectives.split(separator: ",").map { .string($0.trimmingCharacters(in: .whitespaces)) }),
+        "dress_code": .string(draft.dressCode),
+        "equipment_notes": .string(draft.equipmentNotes),
+        "practice_plan_status": .string("not_started")
+      ]
+    case .game:
+      subtype = [
+        "opponent": .string(draft.opponent),
+        "venue_side": .string(draft.venueSide),
+        "game_status": .string("scheduled"),
+        "uniform": .string(draft.uniform)
+      ]
+    case .tournament:
+      subtype = [
+        "tournament_name": .string(draft.tournamentName),
+        "host": .string(draft.tournamentHost),
+        "tournament_start_date": .string(DateUtils.toISODate(draft.startAt)),
+        "tournament_end_date": .string(DateUtils.toISODate(draft.endAt))
+      ]
+    case .meeting:
+      subtype = ["meeting_type": .string(draft.meetingType), "virtual_link": .string(draft.virtualLink)]
+    case .travel:
+      subtype = [
+        "destination": .string(draft.destination),
+        "transportation_notes": .string(draft.transportationNotes),
+        "lodging_notes": .string(draft.lodgingNotes)
+      ]
+    case .custom:
+      break
+    }
+    let payload = TeamEventPayload(
+      event_type: draft.type.rawValue,
+      title: draft.title,
+      description: draft.description.sdNilIfBlank,
+      status: eventId == nil
+        ? (publish ? SDTeamEventStatus.scheduled.rawValue : SDTeamEventStatus.draft.rawValue)
+        : (draft.status == .draft && publish ? SDTeamEventStatus.scheduled.rawValue : draft.status.rawValue),
+      start_at: formatter.string(from: draft.startAt),
+      end_at: formatter.string(from: draft.endAt),
+      arrival_at: draft.arrivalAt.map(formatter.string),
+      timezone: draft.timezone,
+      all_day: draft.allDay,
+      location_name: draft.locationName.sdNilIfBlank,
+      address: draft.address.sdNilIfBlank,
+      facility_id: draft.facilityId,
+      visibility: draft.visibility.rawValue,
+      notes: draft.notes.sdNilIfBlank,
+      subtype: subtype,
+      coach_ids: coachIds
+    )
+    let response: SDTeamEventResponse = try await invokeAuthenticatedFunction(
+      "team-scheduling",
+      body: TeamEventMutationRequest(
+        action: actionOverride ?? (eventId == nil ? "create" : "update"),
+        organization_id: organizationId,
+        season_id: seasonId,
+        team_id: teamId,
+        event_id: eventId,
+        request_id: UUID(),
+        event: payload,
+        recurrence: draft.repeats && eventId == nil ? TeamEventRecurrencePayload(
+          frequency: draft.recurrenceFrequency,
+          interval: draft.recurrenceInterval,
+          weekdays: draft.recurrenceFrequency == "weekly" ? draft.recurrenceWeekdays.sorted() : nil,
+          ends_on: draft.recurrenceUsesEndDate ? DateUtils.toISODate(draft.recurrenceEndDate) : nil,
+          occurrence_count: draft.recurrenceUsesEndDate ? nil : draft.occurrenceCount
+        ) : nil,
+        reason: reason,
+        override_reason: overrideReason
+      )
+    )
+    if let events = response.events { return events }
+    return response.event.map { [$0] } ?? []
+  }
+
   private struct SeasonMutationResponse: Decodable, Sendable {
     let season: SDSeason
   }
