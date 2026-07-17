@@ -211,20 +211,20 @@ struct ContactQualitySummary: View {
       Text("Exit velocity and launch angle are required for contact-quality labels.")
         .foregroundStyle(.secondary)
     } else {
-      Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-        GridRow {
-          Text("Type").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Swings").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Rate").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        }
-        ForEach(counts) { item in
-          GridRow {
-            Text(item.label)
-            Text("\(item.count)")
-            Text(rateLabel(item.count))
-          }
-        }
-      }
+      HPTable(
+        columns: [
+          HPColumn(title: "Type"),
+          HPColumn(title: "Swings", alignment: .trailing, numeric: true),
+          HPColumn(title: "Rate", alignment: .trailing, numeric: true),
+        ],
+        rows: counts.map { item in
+          HPTableRow(
+            id: item.id,
+            cells: [item.label, "\(item.count)", rateLabel(item.count)]
+          )
+        },
+        layout: .auto
+      )
     }
   }
 
@@ -269,26 +269,34 @@ struct BallFlightSummary: View {
       Text("Launch angle and exit velocity are required for a ball-flight table.")
         .foregroundStyle(.secondary)
     } else {
-      Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-        GridRow {
-          Text("Type").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Count").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Avg EV").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Max EV").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Avg LA").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-          Text("Avg dist.").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        }
-        ForEach(groups) { group in
-          GridRow {
-            Text(group.label)
-            Text("\(group.events.count)")
-            Text(number(group.events.compactMap(\.exit_velo)))
-            Text(number(group.events.compactMap(\.exit_velo).max()))
-            Text(number(group.events.compactMap(\.launch_angle)))
-            Text(number(group.events.compactMap(\.distance)))
-          }
-        }
-      }
+      HPTable(
+        columns: [
+          HPColumn(title: "Type"),
+          HPColumn(title: "Count", alignment: .trailing, numeric: true),
+          HPColumn(title: "Avg EV (mph)", alignment: .trailing, numeric: true),
+          HPColumn(title: "Max EV (mph)", alignment: .trailing, numeric: true),
+          HPColumn(title: "Avg LA (°)", alignment: .trailing, numeric: true),
+          HPColumn(
+            title: "Avg distance (source units)",
+            alignment: .trailing,
+            numeric: true
+          ),
+        ],
+        rows: groups.map { group in
+          HPTableRow(
+            id: group.id,
+            cells: [
+              group.label,
+              "\(group.events.count)",
+              number(group.events.compactMap(\.exit_velo)),
+              number(group.events.compactMap(\.exit_velo).max()),
+              number(group.events.compactMap(\.launch_angle)),
+              number(group.events.compactMap(\.distance)),
+            ]
+          )
+        },
+        layout: .auto
+      )
     }
   }
 

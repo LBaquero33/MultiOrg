@@ -18,65 +18,107 @@ struct SDPlayerProgramView: View {
 
   var body: some View {
     NavigationStack {
-      List {
-        if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        }
+      HPDetailScreenLayout {
+        HPWorkspaceHeader(
+          "Programs",
+          context: selectedProgram.map { "\($0.template.kind.title) • \($0.template.name)" }
+            ?? "Your active development plans"
+        )
+      } metrics: {
+        EmptyView()
+      } details: {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Active programs")
 
-        Section("Active programs") {
-          if activePrograms.isEmpty {
-            ContentUnavailableView(
-              "No active programs",
-              systemImage: "figure.strengthtraining.traditional",
-              description: Text("Your coach can assign S&C, hitting, and pitching programs independently.")
-            )
-          } else {
-            Picker("Program", selection: $selectedProgramId) {
-              ForEach(activePrograms) { program in
-                Label(program.label, systemImage: program.template.kind.systemImage)
-                  .tag(Optional(program.id))
-              }
+            if isLoading {
+              HPLoadingState(text: "Loading programs…")
             }
-            .pickerStyle(.menu)
 
-            if let program = selectedProgram {
-              Text(program.template.name).font(.headline)
-              Text("\(program.template.kind.title) • Starts \(program.assignment.start_date) • \(program.template.weeks) weeks")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          }
-        }
-
-        if let template = selectedProgram?.template {
-          Section("Browse \(template.kind.title) plan") {
-            Picker("Week", selection: $selectedWeek) {
-              ForEach(1...template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
-            }
-            Picker("Day", selection: $selectedDay) {
-              ForEach(1...max(1, template.lift_weekdays.count), id: \.self) { Text("Day \($0)").tag($0) }
-            }
-          }
-
-          Section(template.kind == .strength ? "Exercises" : "Drills") {
-            let exercises = days.first(where: { $0.week == selectedWeek && $0.day_index == selectedDay })?.exercises ?? []
-            if exercises.isEmpty {
-              Text("No items are set for this day yet.")
-                .foregroundStyle(.secondary)
+            if activePrograms.isEmpty {
+              HPEmptyState(
+                title: "No active programs",
+                message: "Your coach can assign S&C, hitting, and pitching programs independently.",
+                systemImage: "figure.strengthtraining.traditional"
+              )
             } else {
-              ForEach(exercises, id: \.id) { exercise in
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(exercise.name).font(.headline)
-                  Text(line(exercise)).font(.caption).foregroundStyle(.secondary)
-                  if let notes = exercise.notes, !notes.isEmpty {
-                    Text(notes).font(.caption).foregroundStyle(.secondary)
+              Picker("Program", selection: $selectedProgramId) {
+                ForEach(activePrograms) { program in
+                  Label(program.label, systemImage: program.template.kind.systemImage)
+                    .tag(Optional(program.id))
+                }
+              }
+              .pickerStyle(.menu)
+              .tint(HP.Color.accent)
+
+              if let program = selectedProgram {
+                Text(program.template.name)
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                Text("\(program.template.kind.title) • Starts \(program.assignment.start_date) • \(program.template.weeks) weeks")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                Divider().overlay(HP.Color.border)
+
+                HPSectionHeader("Browse \(program.template.kind.title) plan")
+                Picker("Week", selection: $selectedWeek) {
+                  ForEach(1...program.template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
+                }
+                .pickerStyle(.menu)
+                .tint(HP.Color.accent)
+                Picker("Day", selection: $selectedDay) {
+                  ForEach(1...max(1, program.template.lift_weekdays.count), id: \.self) {
+                    Text("Day \($0)").tag($0)
                   }
                 }
-                .padding(.vertical, 4)
+                .pickerStyle(.menu)
+                .tint(HP.Color.accent)
               }
             }
           }
         }
+      } related: { _ in
+        if let template = selectedProgram?.template {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader(template.kind == .strength ? "Exercises" : "Drills")
+              let exercises = days.first(where: {
+                $0.week == selectedWeek && $0.day_index == selectedDay
+              })?.exercises ?? []
+              if exercises.isEmpty {
+                HPEmptyState(
+                  title: "No items yet",
+                  message: "No items are set for this day yet.",
+                  systemImage: template.kind.systemImage
+                )
+              } else {
+                ForEach(exercises, id: \.id) { exercise in
+                  HPCard(style: .flat) {
+                    VStack(alignment: .leading, spacing: 3) {
+                      Text(exercise.name)
+                        .font(HP.Font.headline)
+                        .foregroundStyle(HP.Color.text)
+                      Text(line(exercise))
+                        .font(HP.Font.caption)
+                        .foregroundStyle(HP.Color.textMuted)
+                      if let notes = exercise.notes, !notes.isEmpty {
+                        Text(notes)
+                          .font(HP.Font.caption)
+                          .foregroundStyle(HP.Color.textMuted)
+                          .fixedSize(horizontal: false, vertical: true)
+                      }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                  }
+                }
+              }
+            }
+          }
+        }
+      } primaryAction: {
+        EmptyView()
       }
       .navigationTitle("Programs")
       .toolbar {

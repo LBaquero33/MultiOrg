@@ -641,7 +641,7 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
         }
       }
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .task(id: contextKey) {
       guard let service = appState.supabase,
             let organizationId = appState.activeOrgId,
@@ -662,159 +662,250 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
     organizationId: UUID,
     userId: UUID
   ) -> some View {
-    List {
-      Section {
-        VStack(alignment: .leading, spacing: 8) {
-          Text(player.displayName).font(.title3.weight(.semibold))
-          Text("Ask evidence-grounded questions. Facts and interpretations remain separate, and every supported claim keeps its citation.")
-            .font(.footnote)
-            .foregroundStyle(DHDTheme.textSecondary)
-          Picker("Default window", selection: $reportingDays) {
-            Text("30 days").tag(30)
-            Text("90 days").tag(90)
-            Text("180 days").tag(180)
-            Text("1 year").tag(365)
-          }
-          Button {
-            Task {
-              _ = await model.createConversation(
-                client: service,
-                organizationId: organizationId,
-                userId: userId,
-                playerId: player.id,
-                audience: audience,
-                title: "\(player.displayName) development",
-                reportingWindowDays: reportingDays
-              )
-            }
-          } label: {
-            Label(model.isCreating ? "Creating…" : "New Conversation", systemImage: "plus.bubble.fill")
-          }
-          .disabled(model.isCreating)
-        }
-        .padding(.vertical, 6)
-      }
-
-      if let error = model.errorMessage {
-        Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
-      }
-
-      Section("Suggested questions") {
-        if model.suggestedQuestions.isEmpty {
-          Text("Suggestions will appear when supported evidence is available.")
-            .foregroundStyle(DHDTheme.textSecondary)
-        } else {
-          ForEach(model.suggestedQuestions, id: \.self) { question in
-            Button(question) {
-              Task {
-                _ = await model.createConversation(
-                  client: service,
-                  organizationId: organizationId,
-                  userId: userId,
-                  playerId: player.id,
-                  audience: audience,
-                  title: "\(player.displayName) development",
-                  reportingWindowDays: reportingDays,
-                  initialQuestion: question
-                )
-              }
-            }
-            .disabled(model.isCreating)
-          }
-        }
-      }
-
-      Section("Conversations") {
-        if model.phase == .loading { ProgressView("Loading conversations…") }
-        if model.conversations.isEmpty, model.phase != .loading {
-          Text("No Copilot conversations yet.").foregroundStyle(DHDTheme.textSecondary)
-        }
-        ForEach(model.conversations) { conversation in
-          Button {
-            _ = model.presentConversation(
-              conversation,
+    HPListScreenLayout {
+      HPWorkspaceHeader(
+        audience == .player ? "Player Copilot" : "Coach Copilot",
+        orgLabel: player.displayName,
+        context: "Ask evidence-grounded questions. Facts and interpretations remain separate, and every supported claim keeps its citation."
+      ) {
+        HPButton(
+          title: model.isCreating ? "Creating…" : "New Conversation",
+          systemImage: "plus.bubble.fill",
+          variant: .primary,
+          size: .sm,
+          isLoading: model.isCreating
+        ) {
+          Task {
+            _ = await model.createConversation(
+              client: service,
               organizationId: organizationId,
               userId: userId,
               playerId: player.id,
-              audience: audience
+              audience: audience,
+              title: "\(player.displayName) development",
+              reportingWindowDays: reportingDays
             )
-          } label: {
-            HStack(spacing: 10) {
-              VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                  Text(conversation.title).font(.headline)
-                  Spacer()
-                  copilotQualityBadge(conversation.qualityStatus ?? .unavailable)
-                }
-                if let question = conversation.mostRecentQuestion {
-                  Text(question).font(.subheadline).lineLimit(1)
-                }
-                if let preview = conversation.mostRecentAnswerPreview {
-                  Text(preview).font(.caption).foregroundStyle(DHDTheme.textSecondary).lineLimit(2)
-                }
-                HStack(spacing: 8) {
-                  Text(conversation.generationMode == .deterministic ? "Deterministic mode" : conversation.provider.capitalized)
-                  Text(conversation.updatedAt)
-                  if conversation.status == .archived { Text("Archived • read only") }
-                }
-                .font(.caption2).foregroundStyle(DHDTheme.textSecondary)
-              }
-              Image(systemName: "chevron.right")
-                .foregroundStyle(DHDTheme.textSecondary)
-            }
           }
-          .buttonStyle(.plain)
-          .contentShape(Rectangle())
         }
-        if model.hasMore {
-          Button(model.isLoadingMore ? "Loading…" : "Load more conversations") {
-            Task {
-              await model.loadMoreConversations(
-                client: service,
-                organizationId: organizationId,
-                userId: userId,
-                playerId: player.id,
-                audience: audience
-              )
-            }
-          }
-          .disabled(model.isLoadingMore)
+        .disabled(model.isCreating)
+      }
+    } controls: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Default window")
+          HPSegmentedControl(
+            options: [
+              (value: 30, label: "30 days"),
+              (value: 90, label: "90 days"),
+              (value: 180, label: "180 days"),
+              (value: 365, label: "1 year"),
+            ],
+            selection: $reportingDays
+          )
         }
       }
-
-      if presentation.showsParentDraftControls {
-        Section("Parent update drafts") {
-        Text("Not shared with parent.")
-          .font(.footnote.weight(.semibold)).foregroundStyle(.orange)
-        if model.drafts.isEmpty {
-          Text("No parent update drafts.").foregroundStyle(DHDTheme.textSecondary)
+    } results: { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        if let error = model.errorMessage {
+          HPCard {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.danger)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
-        ForEach(model.drafts) { draft in
-          NavigationLink {
-            ParentUpdateDraftDetailView(player: player, draftId: draft.id)
-          } label: {
-            HStack {
-              VStack(alignment: .leading) {
-                Text("Parent update").font(.headline)
-                Text(draft.updatedAt).font(.caption).foregroundStyle(DHDTheme.textSecondary)
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Suggested questions") {
+              if !model.suggestedQuestions.isEmpty {
+                HPStatusBadge(text: "\(model.suggestedQuestions.count)", kind: .neutral)
               }
-              Spacer()
-              DHDStatusBadge(text: draft.status.rawValue.capitalized, color: draft.status == .approved ? .green : .orange)
+            }
+            if model.suggestedQuestions.isEmpty {
+              Text("Suggestions will appear when supported evidence is available.")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+              ForEach(model.suggestedQuestions, id: \.self) { question in
+                Button {
+                  Task {
+                    _ = await model.createConversation(
+                      client: service,
+                      organizationId: organizationId,
+                      userId: userId,
+                      playerId: player.id,
+                      audience: audience,
+                      title: "\(player.displayName) development",
+                      reportingWindowDays: reportingDays,
+                      initialQuestion: question
+                    )
+                  }
+                } label: {
+                  HStack(alignment: .center, spacing: HP.Space.sm) {
+                    Image(systemName: "plus.bubble")
+                      .foregroundStyle(HP.Color.primary)
+                    Text(question)
+                      .font(HP.Font.callout)
+                      .foregroundStyle(HP.Color.text)
+                      .fixedSize(horizontal: false, vertical: true)
+                      .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.isCreating)
+              }
             }
           }
         }
-        }
-      }
 
-      if let usage = model.usage {
-        Section("Development usage") {
-          Text("\(usage.organizationQuestionsToday) of \(usage.limits.questionsPerOrganizationDay) organization questions today")
-          Text("\(usage.actorQuestionsThisHour) of \(usage.limits.questionsPerActorHour) questions this hour")
-          if presentation.showsParentDraftUsage {
-            Text("\(usage.organizationParentDraftsToday) of \(usage.limits.parentDraftsPerOrganizationDay) parent drafts today")
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Conversations") {
+              HPStatusBadge(text: "\(model.conversations.count)", kind: .neutral)
+            }
+            if model.phase == .loading {
+              HPLoadingState(text: "Loading conversations…")
+            }
+            if model.conversations.isEmpty, model.phase != .loading {
+              Text("No Copilot conversations yet.")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
+            }
+            ForEach(model.conversations) { conversation in
+              Button {
+                _ = model.presentConversation(
+                  conversation,
+                  organizationId: organizationId,
+                  userId: userId,
+                  playerId: player.id,
+                  audience: audience
+                )
+              } label: {
+                HStack(alignment: .center, spacing: HP.Space.sm) {
+                  VStack(alignment: .leading, spacing: 5) {
+                    Text(conversation.title)
+                      .font(HP.Font.headline)
+                      .foregroundStyle(HP.Color.text)
+                      .fixedSize(horizontal: false, vertical: true)
+                    copilotQualityBadge(conversation.qualityStatus ?? .unavailable)
+                    if let question = conversation.mostRecentQuestion {
+                      Text(question)
+                        .font(HP.Font.callout)
+                        .foregroundStyle(HP.Color.text)
+                        .lineLimit(1)
+                    }
+                    if let preview = conversation.mostRecentAnswerPreview {
+                      Text(preview)
+                        .font(HP.Font.caption)
+                        .foregroundStyle(HP.Color.textMuted)
+                        .lineLimit(2)
+                    }
+                    Text(
+                      "\(conversation.generationMode == .deterministic ? "Deterministic mode" : conversation.provider.capitalized) • \(conversation.updatedAt)\(conversation.status == .archived ? " • Archived • read only" : "")"
+                    )
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                  }
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(HP.Color.textMuted)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+              }
+              .buttonStyle(.plain)
+            }
+            if model.hasMore {
+              HPButton(
+                title: model.isLoadingMore ? "Loading…" : "Load more conversations",
+                variant: .secondary,
+                size: .md,
+                isLoading: model.isLoadingMore,
+                fullWidth: context.isAccessibilitySize
+              ) {
+                Task {
+                  await model.loadMoreConversations(
+                    client: service,
+                    organizationId: organizationId,
+                    userId: userId,
+                    playerId: player.id,
+                    audience: audience
+                  )
+                }
+              }
+              .disabled(model.isLoadingMore)
+            }
           }
         }
-        .font(.footnote)
+
+        if presentation.showsParentDraftControls {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Parent update drafts") {
+                HPStatusBadge(text: "\(model.drafts.count)", kind: .neutral)
+              }
+              Label("Not shared with parent.", systemImage: "lock.fill")
+                .font(HP.Font.caption.weight(.semibold))
+                .foregroundStyle(HP.Color.warning)
+              if model.drafts.isEmpty {
+                Text("No parent update drafts.")
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              ForEach(model.drafts) { draft in
+                NavigationLink {
+                  ParentUpdateDraftDetailView(player: player, draftId: draft.id)
+                } label: {
+                  HStack(alignment: .center, spacing: HP.Space.sm) {
+                    VStack(alignment: .leading, spacing: 4) {
+                      Text("Parent update")
+                        .font(HP.Font.headline)
+                        .foregroundStyle(HP.Color.text)
+                      Text(draft.updatedAt)
+                        .font(HP.Font.caption)
+                        .foregroundStyle(HP.Color.textMuted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    HPStatusBadge(
+                      text: draft.status.rawValue.capitalized,
+                      kind: draft.status == .approved ? .success : .warning
+                    )
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
+        }
+
+        if let usage = model.usage {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Development usage")
+              Text("\(usage.organizationQuestionsToday) of \(usage.limits.questionsPerOrganizationDay) organization questions today")
+              Text("\(usage.actorQuestionsThisHour) of \(usage.limits.questionsPerActorHour) questions this hour")
+              if presentation.showsParentDraftUsage {
+                Text("\(usage.organizationParentDraftsToday) of \(usage.limits.parentDraftsPerOrganizationDay) parent drafts today")
+              }
+            }
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+          }
+        }
       }
     }
   }
@@ -905,7 +996,16 @@ struct PlayerDevelopmentCopilotConversationView: View {
       if let service = appState.supabase,
          let organizationId = appState.activeOrgId,
          let userId = appState.myProfile?.id {
-        conversationContent(service: service, organizationId: organizationId, userId: userId)
+        HPCommunicationScreenLayout(compactPane: .thread) { context in
+          conversationContextPane(context)
+        } thread: { context in
+          conversationContent(
+            service: service,
+            organizationId: organizationId,
+            userId: userId,
+            showsContextCard: !context.isExpanded
+          )
+        }
       } else {
         ProgressView()
       }
@@ -969,7 +1069,7 @@ struct PlayerDevelopmentCopilotConversationView: View {
         } label: { Image(systemName: "ellipsis.circle") }
       }
     }
-    .background(DHDTheme.pageBackground)
+    .background(HP.Color.bg)
     .task(id: contextKey) {
       guard let service = appState.supabase,
             let organizationId = appState.activeOrgId,
@@ -987,33 +1087,86 @@ struct PlayerDevelopmentCopilotConversationView: View {
     }
   }
 
+  private func conversationContextPane(_: HPScreenLayoutContext) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          audience == .player ? "Player Copilot" : "Coach Copilot",
+          orgLabel: player.displayName,
+          context: audience == .player ? "Private player conversation" : "Private staff conversation"
+        )
+        conversationContextCard()
+        evidenceGroundingCard
+      }
+    }
+  }
+
+  private func conversationContextCard() -> some View {
+    let mode = model.conversation?.generationMode ?? conversation.generationMode
+    return HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HStack(alignment: .center, spacing: HP.Space.sm) {
+          HPAvatar(
+            name: player.displayName,
+            systemImage: audience == .player ? "person.crop.circle" : "person.2.fill",
+            size: .md
+          )
+          VStack(alignment: .leading, spacing: 2) {
+            Text(player.displayName)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+            Text(audience == .player ? "Player Copilot • Private to you" : "Coach Copilot • Staff workspace")
+              .font(HP.Font.caption.weight(.semibold))
+              .foregroundStyle(HP.Color.primary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: HP.Space.xs)
+          HPStatusBadge(
+            text: mode == .deterministic ? "Deterministic" : mode.rawValue.capitalized,
+            kind: mode == .unavailable ? .danger : .info
+          )
+        }
+        Divider().overlay(HP.Color.border)
+        Label("\(reportingDays)-day evidence window", systemImage: "calendar")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+      }
+    }
+  }
+
+  private var evidenceGroundingCard: some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Label("Evidence-grounded", systemImage: "checkmark.shield.fill")
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
+        Text("Facts and interpretations remain separate, and supported claims retain their citations.")
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private func conversationContent(
     service: SupabaseService,
     organizationId: UUID,
-    userId: UUID
+    userId: UUID,
+    showsContextCard: Bool
   ) -> some View {
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 14) {
-          DHDCard {
-            HStack {
-              VStack(alignment: .leading, spacing: 3) {
-                Text(player.displayName).font(.headline)
-                Text(audience == .player ? "Player Copilot • Private to you" : "Coach Copilot • Staff workspace")
-                  .font(.caption.weight(.semibold))
-                  .foregroundStyle(DHDTheme.accent)
-                Text("\(reportingDays)-day evidence window").font(.caption).foregroundStyle(DHDTheme.textSecondary)
-              }
-              Spacer()
-              let mode = model.conversation?.generationMode ?? conversation.generationMode
-              DHDStatusBadge(text: mode == .deterministic ? "Deterministic" : mode.rawValue.capitalized, color: mode == .unavailable ? .red : .blue)
-            }
+          if showsContextCard {
+            conversationContextCard()
+            evidenceGroundingCard
           }
           if model.isLoading { ProgressView("Loading messages…") }
           if let error = model.errorMessage {
-            DHDCard {
-              VStack(alignment: .leading, spacing: 8) {
-                Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            HPCard {
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                  .foregroundStyle(HP.Color.danger)
                 #if DEBUG
                 if let code = model.errorDiagnosticCode {
                   DisclosureGroup("Technical details") {
@@ -1047,13 +1200,26 @@ struct PlayerDevelopmentCopilotConversationView: View {
               }
             }
           }
-          if let success = model.successMessage { Label(success, systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+          if let success = model.successMessage {
+            Label(success, systemImage: "checkmark.circle.fill")
+              .foregroundStyle(HP.Color.success)
+          }
           if model.messages.isEmpty, !model.isLoading {
             ContentUnavailableView("Ask a player-development question", systemImage: "bubble.left.and.text.bubble.right")
           }
           ForEach(model.messages) { message in
             if message.role == .user {
-              HStack { Spacer(minLength: 32); Text(message.userQuestion ?? "").padding(12).background(DHDTheme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 14)) }
+              HStack {
+                Spacer(minLength: 32)
+                Text(message.userQuestion ?? "")
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.text)
+                  .padding(HP.Space.sm)
+                  .background(
+                    HP.Color.primary.opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous)
+                  )
+              }
             } else if let pending = message.pendingQuestion,
                       message.assistantTurnType?.isQuestion == true {
               CopilotQuestionCard(
@@ -1098,12 +1264,15 @@ struct PlayerDevelopmentCopilotConversationView: View {
             .disabled(model.isLoadingMore)
           }
           if !model.suggestedQuestions.isEmpty {
-            DHDCard {
-              VStack(alignment: .leading, spacing: 8) {
-                Text("Suggested follow-ups").font(.headline)
+            HPCard {
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                Text("Suggested follow-ups")
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
                 ForEach(model.suggestedQuestions, id: \.self) { question in
                   Button(question) { model.composer = question }
-                    .buttonStyle(.plain).foregroundStyle(DHDTheme.accent)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(HP.Color.primary)
                     .disabled(isArchived)
                 }
               }
@@ -1146,7 +1315,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
             Spacer()
             Text(model.pendingQuestion?.isOptional == true ? "Optional response • Copilot never changes official records." : "Copilot never changes official player records.")
           }
-          .font(.caption2).foregroundStyle(DHDTheme.textSecondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
         }
         .padding().background(.regularMaterial)
       }
@@ -1365,20 +1535,51 @@ private struct EvidenceCitationDetailView: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Evidence") {
-          LabeledContent("Metric", value: citation.canonicalMetricKey ?? citation.displayLabel)
-          LabeledContent("Value", value: displayValue)
-          LabeledContent("Unit", value: citation.unit ?? "Not applicable")
-          LabeledContent("Date", value: citation.observedAt ?? "Unavailable")
+      HPDetailScreenLayout {
+        HPWorkspaceHeader(
+          "Evidence citation",
+          context: citation.displayLabel
+        )
+      } metrics: {
+        EmptyView()
+      } details: {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Evidence")
+              LabeledContent("Metric", value: citation.canonicalMetricKey ?? citation.displayLabel)
+              LabeledContent("Value", value: displayValue)
+              LabeledContent("Unit", value: citation.unit ?? "Not applicable")
+              LabeledContent("Date", value: citation.observedAt ?? "Unavailable")
+            }
+          }
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Provenance")
+              LabeledContent("Source", value: citation.sourceEntityType)
+              LabeledContent("Provider", value: citation.sourceProvider ?? "Home Plate")
+              LabeledContent("Verification", value: citation.verificationStatus ?? "Not supplied")
+              if let rule = citation.deterministicRuleId {
+                LabeledContent("Calculation rule", value: rule)
+              }
+            }
+          }
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Why this supports the answer")
+              Text(citation.explanation)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
         }
-        Section("Provenance") {
-          LabeledContent("Source", value: citation.sourceEntityType)
-          LabeledContent("Provider", value: citation.sourceProvider ?? "Home Plate")
-          LabeledContent("Verification", value: citation.verificationStatus ?? "Not supplied")
-          if let rule = citation.deterministicRuleId { LabeledContent("Calculation rule", value: rule) }
-        }
-        Section("Why this supports the answer") { Text(citation.explanation) }
+      } related: { _ in
+        EmptyView()
+      } primaryAction: {
+        EmptyView()
       }
       .navigationTitle("Evidence citation")
       .toolbar {
@@ -1537,11 +1738,11 @@ struct ParentUpdateDraftDetailView: View {
 }
 
 private func copilotQualityBadge(_ quality: SDCopilotQualityStatus) -> some View {
-  let color: Color = switch quality {
-  case .sufficient: .green
-  case .limited, .stale, .conflicting: .orange
-  case .rejected, .unknown: .red
-  case .unavailable: .gray
+  let kind: HPStatusKind = switch quality {
+  case .sufficient: .success
+  case .limited, .stale, .conflicting: .warning
+  case .rejected, .unknown: .danger
+  case .unavailable: .neutral
   }
-  return DHDStatusBadge(text: quality.rawValue.capitalized, color: color)
+  return HPStatusBadge(text: quality.rawValue.capitalized, kind: kind)
 }

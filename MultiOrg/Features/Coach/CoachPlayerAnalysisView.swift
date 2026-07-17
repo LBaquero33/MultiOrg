@@ -28,92 +28,293 @@ struct BPAnalysisView: View {
   @State private var errorText: String?
 
   var body: some View {
-    List {
-      Section("Filters") {
-        DatePicker("Start", selection: $startDate, displayedComponents: .date)
-          .onChange(of: startDate) { _, _ in Task { await reload() } }
-        DatePicker("End", selection: $endDate, displayedComponents: .date)
-          .onChange(of: endDate) { _, _ in Task { await reload() } }
-        Picker("Reps type", selection: $repsType) {
-          Text("All").tag("all")
-          Text("Practice").tag("practice")
-          Text("Game").tag("game")
-        }
-        .onChange(of: repsType) { _, _ in Task { await reload() } }
-        Picker("Source", selection: $source) {
-          Text("All").tag("all")
-          Text("Rapsodo").tag("rapsodo")
-          Text("HitTrax").tag("hitrax")
-          Text("TrackMan").tag("trackman")
-        }
-        .onChange(of: source) { _, _ in Task { await reload() } }
+    HPAnalyticsScreenLayout {
+      HPWorkspaceHeader(
+        "BP Analysis",
+        context: "\(DateUtils.toISODate(startDate)) – \(DateUtils.toISODate(endDate))"
+      )
+    } rangeControls: {
+      filterCard
+    } metrics: {
+      if !isLoading, !events.isEmpty {
+        summaryMetrics
       }
-
-      Section("Summary") {
-        if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
-        } else if events.isEmpty {
-          Text("No BP events found in this date range.")
-            .foregroundStyle(.secondary)
-        } else {
-          let evs = events.compactMap(\.exit_velo)
-          let las = events.compactMap(\.launch_angle)
-          let dists = events.compactMap(\.distance)
-          Text("Sessions: \(sessions.count)")
-          Text("Events: \(events.count)")
-          if let maxEV = evs.max() { Text("Max EV: \(fmt(maxEV)) mph") }
-          if !evs.isEmpty { Text("Avg EV: \(fmt(avg(evs))) mph") }
-          if let maxDist = dists.max() { Text("Max distance: \(fmt(maxDist))") }
-          if !las.isEmpty { Text("Avg launch angle: \(fmt(avg(las)))") }
+    } charts: {
+      if let errorText {
+        HPCard {
+          HPErrorState(
+            message: errorText,
+            onRetry: { Task { await reload() } }
+          )
         }
       }
-
+      if isLoading {
+        HPCard {
+          HPLoadingState(text: "Loading analysis…")
+        }
+      }
+      if events.isEmpty, !isLoading, errorText == nil {
+        HPCard {
+          HPEmptyState(
+            title: "No BP events found",
+            message: "No BP events were found in this date range.",
+            systemImage: "chart.xyaxis.line"
+          )
+        }
+      }
       if !events.isEmpty {
-        Section("Exit Velo (histogram)") {
+        analysisCard("Exit Velo (histogram)", badge: "mph") {
           HistogramChart(values: events.compactMap(\.exit_velo), binCount: 12, xLabel: "mph")
             .frame(height: 220)
         }
-        Section("Distance (histogram)") {
-          HistogramChart(values: events.compactMap(\.distance), binCount: 12, xLabel: "")
+        analysisCard("Distance (histogram)", badge: "source-reported units") {
+          HistogramChart(
+            values: events.compactMap(\.distance),
+            binCount: 12,
+            xLabel: "Source-reported distance"
+          )
             .frame(height: 220)
         }
-        Section("Launch Angle (histogram)") {
+        analysisCard("Launch Angle (histogram)", badge: "degrees") {
           HistogramChart(values: events.compactMap(\.launch_angle), binCount: 12, xLabel: "°")
             .frame(height: 220)
         }
-        Section("Contact quality") {
-          ContactQualitySummary(events: events)
-        }
-        Section("Ball flight") {
-          BallFlightSummary(events: events)
-        }
-        Section("EV vs Launch Angle") {
+        analysisCard("EV vs Launch Angle", badge: "mph × degrees") {
           ScatterChart(events: events)
             .frame(height: 260)
         }
-        Section("Strike zone") {
-          Picker("View", selection: $strikeMode) {
-            Text("Points").tag("point")
-            Text("Density").tag("density")
+        analysisCard("Strike zone") {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSegmentedControl(
+              options: [(value: "point", label: "Points"),
+                        (value: "density", label: "Density")],
+              selection: $strikeMode
+            )
+            StrikeZoneChart(events: events, mode: strikeMode)
+              .frame(height: 320)
           }
-          .pickerStyle(.segmented)
-          StrikeZoneChart(events: events, mode: strikeMode)
-            .frame(height: 320)
+        }
+      }
+    } breakdown: { context in
+      if !events.isEmpty {
+        analysisCard("Event breakdown", badge: "\(min(50, events.count)) of \(events.count)") {
+          HPTable(
+            columns: eventTableColumns,
+            rows: eventTableRows,
+            layout: context.tableLayout
+          )
+        }
+        if !strikeZoneTableRows.isEmpty {
+          analysisCard(
+            "Strike-zone breakdown",
+            badge: "All \(strikeZoneTableRows.count) · in"
+          ) {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              Text("Catcher view · all normalized pitch locations shown")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+              HPTable(
+                columns: strikeZoneTableColumns,
+                rows: strikeZoneTableRows,
+                layout: context.tableLayout
+              )
+            }
+          }
+        }
+        analysisCard("Contact quality") {
+          ContactQualitySummary(events: events)
+        }
+        analysisCard("Ball flight") {
+          BallFlightSummary(events: events)
         }
       }
     }
-    #if os(macOS)
-    .listStyle(.inset)
-    #else
-    .listStyle(.insetGrouped)
-    #endif
-    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
-      Button("OK", role: .cancel) {}
-    } message: { Text(errorText ?? "") }
     .task { await reload() }
   }
 
+  private var filterCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Filters")
+
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          DatePicker("Start", selection: $startDate, displayedComponents: .date)
+            .onChange(of: startDate) { _, _ in Task { await reload() } }
+          DatePicker("End", selection: $endDate, displayedComponents: .date)
+            .onChange(of: endDate) { _, _ in Task { await reload() } }
+        }
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.text)
+        .tint(HP.Color.accent)
+
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Reps type")
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          HPSegmentedControl(
+            options: [(value: "all", label: "All"),
+                      (value: "practice", label: "Practice"),
+                      (value: "game", label: "Game")],
+            selection: $repsType
+          )
+          .onChange(of: repsType) { _, _ in Task { await reload() } }
+        }
+
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Source")
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          HPSegmentedControl(
+            options: [(value: "all", label: "All"),
+                      (value: "rapsodo", label: "Rapsodo"),
+                      (value: "hitrax", label: "HitTrax"),
+                      (value: "trackman", label: "TrackMan")],
+            selection: $source
+          )
+          .onChange(of: source) { _, _ in Task { await reload() } }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var summaryMetrics: some View {
+    let exitVelocities = events.compactMap(\.exit_velo)
+    let launchAngles = events.compactMap(\.launch_angle)
+    let distances = events.compactMap(\.distance)
+
+    HPMetricCard(title: "Sessions", value: "\(sessions.count)", context: "Selected range")
+    HPMetricCard(title: "Events", value: "\(events.count)", context: "Tracked swings")
+    if let maximum = exitVelocities.max() {
+      HPMetricCard(title: "Max EV", value: fmt(maximum), unit: "mph", context: "Selected range")
+    }
+    if !exitVelocities.isEmpty {
+      HPMetricCard(title: "Avg EV", value: fmt(avg(exitVelocities)), unit: "mph", context: "Selected range")
+    }
+    if let maximum = distances.max() {
+      HPMetricCard(
+        title: "Max distance",
+        value: fmt(maximum),
+        unit: "source units",
+        context: "Provider-reported units · selected range"
+      )
+    }
+    if !launchAngles.isEmpty {
+      HPMetricCard(title: "Avg launch angle", value: fmt(avg(launchAngles)), unit: "°", context: "Selected range")
+    }
+  }
+
+  private func analysisCard<Content: View>(
+    _ title: String,
+    badge: String? = nil,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(title) {
+          if let badge {
+            HPStatusBadge(text: badge, kind: .neutral)
+          }
+        }
+        content()
+      }
+    }
+  }
+
+  private var eventTableColumns: [HPColumn] {
+    [
+      HPColumn(title: "Date"),
+      HPColumn(title: "Session"),
+      HPColumn(title: "Pitch", alignment: .trailing, numeric: true),
+      HPColumn(title: "EV (mph)", alignment: .trailing, numeric: true),
+      HPColumn(title: "LA (°)", alignment: .trailing, numeric: true),
+      HPColumn(title: "Distance (source units)", alignment: .trailing, numeric: true),
+    ]
+  }
+
+  private var eventTableRows: [HPTableRow] {
+    let sessionsById = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+    return deterministicEvents(sessionsById: sessionsById).prefix(50).map { event in
+      let session = sessionsById[event.session_id]
+      let sessionLabel = session.map {
+        "\($0.source.capitalized) · \($0.reps_type.capitalized)"
+      } ?? "Unavailable"
+      return HPTableRow(id: event.id, cells: [
+        session?.session_date ?? "—",
+        sessionLabel,
+        event.pitch_num.map(String.init) ?? "—",
+        event.exit_velo.map(fmt) ?? "—",
+        event.launch_angle.map(fmt) ?? "—",
+        event.distance.map(fmt) ?? "—",
+      ])
+    }
+  }
+
+  private var strikeZoneTableColumns: [HPColumn] {
+    [
+      HPColumn(title: "Date"),
+      HPColumn(title: "Pitch", alignment: .trailing, numeric: true),
+      HPColumn(title: "Zone X (in)", alignment: .trailing, numeric: true),
+      HPColumn(title: "Zone Z (in)", alignment: .trailing, numeric: true),
+      HPColumn(title: "EV (mph)", alignment: .trailing, numeric: true),
+    ]
+  }
+
+  private var strikeZoneTableRows: [HPTableRow] {
+    let sessionsById = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+    return deterministicEvents(sessionsById: sessionsById).compactMap { event -> HPTableRow? in
+      guard let coordinates = normalizedStrikeZoneCoordinates(for: event) else { return nil }
+      return HPTableRow(id: event.id, cells: [
+        sessionsById[event.session_id]?.session_date ?? "—",
+        event.pitch_num.map(String.init) ?? "—",
+        fmt(coordinates.x),
+        fmt(coordinates.z),
+        event.exit_velo.map(fmt) ?? "—",
+      ])
+    }
+  }
+
+  private func normalizedStrikeZoneCoordinates(
+    for event: SDBPEvent
+  ) -> (x: Double, z: Double)? {
+    guard let rawX = event.strike_x, let rawZ = event.strike_z,
+          rawX.isFinite, rawZ.isFinite else { return nil }
+    let x = abs(rawX) <= 3 ? rawX * 12 : rawX
+    let z = abs(rawZ) <= 6 ? rawZ * 12 : rawZ
+    guard (-17.0...17.0).contains(x), (18.0...42.0).contains(z) else { return nil }
+    return (x, z)
+  }
+
+  private func deterministicEvents(
+    sessionsById: [UUID: SDBPSession]
+  ) -> [SDBPEvent] {
+    events.sorted { left, right in
+      let leftSession = sessionsById[left.session_id]
+      let rightSession = sessionsById[right.session_id]
+      let leftDate = leftSession?.session_date ?? ""
+      let rightDate = rightSession?.session_date ?? ""
+      if leftDate != rightDate { return leftDate > rightDate }
+
+      let leftSource = leftSession?.source ?? ""
+      let rightSource = rightSession?.source ?? ""
+      if leftSource != rightSource { return leftSource < rightSource }
+
+      let leftType = leftSession?.reps_type ?? ""
+      let rightType = rightSession?.reps_type ?? ""
+      if leftType != rightType { return leftType < rightType }
+
+      let leftPitch = left.pitch_num ?? .max
+      let rightPitch = right.pitch_num ?? .max
+      if leftPitch != rightPitch { return leftPitch < rightPitch }
+
+      return left.id.uuidString < right.id.uuidString
+    }
+  }
+
   private func reload() async {
+    errorText = nil
     guard let supabase = appState.supabase else { return }
     isLoading = true
     defer { isLoading = false }

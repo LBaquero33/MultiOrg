@@ -5,26 +5,40 @@ struct SDPlayerAnalysisView: View {
   @EnvironmentObject private var appState: AppState
   @State private var myId: UUID?
   @State private var errorText: String?
+  @State private var isResolvingId = false
 
   var body: some View {
     Group {
       if let myId {
         BPAnalysisView(playerId: myId)
-      } else {
-        VStack(spacing: 12) {
-          ProgressView()
-          Text("Loading…").foregroundStyle(.secondary)
+      } else if let errorText {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPErrorState(
+              message: errorText,
+              onRetry: { Task { await loadId() } }
+            )
+          }
         }
-        .task { await loadId() }
+      } else {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPLoadingState(text: "Loading analysis…")
+          }
+        }
       }
     }
-    .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
-      Button("OK", role: .cancel) {}
-    } message: { Text(errorText ?? "") }
+    .task(id: appState.supabase != nil) {
+      guard myId == nil, errorText == nil else { return }
+      await loadId()
+    }
   }
 
   private func loadId() async {
-    guard let supabase = appState.supabase else { return }
+    guard !isResolvingId, let supabase = appState.supabase else { return }
+    isResolvingId = true
+    errorText = nil
+    defer { isResolvingId = false }
     do {
       let session = try await supabase.client.auth.session
       myId = session.user.id

@@ -48,23 +48,24 @@ struct SDPlayerTodayViewInternal: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        headerCard
-        improvementCard
-        programCard
-        if scheduleContext?.isScheduled == true {
-          strengthLoggerCard
-        }
-        SDPlayerBPDaySection(date: date)
-        selfAssessmentCard
-        submitCard
+    HPProgramExecutionLayout {
+      header
+    } dateContext: {
+      dateContextCard
+    } programSummary: {
+      improvementCard
+      programCard
+    } activities: {
+      if scheduleContext?.isScheduled == true {
+        strengthLoggerCard
       }
-      .padding(HP.Space.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    } subActivities: {
+      SDPlayerBPDaySection(date: date)
+    } assessment: {
+      selfAssessmentCard
+    } submission: {
+      submitCard
     }
-    .background(HP.Color.bg)
     .navigationTitle("Today")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
@@ -102,45 +103,45 @@ struct SDPlayerTodayViewInternal: View {
     return SDProgramSchedule.context(for: date, assignment: assignment, template: template)
   }
 
-  private var headerCard: some View {
-    VStack(alignment: .leading, spacing: HP.Space.sm) {
-      HPWorkspaceHeader("Today", context: DateUtils.prettyDateTitle(date)) {
-        HStack(spacing: HP.Space.xs) {
-          HPStatusBadge(text: scheduleContext?.isScheduled == true ? "Scheduled" : "Off day",
-                        kind: scheduleContext?.isScheduled == true ? .success : .neutral)
-          HPStatusBadge(text: isDaySaved ? "Saved" : "Not logged",
-                        kind: isDaySaved ? .success : .warning)
-        }
+  private var header: some View {
+    HPWorkspaceHeader("Today", context: DateUtils.prettyDateTitle(date)) {
+      HStack(spacing: HP.Space.xs) {
+        HPStatusBadge(text: scheduleContext?.isScheduled == true ? "Scheduled" : "Off day",
+                      kind: scheduleContext?.isScheduled == true ? .success : .neutral)
+        HPStatusBadge(text: isDaySaved ? "Saved" : "Not logged",
+                      kind: isDaySaved ? .success : .warning)
       }
+    }
+  }
 
-      HPCard {
-        VStack(alignment: .leading, spacing: HP.Space.sm) {
-          HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
-            Text("Viewing")
-              .font(HP.Font.caption)
-              .foregroundStyle(HP.Color.textMuted)
-            DatePicker("", selection: $date, displayedComponents: .date)
-              .datePickerStyle(.compact)
-              .labelsHidden()
-              .tint(HP.Color.accent)
-              .onChange(of: date) { _, _ in
-                Task { await reloadDay() }
-              }
-            Spacer(minLength: 0)
-          }
-
-          Text("Tap the date to view a different day.")
+  private var dateContextCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
+          Text("Viewing")
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
-
-          if isLoading {
-            HPLoadingState()
-          }
-
-          if (appState.myProfile?.isCoach == false) {
-            HPButton(title: "Enable Coach Mode (allowlist)", variant: .secondary, size: .sm) {
-              Task { await appState.promoteMeToCoach() }
+          DatePicker("", selection: $date, displayedComponents: .date)
+            .datePickerStyle(.compact)
+            .labelsHidden()
+            .tint(HP.Color.accent)
+            .onChange(of: date) { _, _ in
+              Task { await reloadDay() }
             }
+          Spacer(minLength: 0)
+        }
+
+        Text("Tap the date to view a different day.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+
+        if isLoading {
+          HPLoadingState()
+        }
+
+        if (appState.myProfile?.isCoach == false) {
+          HPButton(title: "Enable Coach Mode (allowlist)", variant: .secondary, size: .sm) {
+            Task { await appState.promoteMeToCoach() }
           }
         }
       }

@@ -10,30 +10,73 @@ struct SDPlayerTestingView: View {
 
   var body: some View {
     NavigationStack {
-      List {
-        if isLoading {
-          HStack(spacing: 10) { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+      HPListScreenLayout {
+        HPWorkspaceHeader("Testing", context: "Player testing history") {
+          HPButton(title: "Add entry", systemImage: "plus",
+                   variant: .primary, size: .sm) {
+            showAdd = true
+          }
         }
-        if entries.isEmpty, !isLoading {
-          Text("No testing entries yet.")
-            .foregroundStyle(.secondary)
-        } else {
-          Section("Entries") {
-            ForEach(entries) { e in
-              VStack(alignment: .leading, spacing: 4) {
-                Text(e.entry_date).font(.headline)
-                Text(summary(e)).font(.caption).foregroundStyle(.secondary)
+      } controls: {
+        HPCard {
+          HStack(spacing: HP.Space.sm) {
+            Image(systemName: "list.bullet.clipboard")
+              .foregroundStyle(HP.Color.accent)
+              .accessibilityHidden(true)
+            Text("\(entries.count) \(entries.count == 1 ? "entry" : "entries")")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+            Spacer(minLength: 0)
+            if isLoading {
+              HPProgressIndicator(style: .spinner)
+                .accessibilityLabel("Refreshing testing entries")
+            }
+          }
+        }
+      } results: { context in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Entries") {
+              HPStatusBadge(text: "\(entries.count)", kind: .neutral)
+            }
+
+            if isLoading {
+              HPLoadingState(text: "Loading testing entries…")
+            }
+
+            if errorText != nil {
+              HPErrorState(
+                message: "We couldn’t load testing entries. Check your connection and try again.",
+                onRetry: { Task { await reload() } }
+              )
+            }
+
+            if entries.isEmpty, !isLoading {
+              if errorText == nil {
+                HPEmptyState(
+                  title: "No testing entries yet",
+                  message: "Add your first testing entry to begin tracking progress.",
+                  systemImage: "list.bullet.clipboard",
+                  actionTitle: "Add entry",
+                  actionIsPrimary: false,
+                  action: { showAdd = true }
+                )
               }
-              .padding(.vertical, 4)
+            } else if !entries.isEmpty {
+              HPTable(
+                columns: [
+                  HPColumn(title: "Date"),
+                  HPColumn(title: "Measurements"),
+                ],
+                rows: entryRows,
+                layout: context.tableLayout
+              )
             }
           }
         }
       }
       .navigationTitle("Testing")
       .toolbar {
-        ToolbarItem(placement: .primaryAction) {
-          Button { showAdd = true } label: { Image(systemName: "plus") }
-        }
         ToolbarItem(placement: .secondaryAction) {
           Menu {
             Button(role: .destructive) {
@@ -52,19 +95,21 @@ struct SDPlayerTestingView: View {
         }
         .environmentObject(appState)
       }
-      .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
-        Button("OK", role: .cancel) {}
-      } message: {
-        Text(errorText ?? "")
-      }
       .task {
         await reload()
       }
     }
   }
 
+  private var entryRows: [HPTableRow] {
+    entries.map { entry in
+      HPTableRow(cells: [entry.entry_date, summary(entry)])
+    }
+  }
+
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    errorText = nil
     isLoading = true
     defer { isLoading = false }
     do {
@@ -76,20 +121,20 @@ struct SDPlayerTestingView: View {
     }
   }
 
-  private func summary(_ e: SDTestingEntry) -> String {
+  private func summary(_ entry: SDTestingEntry) -> String {
     var parts: [String] = []
-    if let v = e.squat_1rm { parts.append("Squat \(fmt(v))") }
-    if let v = e.bench_1rm { parts.append("Bench \(fmt(v))") }
-    if let v = e.deadlift_1rm { parts.append("Deadlift \(fmt(v))") }
-    if let v = e.max_exit_velo { parts.append("MaxEV \(fmt(v))") }
-    if let v = e.avg_exit_velo { parts.append("AvgEV \(fmt(v))") }
+    if let value = entry.squat_1rm { parts.append("Squat \(fmt(value))") }
+    if let value = entry.bench_1rm { parts.append("Bench \(fmt(value))") }
+    if let value = entry.deadlift_1rm { parts.append("Deadlift \(fmt(value))") }
+    if let value = entry.max_exit_velo { parts.append("MaxEV \(fmt(value))") }
+    if let value = entry.avg_exit_velo { parts.append("AvgEV \(fmt(value))") }
     if parts.isEmpty { return "—" }
     return parts.joined(separator: " • ")
   }
 
-  private func fmt(_ v: Double) -> String {
-    if v.rounded() == v { return String(Int(v)) }
-    return String(format: "%.1f", v)
+  private func fmt(_ value: Double) -> String {
+    if value.rounded() == value { return String(Int(value)) }
+    return String(format: "%.1f", value)
   }
 }
 
@@ -126,47 +171,88 @@ private struct AddTestingEntrySheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Date") {
-          DatePicker("Entry date", selection: $date, displayedComponents: .date)
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader("Add testing entry", context: "Player testing history")
+      } sections: { _ in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Date")
+            DatePicker("Entry date", selection: $date, displayedComponents: .date)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .tint(HP.Color.accent)
+          }
         }
-        Section("Body") {
-          TextField("Height (in)", text: $heightIn).modifier(NumericKeyboard())
-          TextField("Weight (lb)", text: $weightLb).modifier(NumericKeyboard())
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Body")
+            HPFormField(label: "Height (in)", text: $heightIn,
+                        placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Weight (lb)", text: $weightLb,
+                        placeholder: "Optional")
+              .modifier(NumericKeyboard())
+          }
         }
-        Section("Strength") {
-          TextField("Squat 1RM", text: $squat).modifier(NumericKeyboard())
-          TextField("Bench 1RM", text: $bench).modifier(NumericKeyboard())
-          TextField("Deadlift 1RM", text: $deadlift).modifier(NumericKeyboard())
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Strength")
+            HPFormField(label: "Squat 1RM", text: $squat, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Bench 1RM", text: $bench, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Deadlift 1RM", text: $deadlift, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+          }
         }
-        Section("Hitting") {
-          TextField("Max EV (mph)", text: $maxEV).modifier(NumericKeyboard())
-          TextField("Avg EV (mph)", text: $avgEV).modifier(NumericKeyboard())
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Hitting")
+            HPFormField(label: "Max EV (mph)", text: $maxEV, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Avg EV (mph)", text: $avgEV, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+          }
         }
-        Section("Mobility diffs") {
-          TextField("Hip ER difference", text: $hipER).modifier(NumericKeyboard())
-          TextField("Hip IR difference", text: $hipIR).modifier(NumericKeyboard())
-          TextField("Shoulder IR difference", text: $shoulderIR).modifier(NumericKeyboard())
-          TextField("Shoulder ER difference", text: $shoulderER).modifier(NumericKeyboard())
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Mobility differences")
+            HPFormField(label: "Hip ER difference", text: $hipER, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Hip IR difference", text: $hipIR, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Shoulder IR difference", text: $shoulderIR, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+            HPFormField(label: "Shoulder ER difference", text: $shoulderER, placeholder: "Optional")
+              .modifier(NumericKeyboard())
+          }
         }
-        Section("Notes") {
-          TextField("Notes (optional)", text: $notes, axis: .vertical)
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Notes")
+            HPFormField(label: "Notes (optional)", text: $notes,
+                        kind: .multiline, placeholder: "Anything to remember")
+          }
+        }
+      } primaryAction: { context in
+        HPButton(title: "Save entry", systemImage: "checkmark",
+                 variant: .primary, size: .lg,
+                 isLoading: isSaving,
+                 fullWidth: context.isAccessibilitySize) {
+          Task { await save() }
+        }
+      } secondaryAction: { context in
+        HPButton(title: "Cancel", variant: .secondary, size: .lg,
+                 fullWidth: context.isAccessibilitySize) {
+          dismiss()
         }
       }
       .navigationTitle("Add entry")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Save") }
-          }
-          .disabled(isSaving)
-        }
-      }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
       } message: {
@@ -175,10 +261,10 @@ private struct AddTestingEntrySheet: View {
     }
   }
 
-  private func toDouble(_ s: String) -> Double? {
-    let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-    if t.isEmpty { return nil }
-    return Double(t)
+  private func toDouble(_ string: String) -> Double? {
+    let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return nil }
+    return Double(trimmed)
   }
 
   private func save() async {

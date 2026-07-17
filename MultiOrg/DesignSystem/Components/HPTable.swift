@@ -11,9 +11,27 @@ struct HPColumn: Identifiable {
 /// Row descriptor. `cells` align to `columns`; an optional trailing `badge`
 /// replaces the last cell.
 struct HPTableRow: Identifiable {
-  let id = UUID()
+  let id: String
   let cells: [String]
   var badge: (text: String, kind: HPStatusKind)? = nil
+
+  init(
+    id: String = UUID().uuidString,
+    cells: [String],
+    badge: (text: String, kind: HPStatusKind)? = nil
+  ) {
+    self.id = id
+    self.cells = cells
+    self.badge = badge
+  }
+
+  init(
+    id: UUID,
+    cells: [String],
+    badge: (text: String, kind: HPStatusKind)? = nil
+  ) {
+    self.init(id: id.uuidString, cells: cells, badge: badge)
+  }
 }
 
 enum HPTableLayout: Equatable {

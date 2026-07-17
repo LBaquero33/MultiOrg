@@ -18,58 +18,110 @@ struct SDPlayerBPView: View {
 
   var body: some View {
     NavigationStack {
-      List {
-        Section("Session") {
-          DatePicker("Date", selection: $date, displayedComponents: .date)
-            .onChange(of: date) { _, _ in Task { await loadSession() } }
-          Picker("Reps type", selection: $repsType) {
-            Text("Practice").tag("practice")
-            Text("Game").tag("game")
-          }
-          .onChange(of: repsType) { _, _ in Task { await loadSession() } }
-          Picker("Upload type", selection: $source) {
-            ForEach(BPImportSource.allCases) { importSource in
-              Text(importSource.label).tag(importSource.rawValue)
+      HPListScreenLayout {
+        HPWorkspaceHeader(
+          "BP",
+          context: "\(DateUtils.prettyDateTitle(date)) • \(BPImportSource.parse(source).label)"
+        )
+      } controls: {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Session")
+              DatePicker("Date", selection: $date, displayedComponents: .date)
+                .tint(HP.Color.accent)
+                .onChange(of: date) { _, _ in Task { await loadSession() } }
+
+              VStack(alignment: .leading, spacing: 6) {
+                Text("Reps type")
+                  .font(HP.Font.eyebrow)
+                  .tracking(HP.Font.eyebrowTracking)
+                  .foregroundStyle(HP.Color.textMuted)
+                HPSegmentedControl(
+                  options: [(value: "practice", label: "Practice"),
+                            (value: "game", label: "Game")],
+                  selection: $repsType
+                )
+                .onChange(of: repsType) { _, _ in Task { await loadSession() } }
+              }
+
+              VStack(alignment: .leading, spacing: 6) {
+                Text("Upload type")
+                  .font(HP.Font.eyebrow)
+                  .tracking(HP.Font.eyebrowTracking)
+                  .foregroundStyle(HP.Color.textMuted)
+                HPSegmentedControl(
+                  options: BPImportSource.allCases.map { (value: $0.rawValue, label: $0.label) },
+                  selection: $source
+                )
+                .onChange(of: source) { _, _ in Task { await loadSession() } }
+              }
             }
           }
-          .onChange(of: source) { _, _ in Task { await loadSession() } }
-        }
 
-        Section("Upload") {
-          Button {
-            isImporting = true
-          } label: {
-            Label("Import CSV", systemImage: "square.and.arrow.down")
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Upload") {
+                HPStatusBadge(
+                  text: "\(events.count) \(events.count == 1 ? "event" : "events")",
+                  kind: .neutral
+                )
+              }
+              HPButton(title: "Import CSV", systemImage: "square.and.arrow.down",
+                       variant: .secondary, size: .md, isLoading: isWorking) {
+                isImporting = true
+              }
+              .disabled(isWorking)
+              Text("Upload Rapsodo, HitTrax, or TrackMan CSV files. The source is detected automatically when possible.")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
-          .disabled(isWorking)
-          Text("Upload Rapsodo, HitTrax, or TrackMan CSV files. The source is detected automatically when possible.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
+      } results: { context in
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          if !isWorking, !events.isEmpty {
+            LazyVGrid(
+              columns: context.gridColumns(compact: 2, regular: 3),
+              spacing: HP.Space.sm
+            ) {
+              HPMetricCard(title: "Events", value: "\(events.count)", context: "Imported swings")
+              HPMetricCard(title: "Max EV", value: fmt(events.compactMap(\.exit_velo).max() ?? 0),
+                           unit: "mph", context: "This session")
+              HPMetricCard(title: "Avg EV", value: fmt(avg(events.compactMap(\.exit_velo))),
+                           unit: "mph", context: "This session")
+            }
+          }
 
-        Section("Summary") {
           if isWorking {
-            HStack(spacing: 10) { ProgressView(); Text("Working…").foregroundStyle(.secondary) }
+            HPCard {
+              HPLoadingState(text: "Working…")
+            }
           } else if events.isEmpty {
-            Text("No pitch events imported yet for this session.")
-              .foregroundStyle(.secondary)
-          } else {
-            let maxEV = events.compactMap(\.exit_velo).max() ?? 0
-            let avgEV = avg(events.compactMap(\.exit_velo))
-            Text("Events: \(events.count)")
-            Text("Max EV: \(fmt(maxEV))")
-            Text("Avg EV: \(fmt(avgEV))")
+            HPCard {
+              HPEmptyState(
+                title: "No pitch events",
+                message: "No pitch events have been imported for this session yet.",
+                systemImage: "baseball"
+              )
+            }
           }
-        }
 
-        if !events.isEmpty {
-          Section("Events (first 20)") {
-            ForEach(Array(events.prefix(20))) { e in
-              HStack {
-                Text("#\(e.pitch_num ?? 0)").foregroundStyle(.secondary)
-                Spacer()
-                Text("EV \(fmt(e.exit_velo ?? 0))  LA \(fmt(e.launch_angle ?? 0))  Dist \(fmt(e.distance ?? 0))")
-                  .font(.caption)
+          if !events.isEmpty {
+            HPCard {
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                HPSectionHeader("Events (first 20)")
+                HPTable(
+                  columns: [
+                    HPColumn(title: "Pitch"),
+                    HPColumn(title: "EV", alignment: .trailing, numeric: true),
+                    HPColumn(title: "LA", alignment: .trailing, numeric: true),
+                    HPColumn(title: "Distance", alignment: .trailing, numeric: true),
+                  ],
+                  rows: eventRows,
+                  layout: context.tableLayout
+                )
               }
             }
           }
@@ -127,6 +179,17 @@ struct SDPlayerBPView: View {
   }
 
   private var dateISO: String { DateUtils.toISODate(date) }
+
+  private var eventRows: [HPTableRow] {
+    events.prefix(20).map { event in
+      HPTableRow(cells: [
+        "#\(event.pitch_num ?? 0)",
+        fmt(event.exit_velo ?? 0),
+        fmt(event.launch_angle ?? 0),
+        fmt(event.distance ?? 0),
+      ])
+    }
+  }
 
   private func loadSession() async {
     guard let supabase = appState.supabase else { return }

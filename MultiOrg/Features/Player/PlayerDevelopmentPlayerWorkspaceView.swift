@@ -153,7 +153,15 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
         userId: appState.myProfile?.id,
         playerId: player.id
       ) {
-        ContentUnavailableView("Player Development unavailable", systemImage: "lock.fill")
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Player Development unavailable",
+              message: "Player Development is available only for your signed-in player profile.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
       } else {
         content
       }
@@ -178,13 +186,17 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
   private var content: some View {
     switch model.phase {
     case .idle, .loading:
-      ProgressView("Loading your development evidence…")
+      HPStateScreenLayout { _ in
+        HPCard {
+          HPLoadingState(text: "Loading your development evidence…")
+        }
+      }
     case .failed(let message):
-      ContentUnavailableView(
-        "Development evidence unavailable",
-        systemImage: "exclamationmark.triangle.fill",
-        description: Text(message)
-      )
+      HPStateScreenLayout { _ in
+        HPCard {
+          HPErrorState(title: "Development evidence unavailable", message: message)
+        }
+      }
     case .loaded:
       if let response = model.response {
         workspace(response)
@@ -194,164 +206,249 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
 
   private func workspace(_ response: SDPlayerDevelopmentWorkspaceResponse) -> some View {
     let pack = response.evidencePack
-    return List {
-      Section {
-        NavigationLink {
-          PlayerDevelopmentCopilotWorkspaceView(
-            player: player,
-            audience: .player,
-            presentationStyle: .pushed
-          )
-        } label: {
-          Label("Open Player Copilot", systemImage: "bubble.left.and.text.bubble.right.fill")
-        }
-        Text("Your Player Copilot conversations are private and separate from coach conversations unless a future sharing action is explicitly used.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
-      }
-
-      Section("Data coverage") {
-        coverageRow("Testing results", count: pack.coverage.testingEntries)
-        coverageRow("Imported metrics", count: pack.coverage.metricObservations)
-        coverageRow("Daily logs", count: pack.coverage.dailyLogs)
-        coverageRow("Assigned programs", count: pack.coverage.programAssignments)
-        coverageRow("Batting-practice sessions", count: pack.coverage.bpSessions)
-        LabeledContent("Freshness", value: pack.dataFreshness.capitalized)
-      }
-
-      Section("Recent objective trends") {
-        if pack.trends.isEmpty {
-          Text("No supported comparison is available in this window.")
-            .foregroundStyle(DHDTheme.textSecondary)
-        }
-        ForEach(pack.trends) { trend in
-          VStack(alignment: .leading, spacing: 4) {
-            Text(trend.displayName).font(.headline)
-            Text("Latest: \(trend.latestValue.formatted())\(trend.unit.map { " \($0)" } ?? "")")
-            Text("\(trend.interpretation.capitalized) • \(trend.sampleCount) samples • \(trend.freshness.capitalized)")
-              .font(.caption)
-              .foregroundStyle(DHDTheme.textSecondary)
+    return HPWorkspaceScreenLayout {
+      HPWorkspaceHeader(
+        "Development AI",
+        orgLabel: activeOrganizationName,
+        context: "\(pack.dataFreshness.capitalized) data • Player-only workspace"
+      )
+    } attention: {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Player Copilot")
+            NavigationLink {
+              PlayerDevelopmentCopilotWorkspaceView(
+                player: player,
+                audience: .player,
+                presentationStyle: .pushed
+              )
+            } label: {
+              HStack(spacing: HP.Space.sm) {
+                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                  .foregroundStyle(HP.Color.accent)
+                Text("Open Player Copilot")
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Text("Your Player Copilot conversations are private and separate from coach conversations unless a future sharing action is explicitly used.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
+        HPSectionHeader("Data coverage")
       }
-
-      Section("Testing and imported evidence") {
-        if pack.evidence.isEmpty {
-          Text("No player-visible objective evidence is available.")
-            .foregroundStyle(DHDTheme.textSecondary)
+    } metrics: {
+      HPMetricCard(title: "Testing results", value: pack.coverage.testingEntries.formatted(), context: "Available entries")
+      HPMetricCard(title: "Imported metrics", value: pack.coverage.metricObservations.formatted(), context: "Objective observations")
+      HPMetricCard(title: "Daily logs", value: pack.coverage.dailyLogs.formatted(), context: "Available logs")
+      HPMetricCard(title: "Assigned programs", value: pack.coverage.programAssignments.formatted(), context: "Program assignments")
+      HPMetricCard(title: "BP sessions", value: pack.coverage.bpSessions.formatted(), context: "Batting-practice sessions")
+      HPMetricCard(title: "Freshness", value: pack.dataFreshness.capitalized, context: "Supported evidence")
+    } supporting: {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Recent objective trends")
+            if pack.trends.isEmpty {
+              mutedText("No supported comparison is available in this window.")
+            }
+            ForEach(pack.trends) { trend in
+              VStack(alignment: .leading, spacing: 4) {
+                Text(trend.displayName).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                Text("Latest: \(trend.latestValue.formatted())\(trend.unit.map { " \($0)" } ?? "")")
+                  .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+                Text("\(trend.interpretation.capitalized) • \(trend.sampleCount) samples • \(trend.freshness.capitalized)")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
         }
-        ForEach(pack.evidence) { evidence in
-          VStack(alignment: .leading, spacing: 4) {
-            Text(evidence.displayLabel).font(.headline)
-            if let value = evidence.normalizedNumericValue ?? Double(evidence.rawObservedValue ?? "") {
-              Text("\(value.formatted())\(evidence.unit.map { " \($0)" } ?? "")")
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Testing and imported evidence")
+            if pack.evidence.isEmpty {
+              mutedText("No player-visible objective evidence is available.")
+            }
+            ForEach(pack.evidence) { evidence in
+              VStack(alignment: .leading, spacing: 4) {
+                Text(evidence.displayLabel).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                if let value = evidence.normalizedNumericValue ?? Double(evidence.rawObservedValue ?? "") {
+                  Text("\(value.formatted())\(evidence.unit.map { " \($0)" } ?? "")")
+                    .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+                } else {
+                  Text(evidence.explanation)
+                    .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+                }
+                HStack {
+                  Text(evidence.observationDate ?? "Date unavailable")
+                  if let provider = evidence.sourceMetadata["provider"]?.stringValue ?? evidence.sourceMetadata["source_system"]?.stringValue {
+                    Text(provider.capitalized)
+                  }
+                  if let verification = evidence.sourceMetadata["verification_status"]?.stringValue {
+                    Text(verification.replacingOccurrences(of: "_", with: " ").capitalized)
+                  }
+                }
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Freshness and data gaps")
+            warningRows(pack.missingDataWarnings + pack.staleDataWarnings + pack.unitConflicts + pack.lowSampleWarnings)
+          }
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Player-visible reports")
+            HPButton(
+              title: model.generationPhase == .generating ? "Generating…" : "Generate My Summary",
+              systemImage: "sparkles",
+              variant: .primary,
+              size: .md,
+              isLoading: model.generationPhase == .generating,
+              fullWidth: true
+            ) {
+              guard let client = appState.supabase,
+                    let organizationId = appState.activeOrgId,
+                    let userId = appState.myProfile?.id else { return }
+              Task {
+                await model.generateSummary(
+                  client: client,
+                  organizationId: organizationId,
+                  userId: userId,
+                  playerId: player.id
+                )
+              }
+            }
+            .disabled(model.generationPhase == .generating)
+            switch model.generationPhase {
+            case .succeeded(let message):
+              Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(HP.Color.success)
+            case .failed(let message):
+              VStack(alignment: .leading, spacing: 6) {
+                Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(HP.Color.danger)
+                Text("Choose Generate My Summary again to retry the same safe request.")
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+            default: EmptyView()
+            }
+            if model.reports.isEmpty {
+              mutedText(response.reportsAvailability)
             } else {
-              Text(evidence.explanation)
-            }
-            HStack {
-              Text(evidence.observationDate ?? "Date unavailable")
-              if let provider = evidence.sourceMetadata["provider"]?.stringValue ?? evidence.sourceMetadata["source_system"]?.stringValue {
-                Text(provider.capitalized)
-              }
-              if let verification = evidence.sourceMetadata["verification_status"]?.stringValue {
-                Text(verification.replacingOccurrences(of: "_", with: " ").capitalized)
-              }
-            }
-            .font(.caption)
-            .foregroundStyle(DHDTheme.textSecondary)
-          }
-        }
-      }
-
-      Section("Freshness and data gaps") {
-        warningRows(pack.missingDataWarnings + pack.staleDataWarnings + pack.unitConflicts + pack.lowSampleWarnings)
-      }
-
-      Section("Player-visible reports") {
-        Button {
-          guard let client = appState.supabase,
-                let organizationId = appState.activeOrgId,
-                let userId = appState.myProfile?.id else { return }
-          Task {
-            await model.generateSummary(
-              client: client,
-              organizationId: organizationId,
-              userId: userId,
-              playerId: player.id
-            )
-          }
-        } label: {
-          Label(model.generationPhase == .generating ? "Generating…" : "Generate My Summary", systemImage: "sparkles")
-        }
-        .disabled(model.generationPhase == .generating)
-        switch model.generationPhase {
-        case .succeeded(let message):
-          Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-        case .failed(let message):
-          VStack(alignment: .leading, spacing: 6) {
-            Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            Text("Choose Generate My Summary again to retry the same safe request.")
-              .font(.caption).foregroundStyle(DHDTheme.textSecondary)
-          }
-        default: EmptyView()
-        }
-        if model.reports.isEmpty {
-          Text(response.reportsAvailability).foregroundStyle(DHDTheme.textSecondary)
-        } else {
-          ForEach(model.reports) { report in
-            NavigationLink {
-              PlayerDevelopmentPlayerReportDetailView(reportId: report.id, playerId: player.id)
-            } label: {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("My Development Summary").font(.headline)
-                Text("\(report.reportingWindowStart) – \(report.reportingWindowEnd)")
-                  .font(.caption).foregroundStyle(DHDTheme.textSecondary)
-                Text("\(report.provider.capitalized) • \(report.dataFreshness.capitalized) • \(report.status.rawValue.capitalized)")
-                  .font(.caption2).foregroundStyle(DHDTheme.textSecondary)
+              ForEach(model.reports) { report in
+                NavigationLink {
+                  PlayerDevelopmentPlayerReportDetailView(reportId: report.id, playerId: player.id)
+                } label: {
+                  HStack(alignment: .center, spacing: HP.Space.sm) {
+                    VStack(alignment: .leading, spacing: 4) {
+                      Text("My Development Summary").font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                      Text("\(report.reportingWindowStart) – \(report.reportingWindowEnd)")
+                        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                      Text("\(report.provider.capitalized) • \(report.dataFreshness.capitalized) • \(report.status.rawValue.capitalized)")
+                        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
               }
             }
           }
         }
-      }
 
-      Section("Player-visible alerts") {
-        if model.alerts.isEmpty {
-          Text(response.alertsAvailability).foregroundStyle(DHDTheme.textSecondary)
-        } else {
-          ForEach(model.alerts) { alert in
-            NavigationLink {
-              PlayerDevelopmentPlayerAlertDetailView(alertId: alert.id, playerId: player.id)
-            } label: {
-              VStack(alignment: .leading, spacing: 4) {
-                Text(alert.explanation).font(.headline)
-                Text("\(alert.dataFreshness.capitalized) • \(alert.evidenceQuality.rawValue.capitalized)")
-                  .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Player-visible alerts")
+            if model.alerts.isEmpty {
+              mutedText(response.alertsAvailability)
+            } else {
+              ForEach(model.alerts) { alert in
+                NavigationLink {
+                  PlayerDevelopmentPlayerAlertDetailView(alertId: alert.id, playerId: player.id)
+                } label: {
+                  HStack(alignment: .center, spacing: HP.Space.sm) {
+                    VStack(alignment: .leading, spacing: 4) {
+                      Text(alert.explanation).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                      Text("\(alert.dataFreshness.capitalized) • \(alert.evidenceQuality.rawValue.capitalized)")
+                        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  .frame(minHeight: 44)
+                  .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
               }
             }
           }
         }
-      }
 
-      Section("Suggested questions") {
-        ForEach(response.suggestedQuestions, id: \.self) { question in
-          Text(question)
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Suggested questions")
+            ForEach(response.suggestedQuestions, id: \.self) { question in
+              Text(question)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
         }
       }
     }
   }
 
-  private func coverageRow(_ label: String, count: Int) -> some View {
-    LabeledContent(label, value: count.formatted())
+  private var activeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private func mutedText(_ text: String) -> some View {
+    Text(text)
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.textMuted)
+      .fixedSize(horizontal: false, vertical: true)
   }
 
   @ViewBuilder
   private func warningRows(_ warnings: [String]) -> some View {
     if warnings.isEmpty {
-      Text("No current warning was produced for the supported sources.")
-        .foregroundStyle(DHDTheme.textSecondary)
+      mutedText("No current warning was produced for the supported sources.")
     } else {
       ForEach(warnings, id: \.self) { warning in
         Label(warning, systemImage: "exclamationmark.triangle")
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -369,49 +466,21 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
 
   var body: some View {
     Group {
-      if isLoading { ProgressView("Loading your summary…") }
-      else if let errorMessage {
-        ContentUnavailableView("Summary unavailable", systemImage: "exclamationmark.triangle", description: Text(errorMessage))
-      } else if let detail {
-        List {
-          Section("Summary") {
-            Text(detail.report.structuredContent.overview)
-            LabeledContent("Evidence state", value: detail.report.qualityStatus.rawValue.capitalized)
-            LabeledContent("Freshness", value: detail.report.dataFreshness.capitalized)
-            LabeledContent("Provider", value: detail.report.provider.capitalized)
-            LabeledContent("Verification", value: detail.report.evidenceFingerprint == nil ? "Limited" : "Evidence fingerprint recorded")
-          }
-          reportSections("Supported improvements", detail.report.structuredContent.positiveTrends)
-          reportSections("Worth discussing", detail.report.structuredContent.developmentPriorities)
-          Section("Interpretation and recommendations") {
-            Text("Deterministic calculations are based on the cited measurements. Interpretations do not explain why a change occurred.")
-            ForEach(detail.report.structuredContent.coachReviewQuestions, id: \.self) { Text($0) }
-          }
-          Section("Missing evidence") {
-            if detail.report.structuredContent.dataGaps.isEmpty {
-              Text("No supported data gap was recorded.")
-            } else {
-              ForEach(detail.report.structuredContent.dataGaps, id: \.self) { Label($0, systemImage: "info.circle") }
-            }
-          }
-          Section("Evidence citations") {
-            if detail.evidence.isEmpty { Text("No player-visible citations are available.") }
-            ForEach(detail.evidence) { evidence in
-              VStack(alignment: .leading, spacing: 4) {
-                Text(evidence.displayLabel).font(.headline)
-                Text(evidence.explanation)
-                Text("\(evidence.observationDate ?? "Date unavailable") • \(evidence.quality.rawValue.capitalized)")
-                  .font(.caption).foregroundStyle(DHDTheme.textSecondary)
-              }
-            }
-          }
-          if detail.report.status == .draft {
-            Section {
-              Button("Archive My Summary", role: .destructive) { Task { await archive() } }
-                .disabled(isArchiving)
-            }
+      if isLoading {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPLoadingState(text: "Loading your summary…")
           }
         }
+      }
+      else if let errorMessage {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPErrorState(title: "Summary unavailable", message: errorMessage)
+          }
+        }
+      } else if let detail {
+        reportDetail(detail)
       }
     }
     .navigationTitle("My Summary")
@@ -426,16 +495,138 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
     .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(reportId)") { await load() }
   }
 
-  @ViewBuilder
+  private func reportDetail(_ detail: SDDevelopmentReportDetail) -> some View {
+    HPDetailScreenLayout {
+      HPWorkspaceHeader(
+        "My Summary",
+        orgLabel: "Player Development",
+        context: "Player-visible development report"
+      )
+    } metrics: {
+      HPMetricCard(
+        title: "Evidence state",
+        value: detail.report.qualityStatus.rawValue.capitalized,
+        context: "Report quality"
+      )
+      HPMetricCard(
+        title: "Freshness",
+        value: detail.report.dataFreshness.capitalized,
+        context: "Evidence recency"
+      )
+      HPMetricCard(
+        title: "Provider",
+        value: detail.report.provider.capitalized,
+        context: "Generation source"
+      )
+      HPMetricCard(
+        title: "Verification",
+        value: detail.report.evidenceFingerprint == nil ? "Limited" : "Recorded",
+        context: detail.report.evidenceFingerprint == nil ? nil : "Evidence fingerprint recorded"
+      )
+    } details: {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Summary")
+            Text(detail.report.structuredContent.overview)
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        reportSections("Supported improvements", detail.report.structuredContent.positiveTrends)
+        reportSections("Worth discussing", detail.report.structuredContent.developmentPriorities)
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Interpretation and recommendations")
+            Text("Deterministic calculations are based on the cited measurements. Interpretations do not explain why a change occurred.")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.text)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(detail.report.structuredContent.coachReviewQuestions, id: \.self) { question in
+              Text(question)
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Missing evidence")
+            if detail.report.structuredContent.dataGaps.isEmpty {
+              Text("No supported data gap was recorded.")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
+            } else {
+              ForEach(detail.report.structuredContent.dataGaps, id: \.self) { gap in
+                Label(gap, systemImage: "info.circle")
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.text)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
+        }
+      }
+    } related: { _ in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Evidence citations")
+          if detail.evidence.isEmpty {
+            Text("No player-visible citations are available.")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          ForEach(detail.evidence) { evidence in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(evidence.displayLabel).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+              Text(evidence.explanation)
+                .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+              Text("\(evidence.observationDate ?? "Date unavailable") • \(evidence.quality.rawValue.capitalized)")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+      }
+    } primaryAction: {
+      if detail.report.status == .draft {
+        HPCard {
+          HPButton(
+            title: "Archive My Summary",
+            variant: .destructive,
+            size: .lg,
+            isLoading: isArchiving,
+            fullWidth: true
+          ) { Task { await archive() } }
+          .disabled(isArchiving)
+        }
+      }
+    }
+  }
+
   private func reportSections(_ title: String, _ sections: [SDDevelopmentReportSection]) -> some View {
-    Section(title) {
-      if sections.isEmpty { Text("No supported item is available.") }
-      ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-        VStack(alignment: .leading, spacing: 4) {
-          Text(section.title).font(.headline)
-          Text(section.explanation)
-          Text("\(section.evidenceKeys.count) citation\(section.evidenceKeys.count == 1 ? "" : "s")")
-            .font(.caption).foregroundStyle(DHDTheme.textSecondary)
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(title)
+        if sections.isEmpty {
+          Text("No supported item is available.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+        }
+        ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+          VStack(alignment: .leading, spacing: 4) {
+            Text(section.title).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+            Text(section.explanation)
+              .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+            Text("\(section.evidenceKeys.count) citation\(section.evidenceKeys.count == 1 ? "" : "s")")
+              .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
     }
@@ -490,35 +681,21 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
 
   var body: some View {
     Group {
-      if isLoading { ProgressView("Loading alert evidence…") }
-      else if let errorMessage {
-        ContentUnavailableView("Alert unavailable", systemImage: "exclamationmark.triangle", description: Text(errorMessage))
-      } else if let detail {
-        List {
-          Section("Objective alert") {
-            Text(detail.alert.explanation)
-            Text(detail.alert.recommendedHumanAction).foregroundStyle(DHDTheme.textSecondary)
-            LabeledContent("Freshness", value: detail.alert.dataFreshness.capitalized)
-            LabeledContent("Evidence quality", value: detail.alert.evidenceQuality.rawValue.capitalized)
-          }
-          Section("Evidence") {
-            if detail.evidence.isEmpty { Text("No player-visible evidence is available.") }
-            ForEach(detail.evidence) { evidence in
-              VStack(alignment: .leading, spacing: 4) {
-                Text(evidence.displayLabel).font(.headline)
-                Text(evidence.explanation)
-                Text(evidence.observationDate ?? "Date unavailable")
-                  .font(.caption).foregroundStyle(DHDTheme.textSecondary)
-              }
-            }
-          }
-          if detail.alert.status == .active || detail.alert.status == .acknowledged {
-            Section {
-              Button("Dismiss This Alert") { Task { await dismissAlert() } }
-                .disabled(isDismissing)
-            }
+      if isLoading {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPLoadingState(text: "Loading alert evidence…")
           }
         }
+      }
+      else if let errorMessage {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPErrorState(title: "Alert unavailable", message: errorMessage)
+          }
+        }
+      } else if let detail {
+        alertDetail(detail)
       }
     }
     .navigationTitle("Development Alert")
@@ -531,6 +708,75 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
       }
     }
     .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(alertId)") { await load() }
+  }
+
+  private func alertDetail(_ detail: SDDevelopmentAlertDetail) -> some View {
+    HPDetailScreenLayout {
+      HPWorkspaceHeader(
+        "Development Alert",
+        orgLabel: "Player Development",
+        context: "Player-visible objective alert"
+      )
+    } metrics: {
+      HPMetricCard(
+        title: "Freshness",
+        value: detail.alert.dataFreshness.capitalized,
+        context: "Evidence recency"
+      )
+      HPMetricCard(
+        title: "Evidence quality",
+        value: detail.alert.evidenceQuality.rawValue.capitalized,
+        context: "Supported evidence"
+      )
+    } details: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Objective alert")
+          Text(detail.alert.explanation)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(detail.alert.recommendedHumanAction)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    } related: { _ in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Evidence")
+          if detail.evidence.isEmpty {
+            Text("No player-visible evidence is available.")
+              .font(HP.Font.callout)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          ForEach(detail.evidence) { evidence in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(evidence.displayLabel).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+              Text(evidence.explanation)
+                .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+              Text(evidence.observationDate ?? "Date unavailable")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+      }
+    } primaryAction: {
+      if detail.alert.status == .active || detail.alert.status == .acknowledged {
+        HPCard {
+          HPButton(
+            title: "Dismiss This Alert",
+            variant: .secondary,
+            size: .lg,
+            isLoading: isDismissing,
+            fullWidth: true
+          ) { Task { await dismissAlert() } }
+          .disabled(isDismissing)
+        }
+      }
+    }
   }
 
   private func load() async {

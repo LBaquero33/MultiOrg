@@ -20,6 +20,7 @@ struct SDPlayerFacilitiesView: View {
 
   @State private var dayBookings: [SDFacilityBooking] = []
   @State private var rangeBookings: [SDFacilityBooking] = []
+  @State private var compactScope = "month"
 
   @State private var showRequest = false
   @State private var requestSeed: RequestSeed?
@@ -32,69 +33,78 @@ struct SDPlayerFacilitiesView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        header
-
-        DHDMonthGridView(
-          visibleMonth: $visibleMonth,
-          selectedDate: $selectedDate,
-          scheduledLiftISOs: approvedISOs,
-          practiceISOs: pendingISOs,
-          gameISOs: deniedISOs,
-          isLoading: isLoading,
-          onPrev: {
-            visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: -1))
-            Task { await reloadMonth() }
-          },
-          onNext: {
-            visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: 1))
-            Task { await reloadMonth() }
-          },
-          onSelect: { d in
-            selectedDate = DateUtils.startOfDayET(d)
-            Task { await loadDay() }
-          }
+    HPCalendarScreenLayout(
+      compactPane: compactScope == "month" ? .calendar : .agenda
+    ) { context in
+      HPWorkspaceHeader(
+        "Facilities",
+        orgLabel: activeOrganizationName,
+        context: "Request cage times for BP, bullpens, extra work, or lessons."
+      ) {
+        HPButton(
+          title: "Request time",
+          systemImage: "plus",
+          variant: .primary,
+          size: .sm,
+          fullWidth: context.isAccessibilitySize,
+          action: { showRequest = true }
         )
-
-        Text("Green = approved booking. Blue = your pending request.")
-          .font(.footnote)
-          .foregroundStyle(DHDTheme.textSecondary)
-
-        DHDCard(style: .flat) {
-          FacilitiesDayTimelineView(
-            mode: .player(myUserId: appState.myProfile?.id ?? UUID()),
-            date: selectedDate,
-            facilities: facilities,
-            bookings: dayBookings,
-            userNameById: [:],
-            onApprove: { _ in },
-            onDeny: { _ in },
-            onMove: { _, _, _, _ in },
-            onResizeSpan: nil,
-            onCancelOwnPending: { booking in
-              Task { await cancelPending(booking) }
-            },
-            onEdit: nil,
-            onCreateAt: { facilityId, startAt in
-              requestSeed = RequestSeed(facilityId: facilityId, startAt: startAt, durationMin: 60)
-            }
+      }
+    } scopeControl: { context in
+      if context.isAccessibilitySize {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Selected day")
+            DatePicker(
+              "Date",
+              selection: accessibleDateSelection,
+              displayedComponents: .date
+            )
+            HPButton(
+              title: "Previous day",
+              systemImage: "chevron.left",
+              variant: .secondary,
+              size: .md,
+              fullWidth: true,
+              action: { moveAccessibleDay(by: -1) }
+            )
+            HPButton(
+              title: "Today",
+              systemImage: "calendar",
+              variant: .secondary,
+              size: .md,
+              fullWidth: true,
+              action: { selectAccessibleDate(Date()) }
+            )
+            HPButton(
+              title: "Next day",
+              systemImage: "chevron.right",
+              variant: .secondary,
+              size: .md,
+              fullWidth: true,
+              action: { moveAccessibleDay(by: 1) }
+            )
+          }
+        }
+      } else {
+        HPCard {
+          HPSegmentedControl(
+            options: [(value: "month", label: "Month"), (value: "day", label: "Day")],
+            selection: $compactScope
           )
         }
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .topLeading)
+    } calendar: { context in
+      calendarPane(context)
+    } agenda: { _ in
+      dayPane
+    } stateContent: { _ in
+      EmptyView()
     }
     .background(DHDTheme.pageBackground)
     .dhdToast($toastText)
     .toolbar {
-      ToolbarItemGroup(placement: .automatic) {
-        Button {
-          showRequest = true
-        } label: {
-          Label("Request time", systemImage: "plus")
-        }
+      ToolbarItem(placement: .automatic) {
         Button {
           Task { await reloadAll() }
         } label: {
@@ -134,20 +144,96 @@ struct SDPlayerFacilitiesView: View {
     }
   }
 
-  private var header: some View {
-    DHDHeaderCard {
-      HStack {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Facilities")
-            .font(.title3.weight(.semibold))
-          Text("Request cage times for BP, bullpens, extra work, or lessons.")
-            .font(.caption)
-            .foregroundStyle(Color.white.opacity(0.85))
+  private var activeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private func calendarPane(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      DHDMonthGridView(
+        visibleMonth: $visibleMonth,
+        selectedDate: $selectedDate,
+        scheduledLiftISOs: approvedISOs,
+        practiceISOs: pendingISOs,
+        gameISOs: deniedISOs,
+        isLoading: isLoading,
+        onPrev: {
+          visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: -1))
+          Task { await reloadMonth() }
+        },
+        onNext: {
+          visibleMonth = DateUtils.startOfMonthET(DateUtils.addMonthsET(visibleMonth, value: 1))
+          Task { await reloadMonth() }
+        },
+        onSelect: { date in
+          selectedDate = DateUtils.startOfDayET(date)
+          if !context.isRegularWidth {
+            compactScope = "day"
+          }
+          Task { await loadDay() }
         }
-        Spacer()
-        if isLoading { ProgressView().tint(.white) }
+      )
+
+      Text("Green = approved booking. Blue = your pending request.")
+        .font(HP.Font.caption)
+        .foregroundStyle(DHDTheme.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var dayPane: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(selectedDate.formatted(date: .complete, time: .omitted))
+        if isLoading {
+          HPLoadingState(text: "Loading facilities…")
+        }
+        FacilitiesDayTimelineView(
+          mode: .player(myUserId: appState.myProfile?.id ?? UUID()),
+          date: selectedDate,
+          facilities: facilities,
+          bookings: dayBookings,
+          userNameById: [:],
+          onApprove: { _ in },
+          onDeny: { _ in },
+          onMove: { _, _, _, _ in },
+          onResizeSpan: nil,
+          onCancelOwnPending: { booking in
+            Task { await cancelPending(booking) }
+          },
+          onEdit: nil,
+          onCreateAt: { facilityId, startAt in
+            requestSeed = RequestSeed(facilityId: facilityId, startAt: startAt, durationMin: 60)
+          }
+        )
       }
-      .foregroundStyle(.white)
+    }
+  }
+
+  private var accessibleDateSelection: Binding<Date> {
+    Binding(
+      get: { selectedDate },
+      set: { selectAccessibleDate($0) }
+    )
+  }
+
+  private func moveAccessibleDay(by value: Int) {
+    let date = DateUtils.calendarET.date(byAdding: .day, value: value, to: selectedDate) ?? selectedDate
+    selectAccessibleDate(date)
+  }
+
+  private func selectAccessibleDate(_ date: Date) {
+    let day = DateUtils.startOfDayET(date)
+    let month = DateUtils.startOfMonthET(day)
+    let monthChanged = month != DateUtils.startOfMonthET(visibleMonth)
+    selectedDate = day
+    visibleMonth = month
+    Task {
+      if monthChanged { await reloadMonth() }
+      await loadDay()
     }
   }
 
@@ -258,48 +344,39 @@ private struct PlayerRequestBookingSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("When") {
-          DatePicker("Start", selection: $start)
-          Picker("Duration", selection: $durationMin) {
-            ForEach([30, 45, 60, 75, 90, 120], id: \.self) { m in
-              Text("\(m) min").tag(m)
-            }
-          }
-        }
-        Section("Cage + activity") {
-          Picker("Cage", selection: $facilityId) {
-            Text("Select…").tag(UUID?.none)
-            ForEach(selectableFacilities) { f in
-              Text(f.name).tag(UUID?.some(f.id))
-            }
-          }
-          if facilityId == cage3_1Id {
-            Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
-          }
-          Picker("Activity", selection: $activityType) {
-            Text("BP").tag("bp")
-            Text("Bullpen").tag("bullpen")
-            Text("Extra work").tag("extra_work")
-            Text("Lesson").tag("lesson")
-            Text("Other").tag("other")
-          }
-        }
-        Section("Notes") {
-          TextField("Notes (optional)", text: $notes, axis: .vertical)
-        }
+      HPFormScreenLayout { _ in
+        HPWorkspaceHeader(
+          "Request time",
+          orgLabel: activeOrganizationName,
+          context: "Requests remain pending until approved."
+        )
+      } sections: { _ in
+        whenSection
+        facilitySection
+        notesSection
+      } primaryAction: { context in
+        HPButton(
+          title: "Request",
+          systemImage: "paperplane.fill",
+          variant: .primary,
+          size: .lg,
+          isLoading: isSaving,
+          fullWidth: context.isAccessibilitySize,
+          action: { Task { await save() } }
+        )
+        .disabled(isSaving || facilityId == nil)
+      } secondaryAction: { context in
+        HPButton(
+          title: "Cancel",
+          variant: .secondary,
+          size: .lg,
+          fullWidth: context.isAccessibilitySize,
+          action: { dismiss() }
+        )
       }
       .navigationTitle("Request time")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            Task { await save() }
-          } label: {
-            if isSaving { ProgressView() } else { Text("Request") }
-          }
-          .disabled(isSaving || facilityId == nil)
-        }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
@@ -319,6 +396,69 @@ private struct PlayerRequestBookingSheet: View {
           isFullCage3 = false
         }
       }
+    }
+  }
+
+  private var activeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
+  }
+
+  private var whenSection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("When")
+        DatePicker("Start", selection: $start)
+        Divider().overlay(HP.Color.border)
+        Picker("Duration", selection: $durationMin) {
+          ForEach([30, 45, 60, 75, 90, 120], id: \.self) { minutes in
+            Text("\(minutes) min").tag(minutes)
+          }
+        }
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  private var facilitySection: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Cage + activity")
+        Picker("Cage", selection: $facilityId) {
+          Text("Select…").tag(UUID?.none)
+          ForEach(selectableFacilities) { facility in
+            Text(facility.name).tag(UUID?.some(facility.id))
+          }
+        }
+        if facilityId == cage3_1Id {
+          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
+        }
+        Picker("Activity", selection: $activityType) {
+          Text("BP").tag("bp")
+          Text("Bullpen").tag("bullpen")
+          Text("Extra work").tag("extra_work")
+          Text("Lesson").tag("lesson")
+          Text("Other").tag("other")
+        }
+      }
+      .font(HP.Font.callout)
+      .foregroundStyle(HP.Color.text)
+      .tint(HP.Color.accent)
+    }
+  }
+
+  private var notesSection: some View {
+    HPCard {
+      HPFormField(
+        label: "Notes (optional)",
+        text: $notes,
+        kind: .multiline,
+        placeholder: "Anything the facility team should know"
+      )
     }
   }
 
