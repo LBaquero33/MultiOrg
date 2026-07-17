@@ -9,26 +9,32 @@ struct HPSearchBar: View {
 
   var body: some View {
     HStack(spacing: HP.Space.xs) {
-      Image(systemName: "magnifyingglass").foregroundStyle(HP.Color.textMuted)
+      Image(systemName: "magnifyingglass")
+        .foregroundStyle(HP.Color.textMuted)
+        .accessibilityHidden(true)
       TextField(placeholder, text: $text)
         .textFieldStyle(.plain)
         .font(HP.Font.body)
         .foregroundStyle(HP.Color.text)
+        .frame(minHeight: 44)
         .focused($focused)
       if !text.isEmpty {
         Button { text = "" } label: {
           Image(systemName: "xmark.circle.fill").foregroundStyle(HP.Color.textMuted)
         }
         .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
         .accessibilityLabel("Clear search")
       }
     }
     .padding(.horizontal, HP.Space.sm)
-    .padding(.vertical, 10)
+    .frame(minHeight: 44)
     .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.input))
     .overlay(
       RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
         .strokeBorder(focused ? HP.Color.focusRing : HP.Color.border, lineWidth: focused ? 2 : 1)
+        .allowsHitTesting(false)
     )
   }
 }

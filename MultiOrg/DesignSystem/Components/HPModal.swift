@@ -25,6 +25,8 @@ struct HPModalContainer<Content: View>: View {
             Image(systemName: "xmark.circle.fill").font(.title3).foregroundStyle(HP.Color.textMuted)
           }
           .buttonStyle(.plain)
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
           .accessibilityLabel("Close")
         }
       }
@@ -33,7 +35,11 @@ struct HPModalContainer<Content: View>: View {
     .padding(HP.Space.lg)
     .frame(maxWidth: 520)
     .background(RoundedRectangle(cornerRadius: HP.Radius.xl, style: .continuous).fill(HP.Color.surface))
-    .overlay(RoundedRectangle(cornerRadius: HP.Radius.xl, style: .continuous).strokeBorder(HP.Color.borderStrong, lineWidth: 1))
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.xl, style: .continuous)
+        .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+        .allowsHitTesting(false)
+    )
     .hpShadow(HP.Shadow.modal)
   }
 }
@@ -96,6 +102,9 @@ private struct HPModalPresenter<C: View>: ViewModifier {
             .padding(HP.Space.lg)
         }
         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98)))
+        #if os(macOS)
+        .onExitCommand { isPresented = false }
+        #endif
       }
     }
     .animation(reduceMotion ? HP.Motion.quick : HP.Motion.emphasis, value: isPresented)

@@ -87,7 +87,7 @@ struct PaymentRequestCard: View {
       HPButton(
         title: checkoutState.isOpening(request.id) ? "Opening Stripe Checkout…" : "Pay Now",
         systemImage: "creditcard",
-        variant: .primary,
+        variant: .secondary,
         size: .md,
         isLoading: checkoutState.isOpening(request.id),
         fullWidth: true,
