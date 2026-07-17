@@ -57,6 +57,13 @@ struct OrgTeamOperationsAdminView: View {
             .font(HP.Font.callout.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
+        NavigationLink {
+          OrgEventOperationsAdminView()
+        } label: {
+          Label("Review Event Operations", systemImage: "checklist.checked")
+            .font(HP.Font.callout.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
       }
     }
   }
