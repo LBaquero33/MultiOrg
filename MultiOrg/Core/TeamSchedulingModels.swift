@@ -31,6 +31,7 @@ struct SDTeamEvent: Identifiable, Codable, Equatable, Sendable {
   let organization_id: UUID
   let season_id: UUID
   let team_id: UUID
+  var team_name: String? = nil
   let series_id: UUID?
   let occurrence_index: Int?
   let event_type: SDTeamEventType

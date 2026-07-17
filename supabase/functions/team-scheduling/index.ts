@@ -32,7 +32,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {};
 
 function publicSelect() {
-  return "id,organization_id,season_id,team_id,series_id,occurrence_index,event_type,title,description,status,start_at,end_at,arrival_at,original_start_at,timezone,all_day,location_name,address,facility_id,visibility,created_at,updated_at,cancelled_at,cancellation_reason,sd_team_event_practices(event_id,objectives,dress_code,equipment_notes,practice_plan_status,facility_resource_label),sd_team_event_games(event_id,opponent,venue_side,game_status,uniform,home_score,away_score,field_details),sd_team_event_tournaments(event_id,tournament_name,host,tournament_start_date,tournament_end_date,parent_tournament_event_id),sd_team_event_meetings(event_id,meeting_type,virtual_link),sd_team_event_travel(event_id,departure_at,destination,transportation_notes,lodging_notes)";
+  return "id,organization_id,season_id,team_id,series_id,occurrence_index,event_type,title,description,status,start_at,end_at,arrival_at,original_start_at,timezone,all_day,location_name,address,facility_id,visibility,created_at,updated_at,cancelled_at,cancellation_reason,sd_teams(name),sd_team_event_practices(event_id,objectives,dress_code,equipment_notes,practice_plan_status,facility_resource_label),sd_team_event_games(event_id,opponent,venue_side,game_status,uniform,home_score,away_score,field_details),sd_team_event_tournaments(event_id,tournament_name,host,tournament_start_date,tournament_end_date,parent_tournament_event_id),sd_team_event_meetings(event_id,meeting_type,virtual_link),sd_team_event_travel(event_id,departure_at,destination,transportation_notes,lodging_notes)";
 }
 
 Deno.serve(async (req) => {
@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
     let query = admin.from("sd_team_events").select(
       consumer
         ? publicSelect()
-        : "*,sd_team_event_practices(*),sd_team_event_games(*),sd_team_event_tournaments(*),sd_team_event_meetings(*),sd_team_event_travel(*),sd_team_event_coaches(*)",
+        : "*,sd_teams(name),sd_team_event_practices(*),sd_team_event_games(*),sd_team_event_tournaments(*),sd_team_event_meetings(*),sd_team_event_travel(*),sd_team_event_coaches(*)",
     )
       .eq("organization_id", organizationId).in("team_id", teamIds)
       .lt("start_at", rangeEnd).gt("end_at", rangeStart).order("start_at", {
@@ -259,6 +259,8 @@ Deno.serve(async (req) => {
     const normalizedEvents =
       ((data ?? []) as unknown as Record<string, unknown>[]).map((event) => {
         const normalized = { ...event };
+        normalized.team_name = text(asRecord(normalized.sd_teams).name) || null;
+        delete normalized.sd_teams;
         for (
           const key of [
             "sd_team_event_practices",
@@ -860,6 +862,24 @@ Deno.serve(async (req) => {
           created_by: callerId,
         })),
       );
+      for (const row of updatedRows) {
+        const changedId = text(row.id);
+        await admin.from("sd_event_operations").update({
+          scheduled_start_at: row.start_at,
+        }).eq("event_id", changedId).eq("organization_id", organizationId);
+        const delta = new Date(text(row.start_at)).getTime() - Date.now();
+        if (delta <= 86_400_000 && delta >= -21_600_000) {
+          await admin.from("sd_team_event_notification_intents").upsert({
+            organization_id: organizationId,
+            team_id: teamId,
+            event_id: changedId,
+            intent_type: "late_schedule_change",
+            deduplication_key: `${requestId}:${changedId}:late_schedule_change`,
+            payload: { change_type: "time_change" },
+            created_by: callerId,
+          }, { onConflict: "organization_id,deduplication_key" });
+        }
+      }
     }
     await admin.from("sd_team_event_audit_logs").insert({
       organization_id: organizationId,
@@ -897,6 +917,26 @@ Deno.serve(async (req) => {
       deduplication_key: `${requestId}:${eventId}:${intent}`,
       created_by: callerId,
     });
+  }
+  if (
+    (intent === "time_change" || intent === "location_change") &&
+    new Date(text(updated.start_at)).getTime() - Date.now() <= 86_400_000 &&
+    new Date(text(updated.start_at)).getTime() >= Date.now() - 21_600_000
+  ) {
+    await admin.from("sd_team_event_notification_intents").upsert({
+      organization_id: organizationId,
+      team_id: teamId,
+      event_id: eventId,
+      intent_type: "late_schedule_change",
+      deduplication_key: `${requestId}:${eventId}:late_schedule_change`,
+      payload: { change_type: intent },
+      created_by: callerId,
+    }, { onConflict: "organization_id,deduplication_key" });
+  }
+  if (before?.start_at !== updated.start_at) {
+    await admin.from("sd_event_operations").update({
+      scheduled_start_at: updated.start_at,
+    }).eq("event_id", eventId!).eq("organization_id", organizationId);
   }
   const auditAction = action === "cancel"
     ? "cancelled"

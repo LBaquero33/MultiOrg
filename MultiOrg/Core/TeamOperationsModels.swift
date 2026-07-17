@@ -88,6 +88,15 @@ enum SDTeamCapability: String, CaseIterable, Codable, Hashable, Identifiable, Se
   case manageTournamentEvent = "manage_tournament_event"
   case manageMeetingEvent = "manage_meeting_event"
   case manageTravelEvent = "manage_travel_event"
+  case viewEventOperation = "view_event_operation"
+  case startEventOperation = "start_event_operation"
+  case manageEventAttendance = "manage_event_attendance"
+  case manageEventAvailability = "manage_event_availability"
+  case manageEventChecklist = "manage_event_checklist"
+  case addTeamEventNotes = "add_team_event_notes"
+  case addPrivatePlayerNotes = "add_private_player_notes"
+  case completeEventOperation = "complete_event_operation"
+  case reopenEventOperation = "reopen_event_operation"
 
   var id: String { rawValue }
 

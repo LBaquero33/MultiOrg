@@ -641,6 +641,334 @@ final class SupabaseService: ObservableObject {
     return response.event.map { [$0] } ?? []
   }
 
+  private struct EventOperationParticipantVersion: Encodable, Sendable {
+    let participant_id: UUID
+    let expected_version: Int
+  }
+
+  private struct EventOperationRequest: Encodable, Sendable {
+    let action: String
+    let organization_id: UUID
+    var event_id: UUID? = nil
+    var team_id: UUID? = nil
+    var event_ids: [UUID]? = nil
+    var player_id: UUID? = nil
+    var request_id: UUID? = nil
+    var expected_version: Int? = nil
+    var status: String? = nil
+    var participant_id: UUID? = nil
+    var participant_ids: [UUID]? = nil
+    var participants: [EventOperationParticipantVersion]? = nil
+    var participant_version: Int? = nil
+    var attendance_status: String? = nil
+    var availability_status: String? = nil
+    var reason: String? = nil
+    var override_reason: String? = nil
+    var correction_reason: String? = nil
+    var expected_arrival_at: String? = nil
+    var expected_departure_at: String? = nil
+    var arrival_at: String? = nil
+    var departure_at: String? = nil
+    var attendance_notes: String? = nil
+    var private_notes: String? = nil
+    var item_id: UUID? = nil
+    var item_version: Int? = nil
+    var completed: Bool? = nil
+    var note_id: UUID? = nil
+    var note_version: Int? = nil
+    var note_type: String? = nil
+    var visibility: String? = nil
+    var body: String? = nil
+    var operational_summary: String? = nil
+  }
+
+  func eventOperation(
+    organizationId: UUID,
+    eventId: UUID,
+    playerId: UUID? = nil
+  ) async throws -> SDEventOperationDetailResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "get",
+        organization_id: organizationId,
+        event_id: eventId,
+        player_id: playerId
+      )
+    )
+  }
+
+  func listEventOperations(
+    organizationId: UUID,
+    teamId: UUID,
+    eventIds: [UUID]
+  ) async throws -> [SDEventOperationSummary] {
+    let response: SDEventOperationListResponse = try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "list",
+        organization_id: organizationId,
+        team_id: teamId,
+        event_ids: eventIds
+      )
+    )
+    return response.operations
+  }
+
+  func initializeEventOperation(
+    organizationId: UUID,
+    eventId: UUID,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationDetailResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "initialize",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId
+      )
+    )
+  }
+
+  func transitionEventOperation(
+    organizationId: UUID,
+    eventId: UUID,
+    expectedVersion: Int,
+    status: SDEventOperationStatus,
+    reason: String? = nil,
+    summary: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "transition",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        expected_version: expectedVersion,
+        status: status.rawValue,
+        reason: reason,
+        operational_summary: summary
+      )
+    )
+  }
+
+  func updateEventAvailability(
+    organizationId: UUID,
+    eventId: UUID,
+    playerId: UUID,
+    participantVersion: Int?,
+    draft: SDEventAvailabilityDraft,
+    overrideReason: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    let formatter = ISO8601DateFormatter()
+    return try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "availability",
+        organization_id: organizationId,
+        event_id: eventId,
+        player_id: playerId,
+        request_id: requestId,
+        participant_version: participantVersion,
+        availability_status: draft.status.rawValue,
+        reason: draft.reason.sdNilIfBlank,
+        override_reason: overrideReason,
+        expected_arrival_at: draft.expectedArrival.map(formatter.string),
+        expected_departure_at: draft.expectedDeparture.map(formatter.string)
+      )
+    )
+  }
+
+  func updateEventAttendance(
+    organizationId: UUID,
+    eventId: UUID,
+    participantId: UUID,
+    participantVersion: Int,
+    status: SDEventAttendanceStatus,
+    arrivalAt: Date? = nil,
+    departureAt: Date? = nil,
+    attendanceNotes: String? = nil,
+    privateNotes: String? = nil,
+    correctionReason: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    let formatter = ISO8601DateFormatter()
+    return try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "attendance",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        participant_id: participantId,
+        participant_version: participantVersion,
+        attendance_status: status.rawValue,
+        correction_reason: correctionReason,
+        arrival_at: arrivalAt.map(formatter.string),
+        departure_at: departureAt.map(formatter.string),
+        attendance_notes: attendanceNotes,
+        private_notes: privateNotes
+      )
+    )
+  }
+
+  func bulkUpdateEventAttendance(
+    organizationId: UUID,
+    eventId: UUID,
+    participants: [SDEventOperationParticipant],
+    status: SDEventAttendanceStatus,
+    correctionReason: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "attendance_bulk",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        participants: participants.map {
+          EventOperationParticipantVersion(
+            participant_id: $0.id,
+            expected_version: $0.version
+          )
+        },
+        attendance_status: status.rawValue,
+        correction_reason: correctionReason
+      )
+    )
+  }
+
+  func updateEventChecklist(
+    organizationId: UUID,
+    eventId: UUID,
+    itemId: UUID,
+    itemVersion: Int,
+    completed: Bool,
+    overrideReason: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "checklist",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        override_reason: overrideReason,
+        item_id: itemId,
+        item_version: itemVersion,
+        completed: completed
+      )
+    )
+  }
+
+  func finalizeEventAttendance(
+    organizationId: UUID,
+    eventId: UUID,
+    expectedVersion: Int,
+    reason: String? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "finalize_attendance",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        expected_version: expectedVersion,
+        reason: reason
+      )
+    )
+  }
+
+  func addEventOperationNote(
+    organizationId: UUID,
+    eventId: UUID,
+    type: String,
+    visibility: String,
+    body: String,
+    playerId: UUID? = nil,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "note",
+        organization_id: organizationId,
+        event_id: eventId,
+        player_id: playerId,
+        request_id: requestId,
+        note_type: type,
+        visibility: visibility,
+        body: body
+      )
+    )
+  }
+
+  func updateEventOperationNote(
+    organizationId: UUID,
+    eventId: UUID,
+    note: SDEventOperationNote,
+    visibility: String,
+    body: String,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "note_update",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        note_id: note.id,
+        note_version: note.version,
+        note_type: note.note_type,
+        visibility: visibility,
+        body: body
+      )
+    )
+  }
+
+  func reconcileEventParticipants(
+    organizationId: UUID,
+    eventId: UUID,
+    expectedVersion: Int,
+    reason: String,
+    requestId: UUID = UUID()
+  ) async throws -> SDEventOperationMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "reconcile_participants",
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        expected_version: expectedVersion,
+        reason: reason
+      )
+    )
+  }
+
+  func eventOperationAuditHistory(
+    organizationId: UUID,
+    eventId: UUID
+  ) async throws -> SDEventOperationAuditResponse {
+    try await invokeAuthenticatedFunction(
+      "event-operations",
+      body: EventOperationRequest(
+        action: "audit_history",
+        organization_id: organizationId,
+        event_id: eventId
+      )
+    )
+  }
+
   private struct SeasonMutationResponse: Decodable, Sendable {
     let season: SDSeason
   }
