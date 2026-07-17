@@ -231,6 +231,7 @@
 		D8D9BE9D814FC3196FA71A78 /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77DD3D586EFCFCC51042235 /* CoachPlayerAnalysisView.swift */; };
 		D98927FE9143284F185DE2C2 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */; };
 		DA87D7BE211965A0A44DFB5D /* PlayerSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C5B5B87ADEC7DBACF332C1 /* PlayerSubscriptionStore.swift */; };
+		DA99F12639633EB63A40E637 /* UniversalUIFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3692A0A791BB625975CB0AB /* UniversalUIFoundationTests.swift */; };
 		DBCB607DB2DD5B0F02F9D6D1 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD18786FB5BE627092918ABF /* NotificationCenterView.swift */; };
 		DC0CEEC47E6F5676801E15EB /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAE1CA6FC3106421648453 /* ParentChildCalendarView.swift */; };
 		DC432D70D22CF9E407DF79E5 /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81072AE4EDB470AF9B158FE3 /* DHDAppConfig.swift */; };
@@ -397,6 +398,7 @@
 		9FB825EDA00E44810205B264 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A09BC4C336AD5F07763B87DF /* TwoAxisScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoAxisScrollView.swift; sourceTree = "<group>"; };
 		A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStateScreenTemplate.swift; sourceTree = "<group>"; };
+		A3692A0A791BB625975CB0AB /* UniversalUIFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalUIFoundationTests.swift; sourceTree = "<group>"; };
 		A650F6738EB0ABFB970FD3B8 /* HPToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPToast.swift; sourceTree = "<group>"; };
 		A7A76C3E9D84327BD93DB783 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A980B4434AE15B0118E411DC /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
@@ -769,6 +771,7 @@
 				F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */,
 				CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */,
 				113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */,
+				A3692A0A791BB625975CB0AB /* UniversalUIFoundationTests.swift */,
 			);
 			path = MultiOrgTests;
 			sourceTree = "<group>";
@@ -1267,6 +1270,7 @@
 				D124354D452D6B07D255D625 /* PlayerDevelopmentImportTests.swift in Sources */,
 				34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */,
 				77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */,
+				DA99F12639633EB63A40E637 /* UniversalUIFoundationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

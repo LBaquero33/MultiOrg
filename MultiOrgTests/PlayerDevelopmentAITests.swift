@@ -190,7 +190,7 @@ struct PlayerDevelopmentAITests {
       contentsOf: projectRoot.appendingPathComponent("MultiOrg/Core/DHDUIComponents.swift"),
       encoding: .utf8
     )
-    #expect(source.contains("DHDDiamondPattern(color: Color.white.opacity(0.06))"))
+    #expect(source.contains("DHDDiamondPattern(color: DHDTheme.identityText.opacity(0.06))"))
     #expect(source.contains(".allowsHitTesting(false)"))
   }
 
