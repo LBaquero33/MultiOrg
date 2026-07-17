@@ -604,7 +604,7 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
   }
 
   private var contextKey: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(audience.rawValue)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(audience.rawValue):\(appState.isPlayerDevelopmentCopilotEnabled)"
   }
   private var presentation: SDCopilotPresentationPolicy {
     SDCopilotPresentationPolicy(audience: audience)
@@ -624,7 +624,17 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
 
   var body: some View {
     Group {
-      if !SDDevelopmentPresentationAuthorization.isCopilotVisible(
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if !SDDevelopmentPresentationAuthorization.isCopilotVisible(
         membership: appState.activeOrgMembership,
         audience: audience,
         userId: appState.myProfile?.id,
@@ -666,11 +676,17 @@ struct PlayerDevelopmentCopilotWorkspaceView: View {
     }
     .background(HP.Color.bg)
     .task(id: contextKey) {
-      guard let service = appState.supabase,
+      guard appState.isPlayerDevelopmentCopilotEnabled,
+            let service = appState.supabase,
             let organizationId = appState.activeOrgId,
             let userId = appState.myProfile?.id else { return }
       model.reset()
       await model.load(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience)
+    }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      guard !enabled else { return }
+      model.dismissPresentedConversation()
+      model.reset()
     }
     .copilotConversationPresentation(
       item: presentedConversation,
@@ -1020,7 +1036,7 @@ struct PlayerDevelopmentCopilotConversationView: View {
   private var conversationId: UUID { conversation.id }
 
   private var contextKey: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(conversationId):\(audience.rawValue)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(conversationId):\(audience.rawValue):\(appState.isPlayerDevelopmentCopilotEnabled)"
   }
   private var presentation: SDCopilotPresentationPolicy {
     SDCopilotPresentationPolicy(audience: audience)
@@ -1030,7 +1046,17 @@ struct PlayerDevelopmentCopilotConversationView: View {
 
   var body: some View {
     Group {
-      if let service = appState.supabase,
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if let service = appState.supabase,
          let organizationId = appState.activeOrgId,
          let userId = appState.myProfile?.id {
         HPCommunicationScreenLayout(compactPane: .thread) { context in
@@ -1064,7 +1090,8 @@ struct PlayerDevelopmentCopilotConversationView: View {
             #endif
         }
       }
-      ToolbarItem(placement: .primaryAction) {
+      if appState.isPlayerDevelopmentCopilotEnabled {
+        ToolbarItem(placement: .primaryAction) {
         Menu {
           Picker("Reporting window", selection: $reportingDays) {
             Text("30 days").tag(30)
@@ -1111,16 +1138,24 @@ struct PlayerDevelopmentCopilotConversationView: View {
           Image(systemName: "ellipsis.circle")
             .accessibilityLabel("More conversation actions")
         }
+        }
       }
     }
     .background(HP.Color.bg)
     .task(id: contextKey) {
-      guard let service = appState.supabase,
+      guard appState.isPlayerDevelopmentCopilotEnabled,
+            let service = appState.supabase,
             let organizationId = appState.activeOrgId,
             let userId = appState.myProfile?.id else { return }
       model.reset()
       await model.load(client: service, organizationId: organizationId, userId: userId, playerId: player.id, audience: audience, conversationId: conversationId)
       model.prefill(initialQuestion)
+    }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      guard !enabled else { return }
+      selectedCitation = nil
+      selectedParentDraft = nil
+      model.reset()
     }
     .sheet(item: $selectedCitation) { EvidenceCitationDetailView(citation: $0) }
     .sheet(item: $selectedParentDraft) { draft in
@@ -1834,12 +1869,22 @@ struct ParentUpdateDraftDetailView: View {
           #endif
       }
     }
-    .task(id: "\(appState.activeOrgAuthorizationKey):\(draftId)") { await load() }
+    .task(id: "\(appState.activeOrgAuthorizationKey):\(draftId):\(appState.isPlayerDevelopmentCopilotEnabled)") { await load() }
   }
 
   @ViewBuilder
   private var draftBody: some View {
-    if let detail, edited != nil {
+    if !appState.isPlayerDevelopmentCopilotEnabled {
+      HPScreenScaffold(maxContentWidth: 720) { _ in
+        HPCard {
+          HPEmptyState(
+            title: "Feature unavailable",
+            message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+            systemImage: "lock.fill"
+          )
+        }
+      }
+    } else if let detail, edited != nil {
       draftForm(detail)
     } else if let errorMessage {
       HPScreenScaffold(maxContentWidth: 720) { _ in
@@ -2065,7 +2110,13 @@ struct ParentUpdateDraftDetailView: View {
   }
 
   private func load() async {
-    guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let service = appState.supabase,
+          let organizationId = appState.activeOrgId else {
+      detail = nil
+      edited = nil
+      return
+    }
     do {
       let loaded = try await service.parentUpdateDraft(organizationId: organizationId, draftId: draftId)
       guard appState.activeOrgId == organizationId, loaded.draft.playerId == player.id else { return }
@@ -2075,7 +2126,11 @@ struct ParentUpdateDraftDetailView: View {
   }
 
   private func save(markReviewed: Bool) async {
-    guard !isWorking, let service = appState.supabase, let organizationId = appState.activeOrgId, let edited else { return }
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          !isWorking,
+          let service = appState.supabase,
+          let organizationId = appState.activeOrgId,
+          let edited else { return }
     isWorking = true; defer { isWorking = false }
     do {
       _ = try await service.updateParentUpdateDraft(organizationId: organizationId, draftId: draftId, content: markReviewed ? nil : edited, markReviewed: markReviewed, note: nil)
@@ -2084,7 +2139,10 @@ struct ParentUpdateDraftDetailView: View {
   }
 
   private func transition(_ action: String) async {
-    guard !isWorking, let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          !isWorking,
+          let service = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
     isWorking = true; defer { isWorking = false }
     do {
       _ = try await service.transitionParentUpdateDraft(organizationId: organizationId, draftId: draftId, action: action, note: nil)

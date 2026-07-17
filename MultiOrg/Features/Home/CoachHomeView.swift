@@ -54,6 +54,9 @@ struct CoachHomeView: View {
         .environmentObject(appState)
         .onExitCommand { showRosterAttention = false }
     }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      if !enabled { showRosterAttention = false }
+    }
 #else
     NavigationStack {
       HPWorkspaceScreenLayout {
@@ -106,11 +109,13 @@ struct CoachHomeView: View {
       }
       .navigationTitle("Coach")
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
-            showRosterAttention = true
-          } label: {
-            Label("Roster Attention", systemImage: "exclamationmark.bubble")
+        if appState.isPlayerDevelopmentCopilotEnabled {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button {
+              showRosterAttention = true
+            } label: {
+              Label("Roster Attention", systemImage: "exclamationmark.bubble")
+            }
           }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -141,6 +146,9 @@ struct CoachHomeView: View {
       }
       .task {
         await reload()
+      }
+      .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+        if !enabled { showRosterAttention = false }
       }
     }
 #endif
@@ -337,10 +345,12 @@ struct CoachHomeView: View {
         }
         .accessibilityLabel("Refresh roster")
 
-        Button {
-          showRosterAttention = true
-        } label: {
-          Label("Roster Attention", systemImage: "exclamationmark.bubble")
+        if appState.isPlayerDevelopmentCopilotEnabled {
+          Button {
+            showRosterAttention = true
+          } label: {
+            Label("Roster Attention", systemImage: "exclamationmark.bubble")
+          }
         }
       }
     }

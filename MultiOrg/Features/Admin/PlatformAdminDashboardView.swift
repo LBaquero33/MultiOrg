@@ -70,6 +70,8 @@ struct PlatformAdminDashboardView: View {
   @State private var userResults: [SDPlatformUserDirectoryEntry] = []
   @State private var isSearchingUsers = false
   @State private var platformAdministrators: [SDPlatformAdministrator] = []
+  @State private var platformFeatureFlags: [SDPlatformFeatureFlag] = []
+  @State private var platformFeatureMutationKey: String?
   @State private var auditEntries: [SDPlatformAuditEntry] = []
   @State private var pendingPlatformAdminChange: PlatformAdministratorChange?
   @StateObject private var creationWorkflow = PlatformOrganizationCreationWorkflow()
@@ -219,6 +221,7 @@ struct PlatformAdminDashboardView: View {
         metricGrid(dashboard, context: context)
         ownerlessOrganizationWarning(dashboard.ownerless_organizations)
         unmanagedOrganizationWarning(dashboard.unmanaged_organizations)
+        platformFeatureControlsCard(context)
         organizationDirectory(dashboard.organizations, context: context)
         if let organization = dashboard.organizations.first(where: { $0.id == selectedOrganizationId }) {
           organizationMemberCard(organization, context: context)
@@ -721,6 +724,48 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
+  private func platformFeatureControlsCard(_ context: HPScreenLayoutContext) -> some View {
+    let key = SDPlatformFeatureKey.playerDevelopmentCopilot
+    let enabled = SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(
+      in: platformFeatureFlags
+    )
+    let isMutating = platformFeatureMutationKey == key
+    let layout = context.isExpanded
+      ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.md))
+    return HPCard {
+      layout {
+        VStack(alignment: .leading, spacing: 4) {
+          HPSectionHeader("Player Development Copilot")
+          Text("Enables AI-assisted coach and player Copilot experiences across Home Plate.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        if context.isExpanded { Spacer(minLength: HP.Space.sm) }
+        HStack(spacing: HP.Space.sm) {
+          HPStatusBadge(
+            text: isMutating ? "Updating" : (enabled ? "Enabled" : "Disabled"),
+            kind: enabled ? .success : .neutral
+          )
+          Toggle(
+            "Player Development Copilot",
+            isOn: Binding(
+              get: { enabled },
+              set: { newValue in
+                Task { await setPlayerDevelopmentCopilotEnabled(newValue) }
+              }
+            )
+          )
+          .labelsHidden()
+          .accessibilityLabel("Player Development Copilot")
+          .disabled(isMutating)
+        }
+      }
+    }
+  }
+
   private func auditHistoryCard(_ context: HPScreenLayoutContext) -> some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
@@ -840,9 +885,36 @@ struct PlatformAdminDashboardView: View {
   private func reloadPlatformSupportingData() async {
     guard let supabase = appState.supabase else { return }
     async let loadedAdministrators = try? supabase.platformAdministrators()
+    async let loadedFeatureFlags = try? supabase.platformAdminFeatureFlags()
     async let loadedAudit = try? supabase.platformAuditHistory()
     platformAdministrators = await loadedAdministrators ?? []
+    platformFeatureFlags = await loadedFeatureFlags ?? []
     auditEntries = await loadedAudit ?? []
+  }
+
+  private func setPlayerDevelopmentCopilotEnabled(_ enabled: Bool) async {
+    guard let supabase = appState.supabase else { return }
+    let key = SDPlatformFeatureKey.playerDevelopmentCopilot
+    guard platformFeatureMutationKey == nil else { return }
+    platformFeatureMutationKey = key
+    defer { platformFeatureMutationKey = nil }
+    do {
+      let updated = try await supabase.platformSetFeatureFlag(
+        key: key,
+        enabled: enabled,
+        requestId: UUID()
+      )
+      platformFeatureFlags.removeAll(where: { $0.key == key })
+      platformFeatureFlags.append(updated)
+      await appState.refreshPlatformFeatureFlags()
+      await reloadPlatformSupportingData()
+      toastText = enabled
+        ? "Player Development Copilot enabled."
+        : "Player Development Copilot disabled."
+    } catch {
+      await reloadPlatformSupportingData()
+      errorText = "The Player Development Copilot setting could not be updated."
+    }
   }
 
   private func platformDate(_ value: String?) -> String {
@@ -851,6 +923,11 @@ struct PlatformAdminDashboardView: View {
   }
 
   private func auditSummary(_ entry: SDPlatformAuditEntry) -> String {
+    let previousEnabled = entry.details["previous_enabled"]?.boolValue
+    let newEnabled = entry.details["new_enabled"]?.boolValue
+    if let previousEnabled, let newEnabled {
+      return "\(previousEnabled ? "Enabled" : "Disabled") → \(newEnabled ? "Enabled" : "Disabled")"
+    }
     let previousRole = entry.details["previous_role"]?.stringValue
     let newRole = entry.details["new_role"]?.stringValue
     let previousStatus = entry.details["previous_status"]?.stringValue

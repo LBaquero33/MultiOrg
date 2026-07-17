@@ -98,6 +98,19 @@ export class SupabasePlayerDevelopmentAIStore
     return data.user?.id ?? null;
   }
 
+  async platformFeatureEnabled(key: string): Promise<boolean> {
+    const { data, error } = await this.admin.from("sd_platform_feature_flags")
+      .select("enabled").eq("key", key).maybeSingle();
+    if (error) {
+      console.error(JSON.stringify({
+        event: "platform_feature_flag_lookup_failed",
+        key,
+      }));
+      return false;
+    }
+    return data?.enabled === true;
+  }
+
   async organizationStatus(orgId: string): Promise<string | null> {
     const { data, error } = await this.admin.from("sd_orgs").select("status")
       .eq("id", orgId).maybeSingle();

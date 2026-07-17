@@ -180,6 +180,7 @@ function conversation(): CopilotConversation {
 
 class MemoryStore implements CopilotStore {
   actor: string | null = ACTOR;
+  featureEnabled = true;
   organization = "active";
   membershipOrgId = ORG;
   member: DevelopmentMembership | null = { role: "coach", status: "active" };
@@ -205,6 +206,9 @@ class MemoryStore implements CopilotStore {
   };
   authenticate(): Promise<string | null> {
     return Promise.resolve(this.actor);
+  }
+  platformFeatureEnabled(): Promise<boolean> {
+    return Promise.resolve(this.featureEnabled);
   }
   organizationStatus(): Promise<string | null> {
     return Promise.resolve(this.organization);
@@ -525,6 +529,43 @@ function assistantMessage(
     pending_question: null,
   };
 }
+
+Deno.test("disabled Copilot returns the canonical feature_disabled envelope without mutating history", async () => {
+  const store = new MemoryStore();
+  const existing = assistantMessage("coach");
+  store.currentMessages = [existing];
+  store.featureEnabled = false;
+  const handler = createPlayerDevelopmentCopilotHandler(
+    store,
+    () => provider(validAnswer()),
+  );
+
+  const disabled = await handler(request("ask", {
+    player_id: PLAYER,
+    conversation_id: CONVERSATION,
+    question: "What changed?",
+    window_start: "2026-04-01",
+    window_end: "2026-07-16",
+    evidence_cutoff: "2026-07-16T12:00:00Z",
+    idempotency_key: KEY,
+  }));
+  const payload = await disabled.json();
+  assertEquals(disabled.status, 503);
+  assertEquals(payload.ok, false);
+  assertEquals(payload.answer, null);
+  assertEquals(payload.error.code, "feature_disabled");
+  assertEquals(payload.error.retryable, false);
+  assertEquals(store.persisted, 0);
+  assertEquals(store.currentMessages, [existing]);
+
+  store.featureEnabled = true;
+  const restored = await handler(request("get_conversation", {
+    conversation_id: CONVERSATION,
+  }));
+  const restoredPayload = await restored.json();
+  assertEquals(restored.status, 200);
+  assertEquals(restoredPayload.messages, [existing]);
+});
 
 Deno.test("Player Copilot active player creates only a self player-audience conversation", async () => {
   const store = playerStore();

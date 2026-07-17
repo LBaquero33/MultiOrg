@@ -6,6 +6,7 @@ import type {
   DevelopmentQualityStatus,
   DevelopmentReportRecord,
 } from "./player_development_ai.ts";
+import { PLAYER_DEVELOPMENT_COPILOT_FEATURE_KEY } from "./platform_feature_flags.ts";
 
 export const COPILOT_EVIDENCE_SCHEMA_VERSION =
   "player_development_evidence_pack.v1";
@@ -372,6 +373,7 @@ export interface CopilotGenerationProvider {
 
 export interface CopilotStore {
   authenticate(request: Request): Promise<string | null>;
+  platformFeatureEnabled(key: string): Promise<boolean>;
   organizationStatus(orgId: string): Promise<string | null>;
   membership(
     orgId: string,
@@ -586,6 +588,8 @@ function rawJSON(
 
 const safeMessages: Record<string, string> = {
   invalid_auth: "Your session could not be verified. Sign in and try again.",
+  feature_disabled:
+    "Player Development AI and Copilot are currently disabled by Home Plate.",
   invalid_json: "The Copilot request could not be read.",
   request_too_large: "The Copilot request is too large.",
   invalid_request: "The Copilot request is invalid.",
@@ -2237,6 +2241,7 @@ export function createPlayerDevelopmentCopilotHandler(
       : crypto.randomUUID();
     const nonRetryableCodes = new Set([
       "invalid_auth",
+      "feature_disabled",
       "invalid_json",
       "request_too_large",
       "invalid_request",
@@ -2296,6 +2301,13 @@ export function createPlayerDevelopmentCopilotHandler(
     if (request.method !== "POST") return failure(405, "unsupported_action");
     const actorId = await store.authenticate(request);
     if (!actorId) return failure(401, "invalid_auth");
+    if (
+      !await store.platformFeatureEnabled(
+        PLAYER_DEVELOPMENT_COPILOT_FEATURE_KEY,
+      )
+    ) {
+      return failure(503, "feature_disabled");
+    }
     let body: Record<string, unknown>;
     try {
       body = await readBoundedObject(request);

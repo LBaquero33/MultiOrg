@@ -44,6 +44,7 @@ final class AppState: ObservableObject {
   @Published var requestedChatChannelId: UUID?
   @Published var requestedNotification: AppNotification?
   @Published private(set) var isPlatformAdmin = false
+  @Published private(set) var platformFeatureFlags: [SDPlatformFeatureFlag] = []
 
   let pushNotifications = PushNotificationManager()
   private let pendingPushNotificationKey = "homePlate.pendingNotificationId"
@@ -98,6 +99,12 @@ final class AppState: ObservableObject {
     activeOrgMembership?.isStaff == true
   }
 
+  var isPlayerDevelopmentCopilotEnabled: Bool {
+    SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(
+      in: platformFeatureFlags
+    )
+  }
+
   var activeOrgAuthorizationKey: String {
     guard let membership = activeOrgMembership else {
       return "\(activeOrgId?.uuidString.lowercased() ?? "none"):none"
@@ -135,6 +142,7 @@ final class AppState: ObservableObject {
     availableOrganizations = []
     activeOrgSettings = nil
     isPlatformAdmin = false
+    platformFeatureFlags = []
   }
 
   private func clearChatContext() {
@@ -536,9 +544,24 @@ final class AppState: ObservableObject {
   private func startLiveUpdates() {
     Task { [weak self] in
       guard let self else { return }
+      await self.refreshPlatformFeatureFlags()
       await self.refreshPlatformAdminStatus()
       await self.startCoachListenersIfNeeded()
       await self.startChatListenerIfNeeded()
+    }
+  }
+
+  func refreshPlatformFeatureFlags() async {
+    guard let supabase, isAuthenticated else {
+      platformFeatureFlags = []
+      return
+    }
+    do {
+      platformFeatureFlags = try await supabase.platformFeatureFlags()
+    } catch {
+      // This global release control always fails closed. A missing migration,
+      // unavailable server, or malformed response must never expose AI routes.
+      platformFeatureFlags = []
     }
   }
 

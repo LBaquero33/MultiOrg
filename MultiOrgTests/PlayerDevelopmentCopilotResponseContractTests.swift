@@ -189,3 +189,76 @@ struct PlayerDevelopmentCopilotResponseContractTests {
 private enum TestContractError: Error {
   case expectedFailure
 }
+
+@Suite("Player Development AI platform vault")
+struct PlayerDevelopmentPlatformVaultTests {
+  @Test("The authoritative feature defaults off when no row is available")
+  func defaultOff() {
+    #expect(!SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(in: []))
+  }
+
+  @Test("Disabled state removes the player route and rejects stale navigation")
+  func disabledPlayerRoute() {
+    let inventory = HPAppNavigationInventory.player(
+      chatEnabled: true,
+      facilitiesEnabled: true,
+      testingEnabled: true,
+      analysisEnabled: true,
+      developmentAIEnabled: false,
+      facilitiesTitle: "Facilities",
+      testingTitle: "Testing"
+    )
+    #expect(inventory.destination(forWorkspaceKey: HPAppNavigationDestination.playerDevelopment.rawValue) == nil)
+    #expect(inventory.normalizedRegularSelection(.playerDevelopment) == .playerToday)
+  }
+
+  @Test("Enabled state restores Player Copilot navigation")
+  func enabledPlayerRoute() throws {
+    let inventory = HPAppNavigationInventory.player(
+      chatEnabled: true,
+      facilitiesEnabled: true,
+      testingEnabled: true,
+      analysisEnabled: true,
+      developmentAIEnabled: true,
+      facilitiesTitle: "Facilities",
+      testingTitle: "Testing"
+    )
+    #expect(inventory.destination(forWorkspaceKey: HPAppNavigationDestination.playerDevelopment.rawValue) == .playerDevelopment)
+  }
+
+  @Test("Disabled state removes Coach AI and enabled state restores it")
+  func coachRouteToggle() {
+    #expect(!CoachPlayerProfileView.Tab.visible(playerDevelopmentAIEnabled: false).contains(.developmentAI))
+    #expect(CoachPlayerProfileView.Tab.visible(playerDevelopmentAIEnabled: true).contains(.developmentAI))
+  }
+
+  @Test("Only an explicit enabled server row opens the feature")
+  func explicitServerEnable() {
+    let enabled = SDPlatformFeatureFlag(
+      key: SDPlatformFeatureKey.playerDevelopmentCopilot,
+      enabled: true,
+      description: "Enables AI-assisted coach and player Copilot experiences across Home Plate.",
+      updated_at: nil,
+      updated_by: nil
+    )
+    let unrelated = SDPlatformFeatureFlag(
+      key: "unrelated_feature",
+      enabled: true,
+      description: "Unrelated",
+      updated_at: nil,
+      updated_by: nil
+    )
+    #expect(SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(in: [enabled]))
+    #expect(!SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(in: [unrelated]))
+  }
+
+  @Test("Feature-disabled failures are controlled and non-retryable")
+  func disabledFailurePresentation() {
+    let presentation = SDCopilotFailurePresentation(
+      code: "feature_disabled",
+      fallbackMessage: "Internal backend detail"
+    )
+    #expect(presentation.message == "Player Development AI and Copilot are currently disabled by Home Plate.")
+    #expect(!presentation.isRetryable)
+  }
+}

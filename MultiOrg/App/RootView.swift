@@ -42,6 +42,7 @@ struct RootView: View {
       guard appState.isAuthenticated else { return }
       Task {
         await appState.configurePushNotifications()
+        await appState.refreshPlatformFeatureFlags()
         // Platform support is server-authorized and may have changed while the
         // app was backgrounded. Refresh it before navigation or controls gate
         // on the cached value.

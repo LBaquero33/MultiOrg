@@ -861,7 +861,7 @@ struct PlayerDevelopmentCopilotTests {
     #expect(coachAISource.contains("audience: .coach"))
     #expect(coachAISource.contains("presentationStyle: .modal"))
     #expect(coachAISource.contains(".frame(minWidth: 760, minHeight: 720)"))
-    #expect(coachProfileSource.contains("ForEach(Tab.allCases)"))
+    #expect(coachProfileSource.contains("ForEach(Tab.visible(playerDevelopmentAIEnabled:"))
     #expect(coachProfileSource.contains("case developmentAI = \"Development AI\""))
     #expect(coachProfileSource.contains("Includes Player Development AI and Coach Copilot"))
   }

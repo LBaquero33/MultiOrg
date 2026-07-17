@@ -563,6 +563,54 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  func platformFeatureFlags() async throws -> [SDPlatformFeatureFlag] {
+    try await client
+      .from("sd_platform_feature_flags")
+      .select("key,enabled,description,updated_at,updated_by")
+      .order("key")
+      .execute()
+      .value
+  }
+
+  func platformAdminFeatureFlags() async throws -> [SDPlatformFeatureFlag] {
+    struct Request: Encodable { let action = "list_platform_feature_flags" }
+    let response: SDPlatformFeatureFlagsResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request()
+    )
+    return response.feature_flags
+  }
+
+  func platformSetFeatureFlag(
+    key: String,
+    enabled: Bool,
+    requestId: UUID
+  ) async throws -> SDPlatformFeatureFlag {
+    struct Request: Encodable {
+      let action = "update_platform_feature_flag"
+      let key: String
+      let enabled: Bool
+      let request_id: UUID
+    }
+    let response: SDPlatformFeatureFlagResponse = try await invokeAuthenticatedFunction(
+      "platform_admin",
+      body: Request(key: key, enabled: enabled, request_id: requestId)
+    )
+    return response.feature_flag
+  }
+
+  private func requirePlayerDevelopmentCopilotEnabled() async throws {
+    let flags: [SDPlatformFeatureFlag]
+    do {
+      flags = try await platformFeatureFlags()
+    } catch {
+      throw SDPlatformFeatureDisabledError.playerDevelopmentCopilot
+    }
+    guard SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(in: flags) else {
+      throw SDPlatformFeatureDisabledError.playerDevelopmentCopilot
+    }
+  }
+
   /// Checks server-authorized platform access without decoding organization
   /// billing rows. Permission visibility must not depend on optional legacy
   /// fields in the dashboard payload.
@@ -1819,6 +1867,7 @@ final class SupabaseService: ObservableObject {
   private func invokePlayerDevelopmentAI<Request: Encodable, Response: Decodable>(
     _ request: Request
   ) async throws -> Response {
+    try await requirePlayerDevelopmentCopilotEnabled()
     do {
       return try await invokeAuthenticatedFunction("player-development-ai", body: request)
     } catch let error as FunctionsError {
@@ -2282,6 +2331,7 @@ final class SupabaseService: ObservableObject {
     _ request: SDCopilotRequest,
     canonicalPayloadKey: SDCopilotCanonicalPayloadKey = .data
   ) async throws -> Response {
+    try await requirePlayerDevelopmentCopilotEnabled()
     var correlatedRequest = request
     let requestId = request.clientRequestId ?? UUID()
     correlatedRequest.clientRequestId = requestId

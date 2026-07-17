@@ -123,6 +123,7 @@ struct HPAppNavigationInventory: Equatable {
     facilitiesEnabled: Bool,
     testingEnabled: Bool,
     analysisEnabled: Bool,
+    developmentAIEnabled: Bool = true,
     facilitiesTitle: String,
     testingTitle: String
   ) -> Self {
@@ -138,6 +139,7 @@ struct HPAppNavigationInventory: Equatable {
       "Development AI",
       "sparkles.rectangle.stack"
     )
+    let developmentItems = developmentAIEnabled ? [development] : []
     let account = item(.account, "Account", "gearshape")
 
     let compact = [today, calendar, trends] + (chatEnabled ? [chat] : [])
@@ -146,7 +148,7 @@ struct HPAppNavigationInventory: Equatable {
         title: "Develop",
         items: (testingEnabled ? [testing] : [])
           + (analysisEnabled ? [analysis] : [])
-          + [development]
+          + developmentItems
       ),
       HPAppNavigationSection(
         title: "Run",
@@ -162,7 +164,7 @@ struct HPAppNavigationInventory: Equatable {
         items: [trends]
           + (testingEnabled ? [testing] : [])
           + (analysisEnabled ? [analysis] : [])
-          + [development]
+          + developmentItems
       ),
       HPAppNavigationSection(
         title: "Run",

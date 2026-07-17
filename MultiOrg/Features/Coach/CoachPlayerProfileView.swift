@@ -13,6 +13,10 @@ struct CoachPlayerProfileView: View {
     case analysis = "Analysis"
     case developmentAI = "Development AI"
     var id: String { rawValue }
+
+    static func visible(playerDevelopmentAIEnabled: Bool) -> [Tab] {
+      allCases.filter { playerDevelopmentAIEnabled || $0 != .developmentAI }
+    }
   }
 
   @State private var tab: Tab = .overview
@@ -26,7 +30,7 @@ struct CoachPlayerProfileView: View {
         ToolbarItem(placement: .automatic) {
           ViewThatFits(in: .horizontal) {
             Picker("Player sections", selection: $tab) {
-              ForEach(Tab.allCases) { section in
+              ForEach(Tab.visible(playerDevelopmentAIEnabled: appState.isPlayerDevelopmentCopilotEnabled)) { section in
                 Text(section.rawValue).tag(section)
               }
             }
@@ -35,7 +39,7 @@ struct CoachPlayerProfileView: View {
             .fixedSize(horizontal: true, vertical: false)
 
             Picker("Player sections", selection: $tab) {
-              ForEach(Tab.allCases) { section in
+              ForEach(Tab.visible(playerDevelopmentAIEnabled: appState.isPlayerDevelopmentCopilotEnabled)) { section in
                 Text(section.rawValue).tag(section)
               }
             }
@@ -47,7 +51,7 @@ struct CoachPlayerProfileView: View {
 #else
         ToolbarItem(placement: .primaryAction) {
           Menu {
-            ForEach(Tab.allCases) { section in
+            ForEach(Tab.visible(playerDevelopmentAIEnabled: appState.isPlayerDevelopmentCopilotEnabled)) { section in
               Button {
                 tab = section
               } label: {
@@ -62,7 +66,11 @@ struct CoachPlayerProfileView: View {
             Label(tab.rawValue, systemImage: "rectangle.grid.1x2")
           }
           .accessibilityLabel("Player sections")
-          .accessibilityHint("Includes Player Development AI and Coach Copilot")
+          .accessibilityHint(
+            appState.isPlayerDevelopmentCopilotEnabled
+              ? "Includes Player Development AI and Coach Copilot"
+              : "Choose a player section"
+          )
         }
 #endif
       }
@@ -72,6 +80,9 @@ struct CoachPlayerProfileView: View {
       #endif
       .task(id: player.id) {
         canManagePlayer = await appState.canManagePlayerOnActiveTeam(player.id)
+      }
+      .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+        if !enabled, tab == .developmentAI { tab = .overview }
       }
   }
 
@@ -89,7 +100,11 @@ struct CoachPlayerProfileView: View {
     case .analysis:
       CoachPlayerAnalysisView(player: player)
     case .developmentAI:
-      PlayerDevelopmentAIWorkspaceView(player: player)
+      if appState.isPlayerDevelopmentCopilotEnabled {
+        PlayerDevelopmentAIWorkspaceView(player: player)
+      } else {
+        CoachPlayerOverviewView(player: player)
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
 import { playerVisibleEvidencePack } from "./player_development_copilot.ts";
+import { PLAYER_DEVELOPMENT_COPILOT_FEATURE_KEY } from "./platform_feature_flags.ts";
 
 export type DevelopmentMembership = { role: string; status: string };
 
@@ -311,6 +312,7 @@ export type AlertCandidate =
 
 export interface PlayerDevelopmentAIStore {
   authenticate(request: Request): Promise<string | null>;
+  platformFeatureEnabled(key: string): Promise<boolean>;
   organizationStatus(orgId: string): Promise<string | null>;
   membership(
     orgId: string,
@@ -444,6 +446,8 @@ function json(status: number, body: Record<string, unknown>): Response {
 function safeMessage(code: string): string {
   const messages: Record<string, string> = {
     invalid_auth: "Your session could not be verified. Sign in and try again.",
+    feature_disabled:
+      "Player Development AI and Copilot are currently disabled by Home Plate.",
     invalid_json: "The Player Development AI request could not be read.",
     request_too_large: "The Player Development AI request is too large.",
     invalid_request: "The Player Development AI request is invalid.",
@@ -1333,6 +1337,17 @@ export function createPlayerDevelopmentAIHandler(
       return json(401, {
         error: "invalid_auth",
         message: safeMessage("invalid_auth"),
+      });
+    }
+    if (
+      !await store.platformFeatureEnabled(
+        PLAYER_DEVELOPMENT_COPILOT_FEATURE_KEY,
+      )
+    ) {
+      return json(503, {
+        error: "feature_disabled",
+        message: safeMessage("feature_disabled"),
+        retryable: false,
       });
     }
     let body: Record<string, unknown>;

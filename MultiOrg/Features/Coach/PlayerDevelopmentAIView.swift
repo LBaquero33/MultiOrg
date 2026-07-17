@@ -228,12 +228,22 @@ struct PlayerDevelopmentAIWorkspaceView: View {
 
   private var window: SDDevelopmentWindow { .trailingDays(reportingDays) }
   private var contextKey: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(reportingDays)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):\(reportingDays):\(appState.isPlayerDevelopmentCopilotEnabled)"
   }
 
   var body: some View {
     Group {
-      if !SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership) {
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if !SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership) {
         HPStateScreenLayout { _ in
           HPCard {
             HPEmptyState(
@@ -289,6 +299,13 @@ struct PlayerDevelopmentAIWorkspaceView: View {
       #if os(macOS)
       .frame(minWidth: 760, minHeight: 720)
       #endif
+    }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      if !enabled {
+        showCoachCopilot = false
+        showDataImport = false
+        model.reset()
+      }
     }
   }
 
@@ -360,6 +377,10 @@ struct PlayerDevelopmentAIWorkspaceView: View {
       }
     }
     .task(id: contextKey) {
+      guard appState.isPlayerDevelopmentCopilotEnabled else {
+        model.reset()
+        return
+      }
       model.reset()
       await model.load(
         client: service,
@@ -802,7 +823,17 @@ struct DevelopmentReportDetailView: View {
 
   var body: some View {
     Group {
-      if hasCurrentAccess {
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if hasCurrentAccess {
         reportWorkspace
       } else {
         HPStateScreenLayout { _ in
@@ -836,8 +867,8 @@ struct DevelopmentReportDetailView: View {
         .accessibilityIdentifier("development-report-dismiss")
       }
     }
-    .task(id: contextKey) {
-      guard hasCurrentAccess else {
+    .task(id: "\(contextKey):\(appState.isPlayerDevelopmentCopilotEnabled)") {
+      guard appState.isPlayerDevelopmentCopilotEnabled, hasCurrentAccess else {
         detail = nil
         errorMessage = nil
         return
@@ -1185,7 +1216,17 @@ struct DevelopmentAlertDetailView: View {
   var body: some View {
     NavigationStack {
       Group {
-        if hasCurrentAccess {
+        if !appState.isPlayerDevelopmentCopilotEnabled {
+          HPStateScreenLayout { _ in
+            HPCard {
+              HPEmptyState(
+                title: "Feature unavailable",
+                message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+                systemImage: "lock.fill"
+              )
+            }
+          }
+        } else if hasCurrentAccess {
           alertDetail
         } else {
           HPStateScreenLayout { _ in
@@ -1209,8 +1250,8 @@ struct DevelopmentAlertDetailView: View {
             #endif
         }
       }
-      .task(id: contextKey) {
-        guard hasCurrentAccess else {
+      .task(id: "\(contextKey):\(appState.isPlayerDevelopmentCopilotEnabled)") {
+        guard appState.isPlayerDevelopmentCopilotEnabled, hasCurrentAccess else {
           detail = nil
           errorMessage = nil
           return
@@ -1482,7 +1523,17 @@ struct DevelopmentRosterAttentionView: View {
   var body: some View {
     NavigationStack {
       Group {
-        if SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership) {
+        if !appState.isPlayerDevelopmentCopilotEnabled {
+          HPStateScreenLayout { _ in
+            HPCard {
+              HPEmptyState(
+                title: "Feature unavailable",
+                message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+                systemImage: "lock.fill"
+              )
+            }
+          }
+        } else if SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership) {
           rosterList
         } else {
           HPStateScreenLayout { _ in
@@ -1506,8 +1557,9 @@ struct DevelopmentRosterAttentionView: View {
             #endif
         }
       }
-      .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none")") {
-        guard SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership),
+      .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(appState.isPlayerDevelopmentCopilotEnabled)") {
+        guard appState.isPlayerDevelopmentCopilotEnabled,
+              SDDevelopmentPresentationAuthorization.isVisible(membership: appState.activeOrgMembership),
               let service = appState.supabase,
               let organizationId = appState.activeOrgId,
               let userId = appState.myProfile?.id else {

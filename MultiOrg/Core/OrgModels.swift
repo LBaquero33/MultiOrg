@@ -506,6 +506,47 @@ struct SDPlatformDashboard: Decodable, Sendable {
   }
 }
 
+enum SDPlatformFeatureKey {
+  static let playerDevelopmentCopilot = "player_development_copilot"
+}
+
+struct SDPlatformFeatureFlag: Identifiable, Codable, Equatable, Sendable {
+  var id: String { key }
+  let key: String
+  let enabled: Bool
+  let description: String
+  let updated_at: String?
+  let updated_by: UUID?
+}
+
+struct SDPlatformFeatureFlagsResponse: Decodable, Sendable {
+  let feature_flags: [SDPlatformFeatureFlag]
+}
+
+struct SDPlatformFeatureFlagResponse: Decodable, Sendable {
+  let feature_flag: SDPlatformFeatureFlag
+}
+
+enum SDPlatformFeatureGate {
+  static let playerDevelopmentCopilotDefault = false
+
+  static func playerDevelopmentCopilotEnabled(
+    in flags: [SDPlatformFeatureFlag]
+  ) -> Bool {
+    flags.first(where: {
+      $0.key == SDPlatformFeatureKey.playerDevelopmentCopilot
+    })?.enabled ?? playerDevelopmentCopilotDefault
+  }
+}
+
+enum SDPlatformFeatureDisabledError: LocalizedError, Equatable {
+  case playerDevelopmentCopilot
+
+  var errorDescription: String? {
+    "Player Development AI and Copilot are currently disabled by Home Plate."
+  }
+}
+
 struct SDPlatformMember: Identifiable, Codable, Equatable, Sendable {
   var id: String { "\(org_id.uuidString):\(user_id.uuidString)" }
   let org_id: UUID

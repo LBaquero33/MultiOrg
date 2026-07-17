@@ -191,6 +191,7 @@ function report(
 
 class FakeStore implements PlayerDevelopmentAIStore {
   actorId: string | null = ownerId;
+  featureEnabled = true;
   organizations = new Map([[orgId, "active"], [otherOrgId, "active"]]);
   memberships = new Map<string, DevelopmentMembership>([[
     `${orgId}:${ownerId}`,
@@ -209,6 +210,9 @@ class FakeStore implements PlayerDevelopmentAIStore {
 
   async authenticate(request: Request) {
     return request.headers.has("authorization") ? this.actorId : null;
+  }
+  async platformFeatureEnabled() {
+    return this.featureEnabled;
   }
   async organizationStatus(id: string) {
     return this.organizations.get(id) ?? null;
@@ -441,6 +445,18 @@ Deno.test("Phase 11A denies missing JWT, unrelated users, parents, players, and 
       `${role} denied`,
     );
   }
+});
+
+Deno.test("disabled platform feature rejects Player Development AI without mutating official records", async () => {
+  const store = new FakeStore();
+  store.featureEnabled = false;
+  const handler = createPlayerDevelopmentAIHandler(store, () => now);
+  const response = await handler(request("generate_report", generationBody));
+  const payload = await response.json();
+  assertEqual(response.status, 503, "disabled status");
+  assertEqual(payload.error, "feature_disabled", "stable disabled code");
+  assertEqual(payload.retryable, false, "disabled response is not retryable");
+  assertEqual(store.createCalls, 0, "no report or official-record mutation");
 });
 
 Deno.test("request size, calendar dates, reporting window, cutoff, and unknown actions fail closed", async () => {

@@ -6,6 +6,9 @@ import {
   canAccessPlatformAdministration,
   platformMembershipMutation,
 } from "../_shared/platform_admin_permissions.ts";
+import {
+  platformFeatureFlagMutation,
+} from "../_shared/platform_feature_flags.ts";
 
 type Json = Record<string, unknown>;
 const json = (status: number, body: Json) =>
@@ -77,6 +80,38 @@ Deno.serve(async (req) => {
     return String(data.id);
   };
   const action = clean(body.action);
+
+  if (action === "list_platform_feature_flags") {
+    const { data, error } = await admin.from("sd_platform_feature_flags")
+      .select("key,enabled,description,updated_at,updated_by")
+      .order("key");
+    if (error) {
+      return json(500, { error: "platform_feature_flags_lookup_failed" });
+    }
+    return json(200, { feature_flags: data ?? [] });
+  }
+
+  if (action === "update_platform_feature_flag") {
+    const mutation = platformFeatureFlagMutation(body, true);
+    if (!mutation) {
+      return json(400, { error: "invalid_platform_feature_flag_update" });
+    }
+    const { data, error } = await admin.rpc("sd_set_platform_feature_flag", {
+      p_actor_id: actorId,
+      p_key: mutation.key,
+      p_enabled: mutation.enabled,
+      p_request_id: mutation.requestId,
+    });
+    if (error || !data) {
+      const code = clean((error as { message?: string } | null)?.message);
+      return json(code.includes("not_platform_admin") ? 403 : 500, {
+        error: code.includes("not_platform_admin")
+          ? "not_platform_admin"
+          : "platform_feature_flag_update_failed",
+      });
+    }
+    return json(200, { feature_flag: data });
+  }
 
   const organizationMembers = async (orgId: string) => {
     const { data: organization, error: organizationError } = await admin

@@ -45,6 +45,9 @@ struct PlayerHomeView: View {
         .environmentObject(appState)
         .frame(minWidth: 720, minHeight: 680)
     }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      if !enabled { showDevelopment = false }
+    }
 #else
     playerApplicationShell
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -55,6 +58,11 @@ struct PlayerHomeView: View {
     .task(id: appState.requestedChatChannelId) {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       selection = .chat
+    }
+    .onChange(of: appState.isPlayerDevelopmentCopilotEnabled) { _, enabled in
+      if !enabled, selection == .playerDevelopment {
+        selection = .playerToday
+      }
     }
 #endif
   }
@@ -91,12 +99,14 @@ struct PlayerHomeView: View {
 
         DHDCard {
           VStack(spacing: HP.Space.sm) {
-            DHDButton(
-              "Open Development AI",
-              systemImage: "sparkles.rectangle.stack",
-              expands: true
-            ) {
-              showDevelopment = true
+            if appState.isPlayerDevelopmentCopilotEnabled {
+              DHDButton(
+                "Open Development AI",
+                systemImage: "sparkles.rectangle.stack",
+                expands: true
+              ) {
+                showDevelopment = true
+              }
             }
             DHDButton(
               "Open Account",
@@ -135,6 +145,7 @@ struct PlayerHomeView: View {
       facilitiesEnabled: feature("facilities"),
       testingEnabled: feature("testing"),
       analysisEnabled: feature("bpAnalysis"),
+      developmentAIEnabled: appState.isPlayerDevelopmentCopilotEnabled,
       facilitiesTitle: term("facilities", fallback: "Facilities"),
       testingTitle: term("testing", fallback: "Testing")
     )
@@ -172,7 +183,11 @@ struct PlayerHomeView: View {
     case .playerAnalysis:
       SDPlayerAnalysisView()
     case .playerDevelopment:
-      NavigationStack { playerDevelopmentDestination }
+      if appState.isPlayerDevelopmentCopilotEnabled {
+        NavigationStack { playerDevelopmentDestination }
+      } else {
+        SDPlayerTodayView()
+      }
     case .account:
       NavigationStack { AccountView() }
     default:

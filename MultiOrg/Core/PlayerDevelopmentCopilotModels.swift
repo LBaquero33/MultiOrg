@@ -183,6 +183,9 @@ struct SDCopilotFailurePresentation: Equatable, Sendable {
   init(code: String?, fallbackMessage: String? = nil) {
     self.code = code
     switch code {
+    case "feature_disabled":
+      message = "Player Development AI and Copilot are currently disabled by Home Plate."
+      isRetryable = false
     case "unsupported_without_provider", "provider_unavailable":
       message = "That conversational question needs a configured generation provider. Supported deterministic questions remain available."
       isRetryable = false

@@ -142,12 +142,22 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
   let player: Profile
 
   private var contextKey: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):player-development"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(player.id.uuidString):player-development:\(appState.isPlayerDevelopmentCopilotEnabled)"
   }
 
   var body: some View {
     Group {
-      if !SDDevelopmentPresentationAuthorization.isCopilotVisible(
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if !SDDevelopmentPresentationAuthorization.isCopilotVisible(
         membership: appState.activeOrgMembership,
         audience: .player,
         userId: appState.myProfile?.id,
@@ -201,7 +211,8 @@ struct PlayerDevelopmentPlayerWorkspaceView: View {
   }
 
   private func loadWorkspace() async {
-    guard let client = appState.supabase,
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let client = appState.supabase,
           let organizationId = appState.activeOrgId,
           let userId = appState.myProfile?.id else { return }
     await model.load(
@@ -474,7 +485,17 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
 
   var body: some View {
     Group {
-      if isLoading {
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if isLoading {
         HPStateScreenLayout { _ in
           HPCard {
             HPLoadingState(text: "Loading your summary…")
@@ -500,7 +521,7 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
         #endif
       }
     }
-    .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(reportId)") { await load() }
+    .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(reportId):\(appState.isPlayerDevelopmentCopilotEnabled)") { await load() }
   }
 
   private func reportDetail(_ detail: SDDevelopmentReportDetail) -> some View {
@@ -641,7 +662,8 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
   }
 
   private func load() async {
-    guard let service = appState.supabase,
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let service = appState.supabase,
           let organizationId = appState.activeOrgId,
           let userId = appState.myProfile?.id,
           userId == playerId else { return }
@@ -664,7 +686,9 @@ private struct PlayerDevelopmentPlayerReportDetailView: View {
   }
 
   private func archive() async {
-    guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let service = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
     isArchiving = true
     defer { isArchiving = false }
     do {
@@ -689,7 +713,17 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
 
   var body: some View {
     Group {
-      if isLoading {
+      if !appState.isPlayerDevelopmentCopilotEnabled {
+        HPStateScreenLayout { _ in
+          HPCard {
+            HPEmptyState(
+              title: "Feature unavailable",
+              message: "Player Development AI and Copilot are currently disabled by Home Plate.",
+              systemImage: "lock.fill"
+            )
+          }
+        }
+      } else if isLoading {
         HPStateScreenLayout { _ in
           HPCard {
             HPLoadingState(text: "Loading alert evidence…")
@@ -715,7 +749,7 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
         #endif
       }
     }
-    .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(alertId)") { await load() }
+    .task(id: "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(alertId):\(appState.isPlayerDevelopmentCopilotEnabled)") { await load() }
   }
 
   private func alertDetail(_ detail: SDDevelopmentAlertDetail) -> some View {
@@ -788,7 +822,8 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
   }
 
   private func load() async {
-    guard let service = appState.supabase,
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let service = appState.supabase,
           let organizationId = appState.activeOrgId,
           let userId = appState.myProfile?.id,
           userId == playerId else { return }
@@ -810,7 +845,9 @@ private struct PlayerDevelopmentPlayerAlertDetailView: View {
   }
 
   private func dismissAlert() async {
-    guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    guard appState.isPlayerDevelopmentCopilotEnabled,
+          let service = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
     isDismissing = true
     defer { isDismissing = false }
     do {

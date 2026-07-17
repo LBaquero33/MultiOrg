@@ -60,6 +60,10 @@ class SupabaseCopilotStore implements CopilotStore {
     return this.development.authenticate(request);
   }
 
+  platformFeatureEnabled(key: string): Promise<boolean> {
+    return this.development.platformFeatureEnabled(key);
+  }
+
   organizationStatus(orgId: string): Promise<string | null> {
     return this.development.organizationStatus(orgId);
   }
