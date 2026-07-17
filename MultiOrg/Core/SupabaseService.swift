@@ -410,11 +410,134 @@ final class SupabaseService: ObservableObject {
     )
   }
 
-  func adminCreateTeam(orgId: UUID, name: String, colorHex: String?, description: String?) async throws {
+  func adminCreateTeam(
+    orgId: UUID,
+    name: String,
+    colorHex: String?,
+    description: String?,
+    seasonId: UUID? = nil
+  ) async throws {
     let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
       "action": "create_team", "org_id": orgId.uuidString, "name": name,
-      "color_hex": colorHex ?? "", "description": description ?? ""
+      "color_hex": colorHex ?? "", "description": description ?? "",
+      "season_id": seasonId?.uuidString ?? "",
     ])
+  }
+
+  func fetchTeamOperationsContext(orgId: UUID) async throws -> SDTeamOperationsContext {
+    try await invokeAuthenticatedFunction(
+      "org_admin",
+      body: ["action": "team_context", "org_id": orgId.uuidString]
+    )
+  }
+
+  private struct SeasonMutationResponse: Decodable, Sendable {
+    let season: SDSeason
+  }
+
+  private struct TeamMutationResponse: Decodable, Sendable {
+    let team: SDTeam
+  }
+
+  private struct SeasonMutationRequest: Encodable, Sendable {
+    let action: String
+    let org_id: String
+    let season_id: String?
+    let name: String
+    let start_date: String?
+    let end_date: String?
+    let status: String
+    let is_default: Bool
+    let request_id: String
+  }
+
+  func adminSaveSeason(
+    orgId: UUID,
+    seasonId: UUID? = nil,
+    name: String,
+    startDate: String?,
+    endDate: String?,
+    status: SDSeasonLifecycle,
+    isDefault: Bool
+  ) async throws -> SDSeason {
+    let response: SeasonMutationResponse = try await invokeAuthenticatedFunction(
+      "org_admin",
+      body: SeasonMutationRequest(
+        action: seasonId == nil ? "create_season" : "update_season",
+        org_id: orgId.uuidString,
+        season_id: seasonId?.uuidString,
+        name: name,
+        start_date: startDate,
+        end_date: endDate,
+        status: status.rawValue,
+        is_default: isDefault,
+        request_id: UUID().uuidString
+      )
+    )
+    return response.season
+  }
+
+  func adminAssignTeamToSeason(orgId: UUID, teamId: UUID, seasonId: UUID) async throws {
+    let _: TeamMutationResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": "assign_team_season",
+      "org_id": orgId.uuidString,
+      "team_id": teamId.uuidString,
+      "season_id": seasonId.uuidString,
+      "request_id": UUID().uuidString,
+    ])
+  }
+
+  func adminAssignPlayerToTeam(
+    orgId: UUID,
+    playerId: UUID,
+    teamId: UUID,
+    reason: String?
+  ) async throws {
+    struct Response: Decodable { let membership: SDPlayerTeamMembership }
+    let _: Response = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": "assign_player_team",
+      "org_id": orgId.uuidString,
+      "player_id": playerId.uuidString,
+      "team_id": teamId.uuidString,
+      "assignment_reason": reason ?? "",
+      "request_id": UUID().uuidString,
+    ])
+  }
+
+  private struct CoachAssignmentMutationRequest: Encodable, Sendable {
+    let action: String
+    let org_id: String
+    let coach_id: String
+    let team_id: String
+    let responsibilities: [String]
+    let is_primary: Bool
+    let organization_wide_access: Bool
+    let request_id: String
+  }
+
+  func adminAssignCoachToTeam(
+    orgId: UUID,
+    coachId: UUID,
+    teamId: UUID,
+    responsibilities: Set<SDTeamResponsibility>,
+    isPrimary: Bool,
+    organizationWideAccess: Bool
+  ) async throws -> SDCoachTeamAssignment {
+    struct Response: Decodable { let assignment: SDCoachTeamAssignment }
+    let response: Response = try await invokeAuthenticatedFunction(
+      "org_admin",
+      body: CoachAssignmentMutationRequest(
+        action: "assign_coach_team",
+        org_id: orgId.uuidString,
+        coach_id: coachId.uuidString,
+        team_id: teamId.uuidString,
+        responsibilities: responsibilities.map(\.rawValue).sorted(),
+        is_primary: isPrimary,
+        organization_wide_access: organizationWideAccess,
+        request_id: UUID().uuidString
+      )
+    )
+    return response.assignment
   }
 
   func adminAssignTeam(orgId: UUID, teamId: UUID?, memberId: UUID) async throws {

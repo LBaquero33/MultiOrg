@@ -45,6 +45,9 @@ final class AppState: ObservableObject {
   @Published var requestedNotification: AppNotification?
   @Published private(set) var isPlatformAdmin = false
   @Published private(set) var platformFeatureFlags: [SDPlatformFeatureFlag] = []
+  @Published private(set) var teamOperationsContext: SDTeamOperationsContext?
+  @Published private(set) var selectedTeamId: UUID?
+  @Published private(set) var isAllTeamsSelected = false
 
   let pushNotifications = PushNotificationManager()
   private let pendingPushNotificationKey = "homePlate.pendingNotificationId"
@@ -105,6 +108,24 @@ final class AppState: ObservableObject {
     )
   }
 
+  var selectedTeam: SDTeamOperationsTeam? {
+    guard !isAllTeamsSelected, let selectedTeamId else { return nil }
+    return teamOperationsContext?.teams.first(where: { $0.id == selectedTeamId })
+  }
+
+  var selectedSeason: SDSeason? { teamOperationsContext?.activeSeason }
+
+  var selectedTeamCapabilities: Set<SDTeamCapability> {
+    selectedTeam?.capabilitySet ?? []
+  }
+
+  var authorizedCoachTeams: [SDTeamOperationsTeam] {
+    guard let context = teamOperationsContext, let seasonId = context.activeSeason?.id else { return [] }
+    return context.teams.filter {
+      $0.org_id == activeOrgId && $0.season_id == seasonId && $0.is_active
+    }
+  }
+
   var activeOrgAuthorizationKey: String {
     guard let membership = activeOrgMembership else {
       return "\(activeOrgId?.uuidString.lowercased() ?? "none"):none"
@@ -143,6 +164,9 @@ final class AppState: ObservableObject {
     activeOrgSettings = nil
     isPlatformAdmin = false
     platformFeatureFlags = []
+    teamOperationsContext = nil
+    selectedTeamId = nil
+    isAllTeamsSelected = false
   }
 
   private func clearChatContext() {
@@ -327,6 +351,8 @@ final class AppState: ObservableObject {
       chatListenerOrganizationId = nil
       clearChatContext()
     }
+
+    await refreshTeamOperationsContext()
   }
 
   func switchActiveOrganization(to orgId: UUID) async {
@@ -360,7 +386,94 @@ final class AppState: ObservableObject {
       activeOrgSettings = nil
       globalToastText = "Organization settings could not be loaded: \(error.localizedDescription)"
     }
+    await refreshTeamOperationsContext()
     await startChatListenerIfNeeded()
+  }
+
+  func refreshTeamOperationsContext() async {
+    guard canStaffActiveOrg,
+          let supabase,
+          let organizationId = activeOrgId,
+          let userId = myProfile?.id else {
+      teamOperationsContext = nil
+      selectedTeamId = nil
+      isAllTeamsSelected = false
+      return
+    }
+    do {
+      let context = try await supabase.fetchTeamOperationsContext(orgId: organizationId)
+      guard activeOrgId == organizationId,
+            let seasonId = context.activeSeason?.id else {
+        teamOperationsContext = context
+        selectedTeamId = nil
+        isAllTeamsSelected = false
+        return
+      }
+      let key = selectedTeamPersistenceKey(
+        userId: userId,
+        organizationId: organizationId,
+        seasonId: seasonId
+      )
+      let persisted = UserDefaults.standard.string(forKey: key)
+      if persisted == "all", context.can_access_all_teams, context.teams.count > 1 {
+        teamOperationsContext = context
+        selectedTeamId = nil
+        isAllTeamsSelected = true
+        return
+      }
+      let resolved = SDSelectedTeamResolver.resolve(
+        persistedTeamId: persisted.flatMap(UUID.init(uuidString:)),
+        organizationId: organizationId,
+        seasonId: seasonId,
+        teams: context.teams
+      )
+      teamOperationsContext = context
+      selectedTeamId = resolved
+      isAllTeamsSelected = false
+      if let resolved {
+        UserDefaults.standard.set(resolved.uuidString, forKey: key)
+      } else {
+        UserDefaults.standard.removeObject(forKey: key)
+      }
+    } catch {
+      teamOperationsContext = nil
+      selectedTeamId = nil
+      isAllTeamsSelected = false
+    }
+  }
+
+  func selectCoachTeam(_ teamId: UUID?) {
+    guard let context = teamOperationsContext,
+          let organizationId = activeOrgId,
+          let seasonId = context.activeSeason?.id,
+          let userId = myProfile?.id else { return }
+    let key = selectedTeamPersistenceKey(
+      userId: userId,
+      organizationId: organizationId,
+      seasonId: seasonId
+    )
+    if teamId == nil {
+      guard context.can_access_all_teams, authorizedCoachTeams.count > 1 else { return }
+      selectedTeamId = nil
+      isAllTeamsSelected = true
+      UserDefaults.standard.set("all", forKey: key)
+      return
+    }
+    guard let teamId,
+          context.teams.contains(where: {
+            $0.id == teamId && $0.org_id == organizationId && $0.season_id == seasonId && $0.is_active
+          }) else { return }
+    selectedTeamId = teamId
+    isAllTeamsSelected = false
+    UserDefaults.standard.set(teamId.uuidString, forKey: key)
+  }
+
+  private func selectedTeamPersistenceKey(
+    userId: UUID,
+    organizationId: UUID,
+    seasonId: UUID
+  ) -> String {
+    "homePlate.selectedTeam.\(userId.uuidString.lowercased()).\(organizationId.uuidString.lowercased()).\(seasonId.uuidString.lowercased())"
   }
 
   func refreshEntitlement() async {

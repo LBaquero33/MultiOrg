@@ -375,6 +375,7 @@ enum SDPaymentRequestEligibleRosterState: Equatable, Sendable {
 struct SDTeam: Identifiable, Codable, Equatable, Sendable {
   let id: UUID
   let org_id: UUID
+  let season_id: UUID?
   let name: String
   let color_hex: String?
   let description: String?
