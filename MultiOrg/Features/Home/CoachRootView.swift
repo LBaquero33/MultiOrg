@@ -1,93 +1,30 @@
 import SwiftUI
 
-/// Shiny parity: coach sidebar has two primary destinations:
-/// - Players (roster)
-/// - Program Templates
+/// Role- and capability-aware staff shell. The destination views, feature
+/// gates, deep-link handlers, and authorization checks are the same routes that
+/// predate the Home Plate navigation presentation.
 struct CoachRootView: View {
   @EnvironmentObject private var appState: AppState
 
 #if os(macOS)
-  @State private var selection: Destination? = .players
-
-  enum Destination: String, CaseIterable, Identifiable {
-    case players = "Players"
-    case facilities = "Facilities"
-    case teams = "Teams"
-    case programs = "Program Templates"
-    case chat = "Chat"
-    case admin = "Org Admin"
-    case platform = "Platform Admin"
-    case account = "Account"
-    var id: String { rawValue }
-  }
+  @State private var selection: HPAppNavigationDestination = .coachPlayers
+#else
+  @State private var mobileSelection: HPAppNavigationDestination = .coachPlayers
+#endif
 
   var body: some View {
-    NavigationSplitView {
-      List(selection: $selection) {
-        DHDOrgMenuHeader()
-          .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 12, trailing: 8))
-          .listRowBackground(Color.clear)
-          .listRowSeparator(.hidden)
-        NavigationLink(value: Destination.players) {
-          Label(term("players", fallback: "Players"), systemImage: "person.3")
-        }
-        if feature("facilities") {
-          NavigationLink(value: Destination.facilities) {
-            Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock")
-          }
-        }
-        NavigationLink(value: Destination.teams) {
-          Label("Teams", systemImage: "person.3.sequence.fill")
-        }
-        if feature("programs") {
-          NavigationLink(value: Destination.programs) {
-            Label("\(term("program", fallback: "Program")) Templates", systemImage: "square.stack.3d.up")
-          }
-        }
-        if feature("chat") {
-          NavigationLink(value: Destination.chat) {
-            Label("Chat", systemImage: "bubble.left.and.bubble.right")
-          }
-        }
-        if appState.canAdminActiveOrg {
-          NavigationLink(value: Destination.admin) {
-            Label("Org Admin", systemImage: "slider.horizontal.3")
-          }
-        }
-        if appState.isPlatformAdmin {
-          NavigationLink(value: Destination.platform) {
-            Label("Platform Admin", systemImage: "building.2.crop.circle")
-          }
-        }
-        NavigationLink(value: Destination.account) {
-          Label("Account", systemImage: "gearshape")
-        }
-      }
-      .listStyle(.sidebar)
-      .navigationTitle("Coach")
-    } detail: {
-      switch selection ?? .players {
-      case .players:
-        CoachHomeView()
-      case .facilities:
-        if feature("facilities") { CoachFacilitiesView() } else { disabledFeatureView("Facilities") }
-      case .programs:
-        if feature("programs") { CoachProgramsView() } else { disabledFeatureView("Programs") }
-      case .chat:
-        if feature("chat") { ChatChannelListView() } else { disabledFeatureView("Chat") }
-      case .admin:
-        OrgAdminConsoleView()
-      case .teams:
-        CoachTeamsView()
-      case .platform:
-        PlatformAdminDashboardView()
-      case .account:
-        AccountView()
-      }
+#if os(macOS)
+    HPRegularApplicationShell(
+      role: sidebarRole,
+      inventory: navigationInventory,
+      selection: $selection
+    ) { destination in
+      destinationView(destination)
     }
     .onChange(of: appState.activeOrgAuthorizationKey) { _, _ in
-      if selection == .admin && !appState.canAdminActiveOrg {
-        selection = .players
+      let normalized = navigationInventory.normalizedRegularSelection(selection)
+      if normalized != selection {
+        selection = normalized
       }
     }
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
@@ -98,6 +35,129 @@ struct CoachRootView: View {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       selection = .chat
     }
+#else
+    HPAdaptiveApplicationShell(
+      role: sidebarRole,
+      roleSubtitle: roleSubtitle,
+      inventory: navigationInventory,
+      selection: $mobileSelection
+    ) { destination in
+      destinationView(destination)
+    }
+    .onChange(of: appState.requestedChatChannelId) { _, channelId in
+      guard channelId != nil, feature("chat") else { return }
+      mobileSelection = .chat
+    }
+    .task(id: appState.requestedChatChannelId) {
+      guard appState.requestedChatChannelId != nil, feature("chat") else { return }
+      mobileSelection = .chat
+    }
+#endif
+  }
+
+  private var navigationInventory: HPAppNavigationInventory {
+    HPAppNavigationInventory.staff(
+      playersTitle: term("players", fallback: "Players"),
+      facilitiesTitle: term("facilities", fallback: "Facilities"),
+      programsTitle: "\(term("program", fallback: "Program")) Templates",
+      facilitiesEnabled: feature("facilities"),
+      chatEnabled: feature("chat"),
+      programsEnabled: feature("programs"),
+      canAdministerOrganization: appState.canAdminActiveOrg,
+      isPlatformAdmin: appState.isPlatformAdmin
+    )
+  }
+
+  private var sidebarRole: HPRole {
+    switch appState.activeOrgMembership?.normalizedRole {
+    case "owner", "admin": .owner
+    default: .coach
+    }
+  }
+
+  private var roleSubtitle: String {
+    switch appState.activeOrgMembership?.normalizedRole {
+    case "owner": "Owner workspace"
+    case "admin": "Organization admin workspace"
+    default: "Coach workspace"
+    }
+  }
+
+  @ViewBuilder
+  private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
+    switch destination {
+    case .coachPlayers:
+      CoachHomeView()
+    case .coachFacilities:
+      if feature("facilities") {
+        CoachFacilitiesView()
+      } else {
+        disabledFeatureView("Facilities")
+      }
+    case .coachTeams:
+#if os(macOS)
+      CoachTeamsView()
+#else
+      NavigationStack { CoachTeamsView() }
+#endif
+    case .coachPrograms:
+      if feature("programs") {
+        CoachProgramsView()
+      } else {
+        disabledFeatureView("Programs")
+      }
+    case .chat:
+      if feature("chat") {
+        ChatChannelListView()
+      } else {
+        disabledFeatureView("Chat")
+      }
+    case .finance:
+      if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
+#if os(macOS)
+        financeView(organizationId: organizationId)
+#else
+        NavigationStack { financeView(organizationId: organizationId) }
+#endif
+      } else {
+        disabledFeatureView("Finance")
+      }
+    case .organizationAdmin:
+#if os(macOS)
+      OrgAdminConsoleView()
+#else
+      NavigationStack { OrgAdminConsoleView() }
+#endif
+    case .platformAdmin:
+#if os(macOS)
+      PlatformAdminDashboardView()
+#else
+      NavigationStack { PlatformAdminDashboardView() }
+#endif
+    case .account:
+#if os(macOS)
+      AccountView()
+#else
+      NavigationStack { AccountView() }
+#endif
+    default:
+      disabledFeatureView("Workspace")
+    }
+  }
+
+  private func financeView(organizationId: UUID) -> some View {
+    FinanceDashboardView(
+      organizationId: organizationId,
+      organizationName: financeOrganizationName,
+      platformSupportMode: false
+    )
+  }
+
+  private var financeOrganizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Home Plate"
   }
 
   private func term(_ key: String, fallback: String) -> String {
@@ -109,79 +169,20 @@ struct CoachRootView: View {
   }
 
   private func disabledFeatureView(_ name: String) -> some View {
-    VStack(spacing: 10) {
+    VStack(spacing: HP.Space.sm) {
       Image(systemName: "switch.2")
         .font(.largeTitle)
         .foregroundStyle(DHDTheme.textSecondary)
       Text("\(name) is disabled")
-        .font(.title3.weight(.semibold))
+        .font(HP.Font.headline)
+        .foregroundStyle(DHDTheme.textPrimary)
       Text("Turn it back on in Org Admin → Features.")
+        .font(HP.Font.body)
         .foregroundStyle(DHDTheme.textSecondary)
+        .multilineTextAlignment(.center)
     }
+    .padding(DHDTheme.pagePadding)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(DHDTheme.pageBackground)
   }
-#else
-  @State private var mobileSelection = MobileDestination.players
-
-  private enum MobileDestination: Hashable {
-    case players, facilities, teams, programs, chat, admin, platform, account
-  }
-
-  var body: some View {
-    TabView(selection: $mobileSelection) {
-      CoachHomeView()
-        .tabItem { Label(term("players", fallback: "Players"), systemImage: "person.3") }
-        .tag(MobileDestination.players)
-      if feature("facilities") {
-        CoachFacilitiesView()
-          .tabItem { Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock") }
-          .tag(MobileDestination.facilities)
-      }
-      NavigationStack { CoachTeamsView() }
-        .tabItem { Label("Teams", systemImage: "person.3.sequence.fill") }
-        .tag(MobileDestination.teams)
-      if feature("chat") {
-        ChatChannelListView()
-          .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
-          .tag(MobileDestination.chat)
-      }
-      if feature("programs") {
-        CoachProgramsView()
-          .tabItem { Label("\(term("program", fallback: "Program")) Templates", systemImage: "square.stack.3d.up") }
-          .tag(MobileDestination.programs)
-      }
-      if appState.canAdminActiveOrg {
-        NavigationStack { OrgAdminConsoleView() }
-          .tabItem { Label("Org Admin", systemImage: "slider.horizontal.3") }
-          .tag(MobileDestination.admin)
-      }
-      if appState.isPlatformAdmin {
-        NavigationStack { PlatformAdminDashboardView() }
-          .tabItem { Label("Platform", systemImage: "building.2.crop.circle") }
-          .tag(MobileDestination.platform)
-      }
-      NavigationStack { AccountView() }
-        .tabItem { Label("Account", systemImage: "gearshape") }
-        .tag(MobileDestination.account)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onChange(of: appState.requestedChatChannelId) { _, channelId in
-      guard channelId != nil, feature("chat") else { return }
-      mobileSelection = .chat
-    }
-    .task(id: appState.requestedChatChannelId) {
-      guard appState.requestedChatChannelId != nil, feature("chat") else { return }
-      mobileSelection = .chat
-    }
-  }
-
-  private func term(_ key: String, fallback: String) -> String {
-    appState.activeOrgSettings?.term(key, fallback: fallback) ?? fallback
-  }
-
-  private func feature(_ key: String) -> Bool {
-    appState.activeOrgSettings?.feature(key) ?? true
-  }
-#endif
 }

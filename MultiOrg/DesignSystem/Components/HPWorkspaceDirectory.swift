@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Branded iPhone "More" replacement: a grid of workspace tiles, role- and
 /// entitlement-gated (locked / preview). Adaptive grid that collapses to one
-/// column at accessibility sizes. Uses local mock config only.
+/// column at accessibility sizes.
 struct HPWorkspaceDirectory: View {
   let groups: [HPNavGroup]
   var onSelect: (HPWorkspaceItem) -> Void = { _ in }
@@ -19,7 +19,7 @@ struct HPWorkspaceDirectory: View {
 
   var body: some View {
     LazyVGrid(columns: columns, spacing: HP.Space.sm) {
-      ForEach(items) { item in
+      ForEach(items, id: \.key) { item in
         Button { if !item.locked { onSelect(item) } } label: { tile(item) }
           .buttonStyle(.plain)
           .disabled(item.locked)

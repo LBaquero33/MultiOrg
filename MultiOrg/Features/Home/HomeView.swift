@@ -21,9 +21,7 @@ struct HomeView: View {
             PlayerHomeView()
           }
         case .platformOnly:
-          NavigationStack {
-            PlatformAdminDashboardView()
-          }
+          PlatformRootView()
         case .unavailable:
           ContentUnavailableView(
             "No active organization membership",
@@ -55,6 +53,60 @@ struct HomeView: View {
         }
         .padding()
       }
+    }
+  }
+}
+
+/// Platform authorization remains supplied exclusively by `AppState`; this
+/// shell adds only the same Home Plate navigation presentation and an Account
+/// escape route for platform-only users.
+private struct PlatformRootView: View {
+  @State private var selection: HPAppNavigationDestination = .platformAdmin
+
+  private let inventory = HPAppNavigationInventory.platformOnly()
+
+  var body: some View {
+#if os(iOS)
+    HPAdaptiveApplicationShell(
+      role: .platformAdmin,
+      roleSubtitle: "Platform admin workspace",
+      inventory: inventory,
+      selection: $selection
+    ) { destination in
+      destinationView(destination)
+    }
+#else
+    regularShell
+#endif
+  }
+
+  private var regularShell: some View {
+    HPRegularApplicationShell(
+      role: .platformAdmin,
+      inventory: inventory,
+      selection: $selection
+    ) { destination in
+      destinationView(destination)
+    }
+  }
+
+  @ViewBuilder
+  private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
+    switch destination {
+    case .platformAdmin:
+#if os(macOS)
+      PlatformAdminDashboardView()
+#else
+      NavigationStack { PlatformAdminDashboardView() }
+#endif
+    case .account:
+#if os(macOS)
+      AccountView()
+#else
+      NavigationStack { AccountView() }
+#endif
+    default:
+      PlatformAdminDashboardView()
     }
   }
 }

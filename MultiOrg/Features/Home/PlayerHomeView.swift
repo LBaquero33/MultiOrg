@@ -5,54 +5,20 @@ struct PlayerHomeView: View {
   @State private var showAccount = false
   @State private var showDevelopment = false
 #if os(iOS)
-  @State private var selection = Destination.today
-
-  private enum Destination: Hashable {
-    case today, calendar, chat, facilities, trends, testing, analysis, development, account
-  }
+  @State private var selection = HPAppNavigationDestination.playerToday
+#elseif os(macOS)
+  @State private var macSelection = HPAppNavigationDestination.playerToday
 #endif
 
   var body: some View {
 #if os(macOS)
-    VStack(spacing: 14) {
-      Image(systemName: "desktopcomputer")
-        .font(.system(size: 38, weight: .semibold))
-        .foregroundStyle(.secondary)
-      Text("Player features coming soon on macOS")
-        .font(.title3.weight(.semibold))
-      Text("This macOS app is focused on coach workflows. Please use the iOS app for player logging for now.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: 420)
-
-      Button {
-        showDevelopment = true
-      } label: {
-        Text("Open Development AI")
-          .frame(maxWidth: 240)
-      }
-      .buttonStyle(.borderedProminent)
-
-      Button {
-        showAccount = true
-      } label: {
-        Text("Open Account")
-          .frame(maxWidth: 240)
-      }
-      .buttonStyle(.borderedProminent)
-
-      Button(role: .destructive) {
-        Task { await appState.signOut() }
-      } label: {
-        Text("Sign Out")
-          .frame(maxWidth: 240)
-      }
-      .buttonStyle(.borderedProminent)
-      .tint(.red)
-      .padding(.top, 6)
+    HPRegularApplicationShell(
+      role: .player,
+      inventory: .playerMacPlaceholder(),
+      selection: $macSelection
+    ) { _ in
+      playerMacPlaceholder
     }
-    .padding()
     .sheet(isPresented: $showAccount) {
       AccountView()
         .environmentObject(appState)
@@ -64,43 +30,7 @@ struct PlayerHomeView: View {
         .frame(minWidth: 720, minHeight: 680)
     }
 #else
-    TabView(selection: $selection) {
-      SDPlayerTodayView()
-        .tabItem { Label("Today", systemImage: "sun.max") }
-        .tag(Destination.today)
-      SDPlayerCalendarView()
-        .tabItem { Label("Calendar", systemImage: "calendar") }
-        .tag(Destination.calendar)
-      if feature("chat") {
-        ChatChannelListView()
-          .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
-          .tag(Destination.chat)
-      }
-      if feature("facilities") {
-        SDPlayerFacilitiesView()
-          .tabItem { Label(term("facilities", fallback: "Facilities"), systemImage: "building.2") }
-          .tag(Destination.facilities)
-      }
-      SDPlayerTrendsView()
-        .tabItem { Label("Trends", systemImage: "chart.line.uptrend.xyaxis") }
-        .tag(Destination.trends)
-      if feature("testing") {
-        SDPlayerTestingView()
-          .tabItem { Label(term("testing", fallback: "Testing"), systemImage: "tablecells") }
-          .tag(Destination.testing)
-      }
-      if feature("bpAnalysis") {
-        SDPlayerAnalysisView()
-          .tabItem { Label("Analysis", systemImage: "chart.xyaxis.line") }
-          .tag(Destination.analysis)
-      }
-      NavigationStack { playerDevelopmentDestination }
-        .tabItem { Label("Development", systemImage: "sparkles.rectangle.stack") }
-        .tag(Destination.development)
-      NavigationStack { AccountView() }
-        .tabItem { Label("Account", systemImage: "gearshape") }
-        .tag(Destination.account)
-    }
+    playerApplicationShell
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
       guard channelId != nil, feature("chat") else { return }
@@ -112,6 +42,128 @@ struct PlayerHomeView: View {
     }
 #endif
   }
+
+#if os(macOS)
+  private var playerMacPlaceholder: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          "Player",
+          context: "Player features coming soon on macOS"
+        )
+
+        DHDCard {
+          VStack(spacing: HP.Space.sm) {
+            Image(systemName: "desktopcomputer")
+              .font(.system(size: 38, weight: .semibold))
+              .foregroundStyle(DHDTheme.accent)
+              .accessibilityHidden(true)
+            Text("Player features coming soon on macOS")
+              .font(HP.Font.headline)
+              .foregroundStyle(DHDTheme.textPrimary)
+              .multilineTextAlignment(.center)
+            Text("This macOS app is focused on coach workflows. Please use the iOS app for player logging for now.")
+              .font(HP.Font.body)
+              .foregroundStyle(DHDTheme.textSecondary)
+              .multilineTextAlignment(.center)
+              .fixedSize(horizontal: false, vertical: true)
+              .frame(maxWidth: 420)
+          }
+          .padding(.vertical, HP.Space.md)
+          .frame(maxWidth: .infinity)
+        }
+
+        DHDCard {
+          VStack(spacing: HP.Space.sm) {
+            DHDButton(
+              "Open Development AI",
+              systemImage: "sparkles.rectangle.stack",
+              expands: true
+            ) {
+              showDevelopment = true
+            }
+            DHDButton(
+              "Open Account",
+              systemImage: "gearshape",
+              variant: .secondary,
+              expands: true
+            ) {
+              showAccount = true
+            }
+          }
+        }
+
+        DHDCard {
+          DHDButton(
+            "Sign Out",
+            systemImage: "rectangle.portrait.and.arrow.right",
+            variant: .destructive,
+            expands: true
+          ) {
+            Task { await appState.signOut() }
+          }
+        }
+      }
+      .padding(DHDTheme.pagePadding)
+      .frame(maxWidth: 720)
+      .frame(maxWidth: .infinity, alignment: .center)
+    }
+    .dhdPageBackground()
+  }
+#endif
+
+#if os(iOS)
+  private var navigationInventory: HPAppNavigationInventory {
+    .player(
+      chatEnabled: feature("chat"),
+      facilitiesEnabled: feature("facilities"),
+      testingEnabled: feature("testing"),
+      analysisEnabled: feature("bpAnalysis"),
+      facilitiesTitle: term("facilities", fallback: "Facilities"),
+      testingTitle: term("testing", fallback: "Testing")
+    )
+  }
+
+  @ViewBuilder
+  private var playerApplicationShell: some View {
+    let inventory = navigationInventory
+
+    HPAdaptiveApplicationShell(
+      role: .player,
+      roleSubtitle: "Player workspace",
+      inventory: inventory,
+      selection: $selection
+    ) { destination in
+      playerDestination(destination)
+    }
+  }
+
+  @ViewBuilder
+  private func playerDestination(_ destination: HPAppNavigationDestination) -> some View {
+    switch destination {
+    case .playerToday:
+      SDPlayerTodayView()
+    case .playerCalendar:
+      SDPlayerCalendarView()
+    case .chat:
+      ChatChannelListView()
+    case .playerFacilities:
+      SDPlayerFacilitiesView()
+    case .playerTrends:
+      SDPlayerTrendsView()
+    case .playerTesting:
+      SDPlayerTestingView()
+    case .playerAnalysis:
+      SDPlayerAnalysisView()
+    case .playerDevelopment:
+      NavigationStack { playerDevelopmentDestination }
+    case .account:
+      NavigationStack { AccountView() }
+    default:
+      SDPlayerTodayView()
+    }
+  }
+#endif
 
   private func term(_ key: String, fallback: String) -> String {
     appState.activeOrgSettings?.term(key, fallback: fallback) ?? fallback

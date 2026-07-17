@@ -107,6 +107,20 @@ enum HPSample {
           HPWorkspaceItem(title: "Settings", icon: "gearshape"),
         ]),
       ]
+    case .parent:
+      return [
+        HPNavGroup(title: nil, items: [
+          HPWorkspaceItem(title: "Overview", icon: "person.2"),
+          HPWorkspaceItem(title: "Development", icon: "figure.strengthtraining.traditional"),
+        ]),
+        HPNavGroup(title: "Run", items: [
+          HPWorkspaceItem(title: "Communication", icon: "bubble.left.and.bubble.right"),
+          HPWorkspaceItem(title: "Scheduling", icon: "calendar"),
+        ]),
+        HPNavGroup(title: "Manage", items: [
+          HPWorkspaceItem(title: "Settings", icon: "gearshape"),
+        ]),
+      ]
     case .coach:
       return [
         HPNavGroup(title: nil, items: [
@@ -141,30 +155,15 @@ enum HPSample {
           HPWorkspaceItem(title: "Settings", icon: "gearshape"),
         ]),
       ]
+    case .platformAdmin:
+      return [
+        HPNavGroup(title: nil, items: [
+          HPWorkspaceItem(title: "Organization", icon: "building.2.crop.circle"),
+        ]),
+        HPNavGroup(title: "Manage", items: [
+          HPWorkspaceItem(title: "Settings", icon: "gearshape"),
+        ]),
+      ]
     }
   }
-}
-
-/// Mock role for sidebar / directory previews (not the production role model).
-enum HPRole: String, CaseIterable, Identifiable {
-  case player = "Player"
-  case coach = "Coach"
-  case owner = "Owner/Admin"
-  var id: String { rawValue }
-}
-
-/// Mock workspace destination. `locked` = entitlement-gated; `preview` = an
-/// intentionally-marked future feature.
-struct HPWorkspaceItem: Identifiable, Hashable {
-  let id = UUID()
-  let title: String
-  let icon: String
-  var locked: Bool = false
-  var preview: Bool = false
-}
-
-struct HPNavGroup: Identifiable {
-  let id = UUID()
-  let title: String?
-  let items: [HPWorkspaceItem]
 }

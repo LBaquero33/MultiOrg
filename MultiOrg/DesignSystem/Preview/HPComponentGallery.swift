@@ -570,10 +570,13 @@ private struct HPGalleryNavSection: View {
     let groups = HPSample.navGroups(for: role)
     return HPGallerySection(title: "Sidebar & workspace directory (role/entitlement)") {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSegmentedControl(
-          options: HPRole.allCases.map { ($0, $0.rawValue) },
-          selection: $role
-        )
+        Picker("Preview role", selection: $role) {
+          ForEach(HPRole.allCases) { option in
+            Text(option.rawValue).tag(option)
+          }
+        }
+        .pickerStyle(.menu)
+        .frame(minHeight: DHDTheme.minimumTouchTarget)
         HPSidebar(orgIdentity: HPSample.orgIdentity, role: role, groups: groups, selection: $selection)
           .frame(height: 380)
           .clipShape(RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous))

@@ -26,6 +26,7 @@
 		103340F771E92001AED44470 /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7566BB173B672687DB2E7C /* HPAnalyticsScreenTemplate.swift */; };
 		11280B01FBF5CF380B115E13 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */; };
 		1193B96C7083BE4486E0552B /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C548457F3D672402508357C2 /* CoachRootView.swift */; };
+		11C4EC588355CE052D6D5B3E /* HomePlateNavigationShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29BC5B303449E0B0C8B84D4 /* HomePlateNavigationShell.swift */; };
 		123A22417E221354B4FE5E5B /* HPButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2084806F140885563D532A8E /* HPButton.swift */; };
 		13046AE033D1BAE7D3F49D10 /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0B791CE3A319D180685AD4 /* HPAdminScreenTemplate.swift */; };
 		13314D4D0905B26085D1AA78 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F294EE15273BCB9FA728670 /* HPSampleData.swift */; };
@@ -75,6 +76,7 @@
 		3B64089BEB177CED1FC78D79 /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D237F484753CFC6B40445 /* FinanceDashboardView.swift */; };
 		3C7CA19396E3D19C3168BAA0 /* HPToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A650F6738EB0ABFB970FD3B8 /* HPToast.swift */; };
 		3CA5DDFBBFEFFCF6E466FBDB /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCC64E61B1D1383410C7A32 /* PushNotificationManager.swift */; };
+		3CD5665760468C58DE90EAD1 /* UniversalNavigationShellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1E9C0D2CB5AD0416B08190 /* UniversalNavigationShellTests.swift */; };
 		3D447915C2D58B526B06F259 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 944769B7C2760AED9CC3136D /* Supabase */; };
 		3F25EA2DAEA6E3AC92D04EEB /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78419895C8DC111FE881785D /* ConfigErrorView.swift */; };
 		3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */; };
@@ -90,6 +92,7 @@
 		4BF428CFA2BF90A4843586D2 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F294EE15273BCB9FA728670 /* HPSampleData.swift */; };
 		527850E0F1C6D75F968AC6ED /* HPErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D3DC219AAF3DF93C6101F0 /* HPErrorState.swift */; };
 		529CD575F9D330B99C3EB1C1 /* TwoAxisScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A09BC4C336AD5F07763B87DF /* TwoAxisScrollView.swift */; };
+		530431B778AA5F7E717C2859 /* HomePlateNavigationShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29BC5B303449E0B0C8B84D4 /* HomePlateNavigationShell.swift */; };
 		531CCE9F78E2B1C1F9BD636E /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */; };
 		5393C83F0C5B495908698633 /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D572A66CB4CA356ABAC265 /* PaymentCheckoutModels.swift */; };
 		540153518CE9EAADF35A7161 /* FinanceDashboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259F1DA0A1D02D693F7FDFEC /* FinanceDashboardTests.swift */; };
@@ -365,6 +368,7 @@
 		6A188FDE80381391940586A4 /* CoachPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerCalendarView.swift; sourceTree = "<group>"; };
 		6BA8C2A3E09D61A986587C16 /* HPTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTheme.swift; sourceTree = "<group>"; };
 		6CE22DD59FDABFE94297E2DE /* HPMoneyField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMoneyField.swift; sourceTree = "<group>"; };
+		6E1E9C0D2CB5AD0416B08190 /* UniversalNavigationShellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalNavigationShellTests.swift; sourceTree = "<group>"; };
 		6E27AA6116E6C83E10847309 /* HPMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetrics.swift; sourceTree = "<group>"; };
 		72641B0B40640537D5579D13 /* HPDetailScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPDetailScreenTemplate.swift; sourceTree = "<group>"; };
 		73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAuthorizationTests.swift; sourceTree = "<group>"; };
@@ -429,6 +433,7 @@
 		CE32F77DCF9F39A132690AEE /* HPCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCard.swift; sourceTree = "<group>"; };
 		CE855FCD4677311F5E0F940A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D234A0190915CD5FF86744A9 /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
+		D29BC5B303449E0B0C8B84D4 /* HomePlateNavigationShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlateNavigationShell.swift; sourceTree = "<group>"; };
 		D6F2FEC22667209020787CDD /* MultiOrgApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiOrgApp.swift; sourceTree = "<group>"; };
 		D7244FD3221181B77E2162F7 /* NewFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFacilityBookingSheet.swift; sourceTree = "<group>"; };
 		D97A66D8EC94E3560651CDBE /* HPAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAvatar.swift; sourceTree = "<group>"; };
@@ -771,6 +776,7 @@
 				F3C32FDB559A1B4E74CBC9BD /* PlayerDevelopmentImportTests.swift */,
 				CE2681D2EB33E8D327CA3592 /* PlayerTodayRenderTests.swift */,
 				113F9720DCEB72DF6234E071 /* PushNotificationTests.swift */,
+				6E1E9C0D2CB5AD0416B08190 /* UniversalNavigationShellTests.swift */,
 				A3692A0A791BB625975CB0AB /* UniversalUIFoundationTests.swift */,
 			);
 			path = MultiOrgTests;
@@ -822,6 +828,7 @@
 				C1394ABFD7D898E955BC2002 /* CoachHomeView.swift */,
 				C548457F3D672402508357C2 /* CoachRootView.swift */,
 				78419895C8DC111FE881785D /* ConfigErrorView.swift */,
+				D29BC5B303449E0B0C8B84D4 /* HomePlateNavigationShell.swift */,
 				9FB825EDA00E44810205B264 /* HomeView.swift */,
 				1752B2C944B62272867F8B21 /* ParentHomeView.swift */,
 				CD892F1711B08BA5CAA38ED0 /* ParentRootView.swift */,
@@ -1066,6 +1073,7 @@
 				262483B786DC304B332B6D89 /* HPWorkspaceDirectory.swift in Sources */,
 				790C675CD9EE1F788F11AC30 /* HPWorkspaceHeader.swift in Sources */,
 				11280B01FBF5CF380B115E13 /* HPWorkspaceScreenTemplate.swift in Sources */,
+				11C4EC588355CE052D6D5B3E /* HomePlateNavigationShell.swift in Sources */,
 				B28B52BF0205B6DEDAA5941C /* HomeView.swift in Sources */,
 				DCFA50DC8E2D24476990D1C4 /* LoginView.swift in Sources */,
 				02BF3F9B5EF7EDEC54F58840 /* MultiOrgApp.swift in Sources */,
@@ -1196,6 +1204,7 @@
 				8DC1D7948DC3B0051300ECBC /* HPWorkspaceDirectory.swift in Sources */,
 				3F6890FF003ECD0247856E43 /* HPWorkspaceHeader.swift in Sources */,
 				B10FFBDD094448847ABA6455 /* HPWorkspaceScreenTemplate.swift in Sources */,
+				530431B778AA5F7E717C2859 /* HomePlateNavigationShell.swift in Sources */,
 				FCE24B49936D1481445BA421 /* HomeView.swift in Sources */,
 				2FC99A86E5846BBE49D14D86 /* LoginView.swift in Sources */,
 				932BBE106CAF003F2A8B4707 /* MultiOrgApp.swift in Sources */,
@@ -1270,6 +1279,7 @@
 				D124354D452D6B07D255D625 /* PlayerDevelopmentImportTests.swift in Sources */,
 				34071ED9B3D5EDA8CA6FE54C /* PlayerTodayRenderTests.swift in Sources */,
 				77EBB46C818CA43978C485E2 /* PushNotificationTests.swift in Sources */,
+				3CD5665760468C58DE90EAD1 /* UniversalNavigationShellTests.swift in Sources */,
 				DA99F12639633EB63A40E637 /* UniversalUIFoundationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
