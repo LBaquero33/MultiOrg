@@ -52,6 +52,7 @@ struct HPWorkspaceHeader<Trailing: View>: View {
       trailing
         .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
                alignment: .leading)
+        .environment(\.hpForceFullWidthAction, dynamicTypeSize.isAccessibilitySize)
     }
     .padding(HP.Space.md)
     .frame(maxWidth: .infinity)
@@ -82,13 +83,13 @@ struct HPWorkspaceHeader<Trailing: View>: View {
         .font(HP.Font.eyebrow)
         .tracking(HP.Font.eyebrowTracking)
         .foregroundStyle(HP.Color.textMuted)
-        .lineLimit(1)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
         .truncationMode(.tail)
       Text(title)
         .font(HP.Font.title)
         .tracking(HP.Font.titleTracking)
         .foregroundStyle(HP.Color.text)
-        .lineLimit(2)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
         .truncationMode(.tail)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityAddTraits(.isHeader)
@@ -96,7 +97,8 @@ struct HPWorkspaceHeader<Trailing: View>: View {
         Text(context)
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
-          .lineLimit(2)
+          .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

@@ -1,5 +1,71 @@
 import SwiftUI
 
+enum HPDetailMetricGridPolicy {
+  static func columnCount(for context: HPScreenLayoutContext) -> Int {
+    context.gridColumnCount(compact: 2, regular: 4, wide: 4)
+  }
+
+  static func columns(for context: HPScreenLayoutContext) -> [GridItem] {
+    Array(
+      repeating: GridItem(.flexible(), spacing: HP.Space.sm),
+      count: columnCount(for: context)
+    )
+  }
+}
+
+/// Reusable presentation anatomy for a single record's detail workspace.
+///
+/// The layout standardizes identity, metric, detail, related-record, and action
+/// placement while leaving every value and behavior with the feature caller.
+struct HPDetailScreenLayout<
+  Identity: View,
+  Metrics: View,
+  Details: View,
+  Related: View,
+  PrimaryAction: View
+>: View {
+  private let widthMode: HPScreenWidthMode
+  private let identity: Identity
+  private let metrics: Metrics
+  private let details: Details
+  private let related: (HPScreenLayoutContext) -> Related
+  private let primaryAction: PrimaryAction
+
+  init(
+    widthMode: HPScreenWidthMode = .automatic,
+    @ViewBuilder identity: () -> Identity,
+    @ViewBuilder metrics: () -> Metrics,
+    @ViewBuilder details: () -> Details,
+    @ViewBuilder related: @escaping (HPScreenLayoutContext) -> Related,
+    @ViewBuilder primaryAction: () -> PrimaryAction
+  ) {
+    self.widthMode = widthMode
+    self.identity = identity()
+    self.metrics = metrics()
+    self.details = details()
+    self.related = related
+    self.primaryAction = primaryAction()
+  }
+
+  var body: some View {
+    HPScreenScaffold(widthMode: widthMode) { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        identity
+        LazyVGrid(
+          columns: HPDetailMetricGridPolicy.columns(for: context),
+          spacing: HP.Space.sm
+        ) {
+          metrics
+        }
+        details
+        related(context)
+        primaryAction
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
 /// Template 3 — **Record detail screen**.
 ///
 /// Purpose: everything about one record + its actions. Anatomy:
@@ -13,59 +79,45 @@ struct HPDetailScreenTemplate: View {
 
   var isWide: Bool = false
 
-  private var metricColumns: [GridItem] {
-    if dts.isAccessibilitySize { return [GridItem(.flexible())] }
-    return isWide
-      ? [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-      : [GridItem(.flexible()), GridItem(.flexible())]
-  }
-
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        identityHeader
-
-        LazyVGrid(columns: metricColumns, spacing: HP.Space.sm) {
-          ForEach(HPSample.playerMetrics) { m in
-            HPMetricCard(title: m.title, value: m.value, unit: m.unit,
-                         delta: m.delta, trend: m.trend, context: m.context,
-                         valueColor: m.valueColor)
-          }
-        }
-
-        HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Details")
-            HPStatTile(label: "Team", value: "14U National")
-            HPStatTile(label: "Position", value: "SS / RHP")
-            HPStatTile(label: "Joined", value: "Mar 2, 2026")
-            HPStatTile(label: "Program", value: "Rotational Power")
-          }
-        }
-
-        HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Recent testing") {
-              HPButton(title: "View all", variant: .tertiary, size: .sm)
-            }
-            HPTable(columns: [HPColumn(title: "Date"),
-                              HPColumn(title: "Max EV", alignment: .trailing, numeric: true),
-                              HPColumn(title: "Status", alignment: .trailing)],
-                    rows: [HPTableRow(cells: ["Jul 10", "88.4", ""], badge: ("Verified", .success)),
-                           HPTableRow(cells: ["Jun 12", "86.1", ""], badge: ("Verified", .success)),
-                           HPTableRow(cells: ["May 08", "84.0", ""], badge: ("Unverified", .neutral))],
-                    layout: dts.isAccessibilitySize ? .stacked : .auto)
-          }
-        }
-
-        HPCard {
-          HPButton(title: "Assign program", variant: .primary, size: .lg, fullWidth: true)
+    HPDetailScreenLayout(widthMode: isWide ? .automatic : .compact) {
+      identityHeader
+    } metrics: {
+      ForEach(HPSample.playerMetrics) { m in
+        HPMetricCard(title: m.title, value: m.value, unit: m.unit,
+                     delta: m.delta, trend: m.trend, context: m.context,
+                     valueColor: m.valueColor)
+      }
+    } details: {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Details")
+          HPStatTile(label: "Team", value: "14U National")
+          HPStatTile(label: "Position", value: "SS / RHP")
+          HPStatTile(label: "Joined", value: "Mar 2, 2026")
+          HPStatTile(label: "Program", value: "Rotational Power")
         }
       }
-      .padding(HP.Space.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
+    } related: { context in
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Recent testing") {
+            HPButton(title: "View all", variant: .tertiary, size: .sm)
+          }
+          HPTable(columns: [HPColumn(title: "Date"),
+                            HPColumn(title: "Max EV", alignment: .trailing, numeric: true),
+                            HPColumn(title: "Status", alignment: .trailing)],
+                  rows: [HPTableRow(cells: ["Jul 10", "88.4", ""], badge: ("Verified", .success)),
+                         HPTableRow(cells: ["Jun 12", "86.1", ""], badge: ("Verified", .success)),
+                         HPTableRow(cells: ["May 08", "84.0", ""], badge: ("Unverified", .neutral))],
+                  layout: context.tableLayout)
+        }
+      }
+    } primaryAction: {
+      HPCard {
+        HPButton(title: "Assign program", variant: .primary, size: .lg, fullWidth: true)
+      }
     }
-    .background(HP.Color.bg)
   }
 
   private var identityHeader: some View {

@@ -1,5 +1,58 @@
 import SwiftUI
 
+/// Reusable presentation shell for a single-record form.
+///
+/// The caller owns every binding, validation rule, callback, keyboard policy,
+/// and persistence side effect. This layout owns only the canonical ordering,
+/// 720-point single-column cap, and accessibility action relayout.
+struct HPFormScreenLayout<Header: View, Sections: View, PrimaryAction: View, SecondaryAction: View>: View {
+  private let widthMode: HPScreenWidthMode
+  private let header: (HPScreenLayoutContext) -> Header
+  private let sections: (HPScreenLayoutContext) -> Sections
+  private let primaryAction: (HPScreenLayoutContext) -> PrimaryAction
+  private let secondaryAction: (HPScreenLayoutContext) -> SecondaryAction
+
+  init(
+    widthMode: HPScreenWidthMode = .automatic,
+    @ViewBuilder header: @escaping (HPScreenLayoutContext) -> Header,
+    @ViewBuilder sections: @escaping (HPScreenLayoutContext) -> Sections,
+    @ViewBuilder primaryAction: @escaping (HPScreenLayoutContext) -> PrimaryAction,
+    @ViewBuilder secondaryAction: @escaping (HPScreenLayoutContext) -> SecondaryAction
+  ) {
+    self.widthMode = widthMode
+    self.header = header
+    self.sections = sections
+    self.primaryAction = primaryAction
+    self.secondaryAction = secondaryAction
+  }
+
+  var body: some View {
+    HPScreenScaffold(widthMode: widthMode, maxContentWidth: 720) { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        header(context)
+        sections(context)
+        HPCard {
+          actionRow(context)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func actionRow(_ context: HPScreenLayoutContext) -> some View {
+    let layout = context.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+      : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+    layout {
+      primaryAction(context)
+        .frame(maxWidth: context.isAccessibilitySize ? .infinity : nil, alignment: .leading)
+      secondaryAction(context)
+        .frame(maxWidth: context.isAccessibilitySize ? .infinity : nil, alignment: .leading)
+      if !context.isAccessibilitySize { Spacer(minLength: 0) }
+    }
+  }
+}
+
 /// Template 4 — **Form / editor screen**.
 ///
 /// Purpose: create or edit one record. Anatomy: header → grouped
@@ -11,8 +64,6 @@ import SwiftUI
 /// - Exactly one `.primary` submit; Cancel is `.secondary`.
 /// - Forms are single-column at every width — never side-by-side fields.
 struct HPFormScreenTemplate: View {
-  @Environment(\.dynamicTypeSize) private var dts
-
   var isWide: Bool = false
   var showsValidationError: Bool = false
   var isSaving: Bool = false
@@ -23,13 +74,12 @@ struct HPFormScreenTemplate: View {
   @State private var category = "program"
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
+    HPFormScreenLayout(widthMode: isWide ? .automatic : .compact) { _ in
         HPWorkspaceHeader("New payment request",
                           orgLabel: HPSample.orgIdentity.name,
                           context: "Draft · not yet sent",
                           identity: HPSample.orgIdentity)
-
+    } sections: { _ in
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.md) {
             HPSectionHeader("Details")
@@ -53,27 +103,14 @@ struct HPFormScreenTemplate: View {
                         placeholder: "Anything the parent should know")
           }
         }
-
-        // Action row — one primary. Stacks full-width at AX3.
-        HPCard {
-          let layout = dts.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
-          layout {
-            HPButton(title: "Send request", variant: .primary, size: .lg,
-                     isLoading: isSaving,
-                     fullWidth: dts.isAccessibilitySize)
-            HPButton(title: "Cancel", variant: .secondary, size: .lg,
-                     fullWidth: dts.isAccessibilitySize)
-            if !dts.isAccessibilitySize { Spacer(minLength: 0) }
-          }
-        }
-      }
-      .padding(HP.Space.md)
-      .frame(maxWidth: isWide ? 720 : .infinity, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: isWide ? .center : .leading)
+    } primaryAction: { context in
+      HPButton(title: "Send request", variant: .primary, size: .lg,
+               isLoading: isSaving,
+               fullWidth: context.isAccessibilitySize)
+    } secondaryAction: { context in
+      HPButton(title: "Cancel", variant: .secondary, size: .lg,
+               fullWidth: context.isAccessibilitySize)
     }
-    .background(HP.Color.bg)
   }
 }
 

@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Title + optional trailing accessory. Evolves from `DHDSectionHeader`.
 struct HPSectionHeader<Accessory: View>: View {
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
   private let title: String
   private let accessory: Accessory
 
@@ -11,13 +13,19 @@ struct HPSectionHeader<Accessory: View>: View {
   }
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline) {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+      : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: HP.Space.sm))
+
+    layout {
       Text(title)
         .font(HP.Font.headline)
         .foregroundStyle(HP.Color.text)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityAddTraits(.isHeader)
-      Spacer(minLength: HP.Space.sm)
+      if !dynamicTypeSize.isAccessibilitySize {
+        Spacer(minLength: HP.Space.sm)
+      }
       accessory
     }
   }

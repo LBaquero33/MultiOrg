@@ -1,17 +1,33 @@
 import SwiftUI
 
+private struct HPForceFullWidthActionKey: EnvironmentKey {
+  static let defaultValue = false
+}
+
+extension EnvironmentValues {
+  var hpForceFullWidthAction: Bool {
+    get { self[HPForceFullWidthActionKey.self] }
+    set { self[HPForceFullWidthActionKey.self] = newValue }
+  }
+}
+
 /// The one action affordance. Evolves from scattered `.borderedProminent` /
 /// `.bordered` usages. Exactly one `.primary` (gold) per screen.
 enum HPButtonVariant { case primary, secondary, tertiary, destructive }
 
 enum HPButtonSize {
   case sm, md, lg
+  /// Approved visual control heights; the outer button keeps a 44-point hit target.
   var minHeight: CGFloat { switch self { case .sm: 28; case .md: 36; case .lg: 44 } }
+  var hitTargetHeight: CGFloat { 44 }
   var hPadding: CGFloat { switch self { case .sm: 12; case .md: 16; case .lg: 20 } }
   var font: Font { switch self { case .sm: HP.Font.caption; case .md: HP.Font.callout; case .lg: HP.Font.headline } }
 }
 
 struct HPButton: View {
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.hpForceFullWidthAction) private var forceFullWidthAction
+
   let title: String
   var systemImage: String? = nil
   var variant: HPButtonVariant = .primary
@@ -22,6 +38,8 @@ struct HPButton: View {
   var action: () -> Void = {}
 
   var body: some View {
+    let usesFullWidth = fullWidth || forceFullWidthAction
+
     Button(action: action) {
       HStack(spacing: 6) {
         if isLoading {
@@ -31,12 +49,13 @@ struct HPButton: View {
         }
         Text(title)
           .multilineTextAlignment(.center)
-          .lineLimit(fullWidth ? nil : 2)
-          .minimumScaleFactor(fullWidth ? 1 : 0.85)
+          .lineLimit(usesFullWidth || dynamicTypeSize.isAccessibilitySize ? nil : 2)
       }
       .fixedSize(horizontal: false, vertical: true)
     }
-    .buttonStyle(HPButtonStyle(variant: variant, size: size, fullWidth: fullWidth))
+    .buttonStyle(HPButtonStyle(variant: variant, size: size, fullWidth: usesFullWidth))
+    .frame(minHeight: size.hitTargetHeight)
+    .contentShape(Rectangle())
     .disabled(isLoading)
     .accessibilityLabel(title)
     .accessibilityValue(isLoading ? "Loading" : "")

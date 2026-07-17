@@ -16,7 +16,17 @@ struct HPTableRow: Identifiable {
   var badge: (text: String, kind: HPStatusKind)? = nil
 }
 
-enum HPTableLayout { case auto, columns, stacked }
+enum HPTableLayout: Equatable {
+  case auto, columns, stacked
+
+  func resolvesStacked(isAccessibilitySize: Bool, isCompactWidth: Bool) -> Bool {
+    switch self {
+    case .stacked: true
+    case .columns: false
+    case .auto: isAccessibilitySize || isCompactWidth
+    }
+  }
+}
 
 /// Record list. Columns on regular width / normal text; collapses to stacked
 /// label:value rows at accessibility sizes (auto). Evolves from
@@ -27,13 +37,13 @@ struct HPTable: View {
   var layout: HPTableLayout = .auto
 
   @Environment(\.dynamicTypeSize) private var dts
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var stacked: Bool {
-    switch layout {
-    case .stacked: true
-    case .columns: false
-    case .auto: dts.isAccessibilitySize
-    }
+    layout.resolvesStacked(
+      isAccessibilitySize: dts.isAccessibilitySize,
+      isCompactWidth: horizontalSizeClass == .compact
+    )
   }
 
   var body: some View {

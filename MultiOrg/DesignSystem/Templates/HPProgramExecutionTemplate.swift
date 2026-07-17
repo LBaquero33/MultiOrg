@@ -1,5 +1,64 @@
 import SwiftUI
 
+/// Reusable presentation anatomy for executing a player program.
+///
+/// Every slot is supplied by feature code so bindings, validation, submission,
+/// and persistence remain in the production owner. This layout only establishes
+/// the canonical single-column order and universal screen scaffold.
+struct HPProgramExecutionLayout<
+  Header: View,
+  DateContext: View,
+  ProgramSummary: View,
+  Activities: View,
+  SubActivities: View,
+  Assessment: View,
+  Submission: View
+>: View {
+  private let widthMode: HPScreenWidthMode
+  private let header: Header
+  private let dateContext: DateContext
+  private let programSummary: ProgramSummary
+  private let activities: Activities
+  private let subActivities: SubActivities
+  private let assessment: Assessment
+  private let submission: Submission
+
+  init(
+    widthMode: HPScreenWidthMode = .automatic,
+    @ViewBuilder header: () -> Header,
+    @ViewBuilder dateContext: () -> DateContext,
+    @ViewBuilder programSummary: () -> ProgramSummary,
+    @ViewBuilder activities: () -> Activities,
+    @ViewBuilder subActivities: () -> SubActivities,
+    @ViewBuilder assessment: () -> Assessment,
+    @ViewBuilder submission: () -> Submission
+  ) {
+    self.widthMode = widthMode
+    self.header = header()
+    self.dateContext = dateContext()
+    self.programSummary = programSummary()
+    self.activities = activities()
+    self.subActivities = subActivities()
+    self.assessment = assessment()
+    self.submission = submission()
+  }
+
+  var body: some View {
+    HPScreenScaffold(widthMode: widthMode) { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        header
+        dateContext
+        programSummary
+        activities
+        subActivities
+        assessment
+        submission
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
 /// Template 5 — **Player program-execution screen**.
 ///
 /// Canonical production example: `SDPlayerTodayView` (Stage 5B pilot, approved).
@@ -16,8 +75,6 @@ import SwiftUI
 /// - Coach instructions are read-only and visually distinct from player input.
 /// - Large tap targets; steppers over typing wherever a number is bounded.
 struct HPProgramExecutionTemplate: View {
-  @Environment(\.dynamicTypeSize) private var dts
-
   var isWide: Bool = false
   var state: HPTemplateState = .loaded
 
@@ -26,47 +83,58 @@ struct HPProgramExecutionTemplate: View {
   @State private var weight = "135"
   @State private var notes = ""
   @State private var feel = 8.0
+  @State private var sampleSelfAssessmentStarted = false
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        HPWorkspaceHeader("Today",
-                          orgLabel: HPSample.orgIdentity.name,
-                          context: "Tuesday, July 14",
-                          identity: HPSample.orgIdentity) {
-          HStack(spacing: HP.Space.xs) {
-            HPStatusBadge(text: "Scheduled", kind: .success)
-            HPStatusBadge(text: "Not logged", kind: .warning)
-          }
+    HPProgramExecutionLayout(widthMode: isWide ? .automatic : .compact) {
+      HPWorkspaceHeader("Today",
+                        orgLabel: HPSample.orgIdentity.name,
+                        context: "Tuesday, July 14",
+                        identity: HPSample.orgIdentity) {
+        HStack(spacing: HP.Space.xs) {
+          HPStatusBadge(text: "Scheduled", kind: .success)
+          HPStatusBadge(text: "Not logged", kind: .warning)
         }
-
-        switch state {
-        case .loading:
-          HPCard { HPLoadingState(text: "Loading today’s program…") }
-        case .empty:
-          HPCard {
+      }
+    } dateContext: {
+      EmptyView()
+    } programSummary: {
+      switch state {
+      case .loading:
+        HPCard { HPLoadingState(text: "Loading today’s program…") }
+      case .empty:
+        HPCard {
+          VStack(spacing: HP.Space.sm) {
             HPEmptyState(title: "No program assigned",
                          message: "Your coach hasn’t assigned a program yet. You can still log a self-assessment.",
                          systemImage: "figure.strengthtraining.traditional",
                          actionTitle: "Log self-assessment",
-                         actionIsPrimary: false)
+                         actionIsPrimary: false,
+                         action: { sampleSelfAssessmentStarted = true })
+            if sampleSelfAssessmentStarted {
+              HPStatusBadge(text: "Self-assessment ready", kind: .info)
+            }
           }
-        case .error:
-          HPCard {
-            HPErrorState(message: "We couldn’t load today’s program. Check your connection and try again.",
-                         onRetry: {})
-          }
-        case .loaded:
-          programCard
-          exerciseLogger
         }
-
-        submitCard
+      case .error:
+        HPCard {
+          HPErrorState(message: "We couldn’t load today’s program. Check your connection and try again.",
+                       onRetry: {})
+        }
+      case .loaded:
+        programCard
       }
-      .padding(HP.Space.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
+    } activities: {
+      if state == .loaded {
+        exerciseLogger
+      }
+    } subActivities: {
+      EmptyView()
+    } assessment: {
+      EmptyView()
+    } submission: {
+      submitCard
     }
-    .background(HP.Color.bg)
   }
 
   private var programCard: some View {

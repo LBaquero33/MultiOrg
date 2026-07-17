@@ -36,6 +36,7 @@
 		18EF9522EE08C9AB80DFA9D7 /* HPModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CDE2EAA28FBABED02B63C4 /* HPModal.swift */; };
 		1A00AC53BF05B31826D61C7B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 531147FE95E6FC7910099D17 /* LaunchScreen.storyboard */; };
 		1A5FAAD832868C935AB335B5 /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142E2CDBFDDB69010D34D80A /* ApplePlayerPurchaseContext.swift */; };
+		1AFBCE069142DC712A8F5BE2 /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB34A4C388A5AE95101B7253 /* HPScreenScaffold.swift */; };
 		1C9A838B6E6749C47B6BB9B3 /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1394ABFD7D898E955BC2002 /* CoachHomeView.swift */; };
 		1E2E9C30930F33F31CDE6E92 /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8B8F485A9EC3ED7D312FE8 /* HPProgressIndicator.swift */; };
 		209B2482BB2E2ADD6354C1C9 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC3433DA5FB5E5CA44EFDF /* ChatThreadView.swift */; };
@@ -123,6 +124,7 @@
 		6E8B6F62EFAF517C6BA8338F /* SDPlayerBPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86290C30C6D11C0883C0E350 /* SDPlayerBPView.swift */; };
 		6EA88963CBADD92273E7667F /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F121DF422B3EA392D5342D4C /* HPLoadingState.swift */; };
 		6F18D8663BA9EC472086D35C /* SDPlayerBPDaySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D72670F615C77DE93FC22D /* SDPlayerBPDaySection.swift */; };
+		6F2DBCFF1381B1156F3D3757 /* HPStructuralTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02CE28E4E641B533621B55D0 /* HPStructuralTemplateTests.swift */; };
 		6F5C962B1EB3D8CDA29C857E /* PaymentCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8902C04D8DDE52CA7427D3E5 /* PaymentCheckoutTests.swift */; };
 		715E08D3C599889511F4F62E /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDBE31631172DA3AC29D7B2 /* HPStatTile.swift */; };
 		723E91DB2EA612B68BA38431 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF37C594DC7F90508FB825E /* SupabaseConfig.swift */; };
@@ -177,6 +179,7 @@
 		A0D59B6904EF4C691EBB4F9A /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066344F12892B67645F0CE3A /* FacilityDaySheet.swift */; };
 		A1CB918887E47501CBAD55F8 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 215DAC1398C2FFE64DF3F4E4 /* Supabase */; };
 		A2344ABBAC9A6154F33F8BB1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DAF049C54B9ED0C40F1A2C /* SupabaseService.swift */; };
+		A3A5E5F289ACCD27BA7D922B /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB34A4C388A5AE95101B7253 /* HPScreenScaffold.swift */; };
 		A3E63464701281ED48CF7A5F /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6F0A65781F4C194EF4EF89 /* PlayerDevelopmentCopilotView.swift */; };
 		A4C0B97BB37C7798E2C7C938 /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F19D3871690DB6531B4187B /* NotificationCenterViewModel.swift */; };
 		A67E8F94B7E6F253CF483692 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D17017DA4336517AD4B2A86 /* HPColor.swift */; };
@@ -304,6 +307,7 @@
 /* Begin PBXFileReference section */
 		0024501F6DBDB8A551AE6E10 /* HPSegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSegmentedControl.swift; sourceTree = "<group>"; };
 		016471533F76BFD41337D83E /* HPCommunicationScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCommunicationScreenTemplate.swift; sourceTree = "<group>"; };
+		02CE28E4E641B533621B55D0 /* HPStructuralTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStructuralTemplateTests.swift; sourceTree = "<group>"; };
 		04BAC80C5413DA2E308F4E0E /* ApplePlayerSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerSubscriptionTests.swift; sourceTree = "<group>"; };
 		05006A2A787F69671DF9B59A /* OrgAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgAdminConsoleView.swift; sourceTree = "<group>"; };
 		050DC46A39A2465CF87AFC19 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
@@ -444,6 +448,7 @@
 		EA2D344B2DA890D8F660AB44 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EA934C7E22A16613FCD90C66 /* HPStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatusBadge.swift; sourceTree = "<group>"; };
 		EAD813098F5C9DFBE13AAC06 /* PlayerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHomeView.swift; sourceTree = "<group>"; };
+		EB34A4C388A5AE95101B7253 /* HPScreenScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPScreenScaffold.swift; sourceTree = "<group>"; };
 		EB432AA204E1F14951AC3CD1 /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
 		ECD0B37FA2FE13F332848F67 /* DHDTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDTheme.swift; sourceTree = "<group>"; };
 		ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLiveControlsRenderTests.swift; sourceTree = "<group>"; };
@@ -741,6 +746,7 @@
 				1731FCCDEB6B5D32E19FF539 /* HPFormScreenTemplate.swift */,
 				C4231112B8B0894349252B0E /* HPListScreenTemplate.swift */,
 				2C952835271F53AE1AD88FC4 /* HPProgramExecutionTemplate.swift */,
+				EB34A4C388A5AE95101B7253 /* HPScreenScaffold.swift */,
 				485CF95B8B06185071869EEB /* HPSettingsScreenTemplate.swift */,
 				A2D1503678B321B10F02A0E4 /* HPStateScreenTemplate.swift */,
 				AEB3C90A854D0726E70A2D3A /* HPWorkspaceScreenTemplate.swift */,
@@ -767,6 +773,7 @@
 				2A4BDAE13D770E6A2FC7206F /* FinanceRenderTests.swift */,
 				7A3E638DBD12784F5E5239CE /* HPGalleryRenderTests.swift */,
 				ED15CA753AC2A11CE789D34D /* HPLiveControlsRenderTests.swift */,
+				02CE28E4E641B533621B55D0 /* HPStructuralTemplateTests.swift */,
 				82A80958FDEB0ACC5E61BE86 /* HPTemplateRenderTests.swift */,
 				27BCC45EC3D6A7F9AE631883 /* NotificationCenterTests.swift */,
 				73FE316C15A4FE04D08293F9 /* OrganizationAuthorizationTests.swift */,
@@ -1058,6 +1065,7 @@
 				8045B166A4E45D169A00A24A /* HPProgramExecutionTemplate.swift in Sources */,
 				1E2E9C30930F33F31CDE6E92 /* HPProgressIndicator.swift in Sources */,
 				4BF428CFA2BF90A4843586D2 /* HPSampleData.swift in Sources */,
+				1AFBCE069142DC712A8F5BE2 /* HPScreenScaffold.swift in Sources */,
 				36270AF86256424A535674D9 /* HPSearchBar.swift in Sources */,
 				FB2DE36784C0B26F527245E6 /* HPSectionHeader.swift in Sources */,
 				76A7BED540A0273576C3E391 /* HPSegmentedControl.swift in Sources */,
@@ -1189,6 +1197,7 @@
 				0A0E15C3B9951A9436741929 /* HPProgramExecutionTemplate.swift in Sources */,
 				BA23F3BE5FB310738177A8AE /* HPProgressIndicator.swift in Sources */,
 				13314D4D0905B26085D1AA78 /* HPSampleData.swift in Sources */,
+				A3A5E5F289ACCD27BA7D922B /* HPScreenScaffold.swift in Sources */,
 				386A3389733D2DE9E1DB603B /* HPSearchBar.swift in Sources */,
 				67E3F3209E0BFD80204BFD78 /* HPSectionHeader.swift in Sources */,
 				9848FAAFD291E636FAAB8E48 /* HPSegmentedControl.swift in Sources */,
@@ -1270,6 +1279,7 @@
 				B032B35D6B1373F741876647 /* FinanceRenderTests.swift in Sources */,
 				E09FFC8C3AB90B52368CE889 /* HPGalleryRenderTests.swift in Sources */,
 				0E9C3FDAB0F1795F28160B6B /* HPLiveControlsRenderTests.swift in Sources */,
+				6F2DBCFF1381B1156F3D3757 /* HPStructuralTemplateTests.swift in Sources */,
 				C78FA8AE70F64FE62BBAB78F /* HPTemplateRenderTests.swift in Sources */,
 				3F5A06B245820034B3DB9BF4 /* NotificationCenterTests.swift in Sources */,
 				43388DB9F202D91796CA8729 /* OrganizationAuthorizationTests.swift in Sources */,

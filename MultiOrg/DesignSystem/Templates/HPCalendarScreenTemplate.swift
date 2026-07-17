@@ -1,5 +1,77 @@
 import SwiftUI
 
+enum HPCalendarCompactPane: Equatable, Sendable {
+  case calendar
+  case agenda
+}
+
+/// Reusable presentation shell for scheduling screens.
+///
+/// Callers supply their existing calendar, agenda, bindings, and callbacks.
+/// The shell performs only the canonical pane arrangement: a regular-width
+/// split, one explicitly selected compact pane, and agenda-only AX layout.
+struct HPCalendarScreenLayout<Header: View, ScopeControl: View, Calendar: View, Agenda: View, StateContent: View>: View {
+  private let widthMode: HPScreenWidthMode
+  private let compactPane: HPCalendarCompactPane
+  private let showsPaneContent: Bool
+  private let header: (HPScreenLayoutContext) -> Header
+  private let scopeControl: (HPScreenLayoutContext) -> ScopeControl
+  private let calendar: (HPScreenLayoutContext) -> Calendar
+  private let agenda: (HPScreenLayoutContext) -> Agenda
+  private let stateContent: (HPScreenLayoutContext) -> StateContent
+
+  init(
+    widthMode: HPScreenWidthMode = .automatic,
+    compactPane: HPCalendarCompactPane,
+    showsPaneContent: Bool = true,
+    @ViewBuilder header: @escaping (HPScreenLayoutContext) -> Header,
+    @ViewBuilder scopeControl: @escaping (HPScreenLayoutContext) -> ScopeControl,
+    @ViewBuilder calendar: @escaping (HPScreenLayoutContext) -> Calendar,
+    @ViewBuilder agenda: @escaping (HPScreenLayoutContext) -> Agenda,
+    @ViewBuilder stateContent: @escaping (HPScreenLayoutContext) -> StateContent
+  ) {
+    self.widthMode = widthMode
+    self.compactPane = compactPane
+    self.showsPaneContent = showsPaneContent
+    self.header = header
+    self.scopeControl = scopeControl
+    self.calendar = calendar
+    self.agenda = agenda
+    self.stateContent = stateContent
+  }
+
+  var body: some View {
+    HPScreenScaffold(widthMode: widthMode) { context in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        header(context)
+        scopeControl(context)
+        if showsPaneContent {
+          panes(context)
+        } else {
+          stateContent(context)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func panes(_ context: HPScreenLayoutContext) -> some View {
+    if context.isAccessibilitySize {
+      agenda(context)
+    } else if context.isRegularWidth {
+      HStack(alignment: .top, spacing: HP.Space.md) {
+        calendar(context).frame(maxWidth: .infinity, alignment: .top)
+        agenda(context).frame(maxWidth: .infinity, alignment: .top)
+      }
+    } else {
+      switch compactPane {
+      case .calendar: calendar(context)
+      case .agenda: agenda(context)
+      }
+    }
+  }
+}
+
 /// Template 6 — **Calendar / scheduling screen**.
 ///
 /// Purpose: see what's scheduled and act on it. Anatomy: header → scope control
@@ -18,51 +90,55 @@ struct HPCalendarScreenTemplate: View {
   @State private var scope = "month"
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        HPWorkspaceHeader("Schedule",
-                          orgLabel: HPSample.orgIdentity.name,
-                          context: "July 2026 · 6 bookings this week",
-                          identity: HPSample.orgIdentity) {
-          HPButton(title: "New booking", systemImage: "plus", variant: .primary, size: .sm)
-        }
-
-        HPCard {
-          HPSegmentedControl(
-            options: [(value: "month", label: "Month"),
-                      (value: "week", label: "Week"),
-                      (value: "day", label: "Day")],
-            selection: $scope
-          )
-        }
-
-        switch state {
-        case .loading: HPCard { HPLoadingState(text: "Loading schedule…") }
-        case .error:   HPCard { HPErrorState(message: "We couldn’t load the schedule.", onRetry: {}) }
-        case .empty:
-          HPCard {
-            HPEmptyState(title: "Nothing scheduled",
-                         message: "No bookings for this day. Create one to fill the cage.",
-                         systemImage: "calendar",
-                         actionTitle: "New booking")
-          }
-        case .loaded:
-          if isWide && !dts.isAccessibilitySize {
-            HStack(alignment: .top, spacing: HP.Space.md) {
-              monthGrid.frame(maxWidth: .infinity)
-              dayTimeline.frame(maxWidth: .infinity)
-            }
-          } else {
-            // Compact/AX3: agenda-first. The grid is omitted at AX3 entirely.
-            if !dts.isAccessibilitySize { monthGrid }
-            dayTimeline
-          }
-        }
+    HPCalendarScreenLayout(
+      widthMode: isWide ? .automatic : .compact,
+      compactPane: scope == "month" ? .calendar : .agenda,
+      showsPaneContent: showsSchedule
+    ) { _ in
+      HPWorkspaceHeader("Schedule",
+                        orgLabel: HPSample.orgIdentity.name,
+                        context: "July 2026 · 6 bookings this week",
+                        identity: HPSample.orgIdentity) {
+        HPButton(title: "New booking", systemImage: "plus", variant: .primary, size: .sm)
       }
-      .padding(HP.Space.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
+    } scopeControl: { _ in
+      HPCard {
+        HPSegmentedControl(
+          options: [(value: "month", label: "Month"),
+                    (value: "week", label: "Week"),
+                    (value: "day", label: "Day")],
+          selection: $scope
+        )
+      }
+    } calendar: { _ in
+      monthGrid
+    } agenda: { _ in
+      dayTimeline
+    } stateContent: { _ in
+      switch state {
+      case .loading:
+        HPCard { HPLoadingState(text: "Loading schedule…") }
+      case .error:
+        HPCard { HPErrorState(message: "We couldn’t load the schedule.", onRetry: {}) }
+      case .empty:
+        HPCard {
+          HPEmptyState(title: "Nothing scheduled",
+                       message: "No bookings for this day. Create one to fill the cage.",
+                       systemImage: "calendar",
+                       actionTitle: "New booking",
+                       action: {})
+        }
+      case .loaded:
+        EmptyView()
+      }
     }
-    .background(HP.Color.bg)
+  }
+
+  private var showsSchedule: Bool {
+    switch state {
+    case .loaded: true
+    case .loading, .error, .empty: false
+    }
   }
 
   private var monthGrid: some View {
@@ -70,8 +146,9 @@ struct HPCalendarScreenTemplate: View {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader("July 2026")
         HStack(spacing: 0) {
-          ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { d in
-            Text(d).font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)
+          let weekdaySymbols = ["S", "M", "T", "W", "T", "F", "S"]
+          ForEach(weekdaySymbols.indices, id: \.self) { index in
+            Text(weekdaySymbols[index]).font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)
               .frame(maxWidth: .infinity)
           }
         }
