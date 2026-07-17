@@ -65,17 +65,31 @@ struct LoginView: View {
   }
 
   var body: some View {
-    Group {
-      #if os(iOS)
-      if screen == .signIn {
-        signInPage
-      } else {
-        scrollingPage
+    HPScreenScaffold(widthMode: .compact, maxContentWidth: 560) { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        loginHeader
+
+        HPCard {
+          organizationAndModeControls
+        }
+
+        HPCard {
+          if screen == .signUp {
+            signUpFields
+          } else {
+            signInFields
+          }
+        }
+
+        HPCard(style: .flat) {
+          troubleshootingDisclosure
+        }
       }
-      #else
-      scrollingPage
-      #endif
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    #if os(iOS)
+    .scrollDismissesKeyboard(.interactively)
+    #endif
     .task {
       await loadOrgsIfNeeded()
     }
@@ -88,192 +102,217 @@ struct LoginView: View {
         }
         Task { await appState.resetPassword(email: raw.lowercased()) }
       }
+      .keyboardShortcut(.defaultAction)
       Button("Cancel", role: .cancel) {}
+        .keyboardShortcut(.cancelAction)
     } message: {
       Text("We’ll email a reset link if you entered a real email address.")
     }
   }
 
-  private var signInPage: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      loginHeader
-      organizationAndModeControls
-      signInFields
-      troubleshootingDisclosure
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 24)
-    .safeAreaPadding(.top, 12)
-    .padding(.bottom, 16)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(DHDTheme.pageBackground.ignoresSafeArea())
-  }
-
-  private var scrollingPage: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
-        loginHeader
-        organizationAndModeControls
-        if screen == .signUp {
-          signUpFields
-        } else {
-          signInFields
-        }
-        troubleshootingDisclosure
-      }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(DHDTheme.pageBackground.ignoresSafeArea())
-    #if os(iOS)
-    .scrollDismissesKeyboard(.interactively)
-    #endif
-  }
-
   private var loginHeader: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(DHDAppConfig.displayName)
-        .font(.largeTitle.bold())
-      Text("Choose your organization, then sign in or create an account.")
-        .foregroundStyle(.secondary)
+    HStack(alignment: .top, spacing: HP.Space.sm) {
+      Image(systemName: "baseball.diamond.bases")
+        .font(.system(size: 28, weight: .semibold))
+        .foregroundStyle(HP.Color.accent)
+        .frame(width: 44, height: 44)
+        .background(
+          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+            .fill(HP.Color.accent.opacity(0.14))
+        )
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Text(DHDAppConfig.displayName)
+          .font(HP.Font.title)
+          .tracking(HP.Font.titleTracking)
+          .foregroundStyle(HP.Color.text)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityAddTraits(.isHeader)
+        Text("Choose your organization, then sign in or create an account.")
+          .font(HP.Font.callout)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var organizationAndModeControls: some View {
-    VStack(spacing: 12) {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPSectionHeader("Access")
+
       if orgs.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          HStack(spacing: 10) {
-            if isLoadingOrganizations {
-              ProgressView()
-              Text("Loading organizations…")
-                .foregroundStyle(.secondary)
-            } else {
+        if isLoadingOrganizations {
+          HPLoadingState(text: "Loading organizations…")
+        } else {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            HStack(alignment: .center, spacing: HP.Space.sm) {
               Text("Organization list unavailable")
-                .foregroundStyle(.secondary)
-              Button("Retry") {
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: 0)
+              HPButton(
+                title: "Retry",
+                systemImage: "arrow.clockwise",
+                variant: .secondary,
+                size: .sm
+              ) {
                 Task { await loadOrgsIfNeeded(force: true) }
               }
             }
+            if let organizationLoadError {
+              Text(organizationLoadError)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("Email sign-in still works without selecting an organization.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
-          if let organizationLoadError {
-            Text(organizationLoadError)
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-          Text("Email sign-in still works without selecting an organization.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
       } else {
-        Picker("Organization", selection: $selectedOrgId) {
-          ForEach(orgs) { org in
-            Text(org.displayName).tag(Optional(org.id))
+        VStack(alignment: .leading, spacing: 6) {
+          Text("ORGANIZATION")
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          Picker("Organization", selection: $selectedOrgId) {
+            ForEach(orgs) { org in
+              Text(org.displayName).tag(Optional(org.id))
+            }
           }
+          .pickerStyle(.menu)
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
-        .pickerStyle(.menu)
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
 
-      Picker("Auth screen", selection: $screen) {
-        ForEach(Screen.allCases) { option in
-          Text(option.rawValue).tag(option)
-        }
-      }
-      .pickerStyle(.segmented)
+      HPSegmentedControl(
+        options: Screen.allCases.map { (value: $0, label: $0.rawValue) },
+        selection: $screen
+      )
+      .accessibilityLabel("Authentication screen")
     }
   }
 
   private var signInFields: some View {
-    VStack(spacing: 12) {
-      TextField("Email or username", text: $emailOrUsername)
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPSectionHeader("Sign in")
+
+      HPFormField(
+        label: "Email or username",
+        text: $emailOrUsername,
+        placeholder: "Email or organization username"
+      )
       #if canImport(UIKit)
         .textInputAutocapitalization(.never)
       #endif
         .autocorrectionDisabled()
-        .textFieldStyle(RoundedBorderTextFieldStyle())
+        .frame(minHeight: 44)
 
       passwordField
       authErrorView
       submitButton
 
-      Text("or")
-        .font(.footnote.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .padding(.top, 2)
+      HStack(spacing: HP.Space.sm) {
+        Rectangle().fill(HP.Color.border).frame(height: 1)
+        Text("OR")
+          .font(HP.Font.eyebrow)
+          .tracking(HP.Font.eyebrowTracking)
+          .foregroundStyle(HP.Color.textMuted)
+        Rectangle().fill(HP.Color.border).frame(height: 1)
+      }
+      .accessibilityElement(children: .combine)
+
       AppleSignInButtonView()
         .environmentObject(appState)
 
-      Button("Forgot password?") { showReset = true }
-        .font(.footnote.weight(.semibold))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 4)
+      HPButton(
+        title: "Forgot password?",
+        variant: .tertiary,
+        size: .sm
+      ) {
+        showReset = true
+      }
     }
   }
 
   private var signUpFields: some View {
-    VStack(spacing: 12) {
-      TextField("Email", text: $signUpEmail)
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPSectionHeader("Create account")
+
+      HPFormField(label: "Email", text: $signUpEmail, placeholder: "Account email")
       #if canImport(UIKit)
         .textInputAutocapitalization(.never)
       #endif
         .autocorrectionDisabled()
-        .textFieldStyle(RoundedBorderTextFieldStyle())
+        .frame(minHeight: 44)
 
-      TextField("Username", text: $signUpUsername)
+      HPFormField(label: "Username", text: $signUpUsername, placeholder: "Organization username")
       #if canImport(UIKit)
         .textInputAutocapitalization(.never)
       #endif
         .autocorrectionDisabled()
-        .textFieldStyle(RoundedBorderTextFieldStyle())
+        .frame(minHeight: 44)
 
-      Picker("Account type", selection: $accountType) {
-        ForEach(AccountType.allCases) { type in
-          Text(type.rawValue).tag(type)
-        }
+      VStack(alignment: .leading, spacing: 6) {
+        Text("ACCOUNT TYPE")
+          .font(HP.Font.eyebrow)
+          .tracking(HP.Font.eyebrowTracking)
+          .foregroundStyle(HP.Color.textMuted)
+        HPSegmentedControl(
+          options: AccountType.allCases.map { (value: $0, label: $0.rawValue) },
+          selection: $accountType
+        )
       }
-      .pickerStyle(.segmented)
 
-      TextField("Full name (optional)", text: $fullName)
+      HPFormField(label: "Full name (optional)", text: $fullName, placeholder: "Full name")
       #if canImport(UIKit)
         .textInputAutocapitalization(.words)
       #endif
         .autocorrectionDisabled()
-        .textFieldStyle(RoundedBorderTextFieldStyle())
+        .frame(minHeight: 44)
 
       if accountType == .parent {
-        TextField("Parent code (from player)", text: $parentCode)
+        HPFormField(
+          label: "Parent code",
+          text: $parentCode,
+          placeholder: "Code from player",
+          helper: "Ask your child for their Parent code in Account → Family."
+        )
         #if canImport(UIKit)
           .textInputAutocapitalization(.characters)
         #endif
           .autocorrectionDisabled()
-          .textFieldStyle(RoundedBorderTextFieldStyle())
-        TextField("Relationship (optional)", text: $relationship)
+          .frame(minHeight: 44)
+
+        HPFormField(
+          label: "Relationship (optional)",
+          text: $relationship,
+          placeholder: "Relationship to player"
+        )
         #if canImport(UIKit)
           .textInputAutocapitalization(.words)
         #endif
           .autocorrectionDisabled()
-          .textFieldStyle(RoundedBorderTextFieldStyle())
-        Text("Ask your child for their Parent code in Account → Family.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
+          .frame(minHeight: 44)
       }
 
       if accountType == .coach {
-        TextField("Coach invite code", text: $coachInviteCode)
+        HPFormField(
+          label: "Coach invite code",
+          text: $coachInviteCode,
+          placeholder: "Invite code",
+          helper: "Coach accounts require an invite code."
+        )
         #if canImport(UIKit)
           .textInputAutocapitalization(.never)
         #endif
           .autocorrectionDisabled()
-          .textFieldStyle(RoundedBorderTextFieldStyle())
-        Text("Coach accounts require an invite code.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
+          .frame(minHeight: 44)
       }
 
       passwordField
@@ -283,31 +322,45 @@ struct LoginView: View {
   }
 
   private var passwordField: some View {
-    SecureField("Password", text: $password)
-      .textFieldStyle(RoundedBorderTextFieldStyle())
+    HPFormField(label: "Password", text: $password, kind: .secure, placeholder: "Password")
+      .frame(minHeight: 44)
   }
 
   @ViewBuilder
   private var authErrorView: some View {
     if let error = appState.authError, !error.isEmpty {
-      Text(error)
-        .foregroundStyle(.red)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      if error.localizedCaseInsensitiveContains("password reset email sent") {
+        HStack(alignment: .top, spacing: HP.Space.sm) {
+          HPStatusBadge(text: "Sent", kind: .success)
+          Text("Password reset email sent. Check your inbox and spam folder.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.text)
+            .fixedSize(horizontal: false, vertical: true)
+          Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+      } else {
+        HPErrorState(
+          title: screen == .signUp ? "Account couldn’t be created" : "Authentication issue",
+          message: safeAuthMessage(error)
+        )
+      }
     }
   }
 
   private var submitButton: some View {
-    Button {
+    HPButton(
+      title: screen == .signUp ? "Create Account" : "Sign In",
+      systemImage: screen == .signUp ? "person.badge.plus" : "arrow.right.circle",
+      variant: .primary,
+      size: .lg,
+      isLoading: isSubmitting,
+      fullWidth: true
+    ) {
       Task { await submit() }
-    } label: {
-      HStack {
-        if isSubmitting { ProgressView().tint(.white) }
-        Text(screen == .signUp ? "Create Account" : "Sign In").fontWeight(.semibold)
-      }
-      .frame(maxWidth: .infinity)
     }
-    .buttonStyle(.borderedProminent)
     .disabled(isSubmitDisabled)
+    .keyboardShortcut(.defaultAction)
   }
 
   private var isSubmitDisabled: Bool {
@@ -324,12 +377,73 @@ struct LoginView: View {
   private var troubleshootingDisclosure: some View {
     DisclosureGroup("Having trouble signing in?") {
       Text("You can sign in with either your account email or your organization-specific username. Password reset requires your email address.")
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .padding(.top, 6)
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, HP.Space.xs)
     }
-    .font(.footnote.weight(.semibold))
-    .foregroundStyle(.secondary)
+    .font(HP.Font.callout.weight(.semibold))
+    .foregroundStyle(HP.Color.textTertiary)
+    .frame(minHeight: 44)
+  }
+
+  private func safeAuthMessage(_ error: String) -> String {
+    let knownMessages = [
+      "Enter your email address to reset your password.",
+      "Pick an organization first.",
+      "Pick an organization before signing in with a username.",
+      "Login credentials are incorrect.",
+      "We couldn't sign you in right now. Check your connection and try again.",
+      "The selected organization could not be found. Refresh the organization list and try again.",
+    ]
+    if let known = knownMessages.first(where: { error.caseInsensitiveCompare($0) == .orderedSame }) {
+      return known
+    }
+
+    let normalized = error.lowercased()
+    if normalized.contains("already registered")
+      || normalized.contains("already exists")
+      || normalized.contains("username_taken")
+      || normalized.contains("username taken")
+      || normalized.contains("duplicate") {
+      return "An account with those details already exists. Try signing in or use different account details."
+    }
+    if normalized.contains("invite")
+      || normalized.contains("parent code")
+      || normalized.contains("parent_code")
+      || normalized.contains("coach code")
+      || normalized.contains("coach_code") {
+      return "The invite or family code could not be verified. Check the code and try again."
+    }
+    if normalized.contains("coach_signup_disabled") {
+      return "Coach account creation is unavailable for this organization. Ask an organization owner for an invite."
+    }
+    if normalized.contains("invalid email")
+      || normalized.contains("invalid_email")
+      || normalized.contains("email address is invalid") {
+      return "Enter a valid email address and try again."
+    }
+    if normalized.contains("rate limit")
+      || normalized.contains("too many requests")
+      || normalized.contains("request limit") {
+      return "Too many requests were made. Wait a moment, then try again."
+    }
+    if normalized.contains("password")
+      && (normalized.contains("weak")
+        || normalized.contains("length")
+        || normalized.contains("characters")
+        || normalized.contains("requirements")) {
+      return "The password does not meet the account requirements. Use a longer, stronger password and try again."
+    }
+    if normalized.contains("reset") || normalized.contains("recovery") {
+      return "The password-reset request could not be completed. Check the email address and try again."
+    }
+    if normalized.contains("not configured") {
+      return "Sign-in is unavailable in this build. Install a configured Home Plate build or contact support."
+    }
+    return screen == .signUp
+      ? "Home Plate couldn’t create your account. Check the details and try again."
+      : "Home Plate couldn’t complete the authentication request. Check your connection and try again."
   }
 
   private func submit() async {

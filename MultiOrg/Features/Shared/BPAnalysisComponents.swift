@@ -16,7 +16,11 @@ struct HistogramChart: View {
   var body: some View {
     let bins = makeBins(values: values, binCount: binCount)
     if bins.isEmpty {
-      ContentUnavailableView("No data", systemImage: "chart.bar", description: Text("Upload a session with this metric to see its distribution."))
+      HPEmptyState(
+        title: "No data",
+        message: "Upload a session with this metric to see its distribution.",
+        systemImage: "chart.bar"
+      )
     } else {
       Chart(bins) { bin in
         BarMark(
@@ -24,7 +28,7 @@ struct HistogramChart: View {
           xEnd: .value("Upper bound", bin.upper),
           y: .value("Swings", bin.count)
         )
-        .foregroundStyle(DHDTheme.accent.gradient)
+        .foregroundStyle(HP.Color.accent.gradient)
       }
       .chartXAxisLabel(xLabel.isEmpty ? "Value" : xLabel)
       .chartYAxisLabel("Swings")
@@ -71,7 +75,11 @@ struct ScatterChart: View {
       return (launchAngle, exitVelo)
     }
     if points.isEmpty {
-      ContentUnavailableView("No paired data", systemImage: "circle.grid.2x2", description: Text("Exit velocity and launch angle are both required."))
+      HPEmptyState(
+        title: "No paired data",
+        message: "Exit velocity and launch angle are both required.",
+        systemImage: "circle.grid.2x2"
+      )
     } else {
       Chart {
         ForEach(Array(points.enumerated()), id: \.offset) { _, point in
@@ -101,11 +109,16 @@ struct StrikeZoneChart: View {
   var body: some View {
     let points = normalizedPoints
     if points.isEmpty {
-      ContentUnavailableView("No strike-zone data", systemImage: "rectangle.grid.3x2", description: Text("Upload pitch location columns to populate this chart."))
+      HPEmptyState(
+        title: "No strike-zone data",
+        message: "Upload pitch location columns to populate this chart.",
+        systemImage: "rectangle.grid.3x2"
+      )
     } else {
-      VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
         Text(mode == "density" ? "Contact quality by pitch location" : "Pitch locations")
-          .font(.subheadline.weight(.semibold))
+          .font(HP.Font.headline)
+          .foregroundStyle(HP.Color.text)
         GeometryReader { geometry in
           Canvas { context, size in
             drawZone(in: &context, size: size, points: points)
@@ -113,8 +126,9 @@ struct StrikeZoneChart: View {
         }
         .accessibilityLabel(mode == "density" ? "Strike-zone contact-quality heat map" : "Strike-zone pitch location chart")
         Text("Catcher view. Color intensity reflects \(mode == "density" ? "average exit velocity" : "each tracked pitch").")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -137,7 +151,7 @@ struct StrikeZoneChart: View {
     let bins = heatBins(points)
     let maxCount = max(1, bins.map(\.count).max() ?? 1)
 
-    context.fill(Path(plotRect), with: .color(DHDTheme.cardBackground.opacity(0.65)))
+    context.fill(Path(plotRect), with: .color(HP.Color.surfaceRaised.opacity(0.65)))
     for row in 0..<rows {
       for column in 0..<columns {
         let rect = CGRect(
@@ -151,7 +165,7 @@ struct StrikeZoneChart: View {
           let score = qualityScore(bin: bin, maxCount: maxCount)
           context.fill(Path(rect.insetBy(dx: 1, dy: 1)), with: .color(heatColor(score)))
         }
-        context.stroke(Path(rect), with: .color(DHDTheme.separator.opacity(0.8)), lineWidth: 1)
+        context.stroke(Path(rect), with: .color(HP.Color.border.opacity(0.8)), lineWidth: 1)
       }
     }
 
@@ -162,7 +176,7 @@ struct StrikeZoneChart: View {
         context.fill(Path(ellipseIn: marker), with: .color(contactColor(exitVelo: point.exitVelo ?? 0, launchAngle: 15)))
       }
     }
-    context.stroke(Path(plotRect), with: .color(DHDTheme.textPrimary.opacity(0.8)), lineWidth: 2)
+    context.stroke(Path(plotRect), with: .color(HP.Color.text.opacity(0.8)), lineWidth: 2)
   }
 
   private func heatBins(_ points: [StrikeZonePoint]) -> [StrikeZoneHeatBin] {
@@ -209,7 +223,9 @@ struct ContactQualitySummary: View {
     let counts = categories
     if counts.isEmpty {
       Text("Exit velocity and launch angle are required for contact-quality labels.")
-        .foregroundStyle(.secondary)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
     } else {
       HPTable(
         columns: [
@@ -267,7 +283,9 @@ struct BallFlightSummary: View {
     let groups = flightGroups
     if groups.isEmpty {
       Text("Launch angle and exit velocity are required for a ball-flight table.")
-        .foregroundStyle(.secondary)
+        .font(HP.Font.callout)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
     } else {
       HPTable(
         columns: [
@@ -295,7 +313,7 @@ struct BallFlightSummary: View {
             ]
           )
         },
-        layout: .auto
+        layout: .stacked
       )
     }
   }
@@ -351,7 +369,7 @@ private struct BallFlightGroup: Identifiable {
 }
 
 private func contactColor(exitVelo: Double, launchAngle: Double) -> Color {
-  if exitVelo >= 85 && (8...32).contains(launchAngle) { return .green }
-  if exitVelo >= 85 { return .orange }
-  return DHDTheme.accent
+  if exitVelo >= 85 && (8...32).contains(launchAngle) { return HP.Color.success }
+  if exitVelo >= 85 { return HP.Color.warning }
+  return HP.Color.accent
 }

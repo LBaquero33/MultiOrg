@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatThreadView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   let channel: SDChatChannel
 
   @State private var messages: [SDChatMessage] = []
@@ -22,19 +23,16 @@ struct ChatThreadView: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
+    VStack(spacing: HP.Space.sm) {
       threadHeader
 
       ScrollViewReader { proxy in
         ScrollView {
-          LazyVStack(spacing: 10) {
+          LazyVStack(spacing: HP.Space.sm) {
             if isLoading {
-              HStack(spacing: 10) {
-                ProgressView()
-                Text("Loading messages...")
-                  .foregroundStyle(DHDTheme.textSecondary)
+              HPCard(style: .flat) {
+                HPLoadingState(text: "Loading messages…")
               }
-              .padding(.vertical, 18)
             } else if orderedMessages.isEmpty {
               emptyState
             }
@@ -52,11 +50,10 @@ struct ChatThreadView: View {
               .id(message.id)
             }
           }
-          .padding(.horizontal, 18)
-          .padding(.vertical, 16)
+          .padding(.vertical, HP.Space.xs)
           .frame(maxWidth: .infinity)
         }
-        .background(DHDTheme.pageBackground)
+        .background(HP.Color.bg)
         .onChange(of: messages.count) { _, _ in
           guard let last = orderedMessages.last else { return }
           withAnimation(.easeOut(duration: 0.18)) {
@@ -65,11 +62,13 @@ struct ChatThreadView: View {
         }
       }
 
-      Divider().opacity(0.35)
+      Divider().overlay(HP.Color.border)
 
       composer
     }
-    .background(DHDTheme.pageBackground)
+    .padding(HP.Space.md)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(HP.Color.bg)
     .navigationTitle(channelTitle)
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -144,107 +143,128 @@ struct ChatThreadView: View {
   }
 
   private var threadHeader: some View {
-    HStack(spacing: 12) {
-      ChatAvatarView(title: channelTitle == "Chat" ? threadSubtitle : channelTitle, isAnnouncement: channel.isAnnouncement, size: 46)
+    HPCard(style: .flat) {
+      let layout = dynamicTypeSize.isAccessibilitySize
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+        : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+      layout {
+        HStack(alignment: .top, spacing: HP.Space.sm) {
+          ChatAvatarView(
+            title: channelTitle == "Chat" ? threadSubtitle : channelTitle,
+            isAnnouncement: channel.isAnnouncement,
+            size: 46
+          )
 
-      VStack(alignment: .leading, spacing: 3) {
-        Text(channelTitle == "Chat" ? threadSubtitle : channelTitle)
-          .font(.headline)
-          .foregroundStyle(DHDTheme.textPrimary)
-          .lineLimit(1)
-        Text(threadSubtitle)
-          .font(.caption)
-          .foregroundStyle(DHDTheme.textSecondary)
-          .lineLimit(1)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(channelTitle == "Chat" ? threadSubtitle : channelTitle)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+              .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(threadSubtitle)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        if !dynamicTypeSize.isAccessibilitySize {
+          Spacer(minLength: HP.Space.sm)
+        }
+
+        HPStatusBadge(
+          text: channel.isDM ? "DM" : channel.isGroup ? "Group" : "Announcement",
+          kind: channel.isAnnouncement ? .warning : .info
+        )
       }
-
-      Spacer()
-
-      Text(channel.isDM ? "DM" : channel.isGroup ? "Group" : "Announcement")
-        .font(.caption2.weight(.bold))
-        .foregroundStyle(DHDTheme.accent)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(DHDTheme.accent.opacity(0.13)))
-    }
-    .padding(.horizontal, 18)
-    .padding(.vertical, 14)
-    .background(DHDTheme.cardBackground)
-    .overlay(alignment: .bottom) {
-      Rectangle()
-        .fill(Color.white.opacity(0.08))
-        .frame(height: 1)
     }
   }
 
   private var emptyState: some View {
-    VStack(spacing: 10) {
-      Image(systemName: channel.isAnnouncement ? "megaphone" : "bubble.left.and.bubble.right")
-        .font(.system(size: 34, weight: .semibold))
-        .foregroundStyle(DHDTheme.accent.opacity(0.75))
-      Text("No messages yet")
-        .font(.headline)
-      Text(canSend ? "Start the conversation below." : "Announcements will appear here.")
-        .font(.subheadline)
-        .foregroundStyle(DHDTheme.textSecondary)
-        .multilineTextAlignment(.center)
+    HPCard(style: .flat) {
+      HPEmptyState(
+        title: "No messages yet",
+        message: canSend ? "Start the conversation below." : "Announcements will appear here.",
+        systemImage: channel.isAnnouncement ? "megaphone" : "bubble.left.and.bubble.right"
+      )
     }
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, 70)
   }
 
   private var composer: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(alignment: .bottom, spacing: 10) {
-        TextField(canSend ? "Message" : "Coaches only", text: $composerText, axis: .vertical)
-          .lineLimit(1...5)
-          .textFieldStyle(.plain)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(
-            RoundedRectangle(cornerRadius: 18)
-              .fill(DHDTheme.surfaceElevated)
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
+          : AnyLayout(HStackLayout(alignment: .bottom, spacing: HP.Space.sm))
+        layout {
+          HPFormField(
+            label: "Message",
+            text: $composerText,
+            kind: .multiline,
+            placeholder: canSend ? "Write a message" : "Coaches only",
+            isEnabled: canSend && !isSending
           )
-          .overlay(
-            RoundedRectangle(cornerRadius: 18)
-              .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-          )
-          .disabled(!canSend || isSending)
 
-        Button {
-          Task { await send() }
-        } label: {
-          if isSending {
-            ProgressView().controlSize(.small)
-          } else {
-            Image(systemName: "paperplane.fill")
+          HPButton(
+            title: "Send",
+            systemImage: "paperplane.fill",
+            variant: .primary,
+            size: .md,
+            isLoading: isSending,
+            fullWidth: dynamicTypeSize.isAccessibilitySize
+          ) {
+            Task { await send() }
           }
+          .disabled(
+            !canSend
+              || isSending
+              || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          )
         }
-        .buttonStyle(.borderedProminent)
-        .clipShape(Circle())
-        .disabled(!canSend || isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      }
 
-      if let sendErrorText {
-        HStack(spacing: 10) {
-          Label(sendErrorText, systemImage: "exclamationmark.circle.fill")
-            .font(.footnote)
-            .foregroundStyle(.red)
-          Spacer()
-          Button("Retry") { Task { await send() } }
-            .buttonStyle(.bordered)
-            .disabled(isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        if let sendErrorText {
+          let errorLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+          errorLayout {
+            sendFailureLabel(sendErrorText)
+            if !dynamicTypeSize.isAccessibilitySize {
+              Spacer(minLength: HP.Space.sm)
+            }
+            retryButton(fullWidth: dynamicTypeSize.isAccessibilitySize)
+          }
+        } else if sendOperation.status == .sent {
+          Label("Sent", systemImage: "checkmark.circle.fill")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.success)
+            .fixedSize(horizontal: false, vertical: true)
         }
-      } else if sendOperation.status == .sent {
-        Label("Sent", systemImage: "checkmark.circle.fill")
-          .font(.footnote)
-          .foregroundStyle(.green)
       }
     }
-    .padding(.horizontal, 16)
-    .padding(.top, 12)
-    .padding(.bottom, 14)
-    .background(DHDTheme.cardBackground)
+  }
+
+  private func sendFailureLabel(_ message: String) -> some View {
+    Label(message, systemImage: "exclamationmark.circle.fill")
+      .font(HP.Font.caption)
+      .foregroundStyle(HP.Color.danger)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private func retryButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Retry",
+      systemImage: "arrow.clockwise",
+      variant: .secondary,
+      size: .sm,
+      fullWidth: fullWidth
+    ) {
+      Task { await send() }
+    }
+    .disabled(
+      isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    )
   }
 
   private func senderName(for senderId: UUID?) -> String {
@@ -379,35 +399,47 @@ private struct MessageRow: View {
     VStack(spacing: 5) {
       if showTimestamp {
         Text(createdAt.formatted(date: .abbreviated, time: .shortened))
-          .font(.caption2.weight(.medium))
-          .foregroundStyle(DHDTheme.textSecondary)
-          .padding(.vertical, 4)
+          .font(HP.Font.caption.weight(.medium))
+          .foregroundStyle(HP.Color.textMuted)
+          .padding(.vertical, HP.Space.xs)
       }
 
-      HStack(alignment: .bottom, spacing: 8) {
+      HStack(alignment: .bottom, spacing: HP.Space.xs) {
         if isMe { Spacer(minLength: 44) }
 
-        VStack(alignment: isMe ? .trailing : .leading, spacing: 4) {
+        VStack(alignment: isMe ? .trailing : .leading, spacing: HP.Space.xs) {
           if showSender {
             Text(senderName)
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(DHDTheme.textSecondary)
+              .font(HP.Font.caption.weight(.semibold))
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
 
           Text(text)
-            .font(.body)
-            .foregroundStyle(isMe ? .white : DHDTheme.textPrimary)
+            .font(HP.Font.body)
+            .foregroundStyle(isMe ? HP.Color.accentText : HP.Color.text)
             .textSelection(.enabled)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, HP.Space.sm)
+            .padding(.vertical, HP.Space.xs)
             .background(
               UnevenRoundedRectangle(
-                topLeadingRadius: 18,
-                bottomLeadingRadius: isMe ? 18 : 6,
-                bottomTrailingRadius: isMe ? 6 : 18,
-                topTrailingRadius: 18
+                topLeadingRadius: HP.Radius.md,
+                bottomLeadingRadius: isMe ? HP.Radius.md : HP.Radius.sm,
+                bottomTrailingRadius: isMe ? HP.Radius.sm : HP.Radius.md,
+                topTrailingRadius: HP.Radius.md
               )
-              .fill(isMe ? DHDTheme.accent : DHDTheme.surfaceElevated)
+              .fill(isMe ? HP.Color.accent : HP.Color.surfaceRaised)
+            )
+            .overlay(
+              UnevenRoundedRectangle(
+                topLeadingRadius: HP.Radius.md,
+                bottomLeadingRadius: isMe ? HP.Radius.md : HP.Radius.sm,
+                bottomTrailingRadius: isMe ? HP.Radius.sm : HP.Radius.md,
+                topTrailingRadius: HP.Radius.md
+              )
+              .strokeBorder(isMe ? .clear : HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
             )
         }
         .frame(maxWidth: 560, alignment: isMe ? .trailing : .leading)
@@ -416,5 +448,13 @@ private struct MessageRow: View {
       }
     }
     .padding(.vertical, showTimestamp ? 6 : 1)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(accessibilityDescription)
+  }
+
+  private var accessibilityDescription: String {
+    let message = "\(isMe ? "You" : senderName): \(text)"
+    guard showTimestamp else { return message }
+    return "\(createdAt.formatted(date: .abbreviated, time: .shortened)). \(message)"
   }
 }
