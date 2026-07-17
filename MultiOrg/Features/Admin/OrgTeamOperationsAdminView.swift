@@ -23,6 +23,7 @@ struct OrgTeamOperationsAdminView: View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
       seasonCard
       teamSeasonCard
+      schedulingCard
       playerAssignmentsCard
       coachAssignmentsCard
     }
@@ -40,6 +41,25 @@ struct OrgTeamOperationsAdminView: View {
   private var activeTeams: [SDTeamOperationsTeam] { context?.teams.filter(\.is_active) ?? [] }
   private var coaches: [Profile] { context?.people.filter(\.isCoach) ?? [] }
   private var players: [Profile] { context?.people.filter(\.isPlayer) ?? [] }
+
+  private var schedulingCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Organization Scheduling") {
+          HPStatusBadge(text: "\(activeTeams.count) teams", kind: .info)
+        }
+        Text("View authorized team schedules, switch season/team context, create events, and resolve facility or staffing conflicts with an audited override reason.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        NavigationLink {
+          CoachTeamScheduleView()
+        } label: {
+          Label("Open Unified Schedule", systemImage: "calendar")
+            .font(HP.Font.callout.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+      }
+    }
+  }
 
   private var seasonCard: some View {
     HPCard {
