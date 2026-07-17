@@ -94,6 +94,7 @@ struct OrgAdminConsoleView: View {
     case finance = "Finance"
     case facilities = "Facilities"
     case members = "Members"
+    case teamOperations = "Team Operations"
     var id: String { rawValue }
 
     var systemImage: String {
@@ -105,6 +106,7 @@ struct OrgAdminConsoleView: View {
       case .finance: "chart.line.uptrend.xyaxis"
       case .facilities: "building.2"
       case .members: "person.2.badge.gearshape"
+      case .teamOperations: "person.3.sequence.fill"
       }
     }
   }
@@ -399,6 +401,8 @@ struct OrgAdminConsoleView: View {
       facilitiesCard(context)
     case .members:
       membersCard(context)
+    case .teamOperations:
+      OrgTeamOperationsAdminView()
     }
   }
 

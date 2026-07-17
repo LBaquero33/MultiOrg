@@ -7,9 +7,9 @@ struct CoachRootView: View {
   @EnvironmentObject private var appState: AppState
 
 #if os(macOS)
-  @State private var selection: HPAppNavigationDestination = .coachPlayers
+  @State private var selection: HPAppNavigationDestination = .coachToday
 #else
-  @State private var mobileSelection: HPAppNavigationDestination = .coachPlayers
+  @State private var mobileSelection: HPAppNavigationDestination = .coachToday
 #endif
 
   var body: some View {
@@ -35,6 +35,9 @@ struct CoachRootView: View {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       selection = .chat
     }
+    .task(id: appState.activeOrgAuthorizationKey) {
+      await appState.refreshTeamOperationsContext()
+    }
 #else
     HPAdaptiveApplicationShell(
       role: sidebarRole,
@@ -51,6 +54,9 @@ struct CoachRootView: View {
     .task(id: appState.requestedChatChannelId) {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       mobileSelection = .chat
+    }
+    .task(id: appState.activeOrgAuthorizationKey) {
+      await appState.refreshTeamOperationsContext()
     }
 #endif
   }
@@ -86,6 +92,12 @@ struct CoachRootView: View {
   @ViewBuilder
   private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
     switch destination {
+    case .coachToday:
+      CoachTodayFoundationView()
+    case .coachTeam:
+      CoachTeamCommandCenterView()
+    case .coachSchedule:
+      CoachScheduleFoundationView()
     case .coachPlayers:
       CoachHomeView()
     case .coachFacilities:
@@ -95,11 +107,15 @@ struct CoachRootView: View {
         disabledFeatureView("Facilities")
       }
     case .coachTeams:
+      if appState.canAdminActiveOrg {
 #if os(macOS)
-      CoachTeamsView()
+        OrgTeamOperationsAdminView()
 #else
-      NavigationStack { CoachTeamsView() }
+        NavigationStack { OrgTeamOperationsAdminView() }
 #endif
+      } else {
+        disabledFeatureView("Team Administration")
+      }
     case .coachPrograms:
       if feature("programs") {
         CoachProgramsView()

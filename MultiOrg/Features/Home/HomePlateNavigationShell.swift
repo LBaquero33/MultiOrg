@@ -22,6 +22,9 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
 
   case parentChildren
 
+  case coachToday
+  case coachTeam
+  case coachSchedule
   case coachPlayers
   case coachFacilities
   case coachTeams
@@ -226,11 +229,9 @@ struct HPAppNavigationInventory: Equatable {
     canAdministerOrganization: Bool,
     isPlatformAdmin: Bool
   ) -> Self {
-    let players = item(
-      .coachPlayers,
-      canAdministerOrganization ? "Overview" : playersTitle,
-      "person.3"
-    )
+    let today = item(.coachToday, "Today", "sun.max")
+    let team = item(.coachTeam, "Team", "person.3.fill")
+    let schedule = item(.coachSchedule, "Schedule", "calendar")
     let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
     let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
     let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
@@ -240,23 +241,15 @@ struct HPAppNavigationInventory: Equatable {
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
     let account = item(.account, "Account", "gearshape")
 
-    let compact: [HPAppNavigationItem]
-    if canAdministerOrganization {
-      compact = [players, finance]
-        + (chatEnabled ? [chat] : [])
-        + [organization]
-    } else {
-      compact = [players]
-        + (facilitiesEnabled ? [facilities] : [])
-        + (chatEnabled ? [chat] : [])
-        + (programsEnabled ? [programs] : [])
-    }
+    let compact = [today, team, schedule]
 
     let compactDestinations = Set(compact.map(\.destination))
     let directoryItems = [
       facilitiesEnabled ? facilities : nil,
-      teams,
       programsEnabled ? programs : nil,
+      chatEnabled ? chat : nil,
+      canAdministerOrganization ? teams : nil,
+      canAdministerOrganization ? finance : nil,
       canAdministerOrganization ? organization : nil,
       isPlatformAdmin ? platform : nil,
       account,
@@ -271,7 +264,9 @@ struct HPAppNavigationInventory: Equatable {
       ),
       HPAppNavigationSection(
         title: "Run",
-        items: directoryItems.filter { $0.destination == .coachFacilities }
+        items: directoryItems.filter {
+          [.coachFacilities, .chat, .finance].contains($0.destination)
+        }
       ),
       HPAppNavigationSection(
         title: "Manage",
@@ -282,10 +277,10 @@ struct HPAppNavigationInventory: Equatable {
     ].filter { !$0.items.isEmpty }
 
     let regular = [
-      HPAppNavigationSection(title: nil, items: [players]),
+      HPAppNavigationSection(title: nil, items: [today, team, schedule]),
       HPAppNavigationSection(
         title: "Develop",
-        items: [teams] + (programsEnabled ? [programs] : [])
+        items: (canAdministerOrganization ? [teams] : []) + (programsEnabled ? [programs] : [])
       ),
       HPAppNavigationSection(
         title: "Run",
@@ -305,7 +300,7 @@ struct HPAppNavigationInventory: Equatable {
       compactItems: compact,
       directorySections: directory,
       regularSections: regular,
-      defaultDestination: .coachPlayers
+      defaultDestination: .coachToday
     )
   }
 
