@@ -8,6 +8,18 @@ struct SDPlayerTodayView: View {
   }
 }
 
+private struct PlayerAvailabilityPresentation: Identifiable {
+  let id = UUID()
+  let event: SDTeamEvent
+  let draft: SDEventAvailabilityDraft
+}
+
+private struct PlayerPendingAvailability {
+  let event: SDTeamEvent
+  let draft: SDEventAvailabilityDraft
+  let requestId: UUID
+}
+
 struct SDPlayerTodayViewInternal: View {
   @EnvironmentObject private var appState: AppState
 
@@ -19,6 +31,10 @@ struct SDPlayerTodayViewInternal: View {
   @State private var strengthLogs: [SDStrengthLog] = []
   @State private var dailyLog: SDDailyLog?
   @State private var testingEntries: [SDTestingEntry] = []
+  @State private var teamEvents: [SDTeamEvent] = []
+  @State private var eventOperations: [UUID: SDEventOperationDetailResponse] = [:]
+  @State private var availabilityEditor: PlayerAvailabilityPresentation?
+  @State private var pendingAvailability: PlayerPendingAvailability?
 
   @State private var comments = ""
   @State private var feel = 5
@@ -53,6 +69,7 @@ struct SDPlayerTodayViewInternal: View {
     } dateContext: {
       dateContextCard
     } programSummary: {
+      playerBaseballDayCard
       improvementCard
       programCard
     } activities: {
@@ -91,12 +108,104 @@ struct SDPlayerTodayViewInternal: View {
       Text(errorText ?? "")
     }
     .hpToast($successToast)
+    .sheet(item: $availabilityEditor) { presentation in
+      EventAvailabilityEditorSheet(
+        playerName: appState.myProfile?.displayName ?? "Player",
+        initial: presentation.draft
+      ) { draft, requestId in
+        availabilityEditor = nil
+        saveAvailability(event: presentation.event, draft: draft, requestId: requestId)
+      }
+    }
     .task {
       await reloadAll()
     }
   }
 
   private var dateISO: String { DateUtils.toISODate(date) }
+
+  private var playerBaseballDayCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Baseball mission") {
+          HPStatusBadge(text: "\(teamEvents.count) today", kind: teamEvents.isEmpty ? .neutral : .info)
+        }
+        if teamEvents.isEmpty {
+          HPEmptyState(title: "No team event", message: "No visible team mission is scheduled for this day.", systemImage: "calendar")
+        } else {
+          ForEach(teamEvents) { event in
+            let detail = eventOperations[event.id]
+            let participant = detail?.participants?.first
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              HStack {
+                Label(event.title, systemImage: event.event_type.systemImage)
+                  .font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                Spacer()
+                HPStatusBadge(text: detail?.operation?.status.label ?? "Not Started", kind: detail?.operation?.status == .completed ? .success : .info)
+              }
+              Text("\(event.team_name ?? "Team") • \(event.event_type.label) • \(event.startDate.formatted(date: .omitted, time: .shortened))")
+                .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+              if let arrival = event.arrivalDate {
+                Label("Arrive \(arrival.formatted(date: .omitted, time: .shortened))", systemImage: "figure.walk.arrival")
+              }
+              if let location = event.location_name?.sdNilIfBlank { Label(location, systemImage: "mappin") }
+              if let attire = event.uniformOrDressCode?.sdNilIfBlank { Label(attire, systemImage: "tshirt") }
+              Text("Availability: \(participant?.availability_status.label ?? "Unknown")")
+                .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
+              if event.status == .cancelled {
+                Label(event.cancellation_reason ?? "Event cancelled", systemImage: "calendar.badge.exclamationmark")
+                  .foregroundStyle(HP.Color.warning)
+              } else if event.status == .postponed {
+                Label("Event postponed", systemImage: "clock.badge.exclamationmark")
+                  .foregroundStyle(HP.Color.warning)
+              }
+              Button("Update Availability") {
+                availabilityEditor = PlayerAvailabilityPresentation(
+                  event: event,
+                  draft: availabilityDraft(participant)
+                )
+              }
+              .buttonStyle(.bordered).frame(minHeight: 44)
+              .disabled(
+                detail?.operation?.status == .completed ||
+                  [.completed, .cancelled, .postponed].contains(event.status)
+              )
+              ForEach(detail?.notes ?? []) { note in
+                if note.visibility == "team" || note.subject_player_id == appState.myProfile?.id {
+                  Text(note.body).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                }
+              }
+              if detail?.operation?.status == .completed, detail?.notes?.contains(where: { $0.note_type == "post_event_recap" }) != true {
+                Text("Event complete. No visible recap has been published.")
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+            }
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            if event.id != teamEvents.last?.id { Divider() }
+          }
+        }
+        if let pendingAvailability {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            Text("Availability update awaiting confirmation.")
+              .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+            Button("Retry Availability") {
+              saveAvailability(event: pendingAvailability.event, draft: pendingAvailability.draft, requestId: pendingAvailability.requestId)
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+      }
+    }
+  }
+
+  private func availabilityDraft(_ participant: SDEventOperationParticipant?) -> SDEventAvailabilityDraft {
+    SDEventAvailabilityDraft(
+      status: participant?.availability_status ?? .unknown,
+      reason: participant?.availability_reason ?? "",
+      expectedArrival: SDEventOperationDateParser.date(participant?.expected_arrival_at),
+      expectedDeparture: SDEventOperationDateParser.date(participant?.expected_departure_at)
+    )
+  }
 
   private var scheduleContext: SDProgramSchedule.DayContext? {
     guard let assignment, let template else { return nil }
@@ -389,6 +498,74 @@ struct SDPlayerTodayViewInternal: View {
     await reloadAssignment()
     await reloadDay()
     await reloadTesting()
+    await reloadBaseballDay()
+  }
+
+  private func reloadBaseballDay() async {
+    guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    do {
+      let session = try await supabase.client.auth.session
+      let playerId = session.user.id
+      let start = DateUtils.startOfDayET(date)
+      let end = DateUtils.calendarET.date(byAdding: .day, value: 1, to: start)!
+      teamEvents = try await supabase.listTeamEvents(
+        organizationId: organizationId,
+        teamId: nil,
+        playerId: playerId,
+        rangeStart: start,
+        rangeEnd: end
+      ).filter { $0.status != .draft }
+      var details: [UUID: SDEventOperationDetailResponse] = [:]
+      for event in teamEvents {
+        do {
+          details[event.id] = try await supabase.eventOperation(
+            organizationId: organizationId,
+            eventId: event.id,
+            playerId: playerId
+          )
+        } catch {
+          // A canonical event can truthfully exist before its day-operation row.
+          // Keep the mission visible so the first availability declaration can
+          // initialize the operation deterministically on the server.
+          details[event.id] = SDEventOperationDetailResponse(
+            ok: true,
+            operation: nil,
+            participants: [],
+            checklist: [],
+            notes: [],
+            initialized: nil,
+            replayed: nil
+          )
+        }
+      }
+      eventOperations = details
+    } catch {
+      eventOperations = [:]
+    }
+  }
+
+  private func saveAvailability(event: SDTeamEvent, draft: SDEventAvailabilityDraft, requestId: UUID) {
+    Task {
+      guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+      do {
+        let playerId = try await supabase.client.auth.session.user.id
+        let participant = eventOperations[event.id]?.participants?.first
+        _ = try await supabase.updateEventAvailability(
+          organizationId: organizationId,
+          eventId: event.id,
+          playerId: playerId,
+          participantVersion: participant?.version,
+          draft: draft,
+          requestId: requestId
+        )
+        pendingAvailability = nil
+        await reloadBaseballDay()
+        success("Availability saved.")
+      } catch {
+        pendingAvailability = PlayerPendingAvailability(event: event, draft: draft, requestId: requestId)
+        errorText = "Availability was not confirmed. The change remains available to retry."
+      }
+    }
   }
 
   private func reloadAssignment() async {

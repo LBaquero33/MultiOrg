@@ -10,6 +10,9 @@ struct ParentHomeView: View {
   @State private var invites: [SDParentInvite] = []
   @State private var links: [SDParentChildLink] = []
   @State private var children: [Profile] = []
+  @State private var todayMissions: [ParentTodayMission] = []
+  @State private var availabilityEditor: ParentAvailabilityPresentation?
+  @State private var pendingAvailability: ParentPendingAvailability?
 
   @State private var isLoading = false
   @State private var errorText: String?
@@ -53,8 +56,13 @@ struct ParentHomeView: View {
       } detail: {
         switch selection ?? .account {
         case .account:
-          AccountView()
-            .environmentObject(appState)
+          ScrollView {
+            VStack(spacing: HP.Space.md) {
+              parentTodayCard
+              AccountView().environmentObject(appState)
+            }
+            .padding(HP.Space.md)
+          }
         case .child(let id):
           if let child = children.first(where: { $0.id == id }) {
             ParentChildProfileView(child: child)
@@ -85,6 +93,7 @@ struct ParentHomeView: View {
             context: children.count == 1 ? "1 child profile" : "\(children.count) child profiles"
           )
         } supporting: {
+          parentTodayCard
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
               HPSectionHeader("Children") {
@@ -179,6 +188,115 @@ struct ParentHomeView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+    .sheet(item: $availabilityEditor) { presentation in
+      EventAvailabilityEditorSheet(playerName: presentation.child.displayName, initial: presentation.draft) { draft, requestId in
+        availabilityEditor = nil
+        saveAvailability(presentation: presentation, draft: draft, requestId: requestId)
+      }
+    }
+  }
+
+  private var parentTodayCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Today’s Baseball Missions") {
+          HPStatusBadge(text: "\(todayMissions.count)", kind: todayMissions.isEmpty ? .neutral : .info)
+        }
+        if todayMissions.isEmpty {
+          HPEmptyState(title: "No child events today", message: "Visible events for linked children appear here.", systemImage: "calendar")
+        } else {
+          if hasHouseholdConflict {
+            Label("Household timing conflict: linked children have overlapping events.", systemImage: "exclamationmark.triangle")
+              .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+          }
+          ForEach(children) { child in
+            let missions = todayMissions.filter { $0.child.id == child.id }
+            if !missions.isEmpty {
+              HPSectionHeader(child.displayName) {
+                HPStatusBadge(text: "\(missions.count)", kind: .neutral)
+              }
+              ForEach(missions) { mission in
+                VStack(alignment: .leading, spacing: HP.Space.xs) {
+                  HStack {
+                    Label(mission.event.title, systemImage: mission.event.event_type.systemImage)
+                      .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
+                    Spacer()
+                    HPStatusBadge(text: mission.detail.operation?.status.label ?? "Not Started", kind: .info)
+                  }
+                  Text("Arrive \(mission.event.arrivalDate?.formatted(date: .omitted, time: .shortened) ?? "as scheduled") • Starts \(mission.event.startDate.formatted(date: .omitted, time: .shortened))")
+                  if let location = mission.event.location_name?.sdNilIfBlank { Label(location, systemImage: "mappin") }
+                  if let attire = mission.event.uniformOrDressCode?.sdNilIfBlank { Label(attire, systemImage: "tshirt") }
+                  Text("Availability: \(mission.participant?.availability_status.label ?? "Unknown")")
+                    .font(HP.Font.caption.weight(.semibold))
+                  if mission.event.status == .cancelled {
+                    Label(mission.event.cancellation_reason ?? "Event cancelled", systemImage: "calendar.badge.exclamationmark")
+                      .foregroundStyle(HP.Color.warning)
+                  } else if mission.event.status == .postponed {
+                    Label("Event postponed", systemImage: "clock.badge.exclamationmark")
+                      .foregroundStyle(HP.Color.warning)
+                  }
+                  Button("Update \(child.displayName)’s Availability") {
+                    availabilityEditor = ParentAvailabilityPresentation(
+                      mission: mission,
+                      child: child,
+                      draft: availabilityDraft(mission.participant)
+                    )
+                  }
+                  .buttonStyle(.bordered).frame(minHeight: 44)
+                  .disabled(
+                    mission.detail.operation?.status == .completed ||
+                      [.completed, .cancelled, .postponed].contains(mission.event.status)
+                  )
+                  ForEach(mission.detail.notes ?? []) { note in
+                    Text(note.body).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                  }
+                }
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                if mission.id != missions.last?.id { Divider() }
+              }
+            }
+          }
+        }
+        if let pendingAvailability {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            Text("One availability update is awaiting confirmation.")
+              .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+            Button("Retry Update") {
+              saveAvailability(
+                presentation: pendingAvailability.presentation,
+                draft: pendingAvailability.draft,
+                requestId: pendingAvailability.requestId
+              )
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        Text("Parents declare availability; official attendance and roster control remain with authorized team staff.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      }
+    }
+  }
+
+  private var hasHouseholdConflict: Bool {
+    for firstIndex in todayMissions.indices {
+      for secondIndex in todayMissions.indices where secondIndex > firstIndex {
+        let first = todayMissions[firstIndex]
+        let second = todayMissions[secondIndex]
+        if first.child.id != second.child.id,
+           first.event.startDate < second.event.endDate,
+           second.event.startDate < first.event.endDate { return true }
+      }
+    }
+    return false
+  }
+
+  private func availabilityDraft(_ participant: SDEventOperationParticipant?) -> SDEventAvailabilityDraft {
+    SDEventAvailabilityDraft(
+      status: participant?.availability_status ?? .unknown,
+      reason: participant?.availability_reason ?? "",
+      expectedArrival: SDEventOperationDateParser.date(participant?.expected_arrival_at),
+      expectedDeparture: SDEventOperationDateParser.date(participant?.expected_departure_at)
+    )
   }
 
 #if os(macOS)
@@ -240,6 +358,7 @@ struct ParentHomeView: View {
       let profiles = try await supabase.listProfiles(ids: ids)
       // Only show player children.
       children = profiles.filter(\.isPlayer).sorted { $0.displayName < $1.displayName }
+      await reloadTodayMissions(supabase: supabase, organizationId: orgId)
 
 #if os(macOS)
       if let parsed = SidebarSelection(storageValue: selectionStorage) {
@@ -258,6 +377,78 @@ struct ParentHomeView: View {
     }
   }
 
+  private func reloadTodayMissions(supabase: SupabaseService, organizationId: UUID) async {
+    let start = Calendar.current.startOfDay(for: Date())
+    let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+    var missions: [ParentTodayMission] = []
+    for child in children {
+      do {
+        let events = try await supabase.listTeamEvents(
+          organizationId: organizationId,
+          teamId: nil,
+          playerId: child.id,
+          rangeStart: start,
+          rangeEnd: end
+        ).filter { $0.status != .draft }
+        for event in events {
+          let detail: SDEventOperationDetailResponse
+          do {
+            detail = try await supabase.eventOperation(
+              organizationId: organizationId,
+              eventId: event.id,
+              playerId: child.id
+            )
+          } catch {
+            // Preserve the canonical event mission before an operation has been
+            // initialized; availability submission performs idempotent setup.
+            detail = SDEventOperationDetailResponse(
+              ok: true,
+              operation: nil,
+              participants: [],
+              checklist: [],
+              notes: [],
+              initialized: nil,
+              replayed: nil
+            )
+          }
+          missions.append(ParentTodayMission(child: child, event: event, detail: detail))
+        }
+      } catch {
+        // One child failing must not hide another child's verified missions.
+      }
+    }
+    todayMissions = missions.sorted { $0.event.startDate < $1.event.startDate }
+  }
+
+  private func saveAvailability(
+    presentation: ParentAvailabilityPresentation,
+    draft: SDEventAvailabilityDraft,
+    requestId: UUID
+  ) {
+    Task {
+      guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+      do {
+        _ = try await supabase.updateEventAvailability(
+          organizationId: organizationId,
+          eventId: presentation.mission.event.id,
+          playerId: presentation.child.id,
+          participantVersion: presentation.mission.participant?.version,
+          draft: draft,
+          requestId: requestId
+        )
+        pendingAvailability = nil
+        await reloadTodayMissions(supabase: supabase, organizationId: organizationId)
+      } catch {
+        pendingAvailability = ParentPendingAvailability(
+          presentation: presentation,
+          draft: draft,
+          requestId: requestId
+        )
+        errorText = "Availability was not confirmed. The change remains available to retry."
+      }
+    }
+  }
+
   private func accept(inviteId: UUID) async {
     guard let supabase = appState.supabase else { return }
     isLoading = true
@@ -269,6 +460,29 @@ struct ParentHomeView: View {
       errorText = error.localizedDescription
     }
   }
+}
+
+private struct ParentTodayMission: Identifiable {
+  let child: Profile
+  let event: SDTeamEvent
+  let detail: SDEventOperationDetailResponse
+  var id: String { "\(child.id.uuidString):\(event.id.uuidString)" }
+  var participant: SDEventOperationParticipant? {
+    detail.participants?.first(where: { $0.user_id == child.id })
+  }
+}
+
+private struct ParentAvailabilityPresentation: Identifiable {
+  let id = UUID()
+  let mission: ParentTodayMission
+  let child: Profile
+  let draft: SDEventAvailabilityDraft
+}
+
+private struct ParentPendingAvailability {
+  let presentation: ParentAvailabilityPresentation
+  let draft: SDEventAvailabilityDraft
+  let requestId: UUID
 }
 
 private struct ParentInviteAcceptanceSheet: View {
