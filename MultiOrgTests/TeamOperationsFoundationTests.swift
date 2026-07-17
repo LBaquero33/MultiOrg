@@ -1,0 +1,142 @@
+import Foundation
+import Testing
+@testable import HomePlate
+
+@Suite("Phase 12A team operations foundation")
+struct TeamOperationsFoundationTests {
+  private let orgA = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
+  private let orgB = UUID(uuidString: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")!
+  private let seasonA = UUID(uuidString: "cccccccc-cccc-4ccc-8ccc-cccccccccccc")!
+  private let seasonB = UUID(uuidString: "dddddddd-dddd-4ddd-8ddd-dddddddddddd")!
+
+  @Test("one-team coach is selected without a switch choice")
+  func oneTeamAutoSelection() {
+    let only = team(name: "Varsity")
+    #expect(SDSelectedTeamResolver.resolve(
+      persistedTeamId: nil,
+      organizationId: orgA,
+      seasonId: seasonA,
+      teams: [only]
+    ) == only.id)
+  }
+
+  @Test("multi-team selection persists while authorized")
+  func multiTeamPersistence() {
+    let first = team(name: "Varsity")
+    let second = team(name: "JV")
+    #expect(SDSelectedTeamResolver.resolve(
+      persistedTeamId: second.id,
+      organizationId: orgA,
+      seasonId: seasonA,
+      teams: [first, second]
+    ) == second.id)
+  }
+
+  @Test("removed team safely falls back to primary")
+  func removedTeamFallback() {
+    let primary = team(name: "Varsity", isPrimary: true)
+    let other = team(name: "JV")
+    #expect(SDSelectedTeamResolver.resolve(
+      persistedTeamId: UUID(),
+      organizationId: orgA,
+      seasonId: seasonA,
+      teams: [other, primary]
+    ) == primary.id)
+  }
+
+  @Test("selected team cannot cross organization or season")
+  func crossOrganizationIsolation() {
+    let foreignOrg = team(name: "Foreign", organizationId: orgB)
+    let foreignSeason = team(name: "Old", seasonId: seasonB)
+    #expect(SDSelectedTeamResolver.resolve(
+      persistedTeamId: foreignOrg.id,
+      organizationId: orgA,
+      seasonId: seasonA,
+      teams: [foreignOrg, foreignSeason]
+    ) == nil)
+  }
+
+  @Test("coach iPhone inventory is Today Team Schedule More")
+  func compactNavigation() {
+    let inventory = HPAppNavigationInventory.staff(
+      playersTitle: "Players",
+      facilitiesTitle: "Facilities",
+      programsTitle: "Programs",
+      facilitiesEnabled: true,
+      chatEnabled: true,
+      programsEnabled: true,
+      canAdministerOrganization: false,
+      isPlatformAdmin: false
+    )
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
+    #expect(inventory.compactTabCountIncludingDirectory == 4)
+    #expect(inventory.defaultDestination == .coachToday)
+    #expect(!inventory.directoryItems.contains(where: { $0.destination == .coachPlayers }))
+  }
+
+  @Test("team selector is hidden for one team and compact for multiple teams")
+  func switcherWiring() throws {
+    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    #expect(source.contains("if appState.authorizedCoachTeams.count > 1"))
+    #expect(source.contains("struct CoachTeamSelector"))
+    #expect(source.contains("Menu {"))
+    #expect(source.contains("teamOperationsContext?.can_access_all_teams == true"))
+  }
+
+  @Test("Team opens the command-center overview")
+  func commandCenterDefault() throws {
+    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    #expect(source.contains("@State private var section: Section = .overview"))
+    #expect(source.contains("case overview = \"Overview\""))
+    #expect(source.contains("case players = \"Players\""))
+    #expect(source.contains("case settings = \"Settings\""))
+  }
+
+  @Test("database preserves player history and enforces one active team")
+  func schemaInvariants() throws {
+    let migration = try sourceFile("supabase/migrations/20260717170000_team_operations_foundation.sql")
+    #expect(migration.contains("uq_sd_player_one_active_team_per_org"))
+    #expect(migration.contains("where active and ended_at is null"))
+    #expect(migration.contains("legacy_team_assignment"))
+    #expect(migration.contains("update({ active: false") == false)
+    #expect(migration.contains("enable row level security"))
+  }
+
+  @Test("organization admin mutations are authorized on the server")
+  func adminAuthorization() throws {
+    let source = try sourceFile("supabase/functions/org_admin/index.ts")
+    #expect(source.contains("teamOperationsAdminActions.includes(action) && !hasAdminAuthority"))
+    #expect(source.contains("return json(403, { error: \"org_admin_required\" })"))
+    #expect(source.contains("sd_team_operations_audit_logs"))
+  }
+
+  private func team(
+    name: String,
+    organizationId: UUID? = nil,
+    seasonId: UUID? = nil,
+    isPrimary: Bool = false
+  ) -> SDTeamOperationsTeam {
+    SDTeamOperationsTeam(
+      id: UUID(),
+      org_id: organizationId ?? orgA,
+      season_id: seasonId ?? seasonA,
+      name: name,
+      color_hex: nil,
+      description: nil,
+      is_active: true,
+      sort_order: 0,
+      created_by: nil,
+      created_at: nil,
+      updated_at: nil,
+      is_primary: isPrimary,
+      roster_count: 0,
+      staff_count: 0,
+      capabilities: [.viewTeam]
+    )
+  }
+
+  private func sourceFile(_ path: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+  }
+}

@@ -51,12 +51,12 @@ final class UniversalNavigationShellTests: XCTestCase {
 
   func testCoachInventoryNeverExceedsFiveCompactTabs() {
     let coach = staffInventory(canAdminister: false, isPlatformAdmin: true)
-    XCTAssertEqual(coach.compactTabCountIncludingDirectory, 5)
+    XCTAssertEqual(coach.compactTabCountIncludingDirectory, 4)
     XCTAssertEqual(
       coach.compactItems.map(\.destination),
-      [.coachPlayers, .coachFacilities, .chat, .coachPrograms]
+      [.coachToday, .coachTeam, .coachSchedule]
     )
-    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .coachTeams })
+    XCTAssertFalse(coach.directoryItems.contains { $0.destination == .coachPlayers })
     XCTAssertTrue(coach.directoryItems.contains { $0.destination == .platformAdmin })
     XCTAssertTrue(coach.directoryItems.contains { $0.destination == .account })
   }
@@ -66,9 +66,9 @@ final class UniversalNavigationShellTests: XCTestCase {
 
     XCTAssertEqual(
       owner.compactItems.map(\.destination),
-      [.coachPlayers, .finance, .chat, .organizationAdmin]
+      [.coachToday, .coachTeam, .coachSchedule]
     )
-    XCTAssertEqual(owner.compactTabCountIncludingDirectory, 5)
+    XCTAssertEqual(owner.compactTabCountIncludingDirectory, 4)
     XCTAssertFalse(owner.regularItems.contains { $0.destination == .platformAdmin })
     XCTAssertTrue(owner.regularItems.contains { $0.destination == .finance })
     XCTAssertTrue(owner.regularItems.contains { $0.destination == .account })
@@ -186,7 +186,7 @@ final class UniversalNavigationShellTests: XCTestCase {
       name: "regular-coach-macos-dark",
       role: .coach,
       inventory: staffInventory(canAdminister: false, isPlatformAdmin: false),
-      selection: .coachPlayers,
+      selection: .coachToday,
       width: 1_200,
       height: 820,
       dynamicTypeSize: .large,
