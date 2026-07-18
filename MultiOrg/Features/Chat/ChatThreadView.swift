@@ -294,7 +294,7 @@ struct ChatThreadView: View {
         before: nil,
         limit: 200
       )
-      guard loadToken == token, appState.activeOrgId == organizationId else { return }
+      guard accepts(organizationId: organizationId, token: token) else { return }
       messages = msgs
 
       // Load participant profiles so we can label messages.
@@ -302,22 +302,35 @@ struct ChatThreadView: View {
         channelIds: [channel.id],
         organizationId: organizationId
       )
-      guard loadToken == token, appState.activeOrgId == organizationId else { return }
+      guard accepts(organizationId: organizationId, token: token) else { return }
       let ids = Set(memberships.map(\.user_id))
       let profiles = try await supabase.listProfiles(ids: Array(ids))
-      guard loadToken == token, appState.activeOrgId == organizationId else { return }
+      guard accepts(organizationId: organizationId, token: token) else { return }
       profileById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
 
       if let latest = orderedMessages.last {
         await markRead(through: latest.id)
       }
-      guard loadToken == token, appState.activeOrgId == organizationId else { return }
+      guard accepts(organizationId: organizationId, token: token) else { return }
       isLoading = false
     } catch {
-      guard loadToken == token, appState.activeOrgId == organizationId else { return }
-      errorText = error.localizedDescription
+      guard accepts(organizationId: organizationId, token: token) else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       isLoading = false
     }
+  }
+
+  private func accepts(organizationId: UUID, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: Optional(organizationId),
+      responseToken: token,
+      activeContext: appState.activeOrgId,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   private func shouldShowSender(for message: SDChatMessage, previous: SDChatMessage?) -> Bool {
@@ -358,6 +371,12 @@ struct ChatThreadView: View {
       sendOperation.finish(success: true)
       await markRead(through: response.message.id)
     } catch {
+      if SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ) {
+        return
+      }
       sendOperation.finish(success: false)
       composerText = text
       let failure = error.localizedDescription.lowercased()

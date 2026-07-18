@@ -40,12 +40,20 @@ struct CoachPlayerCalendarView: View {
     } agenda: { context in
       agendaPane(context)
     } stateContent: { _ in
-      EmptyView()
+      if let errorText {
+        HPCard {
+          HPErrorState(
+            title: "Calendar unavailable",
+            message: errorText,
+            onRetry: { Task { await reload() } }
+          )
+        }
+      }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .task { await reload() }
+    .task(id: "\(player.id.uuidString):\(appState.activeOrgId?.uuidString ?? "none")") { await reload() }
     #if os(macOS)
     .dhdFloatingModal(item: $daySheet, width: 920, height: 680) { s in
       NavigationStack {
@@ -213,7 +221,10 @@ struct CoachPlayerCalendarView: View {
       bpSessions = try await supabase.listBPSessions(playerId: player.id, limit: 365)
       rebuildMonthGrid()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -331,7 +342,7 @@ private struct CoachPlayerDailyLogDetailView: View {
       switch result {
       case .failure(let err):
         isImporting = false
-        errorText = err.localizedDescription
+        errorText = SDApplicationErrorClassifier.alertMessage(for: err)
       case .success(let urls):
         isImporting = false
         guard let url = urls.first else { return }
@@ -538,7 +549,10 @@ private struct CoachPlayerDailyLogDetailView: View {
         bpEvents.append(contentsOf: ev)
       }
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -573,7 +587,10 @@ private struct CoachPlayerDailyLogDetailView: View {
       toastText = "Imported \(creates.count) \(result.source.label) events."
       await reload()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 

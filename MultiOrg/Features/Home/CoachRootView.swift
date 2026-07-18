@@ -62,14 +62,24 @@ struct CoachRootView: View {
   }
 
   private var navigationInventory: HPAppNavigationInventory {
-    HPAppNavigationInventory.staff(
+    if appState.canAdminActiveOrg {
+      return HPAppNavigationInventory.owner(
+        facilitiesTitle: term("facilities", fallback: "Facilities"),
+        programsTitle: "\(term("program", fallback: "Program")) Templates",
+        facilitiesEnabled: feature("facilities"),
+        chatEnabled: feature("chat"),
+        programsEnabled: feature("programs"),
+        isPlatformAdmin: appState.isPlatformAdmin
+      )
+    }
+    return HPAppNavigationInventory.staff(
       playersTitle: term("players", fallback: "Players"),
       facilitiesTitle: term("facilities", fallback: "Facilities"),
       programsTitle: "\(term("program", fallback: "Program")) Templates",
       facilitiesEnabled: feature("facilities"),
       chatEnabled: feature("chat"),
       programsEnabled: feature("programs"),
-      canAdministerOrganization: appState.canAdminActiveOrg,
+      canAdministerOrganization: false,
       isPlatformAdmin: appState.isPlatformAdmin
     )
   }

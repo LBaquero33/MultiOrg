@@ -493,6 +493,7 @@ struct CoachEventOperationView: View {
       }
       errorText = nil
     } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
       errorText = "The event mission could not be refreshed. Existing unsent changes remain available for retry."
     }
   }
@@ -603,6 +604,7 @@ struct CoachEventOperationView: View {
         retryMutation = nil
         await reload()
       } catch {
+        guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
         retryMutation = mutation
         errorText = "The field connection did not confirm this change. Refresh for stale data or retry the preserved update."
       }
@@ -939,7 +941,10 @@ private struct PracticePlannerView: View {
         )) ?? []
       }
       errorText = nil
-    } catch { errorText = "The practice plan could not be refreshed. Any pending change remains available for retry." }
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
+      errorText = "The practice plan could not be refreshed. Any pending change remains available for retry."
+    }
   }
 
   private func run(_ action: String, _ data: [String: SDJSONValue], requestId: UUID = UUID()) {
@@ -951,6 +956,7 @@ private struct PracticePlannerView: View {
         pendingMutation = nil
         await reload()
       } catch {
+        guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
         pendingMutation = PendingPracticeMutation(action: action, data: data, requestId: requestId)
         errorText = "This plan change was not confirmed. Refresh stale data or retry the preserved change."
       }
@@ -2001,6 +2007,7 @@ private struct GamePlannerView: View {
       history = detail.plan == nil ? [] : (try await service.gamePlanHistory(organizationId: event.organization_id, eventId: event.id))
       errorText = nil
     } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
       errorText = "The game plan could not be refreshed. Any pending mutation remains available to retry."
     }
   }
@@ -2015,6 +2022,7 @@ private struct GamePlannerView: View {
         pending = nil
         await reload()
       } catch {
+        guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
         pending = GamePendingMutation(id: requestId, action: action, data: data)
         errorText = "The server did not confirm this change. Refresh to resolve stale data, or retry the preserved mutation."
       }

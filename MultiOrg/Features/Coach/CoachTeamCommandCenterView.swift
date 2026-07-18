@@ -38,6 +38,8 @@ struct CoachTodayFoundationView: View {
   @State private var operations: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlans: [UUID: SDPracticePlanSummary] = [:]
   @State private var gamePlans: [UUID: SDGamePlanSummary] = [:]
+  @State private var loadError: String?
+  @State private var loadToken: UUID?
 
   var body: some View {
     NavigationStack {
@@ -46,15 +48,17 @@ struct CoachTodayFoundationView: View {
           CoachTeamSelector()
         }
       } attention: {
-        HPCard {
-          if attentionItems.isEmpty {
+        if loadError == nil {
+          HPCard {
+            if attentionItems.isEmpty {
             HPEmptyState(title: "No mission attention items", message: "Today’s event details and initialized operations have no unresolved warnings.", systemImage: "checkmark.circle")
-          } else {
-            VStack(alignment: .leading, spacing: HP.Space.sm) {
-              HPSectionHeader("Mission attention") { HPStatusBadge(text: "\(attentionItems.count)", kind: .warning) }
-              ForEach(Array(attentionItems.enumerated()), id: \.offset) { _, item in
-                Label(item, systemImage: "exclamationmark.triangle")
-                  .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+            } else {
+              VStack(alignment: .leading, spacing: HP.Space.sm) {
+                HPSectionHeader("Mission attention") { HPStatusBadge(text: "\(attentionItems.count)", kind: .warning) }
+                ForEach(Array(attentionItems.enumerated()), id: \.offset) { _, item in
+                  Label(item, systemImage: "exclamationmark.triangle")
+                    .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+                }
               }
             }
           }
@@ -66,7 +70,13 @@ struct CoachTodayFoundationView: View {
         }
       } supporting: {
         HPCard {
-          if let team = appState.selectedTeam {
+          if let loadError {
+            HPErrorState(
+              title: "Today unavailable",
+              message: loadError,
+              onRetry: { Task { await reloadEvents() } }
+            )
+          } else if let team = appState.selectedTeam {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
               HPSectionHeader(team.name) {
                 HPStatusBadge(text: appState.selectedSeason?.status.label ?? "Season", kind: .info)
@@ -96,7 +106,7 @@ struct CoachTodayFoundationView: View {
         }
       }
       .navigationTitle("Today")
-      .task(id: appState.selectedTeamId) { await reloadEvents() }
+      .task(id: todayContextIdentity) { await reloadEvents() }
       .refreshable { await appState.refreshTeamOperationsContext(); await reloadEvents() }
     }
   }
@@ -222,52 +232,60 @@ struct CoachTodayFoundationView: View {
 
   private func reloadEvents() async {
     guard let service = appState.supabase, let orgId = appState.activeOrgId else { events = []; return }
+    let context = todayContextIdentity
+    let token = UUID()
+    loadToken = token
+    loadError = nil
     let start = Calendar.current.startOfDay(for: Date())
     let end = Calendar.current.date(byAdding: .day, value: 30, to: start)!
     do {
-      events = try await service.listTeamEvents(organizationId: orgId, teamId: appState.selectedTeam?.id, rangeStart: start, rangeEnd: end)
+      let loadedEvents = try await service.listTeamEvents(organizationId: orgId, teamId: appState.selectedTeam?.id, rangeStart: start, rangeEnd: end)
+      var loadedOperations: [UUID: SDEventOperationSummary] = [:]
+      var loadedPracticePlans: [UUID: SDPracticePlanSummary] = [:]
+      var loadedGamePlans: [UUID: SDGamePlanSummary] = [:]
       if let team = appState.selectedTeam {
-        do {
-          let summaries = try await service.listEventOperations(
-            organizationId: orgId,
-            teamId: team.id,
-            eventIds: events.map(\.id)
-          )
-          operations = Dictionary(uniqueKeysWithValues: summaries.map { ($0.event_id, $0) })
-        } catch {
-          operations = [:]
-        }
-        do {
-          let plans = try await service.practicePlanSummaries(
-            organizationId: orgId,
-            seasonId: team.season_id,
-            teamId: team.id
-          )
-          practicePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
-        } catch {
-          practicePlans = [:]
-        }
-        do {
-          let plans = try await service.gamePlanSummaries(
-            organizationId: orgId,
-            seasonId: team.season_id,
-            teamId: team.id
-          )
-          gamePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
-        } catch {
-          gamePlans = [:]
-        }
-      } else {
-        operations = [:]
-        practicePlans = [:]
-        gamePlans = [:]
+        let summaries = try await service.listEventOperations(
+          organizationId: orgId,
+          teamId: team.id,
+          eventIds: loadedEvents.map(\.id)
+        )
+        loadedOperations = Dictionary(uniqueKeysWithValues: summaries.map { ($0.event_id, $0) })
+        let plans = try await service.practicePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        loadedPracticePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+        let games = try await service.gamePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        loadedGamePlans = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
       }
+      guard acceptsToday(context: context, token: token) else { return }
+      events = loadedEvents
+      operations = loadedOperations
+      practicePlans = loadedPracticePlans
+      gamePlans = loadedGamePlans
     } catch {
-      events = []
-      operations = [:]
-      practicePlans = [:]
-      gamePlans = [:]
+      guard acceptsToday(context: context, token: token) else { return }
+      loadError = SDApplicationErrorClassifier.alertMessage(for: error)
     }
+  }
+
+  private var todayContextIdentity: String {
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "all")"
+  }
+
+  private func acceptsToday(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: todayContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 }
 
@@ -284,6 +302,8 @@ struct CoachTeamCommandCenterView: View {
   @State private var operationSummaries: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
   @State private var gamePlanSummaries: [UUID: SDGamePlanSummary] = [:]
+  @State private var loadError: String?
+  @State private var loadToken: UUID?
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -329,7 +349,7 @@ struct CoachTeamCommandCenterView: View {
       .refreshable { await appState.refreshTeamOperationsContext() }
       .onChange(of: appState.selectedTeamId) { _, _ in normalizeSection() }
       .onChange(of: appState.isAllTeamsSelected) { _, _ in normalizeSection() }
-      .task(id: appState.selectedTeamId) { await reloadTeamEvents() }
+      .task(id: teamContextIdentity) { await reloadTeamEvents() }
     }
   }
 
@@ -350,7 +370,15 @@ struct CoachTeamCommandCenterView: View {
 
   @ViewBuilder
   private var content: some View {
-    if appState.isAllTeamsSelected {
+    if let loadError {
+      HPCard {
+        HPErrorState(
+          title: "Team unavailable",
+          message: loadError,
+          onRetry: { Task { await reloadTeamEvents() } }
+        )
+      }
+    } else if appState.isAllTeamsSelected {
       allTeamsOverview
     } else if let team = appState.selectedTeam {
       switch section {
@@ -513,48 +541,55 @@ struct CoachTeamCommandCenterView: View {
 
   private func reloadTeamEvents() async {
     guard let service = appState.supabase, let orgId = appState.activeOrgId, let team = appState.selectedTeam else { teamEvents = []; return }
+    let context = teamContextIdentity
+    let token = UUID()
+    loadToken = token
+    loadError = nil
     do {
-      teamEvents = try await service.listTeamEvents(
+      let loadedEvents = try await service.listTeamEvents(
         organizationId: orgId,
         teamId: team.id,
         rangeStart: Calendar.current.date(byAdding: .day, value: -7, to: Date())!,
         rangeEnd: Calendar.current.date(byAdding: .day, value: 60, to: Date())!
       ).filter { $0.status != .cancelled }
-      do {
-        let operations = try await service.listEventOperations(
-          organizationId: orgId,
-          teamId: team.id,
-          eventIds: teamEvents.map(\.id)
-        )
-        operationSummaries = Dictionary(uniqueKeysWithValues: operations.map { ($0.event_id, $0) })
-      } catch {
-        operationSummaries = [:]
-      }
-      do {
-        let plans = try await service.practicePlanSummaries(
-          organizationId: orgId,
-          seasonId: team.season_id,
-          teamId: team.id
-        )
-        practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
-      } catch {
-        practicePlanSummaries = [:]
-      }
-      do {
-        let plans = try await service.gamePlanSummaries(
-          organizationId: orgId,
-          seasonId: team.season_id,
-          teamId: team.id
-        )
-        gamePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
-      } catch {
-        gamePlanSummaries = [:]
-      }
+      let operations = try await service.listEventOperations(
+        organizationId: orgId,
+        teamId: team.id,
+        eventIds: loadedEvents.map(\.id)
+      )
+      let plans = try await service.practicePlanSummaries(
+        organizationId: orgId,
+        seasonId: team.season_id,
+        teamId: team.id
+      )
+      let games = try await service.gamePlanSummaries(
+        organizationId: orgId,
+        seasonId: team.season_id,
+        teamId: team.id
+      )
+      guard acceptsTeam(context: context, token: token) else { return }
+      teamEvents = loadedEvents
+      operationSummaries = Dictionary(uniqueKeysWithValues: operations.map { ($0.event_id, $0) })
+      practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+      gamePlanSummaries = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
     } catch {
-      teamEvents = []
-      operationSummaries = [:]
-      practicePlanSummaries = [:]
+      guard acceptsTeam(context: context, token: token) else { return }
+      loadError = SDApplicationErrorClassifier.alertMessage(for: error)
     }
+  }
+
+  private var teamContextIdentity: String {
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "none")"
+  }
+
+  private func acceptsTeam(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: teamContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   private func normalizeSection() {

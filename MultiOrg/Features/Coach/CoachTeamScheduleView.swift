@@ -11,6 +11,7 @@ struct CoachTeamScheduleView: View {
   @State private var facilityFilterId: UUID?
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var loadToken: UUID?
   @State private var editor: EventEditorPresentation?
   @State private var planningEvent: SDTeamEvent?
 
@@ -118,6 +119,14 @@ struct CoachTeamScheduleView: View {
       HPCard { HPEmptyState(title: "Team assignment required", message: "An active team is needed to view its schedule.", systemImage: "calendar.badge.exclamationmark") }
     } else if isLoading && events.isEmpty {
       HPCard { HPLoadingState(text: "Loading team schedule…") }
+    } else if let errorText, events.isEmpty {
+      HPCard {
+        HPErrorState(
+          title: "Schedule unavailable",
+          message: errorText,
+          onRetry: { Task { await reload() } }
+        )
+      }
     } else if filteredEvents.isEmpty {
       HPCard { HPEmptyState(title: "No scheduled events", message: "No (filter.rawValue.lowercased()) match this (mode.rawValue.lowercased()) view.", systemImage: "calendar") }
     } else {
@@ -274,20 +283,45 @@ struct CoachTeamScheduleView: View {
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
     if appState.selectedTeam == nil && !appState.isAllTeamsSelected { events = []; return }
+    let context = scheduleContextIdentity
+    let token = UUID()
+    loadToken = token
     isLoading = true
-    defer { isLoading = false }
+    errorText = nil
     do {
       let limits = range()
-      events = try await service.listTeamEvents(
+      let loadedEvents = try await service.listTeamEvents(
         organizationId: organizationId,
         seasonId: selectedSeasonId,
         teamId: appState.selectedTeam?.id,
         rangeStart: limits.0,
         rangeEnd: limits.1
       )
+      guard accepts(context: context, token: token) else { return }
+      events = loadedEvents
+      isLoading = false
     } catch {
-      errorText = "The team schedule could not be loaded. Please try again."
+      guard accepts(context: context, token: token) else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
+      isLoading = false
     }
+  }
+
+  private var scheduleContextIdentity: String {
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(reloadKey)"
+  }
+
+  private func accepts(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: scheduleContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   private func loadFacilities() async {
@@ -298,6 +332,7 @@ struct CoachTeamScheduleView: View {
 
   private func mutate(_ event: SDTeamEvent, action: String, status: SDTeamEventStatus? = nil) async {
     guard let service = appState.supabase else { return }
+    let context = scheduleContextIdentity
     do {
       var draft = SDTeamEventDraft(event: event)
       if let status { draft.status = status }
@@ -312,9 +347,14 @@ struct CoachTeamScheduleView: View {
         actionOverride: action,
         reason: action == "cancel" ? "Cancelled by authorized team staff" : nil
       )
+      guard context == scheduleContextIdentity, !Task.isCancelled else { return }
       await reload()
     } catch {
-      errorText = "The event action could not be completed. Please try again."
+      guard context == scheduleContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 }

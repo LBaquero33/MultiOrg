@@ -117,7 +117,7 @@ struct ChatCreateView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .task { await loadUsers() }
+    .task(id: chatCreateContextIdentity) { await loadUsers() }
   }
 
   private func profileSelectionRow(
@@ -210,6 +210,10 @@ struct ChatCreateView: View {
     }
   }
 
+  private var chatCreateContextIdentity: String {
+    "\(appState.myProfile?.id.uuidString ?? "none"):\(appState.activeOrgId?.uuidString ?? "none")"
+  }
+
   private func toggle(_ id: UUID) {
     switch mode {
     case .dm:
@@ -225,23 +229,29 @@ struct ChatCreateView: View {
 
   private func loadUsers() async {
     guard let supabase = appState.supabase else { return }
+    let context = chatCreateContextIdentity
     isLoading = true
     defer { isLoading = false }
     do {
       // Coach: can DM anyone (players/parents/coaches) for admin workflows.
       // Player/Parent: only list coaches (RLS allows select where role='coach').
+      let loadedProfiles: [Profile]
       if (appState.myProfile?.role.lowercased() ?? "") == "coach" {
-        profiles = try await supabase.listAllProfilesForDirectory()
+        loadedProfiles = try await supabase.listAllProfilesForDirectory()
       } else {
-        profiles = try await supabase.listCoachProfilesForDirectory()
+        loadedProfiles = try await supabase.listCoachProfilesForDirectory()
       }
+      guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
+      profiles = loadedProfiles
     } catch {
-      errorText = error.localizedDescription
+      guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
   private func create() async {
     guard let supabase = appState.supabase else { return }
+    let context = chatCreateContextIdentity
     isSaving = true
     defer { isSaving = false }
     do {
@@ -253,10 +263,12 @@ struct ChatCreateView: View {
       case .group:
         channelId = try await supabase.createGroup(title: groupTitle, memberIds: Array(selected), orgId: appState.activeOrgId)
       }
+      guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       onCreated(channelId)
       dismiss()
     } catch {
-      errorText = error.localizedDescription
+      guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 }

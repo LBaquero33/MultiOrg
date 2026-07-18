@@ -304,6 +304,56 @@ struct HPAppNavigationInventory: Equatable {
     )
   }
 
+  static func owner(
+    facilitiesTitle: String,
+    programsTitle: String,
+    facilitiesEnabled: Bool,
+    chatEnabled: Bool,
+    programsEnabled: Bool,
+    isPlatformAdmin: Bool
+  ) -> Self {
+    let overview = item(.coachToday, "Overview", "rectangle.3.group")
+    let finance = item(.finance, "Finance", "dollarsign.circle")
+    let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
+    let organization = item(.organizationAdmin, "Organization", "slider.horizontal.3")
+    let team = item(.coachTeam, "Team", "person.3.fill")
+    let schedule = item(.coachSchedule, "Schedule", "calendar")
+    let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
+    let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
+    let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
+    let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
+    let account = item(.account, "Account", "gearshape")
+
+    let compact = [overview, finance] + (chatEnabled ? [chat] : []) + [organization]
+    let directory = [
+      HPAppNavigationSection(
+        title: "Run",
+        items: [team, schedule] + (facilitiesEnabled ? [facilities] : [])
+      ),
+      HPAppNavigationSection(
+        title: "Develop",
+        items: [teams] + (programsEnabled ? [programs] : [])
+      ),
+      HPAppNavigationSection(
+        title: "Manage",
+        items: (isPlatformAdmin ? [platform] : []) + [account]
+      ),
+    ].filter { !$0.items.isEmpty }
+    let regular = [
+      HPAppNavigationSection(title: nil, items: compact),
+      HPAppNavigationSection(title: "Run", items: [team, schedule] + (facilitiesEnabled ? [facilities] : [])),
+      HPAppNavigationSection(title: "Develop", items: [teams] + (programsEnabled ? [programs] : [])),
+      HPAppNavigationSection(title: "Manage", items: (isPlatformAdmin ? [platform] : []) + [account]),
+    ].filter { !$0.items.isEmpty }
+
+    return Self(
+      compactItems: compact,
+      directorySections: directory,
+      regularSections: regular,
+      defaultDestination: .coachToday
+    )
+  }
+
   static func platformOnly() -> Self {
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
     let account = item(.account, "Account", "gearshape")

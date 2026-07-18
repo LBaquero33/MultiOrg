@@ -462,7 +462,10 @@ struct ChatChannelListView: View {
       syncSelectedChannel()
     } catch {
       guard accepts(organizationId: organizationId, token: token) else { return }
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       isLoading = false
     }
   }
@@ -473,7 +476,7 @@ struct ChatChannelListView: View {
       responseToken: token,
       activeOrganizationId: appState.activeOrgId,
       currentToken: loadToken
-    )
+    ) && !Task.isCancelled
   }
 
   private func resetForOrganizationChange() {

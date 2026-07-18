@@ -861,7 +861,12 @@ private struct NotificationPreferenceView: View {
         expectedVersion: version
       )
       dismiss()
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
+    }
     isSaving = false
   }
 
@@ -877,6 +882,11 @@ private struct NotificationPreferenceView: View {
       quietHoursEnabled = preference.quiet_hours_start != nil
       quietStart = preference.quiet_hours_start.map { String($0.prefix(5)) } ?? quietStart
       quietEnd = preference.quiet_hours_end.map { String($0.prefix(5)) } ?? quietEnd
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
+    }
   }
 }

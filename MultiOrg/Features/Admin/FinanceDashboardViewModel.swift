@@ -137,8 +137,11 @@ final class FinanceDashboardViewModel: ObservableObject {
       snapshot = loaded
       isLoading = false
     } catch {
-      guard dataState.context == context else { return }
-      errorMessage = error.localizedDescription
+      guard dataState.context == context, !Task.isCancelled else { return }
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       isLoading = false
     }
   }
@@ -282,10 +285,13 @@ final class FinanceDashboardViewModel: ObservableObject {
       guard expenseMutationGate.accepts(
         organizationId: organizationId,
         token: token
-      ) else { return false }
+      ), !Task.isCancelled else { return false }
       expenseMutationGate.finish(token: token)
       isExpenseMutationInFlight = false
-      expenseMutationError = error.localizedDescription
+      expenseMutationError = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       return false
     }
   }

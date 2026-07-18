@@ -9,6 +9,7 @@ struct SDPlayerCalendarView: View {
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var loadToken: UUID?
 
   @State private var visibleMonth: Date = DateUtils.startOfMonthET(Date())
   @State private var scheduledLiftISOs: Set<String> = []
@@ -39,7 +40,15 @@ struct SDPlayerCalendarView: View {
       } agenda: { context in
         agendaPane(context)
       } stateContent: { _ in
-        EmptyView()
+        if let errorText {
+          HPCard {
+            HPErrorState(
+              title: "Calendar unavailable",
+              message: errorText,
+              onRetry: { Task { await reload() } }
+            )
+          }
+        }
       }
       .navigationTitle("Calendar")
       .toolbar {
@@ -65,7 +74,7 @@ struct SDPlayerCalendarView: View {
       } message: {
         Text(errorText ?? "")
       }
-      .task {
+      .task(id: calendarContextIdentity) {
         await reload()
       }
       .navigationDestination(for: Date.self) { d in
@@ -212,27 +221,59 @@ struct SDPlayerCalendarView: View {
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }
+    let context = calendarContextIdentity
+    let token = UUID()
+    loadToken = token
     isLoading = true
-    defer { isLoading = false }
+    errorText = nil
     do {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
-      assignment = try await supabase.fetchActiveAssignment(playerId: uid)
-      if let assignment {
-        template = try await supabase.fetchTemplate(id: assignment.template_id)
+      let loadedAssignment = try await supabase.fetchActiveAssignment(playerId: uid)
+      let loadedTemplate: SDProgramTemplate? = if let loadedAssignment {
+        try await supabase.fetchTemplate(id: loadedAssignment.template_id)
       } else {
-        template = nil
+        nil
       }
-      bpSessions = try await supabase.listBPSessions(playerId: uid, limit: 180)
+      let loadedBPSessions = try await supabase.listBPSessions(playerId: uid, limit: 180)
+      var loadedTeamEvents: [SDTeamEvent] = []
       if let organizationId = appState.activeOrgId {
         let start = Calendar.current.date(byAdding: .month, value: -6, to: Date())!
         let end = Calendar.current.date(byAdding: .month, value: 12, to: Date())!
-        teamEvents = try await supabase.listTeamEvents(organizationId: organizationId, teamId: nil, playerId: uid, rangeStart: start, rangeEnd: end)
+        loadedTeamEvents = try await supabase.listTeamEvents(organizationId: organizationId, teamId: nil, playerId: uid, rangeStart: start, rangeEnd: end)
       }
+      guard accepts(context: context, token: token) else { return }
+      assignment = loadedAssignment
+      template = loadedTemplate
+      bpSessions = loadedBPSessions
+      teamEvents = loadedTeamEvents
       rebuildMonthGrid()
+      isLoading = false
     } catch {
-      errorText = error.localizedDescription
+      guard accepts(context: context, token: token) else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
+      isLoading = false
     }
+  }
+
+  private var calendarContextIdentity: String {
+    [
+      appState.myProfile?.id.uuidString.lowercased() ?? "signed-out",
+      appState.activeOrgId?.uuidString.lowercased() ?? "no-organization",
+    ].joined(separator: ":")
+  }
+
+  private func accepts(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: calendarContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   private func rebuildMonthGrid() {

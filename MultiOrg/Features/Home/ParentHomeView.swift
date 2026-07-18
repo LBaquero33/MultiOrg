@@ -399,7 +399,10 @@ struct ParentHomeView: View {
       selectionStorage = selection?.storageValue ?? ""
 #endif
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -489,7 +492,10 @@ struct ParentHomeView: View {
       try await supabase.acceptParentInvite(inviteId: inviteId)
       await reload()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 }
@@ -504,6 +510,7 @@ struct RegistrationFamilySummaryCard: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var selectedOffering: SDRegistrationOffering?
+  @State private var loadToken: UUID?
 
   init(audience: Audience, players: [Profile] = []) {
     self.audience = audience
@@ -579,14 +586,27 @@ struct RegistrationFamilySummaryCard: View {
 
   @MainActor private func load() async {
     guard let organizationId = appState.activeOrgId, let service = appState.supabase else { return }
+    let token = UUID()
+    loadToken = token
     isLoading = true; errorText = nil
     do {
       async let loadedOfferings = service.registrationOfferings(organizationId: organizationId)
       async let loadedApplications = service.registrationApplications(organizationId: organizationId)
       let result = try await (loadedOfferings, loadedApplications)
+      guard loadToken == token,
+            appState.activeOrgId == organizationId,
+            !Task.isCancelled else { return }
       offerings = result.0.offerings
       applications = result.1.applications
-    } catch { errorText = "Registration is unavailable offline. Pull to refresh when connected." }
+    } catch {
+      guard loadToken == token,
+            appState.activeOrgId == organizationId,
+            !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+    guard loadToken == token,
+          appState.activeOrgId == organizationId,
+          !Task.isCancelled else { return }
     isLoading = false
   }
 }
@@ -638,6 +658,7 @@ private struct RegistrationDraftSheet: View {
 
   @MainActor private func submit() async {
     guard let organizationId = appState.activeOrgId, let service = appState.supabase else { return }
+    let contextOrganizationId = organizationId
     let playerId = audience == .player ? appState.myProfile?.id : selectedPlayerId
     isSubmitting = true; errorText = nil
     do {
@@ -649,8 +670,12 @@ private struct RegistrationDraftSheet: View {
         positionPreference: positionPreference
       )
       _ = try await service.submitRegistration(organizationId: organizationId, application: draft)
+      guard appState.activeOrgId == contextOrganizationId, !Task.isCancelled else { return }
       onComplete(); dismiss()
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      guard appState.activeOrgId == contextOrganizationId, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
     isSubmitting = false
   }
 }

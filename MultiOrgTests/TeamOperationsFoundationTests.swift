@@ -1,6 +1,13 @@
 import Foundation
+import Supabase
+import SwiftUI
 import Testing
+import XCTest
 @testable import HomePlate
+
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Suite("Phase 12A team operations foundation")
 struct TeamOperationsFoundationTests {
@@ -163,6 +170,99 @@ struct TeamOperationsFoundationTests {
     #expect(!analytics.localizedCaseInsensitiveContains("health score"))
   }
 
+  @Test("Edge Function 404 maps to a controlled unavailable state")
+  func edgeFunctionUnavailableMapping() {
+    let error = FunctionsError.httpError(code: 404, data: Data())
+    let presentation = SDApplicationErrorClassifier.presentation(for: error)
+    #expect(presentation?.category == .notDeployed)
+    #expect(presentation?.message == "This feature is temporarily unavailable.")
+    #expect(presentation?.message.contains("404") == false)
+    #expect(presentation?.message.localizedCaseInsensitiveContains("Edge Function") == false)
+  }
+
+  @Test("expected cancellation never creates an alert")
+  func cancellationMapping() {
+    #expect(SDApplicationErrorClassifier.alertMessage(for: CancellationError()) == nil)
+    #expect(SDApplicationErrorClassifier.alertMessage(for: URLError(.cancelled)) == nil)
+    let wrapped = NSError(
+      domain: "NetworkWrapper",
+      code: 1,
+      userInfo: [NSUnderlyingErrorKey: URLError(.cancelled)]
+    )
+    #expect(SDApplicationErrorClassifier.alertMessage(for: wrapped) == nil)
+  }
+
+  @Test("a genuine network failure remains user visible")
+  func genuineNetworkFailureMapping() {
+    let presentation = SDApplicationErrorClassifier.presentation(
+      for: URLError(.notConnectedToInternet)
+    )
+    #expect(presentation?.category == .offline)
+    #expect(presentation?.message != nil)
+  }
+
+  @Test("superseded and context-changed requests cannot publish")
+  func asyncRequestGuard() {
+    let current = UUID()
+    let superseded = UUID()
+    #expect(!SDAsyncRequestGuard.accepts(
+      responseContext: "organization-a",
+      responseToken: superseded,
+      activeContext: "organization-a",
+      currentToken: current
+    ))
+    #expect(!SDAsyncRequestGuard.accepts(
+      responseContext: "organization-a",
+      responseToken: current,
+      activeContext: "organization-b",
+      currentToken: current
+    ))
+    #expect(SDAsyncRequestGuard.accepts(
+      responseContext: "organization-a",
+      responseToken: current,
+      activeContext: "organization-a",
+      currentToken: current
+    ))
+  }
+
+  @Test("player coach and owner navigation remain role appropriate")
+  func roleNavigationInventories() {
+    let player = HPAppNavigationInventory.player(
+      chatEnabled: true,
+      facilitiesEnabled: true,
+      testingEnabled: true,
+      analysisEnabled: true,
+      facilitiesTitle: "Facilities",
+      testingTitle: "Testing"
+    )
+    #expect(player.compactItems.map(\.title) == ["Today", "Calendar", "Trends", "Chat"])
+    #expect(player.compactTabCountIncludingDirectory == 5)
+
+    let coach = HPAppNavigationInventory.staff(
+      playersTitle: "Players",
+      facilitiesTitle: "Facilities",
+      programsTitle: "Programs",
+      facilitiesEnabled: true,
+      chatEnabled: true,
+      programsEnabled: true,
+      canAdministerOrganization: false,
+      isPlatformAdmin: false
+    )
+    #expect(coach.compactItems.map(\.title) == ["Today", "Team", "Schedule"])
+    #expect(coach.compactTabCountIncludingDirectory == 4)
+
+    let owner = HPAppNavigationInventory.owner(
+      facilitiesTitle: "Facilities",
+      programsTitle: "Programs",
+      facilitiesEnabled: true,
+      chatEnabled: true,
+      programsEnabled: true,
+      isPlatformAdmin: false
+    )
+    #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
+    #expect(owner.compactTabCountIncludingDirectory == 5)
+  }
+
   private func team(
     name: String,
     organizationId: UUID? = nil,
@@ -193,3 +293,40 @@ struct TeamOperationsFoundationTests {
     return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
   }
 }
+
+#if canImport(UIKit)
+@MainActor
+final class Phase12UnavailableStateRenderTests: XCTestCase {
+  func testRenderControlledUnavailableState() throws {
+    let view = HPCard {
+      HPErrorState(
+        title: "Calendar unavailable",
+        message: "This feature is temporarily unavailable.",
+        onRetry: {}
+      )
+    }
+    .padding(HP.Space.md)
+    .background(HP.Color.bg)
+    .frame(width: 393, height: 320)
+
+    let host = UIHostingController(rootView: view)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 320))
+    window.rootViewController = host
+    window.makeKeyAndVisible()
+    host.view.frame = window.bounds
+    host.view.layoutIfNeeded()
+    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+
+    let renderer = UIGraphicsImageRenderer(size: window.bounds.size)
+    let image = renderer.image { context in
+      host.view.layer.render(in: context.cgContext)
+    }
+    let data = try XCTUnwrap(image.pngData())
+    XCTAssertGreaterThan(data.count, 5_000)
+    XCTAssertFalse(String(describing: view).contains("404"))
+
+    window.isHidden = true
+    window.rootViewController = nil
+  }
+}
+#endif

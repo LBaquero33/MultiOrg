@@ -95,7 +95,10 @@ final class NotificationCenterViewModel: ObservableObject {
       isLoading = false
     } catch {
       guard accepts(token: token, organizationId: organizationId) else { return }
-      errorMessage = error.localizedDescription
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       isLoading = false
     }
   }
@@ -136,7 +139,10 @@ final class NotificationCenterViewModel: ObservableObject {
       totalAvailable = response.pagination.total
     } catch {
       guard token == requestToken, requestOrganizationId == organizationId else { return }
-      errorMessage = error.localizedDescription
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -158,7 +164,10 @@ final class NotificationCenterViewModel: ObservableObject {
       totalUnread = max(0, totalUnread - 1)
       return true
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       return false
     }
   }
@@ -181,7 +190,10 @@ final class NotificationCenterViewModel: ObservableObject {
         ? "No unread notifications in this view."
         : "Marked \(response.updatedCount) notifications read."
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -225,7 +237,10 @@ final class NotificationCenterViewModel: ObservableObject {
     } catch {
       announcementOperation.finish(success: false)
       isSendingAnnouncement = false
-      errorMessage = error.localizedDescription
+      errorMessage = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
       return false
     }
   }
@@ -253,6 +268,12 @@ final class NotificationCenterViewModel: ObservableObject {
   }
 
   private func accepts(token: UUID, organizationId: UUID?) -> Bool {
-    requestToken == token && requestOrganizationId == organizationId
+    SDAsyncRequestGuard.accepts(
+      responseContext: organizationId,
+      responseToken: token,
+      activeContext: requestOrganizationId,
+      currentToken: requestToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 }

@@ -40,12 +40,20 @@ struct ParentChildCalendarView: View {
     } agenda: { context in
       agendaPane(context)
     } stateContent: { _ in
-      EmptyView()
+      if let errorText {
+        HPCard {
+          HPErrorState(
+            title: "Calendar unavailable",
+            message: errorText,
+            onRetry: { Task { await reload() } }
+          )
+        }
+      }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .task { await reload() }
+    .task(id: "\(child.id.uuidString):\(appState.activeOrgId?.uuidString ?? "none")") { await reload() }
     #if os(macOS)
     .dhdFloatingModal(item: $daySheet, width: 920, height: 640) { s in
       NavigationStack {
@@ -230,7 +238,10 @@ struct ParentChildCalendarView: View {
       }
       rebuildMonthGrid()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -446,7 +457,10 @@ private struct ParentChildDayDetailView: View {
         bpEvents.append(contentsOf: ev)
       }
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 

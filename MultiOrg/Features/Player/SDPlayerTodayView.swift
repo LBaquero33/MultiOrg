@@ -120,12 +120,15 @@ struct SDPlayerTodayViewInternal: View {
         saveAvailability(event: presentation.event, draft: draft, requestId: requestId)
       }
     }
-    .task {
+    .task(id: todayContextIdentity) {
       await reloadAll()
     }
   }
 
   private var dateISO: String { DateUtils.toISODate(date) }
+  private var todayContextIdentity: String {
+    "\(appState.myProfile?.id.uuidString ?? "none"):\(appState.activeOrgId?.uuidString ?? "none"):\(dateISO)"
+  }
 
   private var playerBaseballDayCard: some View {
     HPCard {
@@ -540,22 +543,25 @@ struct SDPlayerTodayViewInternal: View {
 
   private func reloadBaseballDay() async {
     guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    let context = todayContextIdentity
     do {
       let session = try await supabase.client.auth.session
       let playerId = session.user.id
       let start = DateUtils.startOfDayET(date)
       let end = DateUtils.calendarET.date(byAdding: .day, value: 1, to: start)!
-      teamEvents = try await supabase.listTeamEvents(
+      let loadedTeamEvents = try await supabase.listTeamEvents(
         organizationId: organizationId,
         teamId: nil,
         playerId: playerId,
         rangeStart: start,
         rangeEnd: end
       ).filter { $0.status != .draft }
+      guard context == todayContextIdentity, !Task.isCancelled else { return }
       var details: [UUID: SDEventOperationDetailResponse] = [:]
       var plans: [UUID: SDPracticePlanDetailResponse] = [:]
       var games: [UUID: SDGamePlanDetailResponse] = [:]
-      for event in teamEvents {
+      for event in loadedTeamEvents {
+        guard context == todayContextIdentity, !Task.isCancelled else { return }
         do {
           details[event.id] = try await supabase.eventOperation(
             organizationId: organizationId,
@@ -591,13 +597,17 @@ struct SDPlayerTodayViewInternal: View {
           )
         }
       }
+      guard context == todayContextIdentity, !Task.isCancelled else { return }
+      teamEvents = loadedTeamEvents
       eventOperations = details
       practicePlans = plans
       gamePlans = games
     } catch {
+      guard context == todayContextIdentity, !Task.isCancelled else { return }
       eventOperations = [:]
       practicePlans = [:]
       gamePlans = [:]
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -639,7 +649,10 @@ struct SDPlayerTodayViewInternal: View {
         template = nil
       }
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -678,7 +691,10 @@ struct SDPlayerTodayViewInternal: View {
       }
       hydrateFromExistingLogs()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 
@@ -771,7 +787,10 @@ struct SDPlayerTodayViewInternal: View {
       await reloadDay()
       success("Saved.")
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
     }
   }
 

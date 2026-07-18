@@ -1,6 +1,170 @@
 import Foundation
 import Supabase
 
+enum SDApplicationErrorCategory: String, Equatable, Sendable {
+  case offline
+  case unauthorized
+  case forbidden
+  case serviceUnavailable = "service_unavailable"
+  case notDeployed = "feature_not_deployed"
+  case staleData = "stale_data"
+  case validation
+  case serverError = "server_error"
+  case unknown
+}
+
+struct SDUserFacingError: Equatable, Sendable {
+  let category: SDApplicationErrorCategory
+  let message: String
+  let allowsRetry: Bool
+}
+
+struct SDServiceError: LocalizedError, Equatable, Sendable {
+  let category: SDApplicationErrorCategory
+  let functionName: String?
+  let statusCode: Int?
+
+  var errorDescription: String? {
+    SDApplicationErrorClassifier.presentation(for: self)?.message
+  }
+}
+
+enum SDApplicationErrorClassifier {
+  static func isCancellation(
+    _ error: Error,
+    taskIsCancelled: Bool = false
+  ) -> Bool {
+    taskIsCancelled || error is CancellationError || isCancellation(error as NSError, depth: 0)
+  }
+
+  static func presentation(
+    for error: Error,
+    taskIsCancelled: Bool = false
+  ) -> SDUserFacingError? {
+    guard !isCancellation(error, taskIsCancelled: taskIsCancelled) else { return nil }
+
+    if let controlled = error as? SDServiceError {
+      return presentation(for: controlled.category)
+    }
+    if let functionError = error as? FunctionsError {
+      switch functionError {
+      case .httpError(let statusCode, _):
+        return presentation(for: category(forHTTPStatus: statusCode))
+      case .relayError:
+        return presentation(for: .serviceUnavailable)
+      }
+    }
+    if let edgeError = error as? SDEdgeFunctionHTTPError {
+      return presentation(for: category(forHTTPStatus: edgeError.statusCode))
+    }
+    if let urlError = error as? URLError {
+      switch urlError.code {
+      case .notConnectedToInternet, .networkConnectionLost:
+        return presentation(for: .offline)
+      case .userAuthenticationRequired, .userCancelledAuthentication:
+        return presentation(for: .unauthorized)
+      case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+        return presentation(for: .serviceUnavailable)
+      default:
+        return presentation(for: .serverError)
+      }
+    }
+    if let postgrestError = error as? PostgrestError {
+      if postgrestError.code == "42501" { return presentation(for: .forbidden) }
+      if postgrestError.code?.hasPrefix("22") == true {
+        return presentation(for: .validation)
+      }
+      return presentation(for: .serverError)
+    }
+    if error is DecodingError { return presentation(for: .serverError) }
+    return presentation(for: .unknown)
+  }
+
+  static func alertMessage(
+    for error: Error,
+    taskIsCancelled: Bool = false
+  ) -> String? {
+    presentation(for: error, taskIsCancelled: taskIsCancelled)?.message
+  }
+
+  static func log(
+    _ error: Error,
+    functionName: String? = nil,
+    statusCode: Int? = nil
+  ) {
+    #if DEBUG
+    let function = functionName ?? "none"
+    let status = statusCode.map(String.init) ?? "none"
+    print(
+      "service_diagnostic function=\(function) status=\(status) "
+        + "error_type=\(String(reflecting: type(of: error)))"
+    )
+    #endif
+  }
+
+  private static func category(forHTTPStatus statusCode: Int) -> SDApplicationErrorCategory {
+    switch statusCode {
+    case 401: .unauthorized
+    case 403: .forbidden
+    case 404: .notDeployed
+    case 408, 429, 502, 503, 504: .serviceUnavailable
+    case 400, 409, 422: .validation
+    case 500...599: .serverError
+    default: .unknown
+    }
+  }
+
+  private static func presentation(
+    for category: SDApplicationErrorCategory
+  ) -> SDUserFacingError {
+    switch category {
+    case .offline:
+      SDUserFacingError(category: category, message: "You’re offline. Check your connection and try again.", allowsRetry: true)
+    case .unauthorized:
+      SDUserFacingError(category: category, message: "Please sign in again to continue.", allowsRetry: false)
+    case .forbidden:
+      SDUserFacingError(category: category, message: "You don’t have permission to do that.", allowsRetry: false)
+    case .serviceUnavailable, .notDeployed:
+      SDUserFacingError(category: category, message: "This feature is temporarily unavailable.", allowsRetry: true)
+    case .staleData:
+      SDUserFacingError(category: category, message: "This information changed. Refresh and try again.", allowsRetry: true)
+    case .validation:
+      SDUserFacingError(category: category, message: "Check the information and try again.", allowsRetry: false)
+    case .serverError:
+      SDUserFacingError(category: category, message: "Home Plate couldn’t complete the request. Try again.", allowsRetry: true)
+    case .unknown:
+      SDUserFacingError(category: category, message: "Something went wrong. Try again.", allowsRetry: true)
+    }
+  }
+
+  private static func isCancellation(_ error: NSError, depth: Int) -> Bool {
+    guard depth < 8 else { return false }
+    if error.domain == NSURLErrorDomain, error.code == NSURLErrorCancelled { return true }
+    if error.domain == "Swift.CancellationError" { return true }
+    if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error,
+       isCancellation(underlying as NSError, depth: depth + 1) {
+      return true
+    }
+    if let underlyingErrors = error.userInfo["NSMultipleUnderlyingErrors"] as? [Error],
+       underlyingErrors.contains(where: { isCancellation($0 as NSError, depth: depth + 1) }) {
+      return true
+    }
+    return false
+  }
+}
+
+enum SDAsyncRequestGuard {
+  static func accepts<Context: Equatable>(
+    responseContext: Context,
+    responseToken: UUID,
+    activeContext: Context,
+    currentToken: UUID?,
+    taskIsCancelled: Bool = false
+  ) -> Bool {
+    !taskIsCancelled && responseContext == activeContext && responseToken == currentToken
+  }
+}
+
 private enum SessionRestoreError: LocalizedError {
   case missing
   case expired
@@ -1350,12 +1514,45 @@ final class SupabaseService: ObservableObject {
     _ name: String,
     body: Body
   ) async throws -> Response {
-    let session = try await client.auth.session
-    client.functions.setAuth(token: session.accessToken)
-    return try await client.functions.invoke(
-      name,
-      options: FunctionInvokeOptions(body: body)
-    )
+    do {
+      let session = try await client.auth.session
+      client.functions.setAuth(token: session.accessToken)
+      return try await client.functions.invoke(
+        name,
+        options: FunctionInvokeOptions(body: body)
+      )
+    } catch {
+      if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) {
+        throw CancellationError()
+      }
+      if let functionError = error as? FunctionsError {
+        switch functionError {
+        case .httpError(let statusCode, let data):
+          SDApplicationErrorClassifier.log(
+            error,
+            functionName: name,
+            statusCode: statusCode
+          )
+          if statusCode == 404 {
+            throw SDServiceError(
+              category: .notDeployed,
+              functionName: name,
+              statusCode: statusCode
+            )
+          }
+          throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+        case .relayError:
+          SDApplicationErrorClassifier.log(error, functionName: name)
+          throw SDServiceError(
+            category: .serviceUnavailable,
+            functionName: name,
+            statusCode: nil
+          )
+        }
+      }
+      SDApplicationErrorClassifier.log(error, functionName: name)
+      throw error
+    }
   }
 
   private struct OrgBillingURLResponse: Decodable {
@@ -2693,13 +2890,34 @@ final class SupabaseService: ObservableObject {
             + "raw_top_level_json_keys=\(topLevelKeys.joined(separator: ","))"
         )
         #endif
+        SDApplicationErrorClassifier.log(
+          error,
+          functionName: "payment_requests",
+          statusCode: statusCode
+        )
+        if statusCode == 404 {
+          throw SDServiceError(
+            category: .notDeployed,
+            functionName: "payment_requests",
+            statusCode: statusCode
+          )
+        }
         throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
       case .relayError:
         #if DEBUG
         print("[PaymentRequestRoster] org_id=\(orgId.uuidString) http_result=relay_error")
         #endif
-        throw error
+        throw SDServiceError(
+          category: .serviceUnavailable,
+          functionName: "payment_requests",
+          statusCode: nil
+        )
       }
+    } catch {
+      if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) {
+        throw CancellationError()
+      }
+      throw error
     }
   }
 

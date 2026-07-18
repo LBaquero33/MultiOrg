@@ -1501,7 +1501,11 @@ struct OrgAdminConsoleView: View {
 
       applySettingsToFields(loadedSettings)
     } catch {
-      errorText = error.localizedDescription
+      if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) {
+        return
+      }
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1728,7 +1732,7 @@ struct OrgAdminConsoleView: View {
         discardedAsStale: false
       )
     } catch {
-      if error is CancellationError { return }
+      if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) { return }
       guard SDPaymentRequestRosterResponseContext.matchesSelectedOrganization(
         responseOrganizationId: orgId,
         selectedOrganizationId: paymentRequestOrganizationId,
@@ -1741,7 +1745,8 @@ struct OrgAdminConsoleView: View {
         )
         return
       }
-      let message = "Eligible players could not be loaded. \(error.localizedDescription)"
+      let message = SDApplicationErrorClassifier.alertMessage(for: error)
+        ?? "This feature is temporarily unavailable."
       guard paymentRequestRosterState.fail(
         message: message,
         organizationId: orgId,
@@ -1775,8 +1780,9 @@ struct OrgAdminConsoleView: View {
       organizationSubscription = try await supabase.fetchLatestOrgSubscription(orgId: orgId)
       billingErrorText = nil
     } catch {
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
       organizationSubscription = nil
-      billingErrorText = "Subscription status could not be loaded. \(error.localizedDescription)"
+      billingErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1801,7 +1807,8 @@ struct OrgAdminConsoleView: View {
       connectStatus = try await supabase.getStripeConnectAccountStatus(orgId: orgId)
       connectErrorText = nil
     } catch {
-      connectErrorText = "Stripe account status could not be refreshed. \(error.localizedDescription)"
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      connectErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1845,8 +1852,9 @@ struct OrgAdminConsoleView: View {
       paymentRequestErrorText = nil
     } catch {
       guard paymentRequestState.organizationId == orgId,
-            paymentRequestLoadToken == loadToken else { return }
-      paymentRequestErrorText = "Payment requests could not be loaded. \(error.localizedDescription)"
+            paymentRequestLoadToken == loadToken,
+            !Task.isCancelled else { return }
+      paymentRequestErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1902,8 +1910,8 @@ struct OrgAdminConsoleView: View {
       }
       await refreshPaymentRequests()
     } catch {
-      guard paymentRequestOrganizationId == orgId else { return }
-      paymentRequestErrorText = "Payment request could not be created. \(error.localizedDescription)"
+      guard paymentRequestOrganizationId == orgId, !Task.isCancelled else { return }
+      paymentRequestErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
       if let functionError = error as? SDEdgeFunctionHTTPError,
          functionError.code == "active_player_membership_required" {
         await refreshEligiblePaymentRequestPlayers(orgId: orgId)
@@ -1932,8 +1940,8 @@ struct OrgAdminConsoleView: View {
       toastText = "Payment request canceled."
       await refreshPaymentRequests()
     } catch {
-      guard paymentRequestOrganizationId == orgId else { return }
-      paymentRequestErrorText = "Payment request could not be canceled. \(error.localizedDescription)"
+      guard paymentRequestOrganizationId == orgId, !Task.isCancelled else { return }
+      paymentRequestErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1972,7 +1980,8 @@ struct OrgAdminConsoleView: View {
       openBillingURL(url)
       connectErrorText = nil
     } catch {
-      connectErrorText = "Stripe setup could not be opened. \(error.localizedDescription)"
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      connectErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -1989,7 +1998,8 @@ struct OrgAdminConsoleView: View {
       let url = try await supabase.createOrgSubscriptionCheckout(orgId: orgId)
       openBillingURL(url)
     } catch {
-      billingErrorText = "Checkout could not be opened. \(error.localizedDescription)"
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      billingErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2006,11 +2016,12 @@ struct OrgAdminConsoleView: View {
       let url = try await supabase.createOrgBillingPortal(orgId: orgId)
       openBillingURL(url)
     } catch {
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
       let description = error.localizedDescription
       if description.localizedCaseInsensitiveContains("organization_billing_customer_missing") {
         billingErrorText = "Billing has not been set up for this organization yet. Start a subscription first."
       } else {
-        billingErrorText = "Billing Portal could not be opened. \(description)"
+        billingErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
       }
     }
   }
@@ -2124,7 +2135,8 @@ struct OrgAdminConsoleView: View {
       await appState.refreshOrgContext()
       if !isAutomatic { toastText = "Organization settings saved." }
     } catch {
-      errorText = error.localizedDescription
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2160,7 +2172,8 @@ struct OrgAdminConsoleView: View {
       toastText = "Facility saved."
       await reload()
     } catch {
-      errorText = error.localizedDescription
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2185,7 +2198,8 @@ struct OrgAdminConsoleView: View {
       toastText = "Org user created."
       await reload()
     } catch {
-      errorText = error.localizedDescription
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2216,11 +2230,12 @@ struct OrgAdminConsoleView: View {
       await appState.refreshOrgContext()
       await reload()
     } catch {
+      guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
       let description = error.localizedDescription
       if description.localizedCaseInsensitiveContains("last_active_owner_required") {
         errorText = "Add another active owner before removing, demoting, disabling, or suspending this owner."
       } else {
-        errorText = description
+        errorText = SDApplicationErrorClassifier.alertMessage(for: error)
       }
     }
   }
@@ -2264,7 +2279,8 @@ struct OrgAdminConsoleView: View {
       toastText = "\(facility.name) deleted."
       await reload()
     } catch {
-      errorText = "Could not delete \(facility.name). \(error.localizedDescription)"
+      guard !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2279,7 +2295,8 @@ struct OrgAdminConsoleView: View {
       logoURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
       scheduleSettingsAutosave()
     } catch {
-      errorText = error.localizedDescription
+      guard !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 }
@@ -2672,6 +2689,9 @@ private struct PaymentRequestCreateSheet: View {
       )
       #endif
     } catch {
+      if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) {
+        return
+      }
       #if DEBUG
       print(
         "payment_request_sheet_roster_http=failure "
@@ -2700,7 +2720,8 @@ private struct PaymentRequestCreateSheet: View {
       decodedPlayerCount = 0
       draft.selectedPlayerUserIds.removeAll()
       _ = rosterLoadState.fail(
-        message: "Eligible players could not be loaded. \(error.localizedDescription)",
+        message: SDApplicationErrorClassifier.alertMessage(for: error)
+          ?? "This feature is temporarily unavailable.",
         organizationId: requestedOrganizationID,
         requestId: requestID
       )
@@ -3166,6 +3187,7 @@ private struct OrganizationOperationsAdminView: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var statusText: String?
+  @State private var loadToken: UUID?
 
   var body: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
@@ -3183,7 +3205,7 @@ private struct OrganizationOperationsAdminView: View {
         .disabled(isLoading)
       }
 
-      if let errorText {
+      if let errorText, !isEmpty {
         HPCard {
           Label(errorText, systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(HP.Color.danger)
@@ -3196,6 +3218,14 @@ private struct OrganizationOperationsAdminView: View {
       if isLoading && isEmpty {
         ProgressView("Loading \(title.lowercased())")
           .frame(maxWidth: .infinity, minHeight: 160)
+      } else if let errorText, isEmpty {
+        HPCard {
+          HPErrorState(
+            title: "\(title) unavailable",
+            message: errorText,
+            onRetry: { Task { await load() } }
+          )
+        }
       } else {
         switch section {
         case .communication: communicationContent
@@ -3427,6 +3457,9 @@ private struct OrganizationOperationsAdminView: View {
       errorText = "Connect to Home Plate to load organization operations."
       return
     }
+    let context = operationContextIdentity
+    let token = UUID()
+    loadToken = token
     isLoading = true; errorText = nil; statusText = nil
     do {
       switch section {
@@ -3434,40 +3467,75 @@ private struct OrganizationOperationsAdminView: View {
         async let announcementResponse = service.communicationAnnouncements(organizationId: organizationId)
         async let deliveryResponse = service.communicationDeliveryStatus(organizationId: organizationId)
         let loaded = try await (announcementResponse, deliveryResponse)
+        guard accepts(context: context, token: token) else { return }
         announcements = loaded.0.announcements; deliveries = loaded.1.deliveries
       case .registration:
         async let offeringResponse = service.registrationOfferings(organizationId: organizationId)
         async let applicationResponse = service.registrationApplications(organizationId: organizationId)
         let loaded = try await (offeringResponse, applicationResponse)
+        guard accepts(context: context, token: token) else { return }
         offerings = loaded.0.offerings; applications = loaded.1.applications
       case .analytics:
         let response = try await service.organizationAnalytics(organizationId: organizationId)
+        guard accepts(context: context, token: token) else { return }
         analytics = response.analytics; definitions = response.definitions
       }
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      guard accepts(context: context, token: token) else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(
+        for: error,
+        taskIsCancelled: Task.isCancelled
+      )
+    }
+    guard accepts(context: context, token: token) else { return }
     isLoading = false
+  }
+
+  private var operationContextIdentity: String {
+    "\(organizationId.uuidString.lowercased()):\(appState.activeOrgId?.uuidString.lowercased() ?? "none"):\(title)"
+  }
+
+  private func accepts(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: operationContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   @MainActor private func dryRunIntents() async {
     guard let service = appState.supabase else { return }
+    let context = operationContextIdentity
     isLoading = true; errorText = nil
     do {
       try await service.dryRunOperationalNotificationIntents(organizationId: organizationId)
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
       statusText = "Dry run completed. No notifications were sent or queued."
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
     isLoading = false
   }
 
   @MainActor private func generateReport(_ reportType: String) async {
     guard let service = appState.supabase else { return }
+    let context = operationContextIdentity
     isLoading = true; errorText = nil; statusText = nil
     do {
-      reportExport = try await service.organizationReport(
+      let generatedReport = try await service.organizationReport(
         organizationId: organizationId,
         reportType: reportType
       )
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
+      reportExport = generatedReport
       statusText = "Report generated. Review and share the CSV below."
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
     isLoading = false
   }
 
@@ -3476,6 +3544,7 @@ private struct OrganizationOperationsAdminView: View {
     action: String
   ) async {
     guard let service = appState.supabase else { return }
+    let context = operationContextIdentity
     isLoading = true; errorText = nil
     do {
       let updated = try await service.reviewRegistration(
@@ -3484,11 +3553,15 @@ private struct OrganizationOperationsAdminView: View {
         action: action,
         notes: "Updated from Registration Operations"
       )
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
       if let index = applications.firstIndex(where: { $0.id == updated.id }) {
         applications[index] = updated
       }
       statusText = "Application updated to \(updated.state.replacingOccurrences(of: "_", with: " "))."
-    } catch { errorText = error.localizedDescription }
+    } catch {
+      guard context == operationContextIdentity, !Task.isCancelled else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
     isLoading = false
   }
 }
