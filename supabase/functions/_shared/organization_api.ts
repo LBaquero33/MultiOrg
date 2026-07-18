@@ -24,7 +24,11 @@ export const ok = (body: Row) => json(200, { ok: true, ...body, error: null });
 export const fail = (status: number, code: string, message = code) =>
   json(status, { ok: false, error: { code, message } });
 
-export async function organizationContext(req: Request, payload: Row) {
+export async function organizationContext(
+  req: Request,
+  payload: Row,
+  options: { allowPlatformAdmin?: boolean } = {},
+) {
   if (req.method !== "POST") throw new ApiFailure(405, "method_not_allowed");
   const url = text(
     Deno.env.get("SUPABASE_URL") ?? Deno.env.get("DHD_SUPABASE_URL"),
@@ -64,12 +68,27 @@ export async function organizationContext(req: Request, payload: Row) {
       userData.user.id,
     ).eq("status", "active").maybeSingle();
   if (error) throw new ApiFailure(500, "membership_lookup_failed");
-  if (!membership) {
+  let isPlatformAdmin = false;
+  if (!membership && options.allowPlatformAdmin) {
+    const { data: platformAdmin, error: platformError } = await admin
+      .from("sd_platform_admins").select("user_id")
+      .eq("user_id", userData.user.id).maybeSingle();
+    if (platformError) {
+      throw new ApiFailure(500, "platform_access_lookup_failed");
+    }
+    isPlatformAdmin = Boolean(platformAdmin);
+  }
+  if (!membership && !isPlatformAdmin) {
     throw new ApiFailure(403, "organization_membership_required");
   }
-  const role = text((membership as Row).role).toLowerCase();
+  const role = membership
+    ? text((membership as Row).role).toLowerCase()
+    : "platform_admin";
+  const capabilityRpc = isPlatformAdmin
+    ? "sd_resolve_setup_capabilities"
+    : "sd_resolve_organization_capabilities";
   const { data: resolved, error: capabilityError } = await admin.rpc(
-    "sd_resolve_organization_capabilities",
+    capabilityRpc,
     { target_organization: organizationId, target_actor: userData.user.id },
   );
   if (capabilityError) {
@@ -85,6 +104,7 @@ export async function organizationContext(req: Request, payload: Row) {
     role,
     capabilities,
     isAdmin: role === "owner" || role === "admin",
+    isPlatformAdmin,
   };
 }
 

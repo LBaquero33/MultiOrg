@@ -4922,6 +4922,113 @@ final class SupabaseService: ObservableObject {
       .execute()
   }
 
+  // MARK: - Organization setup (Phase 12Z)
+
+  private struct OrganizationSetupRequest: Encodable {
+    let action: String
+    let organization_id: String
+    let request_id: String?
+    let expected_version: Int?
+    let step: String?
+    let draft_key: String?
+    let setup_test_run_id: String?
+    let basics: [String: SDJSONValue]?
+    let season: [String: SDJSONValue]?
+    let team: [String: SDJSONValue]?
+    let draft: [String: SDJSONValue]?
+    let registration: [String: SDJSONValue]?
+    let facility: [String: SDJSONValue]?
+    let communication: [String: SDJSONValue]?
+    let event: [String: SDJSONValue]?
+  }
+
+  private func organizationSetupRequest(
+    action: String,
+    organizationId: UUID,
+    requestId: UUID? = nil,
+    expectedVersion: Int? = nil,
+    step: SDOrganizationSetupStep? = nil,
+    draftKey: String? = nil,
+    setupTestRunId: UUID? = nil,
+    field: String? = nil,
+    payload: [String: SDJSONValue]? = nil,
+    mutating: Bool = true
+  ) -> OrganizationSetupRequest {
+    OrganizationSetupRequest(
+      action: action,
+      organization_id: organizationId.uuidString.lowercased(),
+      request_id: mutating ? (requestId ?? UUID()).uuidString.lowercased() : nil,
+      expected_version: expectedVersion,
+      step: step?.rawValue,
+      draft_key: draftKey,
+      setup_test_run_id: setupTestRunId?.uuidString.lowercased(),
+      basics: field == "basics" ? payload : nil,
+      season: field == "season" ? payload : nil,
+      team: field == "team" ? payload : nil,
+      draft: field == "draft" ? payload : nil,
+      registration: field == "registration" ? payload : nil,
+      facility: field == "facility" ? payload : nil,
+      communication: field == "communication" ? payload : nil,
+      event: field == "event" ? payload : nil
+    )
+  }
+
+  func organizationSetup(organizationId: UUID) async throws -> SDOrganizationSetupSnapshot {
+    try await invokeAuthenticatedFunction(
+      "organization-setup",
+      body: organizationSetupRequest(
+        action: "get",
+        organizationId: organizationId,
+        mutating: false
+      )
+    )
+  }
+
+  func mutateOrganizationSetup(
+    action: String,
+    organizationId: UUID,
+    requestId: UUID,
+    expectedVersion: Int?,
+    step: SDOrganizationSetupStep? = nil,
+    draftKey: String? = nil,
+    setupTestRunId: UUID? = nil,
+    field: String? = nil,
+    payload: [String: SDJSONValue]? = nil
+  ) async throws -> SDOrganizationSetupSnapshot {
+    let response: SDOrganizationSetupMutationResponse = try await invokeAuthenticatedFunction(
+      "organization-setup",
+      body: organizationSetupRequest(
+        action: action,
+        organizationId: organizationId,
+        requestId: requestId,
+        expectedVersion: expectedVersion,
+        step: step,
+        draftKey: draftKey,
+        setupTestRunId: setupTestRunId,
+        field: field,
+        payload: payload
+      )
+    )
+    return response.setup
+  }
+
+  func previewOrganizationSetupTestReset(
+    organizationId: UUID,
+    setupTestRunId: UUID
+  ) async throws -> SDOrganizationSetupResetPreview {
+    struct Response: Decodable { let preview: SDOrganizationSetupResetPreview }
+    let response: Response = try await invokeAuthenticatedFunction(
+      "organization-setup",
+      body: organizationSetupRequest(
+        action: "preview_test_data_reset",
+        organizationId: organizationId,
+        setupTestRunId: setupTestRunId,
+        mutating: true
+      )
+    )
+    return response.preview
+  }
+
   func signOut() async throws {
     try await client.auth.signOut()
   }

@@ -57,7 +57,15 @@ struct CoachTodayFoundationView: View {
         missionSection
         attentionSection
         serviceStateSection
-        if isOwnerOverview { ownerOperationalLinks }
+        if isOwnerOverview {
+          if let organizationId = appState.activeOrgId {
+            OrganizationSetupOverviewCard(
+              organizationId: organizationId,
+              organizationName: organizationName
+            )
+          }
+          ownerOperationalLinks
+        }
       }
       .navigationTitle(screenTitle)
       .task(id: todayContextIdentity) { await reloadToday() }
@@ -239,7 +247,7 @@ struct CoachTodayFoundationView: View {
           }
         }
         NavigationLink("Open Communication") { ChatChannelListView() }
-        NavigationLink("Registration and Organization Setup") { OrgAdminConsoleView() }
+        NavigationLink("Registration and Organization Administration") { OrgAdminConsoleView() }
       }
       .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.accent)
     }

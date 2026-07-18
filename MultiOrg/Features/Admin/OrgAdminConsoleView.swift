@@ -88,6 +88,8 @@ struct OrgAdminConsoleView: View {
 
   enum Tab: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
+    case setup = "Setup & Launch"
+    case settings = "Settings"
     case branding = "Branding"
     case features = "Features"
     case billing = "Billing"
@@ -103,6 +105,8 @@ struct OrgAdminConsoleView: View {
     var systemImage: String {
       switch self {
       case .dashboard: "rectangle.3.group"
+      case .setup: "checklist"
+      case .settings: "gearshape"
       case .branding: "paintbrush"
       case .features: "switch.2"
       case .billing: "creditcard"
@@ -366,6 +370,10 @@ struct OrgAdminConsoleView: View {
     switch selectedTab {
     case .dashboard:
       dashboardCard(context)
+    case .setup:
+      setupAndLaunchCard
+    case .settings:
+      settingsAndTestingCard
     case .branding:
       VStack(alignment: .leading, spacing: HP.Space.md) {
         brandingCard
@@ -704,6 +712,84 @@ struct OrgAdminConsoleView: View {
               fullWidth: context.isAccessibilitySize
             ) {
               selectedTab = .facilities
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var setupAndLaunchCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Organization setup") {
+          HPStatusBadge(text: "Resumable", kind: .info)
+        }
+        Text("Complete organization basics, season, teams, people, optional operations, and launch readiness using authoritative Home Plate records.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+        if let organizationId = appState.activeOrgId {
+          NavigationLink {
+            OrganizationSetupWizardView(
+              organizationId: organizationId,
+              organizationName: settings?.display_name ?? settings?.short_name
+            )
+          } label: {
+            Label("Open Organization Setup", systemImage: "arrow.right.circle.fill")
+              .font(HP.Font.callout.weight(.semibold))
+              .foregroundStyle(HP.Color.accent)
+              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          }
+        } else {
+          HPEmptyState(
+            title: "Organization required",
+            message: "Select an organization to open setup.",
+            systemImage: "building.2"
+          )
+        }
+      }
+    }
+  }
+
+  private var settingsAndTestingCard: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Organization settings")
+          Text("Branding, feature, booking, team-scope, and setup controls remain organization-scoped.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+          HPButton(title: "Branding", systemImage: "paintbrush", variant: .secondary) {
+            selectedTab = .branding
+          }
+          HPButton(title: "Feature Controls", systemImage: "switch.2", variant: .secondary) {
+            selectedTab = .features
+          }
+        }
+      }
+      if let organizationId = appState.activeOrgId,
+         SDOrganizationSetupTestConfiguration.current().allows(
+          organizationId: organizationId,
+          hasAuthority: appState.canAdminActiveOrg || appState.isPlatformAdmin
+         ) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Developer / Testing") {
+              HPStatusBadge(text: "Guarded", kind: .warning)
+            }
+            Text("Reset setup progress for Marist Red Foxes and reopen the onboarding wizard for visual and workflow testing. Available only for the exact configured organization UUID.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+            NavigationLink {
+              OrganizationSetupWizardView(
+                organizationId: organizationId,
+                organizationName: settings?.display_name ?? settings?.short_name
+              )
+            } label: {
+              Label("Test Organization Setup Wizard", systemImage: "wrench.and.screwdriver")
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.accent)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             }
           }
         }

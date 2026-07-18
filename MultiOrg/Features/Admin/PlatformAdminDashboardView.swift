@@ -533,6 +533,17 @@ struct PlatformAdminDashboardView: View {
 
   @ViewBuilder
   private func organizationDetailActions(_ organization: SDPlatformOrganization, fullWidth: Bool) -> some View {
+    NavigationLink {
+      OrganizationSetupWizardView(
+        organizationId: organization.id,
+        organizationName: organization.name
+      )
+    } label: {
+      Label("Assist Setup", systemImage: "checklist")
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.accent)
+        .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 44, alignment: .leading)
+    }
     HPButton(
       title: "Edit Organization",
       variant: .secondary,
