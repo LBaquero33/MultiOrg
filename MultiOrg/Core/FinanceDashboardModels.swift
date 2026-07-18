@@ -1,5 +1,85 @@
 import Foundation
 
+enum SDInvoiceLifecycleRule {
+  static func nextStatus(current: String, action: String) -> String? {
+    if current == "draft", action == "issue" { return "issued" }
+    guard ["issued", "partially_paid", "overdue"].contains(current) else { return nil }
+    return switch action {
+    case "void": "void"
+    case "cancel": "cancelled"
+    case "write_off": "written_off"
+    default: nil
+    }
+  }
+}
+
+struct SDOrganizationAnalyticsResponse: Decodable, Sendable {
+  let analytics: SDOrganizationAnalytics
+  let definitions: [SDMetricDefinition]
+}
+
+struct SDOrganizationAnalytics: Decodable, Equatable, Sendable {
+  let as_of: String
+  let financial: SDFinancialAnalytics
+  let registration: SDRegistrationAnalytics
+  let operations: SDOperationsAnalytics
+  let communication: SDCommunicationAnalytics
+}
+
+struct SDFinancialAnalytics: Decodable, Equatable, Sendable {
+  let gross_invoiced_cents: Int
+  let collected_cents: Int
+  let outstanding_cents: Int
+  let overdue_cents: Int
+  let refunds_cents: Int
+  let expenses_cents: Int
+  let net_operating_result_cents: Int
+}
+
+struct SDRegistrationAnalytics: Decodable, Equatable, Sendable {
+  let total: Int
+  let drafts: Int
+  let submitted: Int
+  let approved: Int
+  let waitlisted: Int
+  let declined: Int
+  let assigned: Int
+  let balance: Int
+}
+
+struct SDOperationsAnalytics: Decodable, Equatable, Sendable {
+  let events: Int
+  let completed: Int
+  let practices_completed: Int
+  let games_completed: Int
+  let cancelled: Int
+  let attendance_rate: Decimal?
+  let availability_response_rate: Decimal?
+}
+
+struct SDCommunicationAnalytics: Decodable, Equatable, Sendable {
+  let announcements: Int
+  let recipients: Int
+  let reads: Int
+  let acknowledgments: Int
+  let required_acknowledgments: Int
+  let read_rate: Decimal?
+  let acknowledgment_rate: Decimal?
+}
+
+struct SDMetricDefinition: Identifiable, Decodable, Equatable, Sendable {
+  var id: String { key }
+  let key: String
+  let domain: String
+  let name: String
+  let definition: String
+  let source_tables: [String]
+  let inclusion_rules: String
+  let exclusion_rules: String
+  let empty_behavior: String
+  let refresh_behavior: String
+}
+
 enum FinanceAuthorizationSource: String, Decodable, Equatable, Sendable {
   case organizationMembership = "organization_membership"
   case platformSupport = "platform_support"

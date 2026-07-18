@@ -1,5 +1,93 @@
 import Foundation
 
+enum SDNotificationPreferenceRule {
+  static func delivery(
+    inAppEnabled: Bool,
+    pushEnabled: Bool,
+    required: Bool,
+    localMinutes: Int,
+    quietStartMinutes: Int?,
+    quietEndMinutes: Int?
+  ) -> (inApp: Bool, push: Bool) {
+    let quiet: Bool
+    if let start = quietStartMinutes, let end = quietEndMinutes {
+      quiet = start < end
+        ? localMinutes >= start && localMinutes < end
+        : localMinutes >= start || localMinutes < end
+    } else {
+      quiet = false
+    }
+    return (required || inAppEnabled, pushEnabled && !quiet)
+  }
+}
+
+struct SDNotificationDeliveryStatus: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let source_type: String
+  let source_id: UUID
+  let category: String
+  let delivery_state: String
+  let preference_decision: String
+  let failure_reason: String?
+  let attempt_count: Int
+  let next_attempt_at: String?
+  let delivered_at: String?
+  let created_at: String
+}
+
+struct SDNotificationDeliveryStatusResponse: Decodable, Sendable {
+  let deliveries: [SDNotificationDeliveryStatus]
+}
+
+struct SDNotificationPreference: Decodable, Equatable, Sendable {
+  let id: UUID
+  let user_id: UUID
+  let organization_id: UUID?
+  let team_id: UUID?
+  let subject_player_id: UUID?
+  let category: String
+  let in_app_enabled: Bool
+  let push_enabled: Bool
+  let email_ready_enabled: Bool
+  let sms_ready_enabled: Bool
+  let quiet_hours_start: String?
+  let quiet_hours_end: String?
+  let timezone: String
+  let version: Int
+}
+
+struct SDNotificationPreferenceResponse: Decodable, Sendable {
+  let preference: SDNotificationPreference
+}
+
+struct SDNotificationPreferencesResponse: Decodable, Sendable {
+  let preferences: [SDNotificationPreference]
+}
+
+struct SDCommunicationAnnouncement: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let title: String
+  let body: String
+  let audience_type: String
+  let priority: String
+  let acknowledgment_required: Bool
+  let status: String
+  let publish_at: String
+  let expires_at: String?
+}
+
+struct SDCommunicationAnnouncementRecipient: Decodable, Equatable, Sendable {
+  let read_at: String?
+  let acknowledged_at: String?
+  let archived_at: String?
+  let announcement: SDCommunicationAnnouncement
+}
+
+struct SDCommunicationAnnouncementsResponse: Decodable, Sendable {
+  let announcements: [SDCommunicationAnnouncementRecipient]
+}
+
 enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
   case paymentRequestCreated
   case paymentReceived
@@ -10,6 +98,18 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
   case messageReceived
   case testingResultAdded
   case organizationAnnouncement
+  case teamAnnouncement
+  case eventAnnouncement
+  case scheduleChange
+  case eventReminder
+  case attendance
+  case availability
+  case practicePlan
+  case gamePlan
+  case lineupAssignment
+  case registration
+  case paymentNotice
+  case resultRecap
   case system
   case unknown(String)
 
@@ -25,6 +125,18 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case "message_received": .messageReceived
     case "testing_result_added": .testingResultAdded
     case "organization_announcement": .organizationAnnouncement
+    case "team_announcement": .teamAnnouncement
+    case "event_announcement": .eventAnnouncement
+    case "schedule_change": .scheduleChange
+    case "event_reminder": .eventReminder
+    case "attendance": .attendance
+    case "availability": .availability
+    case "practice_plan": .practicePlan
+    case "game_plan": .gamePlan
+    case "lineup_assignment": .lineupAssignment
+    case "registration": .registration
+    case "payment_notice": .paymentNotice
+    case "result_recap": .resultRecap
     case "system": .system
     default: .unknown(raw)
     }
@@ -46,6 +158,18 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case .messageReceived: "message_received"
     case .testingResultAdded: "testing_result_added"
     case .organizationAnnouncement: "organization_announcement"
+    case .teamAnnouncement: "team_announcement"
+    case .eventAnnouncement: "event_announcement"
+    case .scheduleChange: "schedule_change"
+    case .eventReminder: "event_reminder"
+    case .attendance: "attendance"
+    case .availability: "availability"
+    case .practicePlan: "practice_plan"
+    case .gamePlan: "game_plan"
+    case .lineupAssignment: "lineup_assignment"
+    case .registration: "registration"
+    case .paymentNotice: "payment_notice"
+    case .resultRecap: "result_recap"
     case .system: "system"
     case .unknown(let value): value
     }
@@ -60,6 +184,14 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case .messageReceived: "bubble.left.fill"
     case .testingResultAdded: "chart.bar.doc.horizontal"
     case .organizationAnnouncement: "megaphone.fill"
+    case .teamAnnouncement, .eventAnnouncement: "megaphone"
+    case .scheduleChange, .eventReminder: "calendar.badge.clock"
+    case .attendance, .availability: "person.badge.clock"
+    case .practicePlan: "figure.baseball"
+    case .gamePlan, .lineupAssignment: "list.number"
+    case .registration: "person.crop.circle.badge.plus"
+    case .paymentNotice: "creditcard"
+    case .resultRecap: "trophy"
     case .system, .unknown: "bell.fill"
     }
   }
@@ -71,6 +203,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
   case finance
   case chatConversation
   case organizationAnnouncement
+  case teamEvent
+  case registration
   case notificationDetail
   case unknown(String)
 
@@ -82,6 +216,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case "finance": .finance
     case "chat_conversation": .chatConversation
     case "organization_announcement": .organizationAnnouncement
+    case "team_event": .teamEvent
+    case "registration": .registration
     case "notification_detail": .notificationDetail
     default: .unknown(raw)
     }
@@ -99,6 +235,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case .finance: "finance"
     case .chatConversation: "chat_conversation"
     case .organizationAnnouncement: "organization_announcement"
+    case .teamEvent: "team_event"
+    case .registration: "registration"
     case .notificationDetail: "notification_detail"
     case .unknown(let value): value
     }
@@ -113,6 +251,9 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
   let conversationId: UUID?
   let messageId: UUID?
   let senderId: UUID?
+  let eventId: UUID?
+  let teamId: UUID?
+  let applicationId: UUID?
 
   private enum CodingKeys: String, CodingKey {
     case paymentRequestId = "payment_request_id"
@@ -122,6 +263,9 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     case conversationId = "conversation_id"
     case messageId = "message_id"
     case senderId = "sender_id"
+    case eventId = "event_id"
+    case teamId = "team_id"
+    case applicationId = "application_id"
   }
 
   init(
@@ -131,7 +275,10 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     organizationId: UUID? = nil,
     conversationId: UUID? = nil,
     messageId: UUID? = nil,
-    senderId: UUID? = nil
+    senderId: UUID? = nil,
+    eventId: UUID? = nil,
+    teamId: UUID? = nil,
+    applicationId: UUID? = nil
   ) {
     self.paymentRequestId = paymentRequestId
     self.paymentId = paymentId
@@ -140,6 +287,9 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     self.conversationId = conversationId
     self.messageId = messageId
     self.senderId = senderId
+    self.eventId = eventId
+    self.teamId = teamId
+    self.applicationId = applicationId
   }
 
   init(from decoder: Decoder) throws {
@@ -151,6 +301,9 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     conversationId = Self.uuid(container: container, key: .conversationId)
     messageId = Self.uuid(container: container, key: .messageId)
     senderId = Self.uuid(container: container, key: .senderId)
+    eventId = Self.uuid(container: container, key: .eventId)
+    teamId = Self.uuid(container: container, key: .teamId)
+    applicationId = Self.uuid(container: container, key: .applicationId)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -162,6 +315,9 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     try container.encodeIfPresent(conversationId, forKey: .conversationId)
     try container.encodeIfPresent(messageId, forKey: .messageId)
     try container.encodeIfPresent(senderId, forKey: .senderId)
+    try container.encodeIfPresent(eventId, forKey: .eventId)
+    try container.encodeIfPresent(teamId, forKey: .teamId)
+    try container.encodeIfPresent(applicationId, forKey: .applicationId)
   }
 
   private static func uuid(
@@ -459,6 +615,8 @@ enum NotificationDestination: Equatable, Sendable {
   case finance(UUID)
   case chatConversation(conversationId: UUID, messageId: UUID)
   case announcement(UUID)
+  case teamEvent(UUID)
+  case registration(UUID?)
   case detail(UUID)
 }
 
@@ -496,6 +654,14 @@ enum NotificationRouter {
         return .detail(notification.id)
       }
       return .announcement(id)
+    case .teamEvent:
+      guard let id = notification.actionPayload.eventId ??
+        notification.relatedEntityId.flatMap(UUID.init(uuidString:)) else {
+        return .detail(notification.id)
+      }
+      return .teamEvent(id)
+    case .registration:
+      return .registration(notification.actionPayload.applicationId)
     case .notificationDetail, .unknown, .none:
       return .detail(notification.id)
     }

@@ -1,5 +1,82 @@
 import Foundation
 
+enum SDOrganizationCapability: String, Codable, Hashable, Sendable {
+  case viewTeamCommunication = "view_team_communication"
+  case createOrgAnnouncement = "create_org_announcement"
+  case viewDeliveryStatus = "view_delivery_status"
+  case manageNotificationDelivery = "manage_notification_delivery"
+  case viewRegistrationOfferings = "view_registration_offerings"
+  case manageRegistrationOfferings = "manage_registration_offerings"
+  case reviewRegistrations = "review_registrations"
+  case assignRegisteredPlayer = "assign_registered_player"
+  case manageSeasonLifecycle = "manage_season_lifecycle"
+  case executeSeasonRollover = "execute_season_rollover"
+  case viewFinancialOverview = "view_financial_overview"
+  case createInvoice = "create_invoice"
+  case recordPayment = "record_payment"
+  case manageExpenses = "manage_expenses"
+  case viewOrgAnalytics = "view_org_analytics"
+  case runReports = "run_reports"
+  case exportReports = "export_reports"
+}
+
+struct SDRegistrationOffering: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let team_id: UUID?
+  let offering_type: String
+  let name: String
+  let description: String?
+  let opens_at: String
+  let closes_at: String
+  let capacity: Int?
+  let waitlist_capacity: Int?
+  let fee_cents: Int
+  let deposit_cents: Int
+  let state: String
+  let visibility: String
+  let accepting_submissions: Bool?
+}
+
+struct SDRegistrationApplication: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let offering_id: UUID
+  let applicant_user_id: UUID
+  let player_user_id: UUID?
+  let guardian_user_id: UUID?
+  let state: String
+  let fee_cents: Int
+  let balance_cents: Int?
+  let fee_status: String?
+  let submitted_at: String?
+  let version: Int
+  let created_at: String
+}
+
+struct SDRegistrationOfferingsResponse: Decodable, Sendable {
+  let offerings: [SDRegistrationOffering]
+}
+
+struct SDRegistrationApplicationsResponse: Decodable, Sendable {
+  let applications: [SDRegistrationApplication]
+}
+
+struct SDRegistrationApplicationResponse: Decodable, Sendable {
+  let application: SDRegistrationApplication
+}
+
+struct SDRegistrationCommandResult: Decodable, Sendable {
+  let application: SDRegistrationApplication
+  let replayed: Bool?
+}
+
+struct SDRegistrationCommandResponse: Decodable, Sendable {
+  let result: SDRegistrationCommandResult
+}
+
 enum SDSeasonLifecycle: String, CaseIterable, Codable, Identifiable, Sendable {
   case planning
   case registrationOpen = "registration_open"
@@ -20,6 +97,17 @@ enum SDSeasonLifecycle: String, CaseIterable, Codable, Identifiable, Sendable {
     case .playoffs: "Playoffs"
     case .completed: "Completed"
     case .archived: "Archived"
+    }
+  }
+
+  func canTransition(to target: SDSeasonLifecycle) -> Bool {
+    switch (self, target) {
+    case (.planning, .registrationOpen), (.planning, .archived),
+         (.registrationOpen, .rosterBuilding), (.registrationOpen, .planning),
+         (.rosterBuilding, .active), (.rosterBuilding, .registrationOpen),
+         (.active, .playoffs), (.active, .completed),
+         (.playoffs, .completed), (.completed, .archived): true
+    default: false
     }
   }
 }

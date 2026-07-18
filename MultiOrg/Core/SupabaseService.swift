@@ -3687,12 +3687,299 @@ final class SupabaseService: ObservableObject {
     supportMode: Bool,
     idempotencyKey: UUID
   ) async throws -> OrganizationAnnouncementResponse {
-    try await invokeNotificationCenter(OrganizationAnnouncementRequest(
+    if !supportMode {
+      struct AnnouncementPayload: Encodable {
+        let title: String
+        let body: String
+        let audience_type: String
+        let audience_filter: [String: String]
+        let priority = "normal"
+        let visibility = "audience"
+        let acknowledgment_required = false
+      }
+      struct Request: Encodable {
+        let action = "publish_announcement"
+        let organization_id: String
+        let request_id: String
+        let announcement: AnnouncementPayload
+      }
+      struct Published: Decodable { let id: UUID }
+      struct Result: Decodable {
+        let announcement: Published
+        let recipient_count: Int?
+        let created_notifications: Int?
+        let replayed: Bool?
+      }
+      struct Response: Decodable { let result: Result }
+      let audienceType = switch draft.audience {
+      case .all: "organization"
+      case .players: "players"
+      case .parents: "parents"
+      case .coaches, .staff: "team_staff"
+      }
+      let response: Response = try await invokeAuthenticatedFunction(
+        "communication",
+        body: Request(
+          organization_id: organizationId.uuidString.lowercased(),
+          request_id: idempotencyKey.uuidString.lowercased(),
+          announcement: AnnouncementPayload(
+            title: draft.cleanedTitle,
+            body: draft.cleanedBody,
+            audience_type: audienceType,
+            audience_filter: [:]
+          )
+        )
+      )
+      return OrganizationAnnouncementResponse(
+        announcementId: response.result.announcement.id,
+        createdCount: response.result.created_notifications ?? 0,
+        recipientCount: response.result.recipient_count ?? 0,
+        reused: response.result.replayed ?? false,
+        authorizationSource: .organizationMembership
+      )
+    }
+    return try await invokeNotificationCenter(OrganizationAnnouncementRequest(
       organizationId: organizationId,
       draft: draft,
       supportMode: supportMode,
       idempotencyKey: idempotencyKey
     ))
+  }
+
+  // MARK: - Organization operations (Phase 12F-12I)
+
+  private struct OrganizationOperationsRequest: Encodable {
+    let action: String
+    let organization_id: String
+    let dry_run: Bool?
+    let limit: Int?
+    let filters: [String: String]?
+
+    init(
+      action: String,
+      organizationId: UUID,
+      dryRun: Bool? = nil,
+      limit: Int? = nil,
+      filters: [String: String]? = nil
+    ) {
+      self.action = action
+      organization_id = organizationId.uuidString.lowercased()
+      dry_run = dryRun
+      self.limit = limit
+      self.filters = filters
+    }
+  }
+
+  func communicationAnnouncements(
+    organizationId: UUID
+  ) async throws -> SDCommunicationAnnouncementsResponse {
+    try await invokeAuthenticatedFunction(
+      "communication",
+      body: OrganizationOperationsRequest(action: "announcements", organizationId: organizationId)
+    )
+  }
+
+  func communicationDeliveryStatus(
+    organizationId: UUID
+  ) async throws -> SDNotificationDeliveryStatusResponse {
+    try await invokeAuthenticatedFunction(
+      "communication",
+      body: OrganizationOperationsRequest(action: "delivery_status", organizationId: organizationId)
+    )
+  }
+
+  func setNotificationPreference(
+    organizationId: UUID,
+    category: String,
+    inAppEnabled: Bool,
+    pushEnabled: Bool,
+    quietHoursStart: String?,
+    quietHoursEnd: String?,
+    timezone: String,
+    expectedVersion: Int?
+  ) async throws -> SDNotificationPreference {
+    struct Preference: Encodable {
+      let in_app_enabled: Bool
+      let push_enabled: Bool
+      let email_ready_enabled = false
+      let sms_ready_enabled = false
+      let quiet_hours_start: String?
+      let quiet_hours_end: String?
+      let timezone: String
+    }
+    struct Request: Encodable {
+      let action = "set_preference"
+      let organization_id: String
+      let category: String
+      let preference: Preference
+      let expected_version: Int?
+    }
+    let response: SDNotificationPreferenceResponse = try await invokeAuthenticatedFunction(
+      "communication",
+      body: Request(
+        organization_id: organizationId.uuidString.lowercased(),
+        category: category,
+        preference: Preference(
+          in_app_enabled: inAppEnabled,
+          push_enabled: pushEnabled,
+          quiet_hours_start: quietHoursStart,
+          quiet_hours_end: quietHoursEnd,
+          timezone: timezone
+        ),
+        expected_version: expectedVersion
+      )
+    )
+    return response.preference
+  }
+
+  func notificationPreferences(
+    organizationId: UUID
+  ) async throws -> [SDNotificationPreference] {
+    let response: SDNotificationPreferencesResponse = try await invokeAuthenticatedFunction(
+      "communication",
+      body: OrganizationOperationsRequest(action: "preferences", organizationId: organizationId)
+    )
+    return response.preferences
+  }
+
+  func dryRunOperationalNotificationIntents(
+    organizationId: UUID,
+    limit: Int = 25
+  ) async throws {
+    struct Response: Decodable { let dry_run: Bool }
+    let _: Response = try await invokeAuthenticatedFunction(
+      "communication",
+      body: OrganizationOperationsRequest(
+        action: "process_event_intents",
+        organizationId: organizationId,
+        dryRun: true,
+        limit: limit
+      )
+    )
+  }
+
+  func registrationOfferings(
+    organizationId: UUID
+  ) async throws -> SDRegistrationOfferingsResponse {
+    try await invokeAuthenticatedFunction(
+      "registration",
+      body: OrganizationOperationsRequest(action: "offerings", organizationId: organizationId)
+    )
+  }
+
+  func registrationApplications(
+    organizationId: UUID
+  ) async throws -> SDRegistrationApplicationsResponse {
+    try await invokeAuthenticatedFunction(
+      "registration",
+      body: OrganizationOperationsRequest(action: "applications", organizationId: organizationId)
+    )
+  }
+
+  func saveRegistrationDraft(
+    organizationId: UUID,
+    offering: SDRegistrationOffering,
+    playerId: UUID?,
+    jerseyNumber: String,
+    positionPreference: String
+  ) async throws -> SDRegistrationApplication {
+    struct Application: Encodable {
+      let season_id: String
+      let offering_id: String
+      let player_user_id: String?
+      let jersey_number_request: String?
+      let position_preference: String?
+      let answers: [String: String] = [:]
+      let sensitive_answers: [String: String] = [:]
+      let consent_metadata: [String: String] = [:]
+    }
+    struct Request: Encodable {
+      let action = "save_draft"
+      let organization_id: String
+      let application: Application
+    }
+    let response: SDRegistrationApplicationResponse = try await invokeAuthenticatedFunction(
+      "registration",
+      body: Request(
+        organization_id: organizationId.uuidString.lowercased(),
+        application: Application(
+          season_id: offering.season_id.uuidString.lowercased(),
+          offering_id: offering.id.uuidString.lowercased(),
+          player_user_id: playerId?.uuidString.lowercased(),
+          jersey_number_request: jerseyNumber.sdNilIfBlank,
+          position_preference: positionPreference.sdNilIfBlank
+        )
+      )
+    )
+    return response.application
+  }
+
+  func submitRegistration(
+    organizationId: UUID,
+    application: SDRegistrationApplication,
+    requestId: UUID = UUID()
+  ) async throws -> SDRegistrationApplication {
+    struct Request: Encodable {
+      let action = "submit"
+      let organization_id: String
+      let application_id: String
+      let expected_version: Int
+      let request_id: String
+    }
+    let response: SDRegistrationCommandResponse = try await invokeAuthenticatedFunction(
+      "registration",
+      body: Request(
+        organization_id: organizationId.uuidString.lowercased(),
+        application_id: application.id.uuidString.lowercased(),
+        expected_version: application.version,
+        request_id: requestId.uuidString.lowercased()
+      )
+    )
+    return response.result.application
+  }
+
+  func reviewRegistration(
+    organizationId: UUID,
+    application: SDRegistrationApplication,
+    action: String,
+    notes: String,
+    requestId: UUID = UUID()
+  ) async throws -> SDRegistrationApplication {
+    struct Request: Encodable {
+      let action = "review"
+      let organization_id: String
+      let application_id: String
+      let review_action: String
+      let notes: String
+      let expected_version: Int
+      let request_id: String
+    }
+    let response: SDRegistrationCommandResponse = try await invokeAuthenticatedFunction(
+      "registration",
+      body: Request(
+        organization_id: organizationId.uuidString.lowercased(),
+        application_id: application.id.uuidString.lowercased(),
+        review_action: action,
+        notes: notes,
+        expected_version: application.version,
+        request_id: requestId.uuidString.lowercased()
+      )
+    )
+    return response.result.application
+  }
+
+  func organizationAnalytics(
+    organizationId: UUID,
+    filters: [String: String] = [:]
+  ) async throws -> SDOrganizationAnalyticsResponse {
+    try await invokeAuthenticatedFunction(
+      "organization-analytics",
+      body: OrganizationOperationsRequest(
+        action: "dashboard",
+        organizationId: organizationId,
+        filters: filters
+      )
+    )
   }
 
   // MARK: - Read-only organization finance dashboard
