@@ -160,6 +160,10 @@ struct SDOrganizationSetupResetPreview: Decodable, Sendable {
 }
 
 struct SDOrganizationSetupTestConfiguration: Equatable, Sendable {
+  static let maristOrganizationId = UUID(
+    uuidString: "800e22ae-2a9d-4109-9e11-1360eeaa8ea7"
+  )!
+
   let enabled: Bool
   let organizationId: UUID?
   let environmentAllowed: Bool
@@ -167,7 +171,8 @@ struct SDOrganizationSetupTestConfiguration: Equatable, Sendable {
   var isConfigured: Bool { enabled && organizationId != nil && environmentAllowed }
 
   func allows(organizationId requestedId: UUID, hasAuthority: Bool) -> Bool {
-    isConfigured && organizationId == requestedId && hasAuthority
+    isConfigured && organizationId == Self.maristOrganizationId &&
+      requestedId == Self.maristOrganizationId && hasAuthority
   }
 
   static func current(
@@ -178,7 +183,8 @@ struct SDOrganizationSetupTestConfiguration: Equatable, Sendable {
       environment[key] ?? bundle.object(forInfoDictionaryKey: key) as? String
     }
     let enabled = value("HOME_PLATE_SETUP_TEST_MODE")?.lowercased() == "true"
-    let organizationId = value("HOME_PLATE_SETUP_TEST_ORGANIZATION_ID").flatMap(UUID.init(uuidString:))
+    let organizationId = value("HOME_PLATE_SETUP_TEST_ORGANIZATION_ID")
+      .flatMap(UUID.init(uuidString:)) ?? Self.maristOrganizationId
     let appEnvironment = value("HOME_PLATE_ENVIRONMENT")?.lowercased() ?? ""
     return Self(
       enabled: enabled,

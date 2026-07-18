@@ -49,9 +49,16 @@ Deno.test("setup test reset is UUID-configured and protects history", async () =
   const source = await Deno.readTextFile(
     new URL("../organization-setup/index.ts", import.meta.url),
   );
+  const shared = await Deno.readTextFile(
+    new URL("organization_setup.ts", import.meta.url),
+  );
   assert(
     source.includes("HOME_PLATE_SETUP_TEST_ORGANIZATION_ID"),
     "stable UUID config",
+  );
+  assert(
+    shared.includes("800e22ae-2a9d-4109-9e11-1360eeaa8ea7"),
+    "sole Marist UUID",
   );
   assert(source.includes("HOME_PLATE_SETUP_TEST_MODE"), "feature flag");
   assert(source.includes("HOME_PLATE_ENVIRONMENT"), "environment guard");
@@ -67,6 +74,32 @@ Deno.test("setup test reset is UUID-configured and protects history", async () =
   assert(
     !source.includes('delete().eq("id", ctx.organizationId)'),
     "no full organization delete",
+  );
+
+  const progressReset = source.slice(
+    source.indexOf('action === "reset_progress"'),
+    source.indexOf('action === "reset_setup_test_data"'),
+  );
+  assert(progressReset.includes("sd_organization_setup_steps"), "step reset");
+  assert(progressReset.includes("sd_organization_setup_drafts"), "draft reset");
+  for (
+    const protectedTable of [
+      "sd_orgs",
+      "sd_seasons",
+      "sd_teams",
+      "sd_facilities",
+      "sd_registration_offerings",
+      "sd_team_events",
+    ]
+  ) {
+    assert(
+      !progressReset.includes(protectedTable),
+      `${protectedTable} preserved`,
+    );
+  }
+  assert(
+    progressReset.includes('current_step: "basics"'),
+    "wizard reopens at basics",
   );
 });
 

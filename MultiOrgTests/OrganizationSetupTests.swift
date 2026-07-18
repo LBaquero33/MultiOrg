@@ -10,7 +10,7 @@ import UIKit
 
 @Suite("Phase 12Z organization setup")
 struct OrganizationSetupTests {
-  private let org = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+  private let org = SDOrganizationSetupTestConfiguration.maristOrganizationId
 
   @Test("wizard steps preserve required order and optional boundaries")
   func stepOrder() {
@@ -48,13 +48,31 @@ struct OrganizationSetupTests {
       environmentAllowed: true
     )
     #expect(config.allows(organizationId: org, hasAuthority: true))
+    for role in ["coach", "player", "parent"] {
+      #expect(!config.allows(organizationId: org, hasAuthority: false), "\(role) must be hidden")
+    }
     #expect(!config.allows(organizationId: UUID(), hasAuthority: true))
     #expect(!config.allows(organizationId: org, hasAuthority: false))
+    #expect(!SDOrganizationSetupTestConfiguration(
+      enabled: true,
+      organizationId: UUID(),
+      environmentAllowed: true
+    ).allows(organizationId: UUID(), hasAuthority: true))
     #expect(!SDOrganizationSetupTestConfiguration(
       enabled: true,
       organizationId: org,
       environmentAllowed: false
     ).allows(organizationId: org, hasAuthority: true))
+    let defaulted = SDOrganizationSetupTestConfiguration.current(environment: [
+      "HOME_PLATE_SETUP_TEST_MODE": "true",
+      "HOME_PLATE_ENVIRONMENT": "development",
+    ])
+    #expect(defaulted.organizationId == org)
+    #expect(defaulted.allows(organizationId: org, hasAuthority: true))
+    #expect(!SDOrganizationSetupTestConfiguration.current(environment: [
+      "HOME_PLATE_SETUP_TEST_MODE": "true",
+      "HOME_PLATE_ENVIRONMENT": "production",
+    ]).allows(organizationId: org, hasAuthority: true))
   }
 
   @Test("superseded setup response and changed context are rejected")
@@ -95,15 +113,23 @@ struct OrganizationSetupTests {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(contentsOf: root.appendingPathComponent("MultiOrg/Features/Admin/OrganizationSetupWizardView.swift"))
     let service = try String(contentsOf: root.appendingPathComponent("MultiOrg/Core/SupabaseService.swift"))
+    let settings = try String(contentsOf: root.appendingPathComponent("MultiOrg/Features/Admin/OrgAdminConsoleView.swift"))
     #expect(source.contains("proxy.size.width >= 840"))
     #expect(source.contains("stepSidebar.frame(width: 280)"))
     #expect(source.contains("Save & Exit"))
     #expect(source.contains("Skip for Now"))
     #expect(source.contains("Launch Organization"))
     #expect(source.contains("Reset Wizard Progress Only"))
+    #expect(source.contains("Reset Setup Test Data"))
+    #expect(source.contains("Review Setup State"))
     #expect(source.contains("resetLocalWizardState"))
     #expect(service.contains("\"organization-setup\""))
     #expect(service.contains("requestId: UUID"))
+    #expect(source.contains("pendingMutationRequestIds"))
+    #expect(source.contains("snapshot?.seasons.first(where: \\.is_default)"))
+    #expect(source.contains("snapshot?.teams.first"))
+    #expect(settings.contains("Test Organization Setup Wizard"))
+    #expect(settings.contains("Open Setup Wizard"))
   }
 }
 

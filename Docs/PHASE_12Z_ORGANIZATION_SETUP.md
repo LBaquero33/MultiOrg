@@ -46,11 +46,11 @@ The test surface is unavailable unless all guards agree:
 
 ```text
 HOME_PLATE_SETUP_TEST_MODE=true
-HOME_PLATE_SETUP_TEST_ORGANIZATION_ID=<stable Marist organization UUID>
+HOME_PLATE_SETUP_TEST_ORGANIZATION_ID=800e22ae-2a9d-4109-9e11-1360eeaa8ea7
 HOME_PLATE_ENVIRONMENT=local|development|staging|testflight
 ```
 
-The client and server match the configured UUID exactly; the organization name is never used as identity. The actor must also be an authorized owner/admin or platform administrator.
+The client and server default to and exclusively accept the stable Marist UUID `800e22ae-2a9d-4109-9e11-1360eeaa8ea7`. An explicit configuration value must match that UUID exactly; it cannot retarget test mode to another organization. The organization name is never used as identity. The actor must also be an authorized owner/admin or platform administrator.
 
 The default action is **Reset Wizard Progress Only** and preserves every business record. A selective preview can list only records carrying setup-test provenance. Selective deletion is limited to explicitly supported setup-created entity types and fails if other data references them. Payments, refunds, invoices, expenses, registration applications, event/practice/game operations, chat messages, notification delivery, and audit history are always protected.
 

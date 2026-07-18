@@ -1,5 +1,6 @@
 import {
   canSkipSetupStep,
+  MARIST_SETUP_TEST_ORGANIZATION_ID,
   nextSetupStep,
   previousSetupStep,
   protectedSetupEntity,
@@ -48,8 +49,8 @@ Deno.test("wizard navigation and skip rules are deterministic", () => {
 Deno.test("Marist setup test mode matches UUID and environment exactly", () => {
   const allowed = setupTestModeEligible({
     enabled: "true",
-    configuredOrganizationId: "11111111-1111-4111-8111-111111111111",
-    requestedOrganizationId: "11111111-1111-4111-8111-111111111111",
+    configuredOrganizationId: undefined,
+    requestedOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
     environment: "staging",
     isOrganizationAdmin: true,
     isPlatformAdmin: false,
@@ -58,7 +59,7 @@ Deno.test("Marist setup test mode matches UUID and environment exactly", () => {
   assert(
     !setupTestModeEligible({
       enabled: "true",
-      configuredOrganizationId: "11111111-1111-4111-8111-111111111111",
+      configuredOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
       requestedOrganizationId: "22222222-2222-4222-8222-222222222222",
       environment: "staging",
       isOrganizationAdmin: true,
@@ -69,14 +70,72 @@ Deno.test("Marist setup test mode matches UUID and environment exactly", () => {
   assert(
     !setupTestModeEligible({
       enabled: "true",
-      configuredOrganizationId: "11111111-1111-4111-8111-111111111111",
-      requestedOrganizationId: "11111111-1111-4111-8111-111111111111",
+      configuredOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+      requestedOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
       environment: "production",
       isOrganizationAdmin: true,
       isPlatformAdmin: false,
     }),
     "production must fail closed",
   );
+});
+
+Deno.test("setup test mode rejects retargeting and non-admin roles", () => {
+  assert(
+    !setupTestModeEligible({
+      enabled: "false",
+      configuredOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+      requestedOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+      environment: "development",
+      isOrganizationAdmin: true,
+      isPlatformAdmin: false,
+    }),
+    "disabled feature flag must fail closed",
+  );
+  assert(
+    !setupTestModeEligible({
+      enabled: "true",
+      configuredOrganizationId: "22222222-2222-4222-8222-222222222222",
+      requestedOrganizationId: "22222222-2222-4222-8222-222222222222",
+      environment: "development",
+      isOrganizationAdmin: true,
+      isPlatformAdmin: false,
+    }),
+    "configuration cannot retarget setup mode",
+  );
+  for (const role of ["coach", "player", "parent"]) {
+    assert(
+      !setupTestModeEligible({
+        enabled: "true",
+        configuredOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+        requestedOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+        environment: "development",
+        isOrganizationAdmin: false,
+        isPlatformAdmin: false,
+      }),
+      `${role} must be rejected`,
+    );
+  }
+});
+
+Deno.test("owner admin and platform admin authority qualify only for Marist", () => {
+  for (
+    const authority of [
+      { isOrganizationAdmin: true, isPlatformAdmin: false },
+      { isOrganizationAdmin: false, isPlatformAdmin: true },
+    ]
+  ) {
+    assert(
+      setupTestModeEligible({
+        enabled: "true",
+        configuredOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+        requestedOrganizationId: MARIST_SETUP_TEST_ORGANIZATION_ID,
+        environment: "testflight",
+        ...authority,
+      }),
+      "authorized setup actor should qualify",
+    );
+  }
 });
 
 Deno.test("selective reset protects durable operational history", () => {

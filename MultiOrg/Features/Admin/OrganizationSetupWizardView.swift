@@ -442,9 +442,14 @@ struct OrganizationSetupWizardView: View {
         HPButton(title: "Reset Wizard Progress Only", systemImage: "arrow.counterclockwise", variant: .secondary) {
           showingResetConfirmation = true
         }
-        HPButton(title: "Preview Selective Test Data Reset", systemImage: "doc.text.magnifyingglass", variant: .secondary) {
+        HPButton(title: "Reset Setup Test Data", systemImage: "doc.text.magnifyingglass", variant: .secondary) {
           Task { await previewTestReset() }
         }
+        HPButton(title: "Review Setup State", systemImage: "checklist", variant: .secondary) {
+          model.selectedStep = .reviewLaunch
+        }
+        Text("Selective cleanup always shows a preview before confirmation.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         if let resetPreview {
           Text("\(resetPreview.candidates.count) setup-created test record(s) eligible. Payments, refunds, invoices, expenses, registration applications, operations, messages, notification delivery, and audit history remain protected.")
             .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)

@@ -774,7 +774,7 @@ struct OrgAdminConsoleView: View {
          ) {
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Developer / Testing") {
+            HPSectionHeader("Test Organization Setup Wizard") {
               HPStatusBadge(text: "Guarded", kind: .warning)
             }
             Text("Reset setup progress for Marist Red Foxes and reopen the onboarding wizard for visual and workflow testing. Available only for the exact configured organization UUID.")
@@ -786,7 +786,7 @@ struct OrgAdminConsoleView: View {
                 organizationName: settings?.display_name ?? settings?.short_name
               )
             } label: {
-              Label("Test Organization Setup Wizard", systemImage: "wrench.and.screwdriver")
+              Label("Open Setup Wizard", systemImage: "wrench.and.screwdriver")
                 .font(HP.Font.callout.weight(.semibold))
                 .foregroundStyle(HP.Color.accent)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)

@@ -145,6 +145,9 @@ export function cleanSetupString(value: unknown, maxLength = 200) {
   return String(value ?? "").trim().slice(0, maxLength);
 }
 
+export const MARIST_SETUP_TEST_ORGANIZATION_ID =
+  "800e22ae-2a9d-4109-9e11-1360eeaa8ea7";
+
 export function setupTestModeEligible(input: {
   enabled: string | undefined;
   configuredOrganizationId: string | undefined;
@@ -154,13 +157,15 @@ export function setupTestModeEligible(input: {
   isPlatformAdmin: boolean;
 }) {
   const enabled = input.enabled?.trim().toLowerCase() === "true";
-  const configured = input.configuredOrganizationId?.trim().toLowerCase() ?? "";
+  const configured = (input.configuredOrganizationId ??
+    MARIST_SETUP_TEST_ORGANIZATION_ID).trim().toLowerCase();
   const requested = input.requestedOrganizationId.trim().toLowerCase();
   const environment = input.environment?.trim().toLowerCase() ?? "";
   const environmentAllowed = ["local", "development", "staging", "testflight"]
     .includes(environment);
-  return enabled && environmentAllowed && configured.length > 0 &&
-    configured === requested &&
+  return enabled && environmentAllowed &&
+    configured === MARIST_SETUP_TEST_ORGANIZATION_ID &&
+    requested === MARIST_SETUP_TEST_ORGANIZATION_ID &&
     (input.isOrganizationAdmin || input.isPlatformAdmin);
 }
 
