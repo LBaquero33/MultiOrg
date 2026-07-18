@@ -18,6 +18,17 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.homeplate.invitation</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>homeplate</string>
+			</array>
+		</dict>
+	</array>
 	<key>DHD_APNS_ENVIRONMENT</key>
 	<string>$(DHD_APNS_ENVIRONMENT)</string>
 	<key>DHD_APP_DISPLAY_NAME</key>

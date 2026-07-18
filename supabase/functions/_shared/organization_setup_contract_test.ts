@@ -14,6 +14,7 @@ Deno.test("organization setup Edge Function has one guarded authoritative contra
       "save_basics",
       "save_season",
       "save_team",
+      "save_teams",
       "save_people_draft",
       "save_registration",
       "save_facility",
@@ -43,6 +44,27 @@ Deno.test("organization setup Edge Function has one guarded authoritative contra
   assert(source.includes("sd_organization_setup_entities"), "provenance");
   assert(source.includes("sd_organization_setup_audit_logs"), "audit");
   assert(source.includes('audit(ctx, "fetch_setup"'), "open audit");
+  assert(
+    source.includes("sd_team_event_practices"),
+    "canonical practice subtype",
+  );
+  assert(source.includes("setup_request_id"), "event retry idempotency");
+});
+
+Deno.test("multi-team setup reuses existing teams and excludes color input", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../organization-setup/index.ts", import.meta.url),
+  );
+  const wizard = await Deno.readTextFile(
+    new URL(
+      "../../../MultiOrg/Features/Admin/OrganizationSetupWizardView.swift",
+      import.meta.url,
+    ),
+  );
+  assert(source.includes('action === "save_teams"'), "multi-team action");
+  assert(source.includes('.ilike("name", name)'), "retry reuse");
+  assert(source.includes("roster_capacity"), "team metadata");
+  assert(!wizard.includes("Team color (hex)"), "no setup color field");
 });
 
 Deno.test("setup test reset is UUID-configured and protects history", async () => {
@@ -118,4 +140,38 @@ Deno.test("setup migration keeps business data authoritative", async () => {
   assert(migration.includes("sd_teams"), "authoritative teams");
   assert(migration.includes("enable row level security"), "RLS");
   assert(migration.includes("sd_resolve_setup_capabilities"), "authorization");
+});
+
+Deno.test("setup practice compatibility repair is provenance-scoped and idempotent", async () => {
+  const migration = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260718171000_repair_setup_practice_subtypes.sql",
+      import.meta.url,
+    ),
+  );
+  assert(
+    migration.includes("sd_organization_setup_entities"),
+    "setup provenance required",
+  );
+  assert(
+    migration.includes("provenance.created_via_setup"),
+    "created-via-setup required",
+  );
+  assert(
+    migration.includes("event.event_type = 'practice'"),
+    "practice events only",
+  );
+  assert(
+    migration.includes("practice.event_id is null"),
+    "missing subtype only",
+  );
+  assert(
+    migration.includes("on conflict (event_id) do nothing"),
+    "idempotent repair",
+  );
+  assert(
+    !migration.includes("update public.sd_team_events"),
+    "event preserved",
+  );
+  assert(!migration.includes("delete from"), "no destructive repair");
 });

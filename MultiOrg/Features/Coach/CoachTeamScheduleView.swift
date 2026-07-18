@@ -96,9 +96,6 @@ struct CoachTeamScheduleView: View {
       .task(id: reloadKey) { await reload() }
       .task(id: appState.activeOrgId) { await loadFacilities() }
       .refreshable { await reload() }
-      .alert("Schedule Error", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
-        Button("OK", role: .cancel) {}
-      } message: { Text(errorText ?? "") }
       .sheet(item: $editor) { presentation in
         TeamEventEditorView(teams: presentation.teams, seasonId: presentation.seasonId) {
           editor = nil
@@ -130,6 +127,11 @@ struct CoachTeamScheduleView: View {
     } else if filteredEvents.isEmpty {
       HPCard { HPEmptyState(title: "No scheduled events", message: "No (filter.rawValue.lowercased()) match this (mode.rawValue.lowercased()) view.", systemImage: "calendar") }
     } else {
+      if let errorText {
+        HPCard {
+          HPErrorState(title: "Schedule may be out of date", message: errorText, onRetry: { Task { await reload() } })
+        }
+      }
       ForEach(groupedDays, id: \.day) { group in
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
@@ -283,6 +285,12 @@ struct CoachTeamScheduleView: View {
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
     if appState.selectedTeam == nil && !appState.isAllTeamsSelected { events = []; return }
+    if appState.isAllTeamsSelected, let selectedSeasonId, seasonTeams.isEmpty,
+       let validSeasonId = appState.authorizedCoachTeams.first?.season_id,
+       validSeasonId != selectedSeasonId {
+      seasonFilterId = validSeasonId
+      return
+    }
     let context = scheduleContextIdentity
     let token = UUID()
     loadToken = token
@@ -302,11 +310,30 @@ struct CoachTeamScheduleView: View {
       isLoading = false
     } catch {
       guard accepts(context: context, token: token) else { return }
-      errorText = SDApplicationErrorClassifier.alertMessage(
-        for: error,
-        taskIsCancelled: Task.isCancelled
-      )
+      errorText = scheduleMessage(for: error)
+      SDApplicationErrorClassifier.log(error, functionName: "team-scheduling")
       isLoading = false
+    }
+  }
+
+  private func scheduleMessage(for error: Error) -> String? {
+    guard let presentation = SDApplicationErrorClassifier.presentation(
+      for: error,
+      taskIsCancelled: Task.isCancelled
+    ) else { return nil }
+    switch presentation.category {
+    case .notDeployed, .serviceUnavailable:
+      return "Schedule service is not available in this environment. Retry after service access is restored."
+    case .forbidden:
+      return "You no longer have permission to view this team’s schedule. Choose another team or ask an organization administrator."
+    case .validation, .staleData:
+      return "The selected team or season is no longer active. Choose an available schedule and try again."
+    case .offline:
+      return "You’re offline. Previously loaded events remain visible; reconnect to refresh."
+    case .unauthorized:
+      return "Please sign in again to refresh this schedule."
+    default:
+      return "The schedule could not be refreshed. Previously loaded events remain visible; try again."
     }
   }
 

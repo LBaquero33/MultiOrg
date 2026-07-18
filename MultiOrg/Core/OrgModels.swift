@@ -378,6 +378,10 @@ struct SDTeam: Identifiable, Codable, Equatable, Sendable {
   let season_id: UUID?
   let name: String
   let color_hex: String?
+  let age_group: String?
+  let competitive_level: String?
+  let roster_capacity: Int?
+  let roster_count: Int?
   let description: String?
   let is_active: Bool
   let sort_order: Int

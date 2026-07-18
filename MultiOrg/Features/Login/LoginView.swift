@@ -60,6 +60,12 @@ struct LoginView: View {
     signUpUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
   }
 
+  private func retryInvitation() {
+    guard let token = appState.pendingInvitationToken,
+          let url = URL(string: "homeplate://invite/\(token)") else { return }
+    Task { await appState.handleInvitationURL(url) }
+  }
+
   private var isEmailSignIn: Bool {
     screen == .signIn && normalizedUsername().contains("@")
   }
@@ -68,6 +74,27 @@ struct LoginView: View {
     HPScreenScaffold(widthMode: .compact, maxContentWidth: 560) { _ in
       VStack(alignment: .leading, spacing: HP.Space.md) {
         loginHeader
+
+        if let invitation = appState.pendingInvitation {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              HPSectionHeader("Invitation") { HPStatusBadge(text: invitation.invitation_context.invitedRole, kind: .gold) }
+              Text("Continue to \(invitation.organization_name). Your invitation remains private and will be confirmed after authentication.")
+                .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+            }
+          }
+        }
+
+        if let invitationError = appState.invitationErrorText,
+           appState.pendingInvitation == nil {
+          HPCard {
+            HPErrorState(
+              title: "Invitation unavailable",
+              message: invitationError,
+              onRetry: retryInvitation
+            )
+          }
+        }
 
         HPCard {
           organizationAndModeControls
@@ -92,7 +119,9 @@ struct LoginView: View {
     #endif
     .task {
       await loadOrgsIfNeeded()
+      applyInvitationContext()
     }
+    .onChange(of: appState.pendingInvitation) { _, _ in applyInvitationContext() }
     .alert("Reset password", isPresented: $showReset) {
       Button("Send reset email") {
         let raw = emailOrUsername.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -263,10 +292,15 @@ struct LoginView: View {
           .font(HP.Font.eyebrow)
           .tracking(HP.Font.eyebrowTracking)
           .foregroundStyle(HP.Color.textMuted)
-        HPSegmentedControl(
-          options: AccountType.allCases.map { (value: $0, label: $0.rawValue) },
-          selection: $accountType
-        )
+        if let invitation = appState.pendingInvitation {
+          Label(invitation.invitation_context.invitedRole, systemImage: "person.badge.key")
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        } else {
+          HPSegmentedControl(
+            options: AccountType.allCases.map { (value: $0, label: $0.rawValue) },
+            selection: $accountType
+          )
+        }
       }
 
       HPFormField(label: "Full name (optional)", text: $fullName, placeholder: "Full name")
@@ -276,7 +310,7 @@ struct LoginView: View {
         .autocorrectionDisabled()
         .frame(minHeight: 44)
 
-      if accountType == .parent {
+      if accountType == .parent && appState.pendingInvitation == nil {
         HPFormField(
           label: "Parent code",
           text: $parentCode,
@@ -301,7 +335,7 @@ struct LoginView: View {
           .frame(minHeight: 44)
       }
 
-      if accountType == .coach {
+      if accountType == .coach && appState.pendingInvitation == nil {
         HPFormField(
           label: "Coach invite code",
           text: $coachInviteCode,
@@ -370,8 +404,8 @@ struct LoginView: View {
       || (screen == .signIn && normalizedUsername().isEmpty)
       || (screen == .signUp && normalizedSignUpEmail().isEmpty)
       || (screen == .signUp && normalizedSignUpUsername().isEmpty)
-      || (screen == .signUp && accountType == .parent && parentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      || (screen == .signUp && accountType == .coach && coachInviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      || (screen == .signUp && appState.pendingInvitation == nil && accountType == .parent && parentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      || (screen == .signUp && appState.pendingInvitation == nil && accountType == .coach && coachInviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
   }
 
   private var troubleshootingDisclosure: some View {
@@ -463,7 +497,8 @@ struct LoginView: View {
         accountType: accountType.apiValue,
         parentCode: parentCode,
         relationship: relationship,
-        coachCode: coachInviteCode
+        coachCode: coachInviteCode,
+        invitationToken: appState.pendingInvitationToken
       )
     } else {
       let identifier = normalizedUsername()
@@ -492,8 +527,15 @@ struct LoginView: View {
       if selectedOrgId == nil {
         selectedOrgId = fetched.first?.id
       }
+      applyInvitationContext()
     } catch {
       organizationLoadError = "Retry to load organizations, or use your account email to sign in now."
     }
+  }
+
+  private func applyInvitationContext() {
+    guard let invitation = appState.pendingInvitation else { return }
+    selectedOrgId = invitation.organization_id
+    accountType = invitation.invitation_context == .family ? .parent : .coach
   }
 }

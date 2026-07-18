@@ -4935,6 +4935,7 @@ final class SupabaseService: ObservableObject {
     let basics: [String: SDJSONValue]?
     let season: [String: SDJSONValue]?
     let team: [String: SDJSONValue]?
+    let teams: [String: SDJSONValue]?
     let draft: [String: SDJSONValue]?
     let registration: [String: SDJSONValue]?
     let facility: [String: SDJSONValue]?
@@ -4965,6 +4966,7 @@ final class SupabaseService: ObservableObject {
       basics: field == "basics" ? payload : nil,
       season: field == "season" ? payload : nil,
       team: field == "team" ? payload : nil,
+      teams: field == "teams" ? payload : nil,
       draft: field == "draft" ? payload : nil,
       registration: field == "registration" ? payload : nil,
       facility: field == "facility" ? payload : nil,
@@ -5027,6 +5029,81 @@ final class SupabaseService: ObservableObject {
       )
     )
     return response.preview
+  }
+
+  private struct OrganizationInvitationRequest: Encodable, Sendable {
+    let action: String
+    var organization_id: UUID? = nil
+    var invitation_context: SDOrganizationInvitationContext? = nil
+    var link_id: UUID? = nil
+    var token: String? = nil
+    var intended_team_id: UUID? = nil
+    var intended_responsibilities: [String]? = nil
+    var expires_in_days: Int? = nil
+  }
+
+  func organizationInvitationLinks(organizationId: UUID) async throws -> [SDOrganizationInvitationLink] {
+    struct Response: Decodable, Sendable { let links: [SDOrganizationInvitationLink] }
+    let response: Response = try await invokeAuthenticatedFunction(
+      "organization-invitations",
+      body: OrganizationInvitationRequest(action: "list", organization_id: organizationId)
+    )
+    return response.links
+  }
+
+  func generateOrganizationInvitationLink(
+    organizationId: UUID,
+    context: SDOrganizationInvitationContext,
+    rotating: Bool,
+    teamId: UUID? = nil,
+    responsibilities: [SDStaffResponsibility] = []
+  ) async throws -> SDOrganizationInvitationLinkMutation {
+    try await invokeAuthenticatedFunction(
+      "organization-invitations",
+      body: OrganizationInvitationRequest(
+        action: rotating ? "rotate" : "generate",
+        organization_id: organizationId,
+        invitation_context: context,
+        intended_team_id: teamId,
+        intended_responsibilities: responsibilities.map(\.rawValue),
+        expires_in_days: 30
+      )
+    )
+  }
+
+  func revokeOrganizationInvitationLink(
+    organizationId: UUID,
+    linkId: UUID
+  ) async throws -> SDOrganizationInvitationLinkMutation {
+    try await invokeAuthenticatedFunction(
+      "organization-invitations",
+      body: OrganizationInvitationRequest(action: "revoke", organization_id: organizationId, link_id: linkId)
+    )
+  }
+
+  func validateOrganizationInvitation(token: String) async throws -> SDOrganizationInvitationValidation {
+    struct Response: Decodable, Sendable { let invitation: SDOrganizationInvitationValidation }
+    do {
+      let response: Response = try await client.functions.invoke(
+        "organization-invitations",
+        options: FunctionInvokeOptions(body: OrganizationInvitationRequest(action: "validate", token: token))
+      )
+      return response.invitation
+    } catch let error as FunctionsError {
+      switch error {
+      case .httpError(let statusCode, let data): throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+      case .relayError: throw SDServiceError(category: .serviceUnavailable, functionName: "organization-invitations", statusCode: nil)
+      }
+    }
+  }
+
+  func acceptOrganizationInvitation(token: String) async throws -> SDOrganizationInvitationValidation {
+    struct Response: Decodable, Sendable { let invitation: SDOrganizationInvitationValidation }
+    let response: Response = try await invokeAuthenticatedFunction(
+      "organization-invitations",
+      body: OrganizationInvitationRequest(action: "accept", token: token)
+    )
+    return response.invitation
   }
 
   func signOut() async throws {

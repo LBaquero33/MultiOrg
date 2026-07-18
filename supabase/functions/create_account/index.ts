@@ -51,7 +51,19 @@ function normalizeUsername(x: unknown): string | null {
   return t ? t : null;
 }
 
-function normalizeAccountType(x: unknown): "player" | "parent" | "coach" | null {
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return [...new Uint8Array(digest)].map((item) =>
+    item.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+function normalizeAccountType(
+  x: unknown,
+): "player" | "parent" | "coach" | null {
   const t = String(x ?? "").trim().toLowerCase();
   if (!t) return null;
   if (t === "player") return "player";
@@ -79,27 +91,48 @@ Deno.serve(async (req) => {
   const username = normalizeUsername(payload.username);
   // `account_type` is what the client should send.
   // `role` is supported only for backward compatibility, but the server still enforces restrictions.
-  const accountType =
-    normalizeAccountType(payload.account_type) ?? normalizeAccountType(payload.role) ?? null;
+  const accountType = normalizeAccountType(payload.account_type) ??
+    normalizeAccountType(payload.role) ?? null;
 
   let role = normalizeText(payload.role);
   const full_name = normalizeText(payload.full_name);
   const parent_code = normalizeText(payload.parent_code);
   const relationship = normalizeText(payload.relationship);
   const coach_code = normalizeText(payload.coach_code);
+  const invitation_token = normalizeText(payload.invitation_token);
 
-  if (!email || !password) return json(400, { error: "missing_email_or_password" });
+  if (!email || !password) {
+    return json(400, { error: "missing_email_or_password" });
+  }
   if (!org_slug) return json(400, { error: "missing_org_slug" });
   if (!username) return json(400, { error: "missing_username" });
 
   const supabaseUrl = getEnv("SUPABASE_URL") || getEnv("DHD_SUPABASE_URL");
-  const anonKey = getEnv("SUPABASE_ANON_KEY") || getEnv("DHD_SUPABASE_ANON_KEY");
-  const serviceKey = getEnv("DHD_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !anonKey || !serviceKey) return json(500, { error: "missing_supabase_secrets" });
+  const anonKey = getEnv("SUPABASE_ANON_KEY") ||
+    getEnv("DHD_SUPABASE_ANON_KEY");
+  const serviceKey = getEnv("DHD_SERVICE_ROLE_KEY") ||
+    getEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceKey) {
+    return json(500, { error: "missing_supabase_secrets" });
+  }
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  let setupInvitation: Record<string, any> | null = null;
+  if (invitation_token) {
+    const { data, error } = await admin.from("sd_organization_invitation_links")
+      .select(
+        "id,organization_id,invitation_context,intended_role,expires_at,revoked_at",
+      )
+      .eq("token_hash", await sha256(invitation_token)).maybeSingle();
+    if (error) return json(500, { error: "invitation_lookup_failed" });
+    if (!data || data.revoked_at || new Date(data.expires_at) <= new Date()) {
+      return json(410, { error: "invitation_expired" });
+    }
+    setupInvitation = data;
+  }
 
   const { data: orgRow, error: orgErr } = await admin
     .from("sd_orgs")
@@ -108,22 +141,36 @@ Deno.serve(async (req) => {
     // while client input is normalized. Keep account creation consistent with login.
     .ilike("slug", org_slug)
     .maybeSingle();
-  if (orgErr) return json(500, { error: "org_lookup_failed", message: orgErr.message });
+  if (orgErr) {
+    return json(500, { error: "org_lookup_failed", message: orgErr.message });
+  }
   if (!orgRow?.id) return json(404, { error: "org_not_found" });
+  if (setupInvitation && setupInvitation.organization_id !== orgRow.id) {
+    return json(403, { error: "invitation_organization_mismatch" });
+  }
 
   // Optional: validate parent_code early so we don't create a user account that can't be linked.
   let parentChildId: string | null = null;
   if (accountType === "parent") {
-    if (!parent_code) return json(400, { error: "missing_parent_code" });
-    const { data: pc, error: pcErr } = await admin
-      .from("sd_parent_codes")
-      .select("child_id")
-      .eq("parent_code", parent_code)
-      .limit(1)
-      .maybeSingle();
-    if (pcErr) return json(500, { error: "parent_code_lookup_failed", message: pcErr.message });
-    parentChildId = pc?.child_id ?? null;
-    if (!parentChildId) return json(400, { error: "invalid_parent_code" });
+    if (setupInvitation?.intended_role === "parent") {
+      parentChildId = null;
+    } else {
+      if (!parent_code) return json(400, { error: "missing_parent_code" });
+      const { data: pc, error: pcErr } = await admin
+        .from("sd_parent_codes")
+        .select("child_id")
+        .eq("parent_code", parent_code)
+        .limit(1)
+        .maybeSingle();
+      if (pcErr) {
+        return json(500, {
+          error: "parent_code_lookup_failed",
+          message: pcErr.message,
+        });
+      }
+      parentChildId = pc?.child_id ?? null;
+      if (!parentChildId) return json(400, { error: "invalid_parent_code" });
+    }
   }
 
   // Auto-role selection:
@@ -158,10 +205,17 @@ Deno.serve(async (req) => {
   if (accountType === "player") role = "player";
   if (accountType === "parent") role = "parent";
   if (accountType === "coach") {
-    const expected = getEnv("COACH_SIGNUP_CODE");
-    if (!expected) return json(403, { error: "coach_signup_disabled" });
-    if (!coach_code || coach_code !== expected) return json(403, { error: "coach_invite_required" });
+    if (setupInvitation?.intended_role !== "coach") {
+      const expected = getEnv("COACH_SIGNUP_CODE");
+      if (!expected) return json(403, { error: "coach_signup_disabled" });
+      if (!coach_code || coach_code !== expected) {
+        return json(403, { error: "coach_invite_required" });
+      }
+    }
     role = "coach";
+  }
+  if (setupInvitation && setupInvitation.intended_role !== role) {
+    return json(403, { error: "invitation_role_mismatch" });
   }
 
   // Final clamp: never allow coach unless accountType=coach and code validated above.
@@ -172,25 +226,29 @@ Deno.serve(async (req) => {
   // Try to create the user (email_confirm=true avoids the "confirm your email" trap for username-style accounts).
   // If the user already exists, we still proceed to sign in with password.
   let userId: string | null = null;
-  const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      role,
-      full_name: full_name ?? "",
+  const { data: created, error: createErr } = await admin.auth.admin.createUser(
+    {
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        role,
+        full_name: full_name ?? "",
+      },
     },
-  });
+  );
 
   if (createErr) {
     const msg = (createErr.message ?? "").toLowerCase();
-    const alreadyExists =
-      msg.includes("already registered") ||
+    const alreadyExists = msg.includes("already registered") ||
       msg.includes("already exists") ||
       msg.includes("user already") ||
       msg.includes("duplicate");
     if (!alreadyExists) {
-      return json(500, { error: "auth_admin_create_failed", message: createErr.message });
+      return json(500, {
+        error: "auth_admin_create_failed",
+        message: createErr.message,
+      });
     }
   } else {
     userId = created.user?.id ?? null;
@@ -200,14 +258,19 @@ Deno.serve(async (req) => {
   const publicClient = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: sessionData, error: signInErr } = await publicClient.auth.signInWithPassword({ email, password });
-  if (signInErr) return json(401, { error: "invalid_login", message: signInErr.message });
+  const { data: sessionData, error: signInErr } = await publicClient.auth
+    .signInWithPassword({ email, password });
+  if (signInErr) {
+    return json(401, { error: "invalid_login", message: signInErr.message });
+  }
 
   const session = (sessionData as any)?.session ?? null;
   const access_token = session?.access_token;
   const refresh_token = session?.refresh_token;
   const authedUserId = session?.user?.id ?? null;
-  if (!access_token || !refresh_token || !authedUserId) return json(500, { error: "missing_tokens" });
+  if (!access_token || !refresh_token || !authedUserId) {
+    return json(500, { error: "missing_tokens" });
+  }
 
   userId = userId ?? authedUserId;
 
@@ -218,7 +281,12 @@ Deno.serve(async (req) => {
     .eq("org_id", orgRow.id)
     .eq("username", username)
     .maybeSingle();
-  if (usernameErr) return json(500, { error: "username_lookup_failed", message: usernameErr.message });
+  if (usernameErr) {
+    return json(500, {
+      error: "username_lookup_failed",
+      message: usernameErr.message,
+    });
+  }
   if (existingUsername?.user_id && existingUsername.user_id !== userId) {
     return json(409, { error: "username_taken" });
   }
@@ -227,7 +295,12 @@ Deno.serve(async (req) => {
   const { error: profErr } = await admin
     .from("profiles")
     .upsert({ id: userId, role, full_name }, { onConflict: "id" });
-  if (profErr) return json(500, { error: "profile_upsert_failed", message: profErr.message });
+  if (profErr) {
+    return json(500, {
+      error: "profile_upsert_failed",
+      message: profErr.message,
+    });
+  }
 
   const { error: membershipErr } = await admin
     .from("sd_org_memberships")
@@ -236,11 +309,16 @@ Deno.serve(async (req) => {
         org_id: orgRow.id,
         user_id: userId,
         role,
-        status: "active",
+        status: setupInvitation ? "invited" : "active",
       },
       { onConflict: "org_id,user_id" },
     );
-  if (membershipErr) return json(500, { error: "membership_upsert_failed", message: membershipErr.message });
+  if (membershipErr) {
+    return json(500, {
+      error: "membership_upsert_failed",
+      message: membershipErr.message,
+    });
+  }
 
   const { error: usernameUpsertErr } = await admin
     .from("sd_org_usernames")
@@ -252,7 +330,12 @@ Deno.serve(async (req) => {
       },
       { onConflict: "org_id,username" },
     );
-  if (usernameUpsertErr) return json(500, { error: "username_upsert_failed", message: usernameUpsertErr.message });
+  if (usernameUpsertErr) {
+    return json(500, {
+      error: "username_upsert_failed",
+      message: usernameUpsertErr.message,
+    });
+  }
 
   // Ensure every player has a parent code (for parent signup linking).
   // We generate this server-side and store it in `sd_parent_codes` (RLS-protected).
@@ -267,7 +350,12 @@ Deno.serve(async (req) => {
         },
         { onConflict: "user_id" },
       );
-    if (entErr) return json(500, { error: "entitlement_seed_failed", message: entErr.message });
+    if (entErr) {
+      return json(500, {
+        error: "entitlement_seed_failed",
+        message: entErr.message,
+      });
+    }
 
     try {
       const { data: existing } = await admin
@@ -317,7 +405,12 @@ Deno.serve(async (req) => {
         },
         { onConflict: "parent_id,child_id" },
       );
-    if (linkErr) return json(500, { error: "parent_link_failed", message: linkErr.message });
+    if (linkErr) {
+      return json(500, {
+        error: "parent_link_failed",
+        message: linkErr.message,
+      });
+    }
   }
 
   return json(200, {

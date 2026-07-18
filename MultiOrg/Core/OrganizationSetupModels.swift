@@ -140,6 +140,163 @@ struct SDOrganizationSetupSnapshot: Decodable, Sendable {
   }
 }
 
+enum SDOrganizationInvitationContext: String, Codable, CaseIterable, Sendable {
+  case family
+  case staff
+
+  var title: String { self == .family ? "Family Invite Link" : "Coach Invite Link" }
+  var invitedRole: String { self == .family ? "Parent or guardian" : "Coach or staff" }
+}
+
+enum SDOrganizationInvitationURL {
+  static func token(from url: URL) -> String? {
+    guard url.scheme?.lowercased() == "homeplate",
+          url.host?.lowercased() == "invite" else { return nil }
+    let components = url.pathComponents.filter { $0 != "/" }
+    guard components.count == 1 else { return nil }
+    let token = components[0]
+    guard (40...100).contains(token.count),
+          token.unicodeScalars.allSatisfy({ scalar in
+            switch scalar.value {
+            case 45, 48...57, 65...90, 95, 97...122: true
+            default: false
+            }
+          }) else { return nil }
+    return token
+  }
+}
+
+struct SDOrganizationInvitationLink: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let organization_name: String
+  let invitation_context: SDOrganizationInvitationContext
+  let intended_role: String
+  let intended_team_id: UUID?
+  let intended_responsibilities: [String]
+  let expires_at: String
+  let revoked_at: String?
+  let accepted_at: String?
+  let last_rotated_at: String?
+  let use_count: Int
+  let token_version: Int
+
+  var isActive: Bool {
+    revoked_at == nil && (SDTeamEventDateParser.date(expires_at) ?? .distantPast) > Date()
+  }
+}
+
+struct SDOrganizationInvitationLinkMutation: Decodable, Sendable {
+  let link: SDOrganizationInvitationLink
+  let invitation_url: String?
+}
+
+struct SDOrganizationInvitationValidation: Decodable, Equatable, Sendable {
+  let organization_id: UUID
+  let organization_name: String
+  let invitation_context: SDOrganizationInvitationContext
+  let intended_role: String
+  let intended_team_id: UUID?
+  let intended_responsibilities: [String]
+  let expires_at: String
+  let accepted: Bool?
+}
+
+struct SDPendingTeamDraft: Identifiable, Equatable, Sendable {
+  let id: UUID
+  var existingTeamId: UUID?
+  var name = ""
+  var ageGroup = ""
+  var level = ""
+  var rosterCapacity = ""
+
+  init(id: UUID = UUID(), existingTeamId: UUID? = nil) {
+    self.id = id
+    self.existingTeamId = existingTeamId
+  }
+
+  var validationError: String? {
+    if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter a team name." }
+    if !rosterCapacity.isEmpty, (Int(rosterCapacity) ?? 0) <= 0 { return "Roster capacity must be a positive whole number." }
+    return nil
+  }
+}
+
+enum SDStaffResponsibility: String, CaseIterable, Identifiable, Codable, Sendable {
+  case headCoach = "head_coach"
+  case assistantCoach = "assistant_coach"
+  case teamManager = "team_manager"
+  case hittingCoach = "hitting_coach"
+  case pitchingCoach = "pitching_coach"
+  case catchingCoach = "catching_coach"
+  case strengthCoach = "strength_coach"
+  case evaluator
+  case readOnly = "read_only"
+
+  var id: String { rawValue }
+  var title: String { rawValue.split(separator: "_").map { $0.capitalized }.joined(separator: " ") }
+}
+
+struct SDStaffInviteDraft: Identifiable, Equatable, Sendable {
+  let id: UUID
+  var email = ""
+  var displayName = ""
+  var responsibility: SDStaffResponsibility = .headCoach
+  var teamId: UUID?
+
+  init(id: UUID = UUID()) { self.id = id }
+
+  var normalizedEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+  var hasValidEmail: Bool {
+    normalizedEmail.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#, options: .regularExpression) != nil
+  }
+}
+
+enum SDRegistrationSetupChoice: String, CaseIterable, Identifiable, Sendable {
+  case configureNow = "Configure Now"
+  case later = "Later"
+  case no = "No"
+  var id: String { rawValue }
+}
+
+enum SDOrganizationSetupTimeCodec {
+  static func timeZoneDisplayName(identifier: String, locale: Locale = .current) -> String? {
+    guard let zone = TimeZone(identifier: identifier) else { return nil }
+    return zone.localizedName(for: .standard, locale: locale) ?? identifier
+  }
+
+  static func instant(
+    date: Date,
+    time: Date,
+    timeZoneIdentifier: String,
+    calendar base: Calendar = Calendar(identifier: .gregorian)
+  ) -> Date? {
+    guard let zone = TimeZone(identifier: timeZoneIdentifier) else { return nil }
+    var displayCalendar = base
+    displayCalendar.timeZone = zone
+    let day = displayCalendar.dateComponents([.year, .month, .day], from: date)
+    let clock = displayCalendar.dateComponents([.hour, .minute], from: time)
+    var components = DateComponents()
+    components.timeZone = zone
+    components.year = day.year
+    components.month = day.month
+    components.day = day.day
+    components.hour = clock.hour
+    components.minute = clock.minute
+    return displayCalendar.date(from: components)
+  }
+
+  static func isoUTC(_ date: Date) -> String {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.string(from: date)
+  }
+
+  static func validates(arrival: Date, start: Date, end: Date) -> Bool {
+    arrival <= start && start < end
+  }
+}
+
 struct SDOrganizationSetupMutationResponse: Decodable, Sendable {
   let setup: SDOrganizationSetupSnapshot
   let entity_id: UUID?
@@ -203,5 +360,41 @@ enum SDOrganizationSetupRequestGuard {
     taskIsCancelled: Bool
   ) -> Bool {
     !taskIsCancelled && responseOrganizationId == activeOrganizationId && responseToken == currentToken
+  }
+}
+
+enum SDOrganizationSetupErrorMapper {
+  static func message(for error: Error) -> String? {
+    if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) { return nil }
+    if let edge = error as? SDEdgeFunctionHTTPError {
+      switch edge.code {
+      case "stale_setup_version":
+        return "This setup changed in another window. Refresh to keep your entries and continue from the latest version."
+      case "setup_access_required", "setup_management_required", "organization_membership_required":
+        return "You no longer have permission to manage organization setup."
+      case "organization_name_and_timezone_required":
+        return "Enter an organization name and choose a valid timezone."
+      case "season_name_required":
+        return "Enter a season name."
+      case "team_name_and_season_required", "at_least_one_team_required":
+        return "Add at least one named team to the selected season."
+      case "valid_event_scope_and_time_required":
+        return "Choose a team and valid arrival, start, and end times."
+      case "invitation_expired", "invitation_revoked":
+        return "This invitation link has expired. Generate a new link."
+      default:
+        break
+      }
+    }
+    if let category = SDApplicationErrorClassifier.presentation(for: error)?.category {
+      switch category {
+      case .notDeployed, .serviceUnavailable: return "Organization setup is not available in this environment. Your entries are still here."
+      case .offline: return "You’re offline. Your entries are still here; reconnect and try again."
+      case .forbidden: return "You no longer have permission to manage this organization."
+      case .validation: return "We could not save this step. Check the highlighted entries; your work is still here."
+      default: break
+      }
+    }
+    return "We could not save this step. Your entries are still here. Try again."
   }
 }

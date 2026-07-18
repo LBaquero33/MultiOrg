@@ -48,6 +48,9 @@ final class AppState: ObservableObject {
   @Published private(set) var teamOperationsContext: SDTeamOperationsContext?
   @Published private(set) var selectedTeamId: UUID?
   @Published private(set) var isAllTeamsSelected = false
+  @Published private(set) var pendingInvitation: SDOrganizationInvitationValidation?
+  @Published private(set) var pendingInvitationToken: String?
+  @Published var invitationErrorText: String?
 
   let pushNotifications = PushNotificationManager()
   private let pendingPushNotificationKey = "homePlate.pendingNotificationId"
@@ -92,6 +95,64 @@ final class AppState: ObservableObject {
       orgId: activeOrgId,
       memberships: myOrgMemberships
     )
+  }
+
+  func handleInvitationURL(_ url: URL) async {
+    guard url.scheme?.lowercased() == "homeplate",
+          url.host?.lowercased() == "invite" else { return }
+    guard let token = SDOrganizationInvitationURL.token(from: url) else {
+      invitationErrorText = "This invitation link is invalid. Ask the organization for a new link."
+      return
+    }
+    pendingInvitationToken = token
+    invitationErrorText = nil
+    guard let supabase else { return }
+    do {
+      pendingInvitation = try await supabase.validateOrganizationInvitation(token: token)
+    } catch let edge as SDEdgeFunctionHTTPError where edge.code == "invitation_expired" || edge.code == "invitation_revoked" {
+      SDApplicationErrorClassifier.log(edge, functionName: "organization-invitations", statusCode: edge.statusCode)
+      invitationErrorText = "This invitation link has expired. Ask the organization for a new link."
+    } catch {
+      SDApplicationErrorClassifier.log(
+        error,
+        functionName: "organization-invitations",
+        statusCode: (error as? SDEdgeFunctionHTTPError)?.statusCode
+      )
+      invitationErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+        ?? "This invitation could not be opened."
+    }
+  }
+
+  func acceptPendingInvitation() async {
+    guard isAuthenticated, let token = pendingInvitationToken, let supabase else { return }
+    invitationErrorText = nil
+    do {
+      let accepted = try await supabase.acceptOrganizationInvitation(token: token)
+      await loadMyProfile()
+      activeOrgId = accepted.organization_id
+      pendingInvitation = nil
+      pendingInvitationToken = nil
+      globalToastText = "Invitation accepted. Welcome to \(accepted.organization_name)."
+    } catch let edge as SDEdgeFunctionHTTPError where edge.code == "account_role_mismatch" {
+      SDApplicationErrorClassifier.log(edge, functionName: "organization-invitations", statusCode: edge.statusCode)
+      invitationErrorText = "This invitation does not match the role on this account. Sign out and use the intended account, or ask the organization for a new link."
+    } catch let edge as SDEdgeFunctionHTTPError where edge.code == "invitation_expired" || edge.code == "invitation_revoked" {
+      SDApplicationErrorClassifier.log(edge, functionName: "organization-invitations", statusCode: edge.statusCode)
+      invitationErrorText = "This invitation link has expired. Ask the organization for a new link."
+    } catch {
+      SDApplicationErrorClassifier.log(
+        error,
+        functionName: "organization-invitations",
+        statusCode: (error as? SDEdgeFunctionHTTPError)?.statusCode
+      )
+      invitationErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+  }
+
+  func dismissPendingInvitation() {
+    pendingInvitation = nil
+    pendingInvitationToken = nil
+    invitationErrorText = nil
   }
 
   var canAdminActiveOrg: Bool {
@@ -717,7 +778,8 @@ final class AppState: ObservableObject {
     accountType: String,
     parentCode: String?,
     relationship: String?,
-    coachCode: String?
+    coachCode: String?,
+    invitationToken: String? = nil
   ) async {
     authError = nil
     profileLoadError = nil
@@ -745,6 +807,7 @@ final class AppState: ObservableObject {
             "parent_code": parentCode ?? "",
             "relationship": relationship ?? "",
             "coach_code": coachCode ?? "",
+            "invitation_token": invitationToken ?? "",
           ]
         )
       )

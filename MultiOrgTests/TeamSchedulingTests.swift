@@ -63,7 +63,7 @@ struct TeamSchedulingTests {
   func scheduleIntegration() throws {
     let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("listTeamEvents"))
-    #expect(source.contains("todayEvents"))
+    #expect(source.contains("teamEvents"))
     #expect(source.contains("Next Event"))
     #expect(!source.contains("The next scheduled team item will appear here"))
     #expect(!source.contains("Scheduled team operations will appear here"))

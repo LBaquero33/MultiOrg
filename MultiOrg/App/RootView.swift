@@ -54,6 +54,9 @@ struct RootView: View {
     .task(id: pushConfigurationKey) {
       await appState.configurePushNotifications()
     }
+    .onOpenURL { url in
+      Task { await appState.handleInvitationURL(url) }
+    }
     .sheet(item: $appState.requestedNotification) { notification in
       NavigationStack {
         NotificationDestinationView(notification: notification)
@@ -61,6 +64,16 @@ struct RootView: View {
       }
       #if os(macOS)
       .frame(minWidth: 480, minHeight: 420)
+      #endif
+    }
+    .sheet(isPresented: Binding(
+      get: { appState.isAuthenticated && appState.pendingInvitation != nil },
+      set: { if !$0 { appState.dismissPendingInvitation() } }
+    )) {
+      PendingOrganizationInvitationView()
+        .environmentObject(appState)
+      #if os(macOS)
+      .frame(minWidth: 480, minHeight: 360)
       #endif
     }
   }

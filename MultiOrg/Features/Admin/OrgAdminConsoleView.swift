@@ -88,7 +88,7 @@ struct OrgAdminConsoleView: View {
 
   enum Tab: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
-    case setup = "Setup & Launch"
+    case setup = "Setup"
     case settings = "Settings"
     case branding = "Branding"
     case features = "Features"
@@ -325,44 +325,72 @@ struct OrgAdminConsoleView: View {
 
   @ViewBuilder
   private func adminSectionNavigation(_ context: HPScreenLayoutContext) -> some View {
-    if context.isWide || context.isAccessibilitySize {
-      HPSegmentedControl(
-        options: visibleTabs.map { (value: $0, label: $0.rawValue) },
-        selection: $selectedTab
-      )
-    } else {
-      Menu {
-        ForEach(visibleTabs) { tab in
-          Button {
-            selectedTab = tab
-          } label: {
-            Label(tab.rawValue, systemImage: selectedTab == tab ? "checkmark" : tab.systemImage)
-          }
-        }
-      } label: {
-        HStack(spacing: HP.Space.sm) {
-          Label(selectedTab.rawValue, systemImage: selectedTab.systemImage)
-          Spacer(minLength: HP.Space.sm)
-          Image(systemName: "chevron.up.chevron.down")
-            .font(.caption.weight(.semibold))
-        }
-        .font(HP.Font.callout.weight(.semibold))
-        .foregroundStyle(HP.Color.text)
-        .padding(.horizontal, HP.Space.sm)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(
-          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-            .fill(HP.Color.surfaceRaised)
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-            .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
-            .allowsHitTesting(false)
-        )
+    Menu {
+      Section("General") {
+        adminMenuButtons([.dashboard, .setup, .settings, .branding])
       }
-      .accessibilityLabel("Admin section")
-      .accessibilityValue(selectedTab.rawValue)
+      Section("People & Teams") {
+        adminMenuButtons([.members, .registration, .teamOperations])
+      }
+      Section("Business") {
+        adminMenuButtons(appState.canAdminActiveOrg ? [.billing, .analytics] : [.analytics])
+      }
+      Section("Operations") {
+        adminMenuButtons([.features])
+      }
+    } label: {
+      HStack(spacing: HP.Space.sm) {
+        Label(selectedTab.rawValue, systemImage: selectedTab.systemImage)
+        Spacer(minLength: HP.Space.sm)
+        Text("Organization section")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        Image(systemName: "chevron.up.chevron.down")
+          .font(.caption.weight(.semibold))
+      }
+      .font(HP.Font.callout.weight(.semibold))
+      .foregroundStyle(HP.Color.text)
+      .padding(.horizontal, HP.Space.sm)
+      .frame(maxWidth: .infinity, minHeight: 44)
+      .background(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .fill(HP.Color.surfaceRaised)
+      )
+      .overlay(
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
+          .allowsHitTesting(false)
+      )
     }
+    .accessibilityLabel("Organization admin section")
+    .accessibilityValue(selectedTab.rawValue)
+  }
+
+  @ViewBuilder
+  private func adminMenuButtons(_ tabs: [Tab]) -> some View {
+    ForEach(tabs.filter { visibleTabs.contains($0) }) { tab in
+      Button {
+        selectAdminTab(tab)
+      } label: {
+        Label(tab.rawValue, systemImage: selectedTab == tab ? "checkmark" : tab.systemImage)
+      }
+    }
+  }
+
+  private func selectAdminTab(_ tab: Tab) {
+    guard tab != selectedTab else { return }
+    let started = ContinuousClock.now
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) { selectedTab = tab }
+    #if DEBUG
+    Task { @MainActor in
+      await Task.yield()
+      let elapsed = started.duration(to: .now)
+      if elapsed > .milliseconds(150) {
+        print("admin_navigation_stall destination=\(tab.rawValue) duration=\(elapsed)")
+      }
+    }
+    #endif
   }
 
   @ViewBuilder
@@ -427,8 +455,9 @@ struct OrgAdminConsoleView: View {
   }
 
   private var visibleTabs: [Tab] {
-    Tab.allCases.filter {
-      ($0 != .billing && $0 != .finance) || appState.canAdminActiveOrg
+    [.dashboard, .setup, .settings, .branding, .members, .registration,
+     .teamOperations, .billing, .analytics, .features].filter {
+      $0 != .billing || appState.canAdminActiveOrg
     }
   }
 
@@ -695,7 +724,7 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectedTab = .members
+              selectAdminTab(.members)
             }
             HPButton(
               title: "Features",
@@ -703,7 +732,7 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectedTab = .features
+              selectAdminTab(.features)
             }
             HPButton(
               title: "Facilities",
@@ -711,7 +740,7 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectedTab = .facilities
+              selectAdminTab(.facilities)
             }
           }
         }
@@ -760,10 +789,10 @@ struct OrgAdminConsoleView: View {
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
           HPButton(title: "Branding", systemImage: "paintbrush", variant: .secondary) {
-            selectedTab = .branding
+            selectAdminTab(.branding)
           }
           HPButton(title: "Feature Controls", systemImage: "switch.2", variant: .secondary) {
-            selectedTab = .features
+            selectAdminTab(.features)
           }
         }
       }

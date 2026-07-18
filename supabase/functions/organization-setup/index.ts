@@ -24,6 +24,7 @@ const mutableActions = new Set([
   "save_basics",
   "save_season",
   "save_team",
+  "save_teams",
   "save_people_draft",
   "save_registration",
   "save_facility",
@@ -116,7 +117,7 @@ async function readSetup(ctx: SetupContext) {
     )
       .eq("organization_id", ctx.organizationId).order("created_at"),
     ctx.admin.from("sd_teams").select(
-      "id,org_id,season_id,name,color_hex,description,is_active,sort_order",
+      "id,org_id,season_id,name,color_hex,age_group,competitive_level,roster_capacity,description,is_active,sort_order",
     )
       .eq("org_id", ctx.organizationId).order("sort_order").order("name"),
     ctx.admin.rpc("sd_organization_setup_readiness", {
@@ -477,6 +478,81 @@ Deno.serve(async (req) => {
         expectedVersion,
       );
       result.entity_id = data.id;
+    } else if (action === "save_teams") {
+      const container = record(payload.teams);
+      const items = Array.isArray(container.items)
+        ? container.items.map(record)
+        : [];
+      if (!items.length) {
+        throw new ApiFailure(422, "at_least_one_team_required");
+      }
+      const savedIds: string[] = [];
+      for (const input of items) {
+        const name = cleanSetupString(input.name, 120);
+        const seasonId = uuid(input.season_id);
+        if (!name || !seasonId) {
+          throw new ApiFailure(422, "team_name_and_season_required");
+        }
+        const { data: validSeason } = await ctx.admin.from("sd_seasons").select(
+          "id",
+        )
+          .eq("id", seasonId).eq("organization_id", ctx.organizationId)
+          .maybeSingle();
+        if (!validSeason) {
+          throw new ApiFailure(422, "season_not_in_organization");
+        }
+        let id = uuid(input.id);
+        if (!id) {
+          const { data: existing } = await ctx.admin.from("sd_teams").select(
+            "id",
+          )
+            .eq("org_id", ctx.organizationId).eq("season_id", seasonId).ilike(
+              "name",
+              name,
+            ).maybeSingle();
+          id = existing?.id ?? null;
+        }
+        const capacity =
+          input.roster_capacity == null || text(input.roster_capacity) === ""
+            ? null
+            : Number(input.roster_capacity);
+        if (
+          capacity != null &&
+          (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000)
+        ) {
+          throw new ApiFailure(422, "invalid_roster_capacity");
+        }
+        const values = {
+          org_id: ctx.organizationId,
+          season_id: seasonId,
+          name,
+          age_group: cleanSetupString(input.age_group, 80) || null,
+          competitive_level: cleanSetupString(input.competitive_level, 80) ||
+            null,
+          roster_capacity: capacity,
+          is_active: true,
+          created_by: ctx.callerId,
+        };
+        const query = id
+          ? ctx.admin.from("sd_teams").update(values).eq("id", id).eq(
+            "org_id",
+            ctx.organizationId,
+          )
+          : ctx.admin.from("sd_teams").insert(values);
+        const { data, error } = await query.select("id").single();
+        if (error) throw new ApiFailure(409, "team_save_failed");
+        if (!id) {
+          await markEntity(ctx, session.id, "team", data.id, setupTestRunId);
+        }
+        savedIds.push(data.id);
+      }
+      await markStep(ctx, "teams", requestId!);
+      await moveSession(
+        ctx,
+        { current_step: "staff", status: "in_progress" },
+        expectedVersion,
+      );
+      result.entity_ids = savedIds;
     } else if (action === "save_people_draft") {
       const step = text(payload.step);
       if (step !== "staff" && step !== "players_families") {
@@ -507,30 +583,53 @@ Deno.serve(async (req) => {
       }
       const now = new Date();
       const closes = new Date(now.getTime() + 30 * 86400000);
-      const { data, error } = await ctx.admin.from("sd_registration_offerings")
-        .insert({
-          organization_id: ctx.organizationId,
-          season_id: seasonId,
-          team_id: uuid(input.team_id),
-          offering_type: text(input.offering_type) || "season",
-          name,
-          opens_at: text(input.opens_at) || now.toISOString(),
-          closes_at: text(input.closes_at) || closes.toISOString(),
-          fee_cents: Math.max(0, Number(input.fee_cents) || 0),
-          deposit_cents: Math.max(0, Number(input.deposit_cents) || 0),
-          state: "draft",
-          visibility: "organization",
-          created_by: ctx.callerId,
-          updated_by: ctx.callerId,
-        }).select("id").single();
+      const opensAt = text(input.opens_at) || now.toISOString();
+      const closesAt = text(input.closes_at) || closes.toISOString();
+      if (new Date(closesAt) <= new Date(opensAt)) {
+        throw new ApiFailure(422, "registration_dates_invalid");
+      }
+      const capacity = input.capacity == null ? null : Number(input.capacity);
+      if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0)) {
+        throw new ApiFailure(422, "registration_capacity_invalid");
+      }
+      const values = {
+        organization_id: ctx.organizationId,
+        season_id: seasonId,
+        team_id: uuid(input.team_id),
+        offering_type: text(input.offering_type) || "season",
+        name,
+        opens_at: opensAt,
+        closes_at: closesAt,
+        capacity,
+        fee_cents: Math.max(0, Number(input.fee_cents) || 0),
+        deposit_cents: Math.max(0, Number(input.deposit_cents) || 0),
+        state: "draft",
+        visibility: "organization",
+        created_by: ctx.callerId,
+        updated_by: ctx.callerId,
+      };
+      const { data: existingOffering } = await ctx.admin.from(
+        "sd_registration_offerings",
+      ).select("id")
+        .eq("organization_id", ctx.organizationId).eq("season_id", seasonId)
+        .ilike("name", name).maybeSingle();
+      const { data, error } = existingOffering
+        ? await ctx.admin.from("sd_registration_offerings").update(values).eq(
+          "id",
+          existingOffering.id,
+        ).select("id").single()
+        : await ctx.admin.from("sd_registration_offerings").insert(values)
+          .select("id").single();
       if (error) throw new ApiFailure(409, "registration_save_failed");
-      await markEntity(
-        ctx,
-        session.id,
-        "registration_offering",
-        data.id,
-        setupTestRunId,
-      );
+      if (!existingOffering) {
+        await markEntity(
+          ctx,
+          session.id,
+          "registration_offering",
+          data.id,
+          setupTestRunId,
+        );
+      }
       await markStep(ctx, "registration_fees", requestId!);
       await moveSession(ctx, {
         current_step: "facilities",
@@ -541,16 +640,28 @@ Deno.serve(async (req) => {
       const input = record(payload.facility);
       const name = cleanSetupString(input.name, 120);
       if (!name) throw new ApiFailure(422, "facility_name_required");
-      const { data, error } = await ctx.admin.from("sd_facilities").insert({
+      const values = {
         org_id: ctx.organizationId,
         name,
         is_active: true,
         resource_type: text(input.resource_type) || "field",
         capacity: Math.max(1, Number(input.capacity) || 1),
         color_hex: cleanSetupString(input.color_hex, 16) || null,
-      }).select("id").single();
+      };
+      const { data: existingFacility } = await ctx.admin.from("sd_facilities")
+        .select("id")
+        .eq("org_id", ctx.organizationId).ilike("name", name).maybeSingle();
+      const { data, error } = existingFacility
+        ? await ctx.admin.from("sd_facilities").update(values).eq(
+          "id",
+          existingFacility.id,
+        ).select("id").single()
+        : await ctx.admin.from("sd_facilities").insert(values).select("id")
+          .single();
       if (error) throw new ApiFailure(409, "facility_save_failed");
-      await markEntity(ctx, session.id, "facility", data.id, setupTestRunId);
+      if (!existingFacility) {
+        await markEntity(ctx, session.id, "facility", data.id, setupTestRunId);
+      }
       await markStep(ctx, "facilities", requestId!);
       await moveSession(ctx, {
         current_step: "communication",
@@ -595,13 +706,17 @@ Deno.serve(async (req) => {
       const teamId = uuid(input.team_id);
       const start = new Date(text(input.start_at));
       const end = new Date(text(input.end_at));
+      const arrival = text(input.arrival_at)
+        ? new Date(text(input.arrival_at))
+        : null;
       if (
         !seasonId || !teamId || !Number.isFinite(start.getTime()) ||
-        !Number.isFinite(end.getTime()) || end <= start
+        !Number.isFinite(end.getTime()) || end <= start ||
+        (arrival && (!Number.isFinite(arrival.getTime()) || arrival > start))
       ) {
         throw new ApiFailure(422, "valid_event_scope_and_time_required");
       }
-      const { data, error } = await ctx.admin.from("sd_team_events").insert({
+      const eventValues = {
         organization_id: ctx.organizationId,
         season_id: seasonId,
         team_id: teamId,
@@ -610,14 +725,44 @@ Deno.serve(async (req) => {
         status: "draft",
         start_at: start.toISOString(),
         end_at: end.toISOString(),
+        arrival_at: arrival?.toISOString() ?? null,
         original_start_at: start.toISOString(),
         timezone: cleanSetupString(input.timezone, 120) || "UTC",
         location_name: cleanSetupString(input.location_name, 200) || null,
+        metadata: { setup_request_id: requestId },
         created_by: ctx.callerId,
         updated_by: ctx.callerId,
-      }).select("id").single();
+      };
+      const { data: existingEvent } = await ctx.admin.from("sd_team_events")
+        .select("id")
+        .eq("organization_id", ctx.organizationId).contains("metadata", {
+          setup_request_id: requestId,
+        }).maybeSingle();
+      const { data, error } = existingEvent
+        ? await ctx.admin.from("sd_team_events").select("id").eq(
+          "id",
+          existingEvent.id,
+        ).single()
+        : await ctx.admin.from("sd_team_events").insert(eventValues).select(
+          "id",
+        ).single();
       if (error) throw new ApiFailure(409, "first_event_save_failed");
-      await markEntity(ctx, session.id, "team_event", data.id, setupTestRunId);
+      if (!existingEvent) {
+        const { error: subtypeError } = await ctx.admin.from(
+          "sd_team_event_practices",
+        ).insert({ event_id: data.id });
+        if (subtypeError) {
+          await ctx.admin.from("sd_team_events").delete().eq("id", data.id);
+          throw new ApiFailure(409, "first_event_subtype_save_failed");
+        }
+        await markEntity(
+          ctx,
+          session.id,
+          "team_event",
+          data.id,
+          setupTestRunId,
+        );
+      }
       await markStep(ctx, "first_baseball_action", requestId!);
       await moveSession(ctx, {
         current_step: "review_launch",
