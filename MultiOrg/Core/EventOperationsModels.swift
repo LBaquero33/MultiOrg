@@ -233,3 +233,212 @@ enum SDEventOperationDateParser {
     return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
   }
 }
+
+enum SDPracticePlanStatus: String, Codable, CaseIterable, Identifiable, Sendable {
+  case draft, ready, published, active, completed, archived
+  var id: String { rawValue }
+  var label: String { rawValue.capitalized }
+}
+
+enum SDPracticeBlockType: String, Codable, CaseIterable, Identifiable, Sendable {
+  case arrival, meeting, warmup
+  case movementPrep = "movement_prep"
+  case throwing
+  case armCare = "arm_care"
+  case defense, infield, outfield, catching, pitching, hitting, baserunning, strength, conditioning, competition, recovery, cooldown, custom
+  var id: String { rawValue }
+  var label: String { rawValue.replacingOccurrences(of: "_", with: " ").capitalized }
+}
+
+enum SDPracticeExecutionStatus: String, Codable, CaseIterable, Sendable {
+  case pending, active, completed, skipped, adjusted
+}
+
+struct SDPracticePlan: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let team_id: UUID
+  let event_id: UUID
+  let event_operation_id: UUID?
+  let source_template_id: UUID?
+  let source_plan_id: UUID?
+  let title: String
+  let objectives: [String]
+  let coach_notes: String?
+  let status: SDPracticePlanStatus
+  let is_primary: Bool
+  let version: Int
+  let published_version: Int?
+  let published_at: String?
+  let published_by: UUID?
+  let current_snapshot_id: UUID?
+  let archived_at: String?
+  let updated_at: String?
+}
+
+struct SDPracticePlanBlock: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let parent_block_id: UUID?
+  let title: String
+  let block_type: SDPracticeBlockType
+  let sequence_index: Int
+  let start_offset_minutes: Int
+  let duration_minutes: Int
+  let parallel_group_key: String?
+  let station_name: String?
+  let facility_id: UUID?
+  let location_area: String?
+  let objectives: [String]
+  let instructions: String?
+  let coaching_points: String?
+  let equipment_notes: String?
+  let visibility: String
+  let required: Bool
+  let version: Int
+  let archived_at: String?
+}
+
+struct SDPracticePlanGroup: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let name: String
+  let description: String?
+  let sort_order: Int
+  let color_token: String?
+  let active: Bool
+  let version: Int
+}
+
+struct SDPracticePlanAssignment: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let assignment_type: String
+  let user_id: UUID?
+  let group_id: UUID?
+  let block_id: UUID?
+  let assignment_role: String?
+  let is_lead: Bool
+  let version: Int
+}
+
+struct SDPracticeEquipmentRequirement: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let block_id: UUID?
+  let name: String
+  let quantity: Int
+  let required: Bool
+  let prepared: Bool
+  let notes: String?
+  let visibility: String
+  let version: Int
+}
+
+struct SDPracticeBlockExecution: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let source_block_id: UUID
+  let parent_block_id: UUID?
+  let title: String
+  let sequence_index: Int
+  let planned_duration_minutes: Int
+  let actual_duration_minutes: Int?
+  let status: SDPracticeExecutionStatus
+  let actual_started_at: String?
+  let actual_completed_at: String?
+  let adjustment_reason: String?
+  let version: Int
+}
+
+struct SDPracticeValidationIssue: Codable, Equatable, Identifiable, Sendable {
+  let code: String
+  let planned_minutes: Int?
+  let event_minutes: Int?
+  var id: String { code }
+  var label: String { code.replacingOccurrences(of: "_", with: " ").capitalized }
+}
+
+struct SDPracticePlanValidation: Codable, Equatable, Sendable {
+  let blocking_errors: [SDPracticeValidationIssue]
+  let readiness_warnings: [SDPracticeValidationIssue]
+  let notices: [SDPracticeValidationIssue]
+  let total_duration_minutes: Int
+  let event_duration_minutes: Int
+  let valid: Bool
+}
+
+struct SDPracticePlanDetailResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDPracticePlan?
+  let blocks: [SDPracticePlanBlock]
+  let groups: [SDPracticePlanGroup]
+  let assignments: [SDPracticePlanAssignment]
+  let equipment: [SDPracticeEquipmentRequirement]
+  let executions: [SDPracticeBlockExecution]
+  let validation: SDPracticePlanValidation?
+}
+
+struct SDPracticeMutationResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDPracticePlan?
+  let block: SDPracticePlanBlock?
+  let execution: SDPracticeBlockExecution?
+  let group_id: UUID?
+  let equipment_id: UUID?
+  let template_id: UUID?
+  let replayed: Bool?
+}
+
+struct SDPracticePlanTemplate: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID?
+  let team_id: UUID?
+  let name: String
+  let description: String?
+  let objectives: [String]
+  let snapshot: [String: SDJSONValue]
+  let active: Bool
+  let version: Int
+  let archived_at: String?
+}
+
+struct SDPracticeTemplateListResponse: Decodable, Sendable {
+  let ok: Bool
+  let templates: [SDPracticePlanTemplate]
+}
+
+struct SDPracticePriorPlan: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let event_id: UUID
+  let title: String
+  let status: SDPracticePlanStatus
+  let objectives: [String]
+  let updated_at: String?
+}
+
+struct SDPracticePriorPlanListResponse: Decodable, Sendable {
+  let ok: Bool
+  let plans: [SDPracticePriorPlan]
+}
+
+struct SDPracticePlanSummary: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let team_id: UUID
+  let event_id: UUID
+  let title: String
+  let status: SDPracticePlanStatus
+  let version: Int
+  let published_version: Int?
+  let published_at: String?
+  let updated_at: String?
+}
+
+struct SDPracticePlanSummaryListResponse: Decodable, Sendable {
+  let ok: Bool
+  let plans: [SDPracticePlanSummary]
+}

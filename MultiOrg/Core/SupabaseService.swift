@@ -969,6 +969,107 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  private struct PracticePlanningRequest: Encodable, Sendable {
+    let action: String
+    let organization_id: UUID
+    var event_id: UUID? = nil
+    var team_id: UUID? = nil
+    var season_id: UUID? = nil
+    var player_id: UUID? = nil
+    var template_id: UUID? = nil
+    var include_archived: Bool? = nil
+    var request_id: UUID? = nil
+    var data: [String: SDJSONValue]? = nil
+  }
+
+  func practicePlan(
+    organizationId: UUID,
+    eventId: UUID,
+    playerId: UUID? = nil
+  ) async throws -> SDPracticePlanDetailResponse {
+    try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: "fetch_plan",
+        organization_id: organizationId,
+        event_id: eventId,
+        player_id: playerId
+      )
+    )
+  }
+
+  func practiceTemplates(
+    organizationId: UUID,
+    eventId: UUID,
+    teamId: UUID,
+    includeArchived: Bool = false
+  ) async throws -> [SDPracticePlanTemplate] {
+    let response: SDPracticeTemplateListResponse = try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: "list_templates",
+        organization_id: organizationId,
+        event_id: eventId,
+        team_id: teamId,
+        include_archived: includeArchived
+      )
+    )
+    return response.templates
+  }
+
+  func priorPracticePlans(
+    organizationId: UUID,
+    eventId: UUID,
+    teamId: UUID
+  ) async throws -> [SDPracticePriorPlan] {
+    let response: SDPracticePriorPlanListResponse = try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: "list_prior_practices",
+        organization_id: organizationId,
+        event_id: eventId,
+        team_id: teamId
+      )
+    )
+    return response.plans
+  }
+
+  func practicePlanSummaries(
+    organizationId: UUID,
+    seasonId: UUID,
+    teamId: UUID
+  ) async throws -> [SDPracticePlanSummary] {
+    let response: SDPracticePlanSummaryListResponse = try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: "list_plan_summaries",
+        organization_id: organizationId,
+        team_id: teamId,
+        season_id: seasonId
+      )
+    )
+    return response.plans
+  }
+
+  func mutatePracticePlan(
+    action: String,
+    organizationId: UUID,
+    eventId: UUID,
+    data: [String: SDJSONValue] = [:],
+    requestId: UUID = UUID()
+  ) async throws -> SDPracticeMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: action,
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        data: data
+      )
+    )
+  }
+
   private struct SeasonMutationResponse: Decodable, Sendable {
     let season: SDSeason
   }
