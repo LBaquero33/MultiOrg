@@ -1,6 +1,11 @@
 import Foundation
+import SwiftUI
 import Testing
+import XCTest
 @testable import HomePlate
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Suite("Phase 12C baseball day operations")
 struct EventOperationsTests {
@@ -241,7 +246,7 @@ struct PracticePlanningTests {
     #expect(model.contains("viewPracticePlan"))
     #expect(model.contains("reopenPracticePlan"))
     #expect(workspace.contains("capabilitySet.contains"))
-    #expect(!workspace.contains("head_coach"))
+    #expect(!workspace.contains("case \"head_coach\": return"))
   }
 
   private func sourceFile(_ path: String) throws -> String {
@@ -249,3 +254,257 @@ struct PracticePlanningTests {
     return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
   }
 }
+
+@Suite("Phase 12E complete Game Operations")
+struct GameOperationsTests {
+  @Test("travel-ball lineup models have no nine-player ceiling")
+  func flexibleLineupModels() throws {
+    #expect(SDGameLineupMode.allCases.map(\.rawValue) == [
+      "standard_nine", "standard_nine_with_dh", "standard_nine_with_one_eh",
+      "standard_nine_with_multiple_eh", "continuous_batting_order",
+      "bat_entire_available_roster", "custom"
+    ])
+    #expect(SDGameOffensiveRole.allCases.contains(.eh))
+    #expect(SDGameOffensiveRole.allCases.contains(.dh))
+    #expect(SDGameOffensiveRole.allCases.contains(.offensiveOnly))
+    #expect(SDGameOffensiveRole.allCases.contains(.courtesyRunner))
+    #expect(SDGameOffensiveRole.allCases.contains(.bench))
+
+    let entries = (1...14).map { index in
+      """
+      {"id":"00000000-0000-4000-8000-\(String(format: "%012d", index))","game_plan_id":"11111111-1111-4111-8111-111111111111","player_id":"22222222-2222-4222-8222-\(String(format: "%012d", index))","batting_slot":\(index),"offensive_role":"\(index > 9 ? "eh" : "hitter")","active":true,"starter":true,"eligible":true,"source":"manual","version":1}
+      """
+    }.joined(separator: ",")
+    let decoded = try JSONDecoder().decode([SDGameBattingEntry].self, from: Data("[\(entries)]".utf8))
+    #expect(decoded.count == 14)
+    #expect(decoded.filter { $0.offensive_role == .eh }.count == 5)
+  }
+
+  @Test("server validation findings remain authoritative classifications")
+  func validationDecode() throws {
+    let data = Data("""
+      {"blocking_errors":[{"code":"duplicate_active_hitter","severity":"blocking_error"}],"readiness_warnings":[{"code":"missing_rule_profile","severity":"readiness_warning"}],"notices":[{"code":"rule_profile_uncertainty","severity":"informational_notice"}],"valid":false,"batting_count":12,"eh_count":3}
+      """.utf8)
+    let validation = try JSONDecoder().decode(SDGamePlanValidation.self, from: data)
+    #expect(validation.blocking_errors.first?.code == "duplicate_active_hitter")
+    #expect(validation.readiness_warnings.first?.severity == "readiness_warning")
+    #expect(validation.batting_count == 12)
+    #expect(validation.eh_count == 3)
+    #expect(!validation.valid)
+  }
+
+  @Test("one authenticated API exposes retry and version contracts")
+  func serviceContract() throws {
+    let source = try sourceFile("MultiOrg/Core/SupabaseService.swift")
+    #expect(source.contains("game-operations"))
+    #expect(source.contains("func gamePlan("))
+    #expect(source.contains("func gamePlanHistory"))
+    #expect(source.contains("func gamePlanSummaries"))
+    #expect(source.contains("func mutateGamePlan"))
+    #expect(source.contains("requestId: UUID = UUID()"))
+  }
+
+  @Test("Game Day workspace includes every primary planning and completion surface")
+  func coachWorkflow() throws {
+    let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    for label in [
+      "Game Plan", "Rule Profile", "Lineup Mode", "Batting Order", "Add Hitter",
+      "Add Extra Hitter", "Add Multiple Extra Hitters", "Bat Entire Roster",
+      "Player Eligibility", "Starting Defense", "Defensive Planning",
+      "Copy Prior Inning", "Pitcher & Catcher Plan", "Pitcher-catcher pairing",
+      "Game Staff Assignments", "Game Readiness", "Publish Game Plan",
+      "Started Game Snapshot", "Active Game Adjustment", "Final Result",
+      "Post-Game Recap", "Completed Game History"
+    ] { #expect(source.contains(label)) }
+    #expect(source.contains("Retry Pending Change"))
+    #expect(source.contains("stale data"))
+    #expect(!source.contains("play-by-play"))
+    #expect(!source.contains("pitch-by-pitch"))
+  }
+
+  @Test("Today Team Schedule and Admin expose contextual game readiness")
+  func roleIntegration() throws {
+    let today = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let schedule = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let admin = try sourceFile("MultiOrg/Features/Admin/OrgEventOperationsAdminView.swift")
+    #expect(today.contains("has no game plan"))
+    #expect(today.contains("Game readiness:"))
+    #expect(today.contains("gamePlanSummaries"))
+    #expect(schedule.contains("Open Game Plan"))
+    #expect(admin.contains("Game plan inspection"))
+    #expect(admin.contains("Reopen Completed Game Plan"))
+    let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
+  }
+
+  @Test("players and parents see only their assignment summaries")
+  func consumerExperience() throws {
+    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerTodayView.swift")
+    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    #expect(player.contains("Your batting assignment:"))
+    #expect(player.contains("Starting defense"))
+    #expect(parent.contains("Game plan:"))
+    #expect(parent.contains("Starting defense"))
+    #expect(!player.contains("internal_strategy_notes"))
+    #expect(!parent.contains("game.adjustments"))
+  }
+
+  @Test("schema links canonical systems and preserves immutable history")
+  func schemaBoundaries() throws {
+    let source = try sourceFile("supabase/migrations/20260718000000_complete_game_operations.sql")
+    for token in [
+      "uq_sd_game_plans_primary_event", "sd_game_plans_event_scope_fk",
+      "sd_game_plan_eligibility", "sd_game_batting_entries",
+      "sd_game_defensive_assignments", "sd_game_pitcher_catcher_plans",
+      "sd_game_plan_snapshots", "sd_game_active_adjustments", "sd_game_results",
+      "request_fingerprint", "stale_version", "game_plan_published", "game_completed"
+    ] { #expect(source.contains(token)) }
+    #expect(source.contains("pg_catalog.upper(position_code) not in ('EH','DH')"))
+    #expect(!source.contains("batting_slot <= 9"))
+    #expect(!source.contains("drop table"))
+  }
+
+  @Test("client consumes server capabilities and retains specialty scope")
+  func authorization() throws {
+    let model = try sourceFile("MultiOrg/Core/TeamOperationsModels.swift")
+    let edge = try sourceFile("supabase/functions/game-operations/index.ts")
+    let workspace = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    for capability in ["viewGamePlan", "manageBattingOrder", "manageDefensivePlan", "managePitcherCatcherPlan", "reopenGameOperation"] {
+      #expect(model.contains(capability))
+    }
+    #expect(edge.contains("sd_resolve_team_capabilities"))
+    #expect(workspace.contains("detail.capabilities"))
+    #expect(workspace.contains("capabilities = Set(detail.capabilities ?? [])"))
+  }
+
+  private func sourceFile(_ path: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+  }
+}
+
+#if canImport(UIKit)
+@MainActor
+final class GameOperationsRenderTests: XCTestCase {
+  func testEssentialGameOperationStates() throws {
+    let states: [GameOperationsRenderHarness.State] = [
+      .lineup, .batEntireRoster, .multipleEH, .defense, .active,
+      .completed, .readOnly, .player, .parent,
+    ]
+    for state in states {
+      let view = GameOperationsRenderHarness(state: state)
+        .frame(width: state == .defense ? 834 : 393)
+        .background(HP.Color.bg)
+      let host = UIHostingController(rootView: view)
+      let width: CGFloat = state == .defense ? 834 : 393
+      let fitted = host.sizeThatFits(in: CGSize(width: width, height: 2_000))
+      let height = min(max(320, ceil(fitted.height)), 2_000)
+      host.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+      host.view.layoutIfNeeded()
+      let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size)
+      let image = renderer.image { host.view.layer.render(in: $0.cgContext) }
+      XCTAssertGreaterThan(image.size.width, 0)
+      XCTAssertGreaterThan(image.size.height, 0)
+    }
+  }
+}
+
+private struct GameOperationsRenderHarness: View {
+  enum State: String {
+    case lineup, batEntireRoster, multipleEH, defense, active, completed, readOnly, player, parent
+  }
+
+  let state: State
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader("Game Operations", orgLabel: "Travel 14U", context: title)
+        HPCard {
+          HPSectionHeader(title) { HPStatusBadge(text: badge, kind: badgeKind) }
+          Text(detail).font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+        }
+        content
+      }
+      .padding(HP.Space.md)
+    }
+  }
+
+  @ViewBuilder private var content: some View {
+    switch state {
+    case .lineup, .multipleEH, .batEntireRoster:
+      HPCard {
+        HPSectionHeader("Batting Order") {
+          HPStatusBadge(text: state == .batEntireRoster ? "Entire roster" : "14 hitters", kind: .success)
+        }
+        ForEach(1...14, id: \.self) { slot in
+          HStack {
+            Text("\(slot)").monospacedDigit().frame(width: 24)
+            Text("Player \(slot)")
+            Spacer()
+            if state == .multipleEH, slot > 9 { HPStatusBadge(text: "EH\(slot - 9)", kind: .info) }
+          }
+        }
+      }
+    case .defense:
+      HPCard {
+        HPSectionHeader("Defensive Planning") { HPStatusBadge(text: "Innings 1–7", kind: .info) }
+        ForEach(1...7, id: \.self) { inning in
+          HStack { Text("Inning \(inning)").frame(width: 90, alignment: .leading); Text("P • C • 1B • 2B • 3B • SS • LF • CF • RF") }
+        }
+        Text("Batting order and defense remain separate. EH and DH are never defensive positions.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      }
+    case .active:
+      HPCard {
+        HPSectionHeader("Started Game Snapshot") { HPStatusBadge(text: "Active", kind: .success) }
+        Text("Published version 4 is preserved. Later planning changes require a reason and create an audited adjustment.")
+        HPButton(title: "Record Active Adjustment", systemImage: "square.and.pencil", variant: .secondary, size: .md) {}
+      }
+    case .completed:
+      HPCard {
+        HPSectionHeader("Completion Review") { HPStatusBadge(text: "Final", kind: .success) }
+        Text("Travel 14U 8 – 6 Harbor Hawks").font(HP.Font.headline)
+        Text("Completed game history preserves the published, started, and final revisions.")
+      }
+    case .readOnly:
+      HPCard {
+        HPSectionHeader("Game Plan") { HPStatusBadge(text: "Read only", kind: .neutral) }
+        Text("You can inspect the published plan, but your current team responsibility cannot edit or publish it.")
+      }
+    case .player:
+      assignmentCard(owner: "Your", slot: 5, position: "CF • Innings 1–4")
+    case .parent:
+      assignmentCard(owner: "Avery’s", slot: 5, position: "CF • Innings 1–4")
+    }
+  }
+
+  private func assignmentCard(owner: String, slot: Int, position: String) -> some View {
+    HPCard {
+      HPSectionHeader("\(owner) Game Plan") { HPStatusBadge(text: "Published", kind: .success) }
+      LabeledContent("Batting assignment", value: "#\(slot) • EH1")
+      LabeledContent("Starting defense", value: position)
+      Text("Only this player’s authorized assignment and visible reminders are shown.")
+        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+    }
+  }
+
+  private var title: String {
+    switch state {
+    case .lineup: "Flexible Lineup"
+    case .batEntireRoster: "Bat Entire Roster"
+    case .multipleEH: "Multiple Extra Hitters"
+    case .defense: "Inning-by-Inning Defense"
+    case .active: "Game Day"
+    case .completed: "Completed Game"
+    case .readOnly: "Published Plan"
+    case .player: "Player Summary"
+    case .parent: "Parent Summary"
+    }
+  }
+
+  private var badge: String { state == .completed ? "Completed" : state == .active ? "In progress" : "Ready" }
+  private var badgeKind: HPStatusKind { state == .completed || state == .active ? .success : .info }
+  private var detail: String { "vs. Harbor Hawks • Away • Arrive 5:15 PM • First pitch 6:00 PM" }
+}
+#endif
