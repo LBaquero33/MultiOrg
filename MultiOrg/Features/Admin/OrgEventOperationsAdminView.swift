@@ -118,6 +118,8 @@ private struct OrgEventOperationInspectionView: View {
   @State private var practicePlan: SDPracticePlanDetailResponse?
   @State private var practiceTemplates: [SDPracticePlanTemplate] = []
   @State private var organizationTemplateName = ""
+  @State private var selectedTemplateId: UUID?
+  @State private var templateRename = ""
   @State private var correctionParticipantId: UUID?
   @State private var correctionStatus: SDEventAttendanceStatus = .present
   @State private var correctionReason = ""
@@ -176,6 +178,16 @@ private struct OrgEventOperationInspectionView: View {
               }
             }
           }
+          Picker("Template to edit", selection: $selectedTemplateId) {
+            Text("Select template").tag(UUID?.none)
+            ForEach(practiceTemplates) { Text($0.name).tag(Optional($0.id)) }
+          }
+          TextField("New template name", text: $templateRename)
+          HStack {
+            Button("Rename Template") { mutateSelectedTemplate("update_template") }
+            Button("Duplicate Template") { mutateSelectedTemplate("duplicate_template") }
+          }
+          .disabled(selectedTemplateId == nil || templateRename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
           TextField("Organization template name", text: $organizationTemplateName)
           Button("Create Organization Template") {
             guard let service = appState.supabase else { return }
@@ -311,6 +323,29 @@ private struct OrgEventOperationInspectionView: View {
         )
         await reload()
       } catch { errorText = "The template changed or authorization failed. Refresh and try again." }
+    }
+  }
+
+  private func mutateSelectedTemplate(_ action: String) {
+    guard let service = appState.supabase,
+          let template = practiceTemplates.first(where: { $0.id == selectedTemplateId }) else { return }
+    Task {
+      do {
+        _ = try await service.mutatePracticePlan(
+          action: action,
+          organizationId: event.organization_id,
+          eventId: event.id,
+          data: [
+            "template_id": .string(template.id.uuidString),
+            "expected_version": .int(template.version),
+            "name": .string(templateRename),
+            "description": .string(template.description ?? ""),
+            "team_id": template.team_id.map { .string($0.uuidString) } ?? .null,
+            "season_id": template.season_id.map { .string($0.uuidString) } ?? .null,
+          ]
+        )
+        templateRename = ""; await reload()
+      } catch { errorText = "The template could not be updated. Refresh and verify its current version." }
     }
   }
 }

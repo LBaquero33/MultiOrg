@@ -359,9 +359,12 @@ Deno.serve(async (req) => {
       ).eq("organization_id", organizationId).eq("team_id", teamId).neq(
         "event_id",
         eventId ?? "00000000-0000-0000-0000-000000000000",
-      ).in("status", ["published", "completed"]).order("updated_at", {
-        ascending: false,
-      }).limit(30);
+      ).in("status", ["draft", "ready", "published", "completed"]).order(
+        "updated_at",
+        {
+          ascending: false,
+        },
+      ).limit(30);
       if (result.error) {
         throw new PlanningFailure(500, "prior_practice_list_failed");
       }

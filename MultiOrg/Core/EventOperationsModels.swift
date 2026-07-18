@@ -442,3 +442,21 @@ struct SDPracticePlanSummaryListResponse: Decodable, Sendable {
   let ok: Bool
   let plans: [SDPracticePlanSummary]
 }
+
+struct SDPracticePlanSnapshot: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let practice_plan_id: UUID
+  let event_operation_id: UUID?
+  let snapshot_type: String
+  let plan_version: Int
+  let snapshot: [String: SDJSONValue]
+  let reason: String?
+  let created_by: UUID?
+  let created_at: String
+}
+
+struct SDPracticePlanHistoryResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDPracticePlan
+  let snapshots: [SDPracticePlanSnapshot]
+}

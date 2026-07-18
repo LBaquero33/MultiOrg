@@ -178,6 +178,7 @@ struct PracticePlanningTests {
     let source = try sourceFile("MultiOrg/Core/SupabaseService.swift")
     #expect(source.contains("practice-planning"))
     #expect(source.contains("func mutatePracticePlan"))
+    #expect(source.contains("func practicePlanHistory"))
     #expect(source.contains("requestId: UUID = UUID()"))
     #expect(source.contains("list_plan_summaries"))
   }
@@ -185,7 +186,7 @@ struct PracticePlanningTests {
   @Test("Practice Day contains complete planning and execution workflow")
   func coachWorkflow() throws {
     let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
-    for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Group Manager", "Player and Coach Assignment", "Equipment Requirements", "Save Current Plan as Template", "Readiness Validation", "Active Practice Plan", "Add Emergency Block", "Completion Review"] {
+    for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Edit Block", "Edit Station", "Group Manager", "Player and Coach Assignment", "Equipment Requirements", "Edit Equipment", "Save Current Plan as Template", "Readiness Validation", "Active Practice Plan", "Add Emergency Block", "Completion Review", "Completed Plan History"] {
       #expect(source.contains(label))
     }
     #expect(source.contains("Retry Pending Plan Change"))
@@ -220,6 +221,8 @@ struct PracticePlanningTests {
     #expect(source.contains("Practice plan inspection"))
     #expect(source.contains("Reopen Completed Practice Plan"))
     #expect(source.contains("Required practice reopen reason"))
+    #expect(source.contains("Rename Template"))
+    #expect(source.contains("Duplicate Template"))
   }
 
   @Test("schema preserves snapshots history audit privacy and isolation")

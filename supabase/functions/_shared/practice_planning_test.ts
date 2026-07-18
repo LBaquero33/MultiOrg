@@ -118,6 +118,11 @@ Deno.test("templates and duplication create independent lineage", async () => {
   );
   assert(sql.includes("template.snapshot"), "template snapshot");
   assert(!sql.includes("attendance_status text"), "no second attendance");
+  const edge = await Deno.readTextFile(edgeURL);
+  assert(
+    edge.includes('["draft", "ready", "published", "completed"]'),
+    "authorized draft and prior sources are discoverable",
+  );
 });
 
 Deno.test("validation classifies blockers warnings and notices server-side", async () => {

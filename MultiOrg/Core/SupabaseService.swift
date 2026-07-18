@@ -1051,6 +1051,21 @@ final class SupabaseService: ObservableObject {
     return response.plans
   }
 
+  func practicePlanHistory(
+    organizationId: UUID,
+    eventId: UUID
+  ) async throws -> [SDPracticePlanSnapshot] {
+    let response: SDPracticePlanHistoryResponse = try await invokeAuthenticatedFunction(
+      "practice-planning",
+      body: PracticePlanningRequest(
+        action: "fetch_plan_history",
+        organization_id: organizationId,
+        event_id: eventId
+      )
+    )
+    return response.snapshots
+  }
+
   func mutatePracticePlan(
     action: String,
     organizationId: UUID,
