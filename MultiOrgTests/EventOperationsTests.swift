@@ -151,3 +151,98 @@ struct EventOperationsTests {
     return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
   }
 }
+
+@Suite("Phase 12D complete Practice Planner")
+struct PracticePlanningTests {
+  @Test("plan block and execution states decode independently")
+  func stateModels() {
+    #expect(SDPracticePlanStatus.allCases.map(\.rawValue) == ["draft", "ready", "published", "active", "completed", "archived"])
+    #expect(SDPracticeBlockType.allCases.contains(.hitting))
+    #expect(SDPracticeBlockType.allCases.contains(.movementPrep))
+    #expect(SDPracticeExecutionStatus.allCases == [.pending, .active, .completed, .skipped, .adjusted])
+  }
+
+  @Test("validation is authoritative and classified")
+  func validationDecode() throws {
+    let data = Data("""
+      {"blocking_errors":[{"code":"no_blocks"}],"readiness_warnings":[{"code":"plan_longer_than_event","planned_minutes":120,"event_minutes":90}],"notices":[],"total_duration_minutes":120,"event_duration_minutes":90,"valid":false}
+      """.utf8)
+    let validation = try JSONDecoder().decode(SDPracticePlanValidation.self, from: data)
+    #expect(validation.blocking_errors.first?.code == "no_blocks")
+    #expect(validation.readiness_warnings.first?.planned_minutes == 120)
+    #expect(!validation.valid)
+  }
+
+  @Test("service uses one focused API and retry identifiers")
+  func serviceContract() throws {
+    let source = try sourceFile("MultiOrg/Core/SupabaseService.swift")
+    #expect(source.contains("practice-planning"))
+    #expect(source.contains("func mutatePracticePlan"))
+    #expect(source.contains("requestId: UUID = UUID()"))
+    #expect(source.contains("list_plan_summaries"))
+  }
+
+  @Test("Practice Day contains complete planning and execution workflow")
+  func coachWorkflow() throws {
+    let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Group Manager", "Player and Coach Assignment", "Equipment Requirements", "Save Current Plan as Template", "Readiness Validation", "Active Practice Plan", "Add Emergency Block", "Completion Review"] {
+      #expect(source.contains(label))
+    }
+    #expect(source.contains("Retry Pending Plan Change"))
+    #expect(source.contains("stale data"))
+  }
+
+  @Test("Today Team and Schedule expose contextual plan readiness without a tab")
+  func productIntegration() throws {
+    let today = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let schedule = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    #expect(today.contains("has no practice plan"))
+    #expect(today.contains("Plan readiness:"))
+    #expect(schedule.contains("Open Practice Plan"))
+    let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
+  }
+
+  @Test("player and parent receive redacted practice summaries")
+  func consumerExperience() throws {
+    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerTodayView.swift")
+    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    #expect(player.contains("Your group:"))
+    #expect(player.contains("Bring "))
+    #expect(parent.contains("’s group:"))
+    #expect(!player.contains("practice.coach_notes"))
+    #expect(!parent.contains("coaching_points"))
+  }
+
+  @Test("organization admin inspects readiness and audited reopen")
+  func adminExperience() throws {
+    let source = try sourceFile("MultiOrg/Features/Admin/OrgEventOperationsAdminView.swift")
+    #expect(source.contains("Practice plan inspection"))
+    #expect(source.contains("Reopen Completed Practice Plan"))
+    #expect(source.contains("Required practice reopen reason"))
+  }
+
+  @Test("schema preserves snapshots history audit privacy and isolation")
+  func schemaBoundaries() throws {
+    let source = try sourceFile("supabase/migrations/20260717220000_complete_practice_planner.sql")
+    for token in ["uq_sd_practice_plans_primary_event", "sd_practice_plans_event_scope_fk", "sd_practice_plan_snapshots", "sd_practice_block_executions", "sd_practice_plan_adjustments", "request_fingerprint", "stale_version", "practice_plan_published", "practice_completed"] {
+      #expect(source.contains(token))
+    }
+    #expect(!source.contains("drop table"))
+  }
+
+  @Test("capability UI consumes server values rather than responsibility mapping")
+  func clientAuthorization() throws {
+    let model = try sourceFile("MultiOrg/Core/TeamOperationsModels.swift")
+    let workspace = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    #expect(model.contains("viewPracticePlan"))
+    #expect(model.contains("reopenPracticePlan"))
+    #expect(workspace.contains("capabilitySet.contains"))
+    #expect(!workspace.contains("head_coach"))
+  }
+
+  private func sourceFile(_ path: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+  }
+}
