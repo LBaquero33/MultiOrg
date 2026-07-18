@@ -72,6 +72,7 @@ struct SDPlayerTodayViewInternal: View {
       dateContextCard
     } programSummary: {
       playerBaseballDayCard
+      RegistrationFamilySummaryCard(audience: .player)
       improvementCard
       programCard
     } activities: {

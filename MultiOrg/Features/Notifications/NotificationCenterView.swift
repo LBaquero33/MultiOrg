@@ -133,6 +133,7 @@ struct NotificationCenterView: View {
   @State private var scopeToSelectedOrganization: Bool
   @State private var selectedNotification: AppNotification?
   @State private var isComposing = false
+  @State private var isManagingPreferences = false
 
   init(
     viewModel: NotificationCenterViewModel,
@@ -186,6 +187,16 @@ struct NotificationCenterView: View {
         .accessibilityLabel("Refresh notifications")
         .disabled(viewModel.isLoading)
       }
+      ToolbarItem(placement: .automatic) {
+        Button {
+          isManagingPreferences = true
+        } label: {
+          Image(systemName: "gearshape")
+            .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel("Notification preferences")
+        .disabled(selectedOrganizationId == nil)
+      }
     }
     .task(id: refreshIdentity) {
       viewModel.resetForUser(appState.myProfile?.id)
@@ -222,6 +233,17 @@ struct NotificationCenterView: View {
         }
         #if os(macOS)
           .frame(minWidth: 520, minHeight: 520)
+        #endif
+      }
+    }
+    .sheet(isPresented: $isManagingPreferences) {
+      if let organizationId = selectedOrganizationId {
+        NavigationStack {
+          NotificationPreferenceView(organizationId: organizationId)
+            .environmentObject(appState)
+        }
+        #if os(macOS)
+          .frame(minWidth: 480, minHeight: 520)
         #endif
       }
     }
@@ -747,6 +769,10 @@ struct NotificationDestinationView: View {
       return "Open Chat to view this conversation."
     case .announcement:
       return "Organization announcement"
+    case .teamEvent:
+      return "Open Schedule to view the latest team event details."
+    case .registration:
+      return "Registration details are available in your player or family workspace."
     case .detail:
       return "No additional destination is available for this notification."
     }
@@ -762,5 +788,95 @@ extension View {
           .contentShape(Rectangle())
       }
     }
+  }
+}
+
+private struct NotificationPreferenceView: View {
+  let organizationId: UUID
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var appState: AppState
+  @State private var inAppEnabled = true
+  @State private var pushEnabled = true
+  @State private var quietHoursEnabled = false
+  @State private var quietStart = "22:00"
+  @State private var quietEnd = "07:00"
+  @State private var isSaving = false
+  @State private var version: Int?
+  @State private var errorText: String?
+
+  var body: some View {
+    Form {
+      Section("Channels") {
+        Toggle("In-app notifications", isOn: $inAppEnabled)
+        Toggle("Push notifications", isOn: $pushEnabled)
+        LabeledContent("Email", value: "Preference ready — delivery disabled")
+        LabeledContent("SMS", value: "Preference ready — delivery disabled")
+      }
+      Section("Quiet hours") {
+        Toggle("Use quiet hours", isOn: $quietHoursEnabled)
+        if quietHoursEnabled {
+          TextField("Start (HH:MM)", text: $quietStart)
+            .accessibilityHint("Enter a 24-hour local time, such as 22 colon 00")
+          TextField("End (HH:MM)", text: $quietEnd)
+            .accessibilityHint("Enter a 24-hour local time, such as 07 colon 00")
+        }
+        Text("Urgent notices still respect device settings. Required notices remain available in Home Plate.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      }
+      if let errorText {
+        Section { Label(errorText, systemImage: "exclamationmark.triangle.fill").foregroundStyle(HP.Color.danger) }
+      }
+    }
+    .navigationTitle("Notification Preferences")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Save") { Task { await save() } }.disabled(isSaving || !timesAreValid)
+      }
+    }
+    .task { await load() }
+  }
+
+  private var timesAreValid: Bool {
+    !quietHoursEnabled || (isTime(quietStart) && isTime(quietEnd))
+  }
+
+  private func isTime(_ value: String) -> Bool {
+    guard value.range(of: #"^(?:[01]\d|2[0-3]):[0-5]\d$"#, options: .regularExpression) != nil else { return false }
+    return true
+  }
+
+  @MainActor private func save() async {
+    guard let service = appState.supabase else { return }
+    isSaving = true; errorText = nil
+    do {
+      _ = try await service.setNotificationPreference(
+        organizationId: organizationId,
+        category: "all",
+        inAppEnabled: inAppEnabled,
+        pushEnabled: pushEnabled,
+        quietHoursStart: quietHoursEnabled ? quietStart : nil,
+        quietHoursEnd: quietHoursEnabled ? quietEnd : nil,
+        timezone: TimeZone.current.identifier,
+        expectedVersion: version
+      )
+      dismiss()
+    } catch { errorText = error.localizedDescription }
+    isSaving = false
+  }
+
+  @MainActor private func load() async {
+    guard let service = appState.supabase else { return }
+    do {
+      guard let preference = try await service.notificationPreferences(
+        organizationId: organizationId
+      ).first(where: { $0.category == "all" && $0.team_id == nil && $0.subject_player_id == nil }) else { return }
+      inAppEnabled = preference.in_app_enabled
+      pushEnabled = preference.push_enabled
+      version = preference.version
+      quietHoursEnabled = preference.quiet_hours_start != nil
+      quietStart = preference.quiet_hours_start.map { String($0.prefix(5)) } ?? quietStart
+      quietEnd = preference.quiet_hours_end.map { String($0.prefix(5)) } ?? quietEnd
+    } catch { errorText = error.localizedDescription }
   }
 }

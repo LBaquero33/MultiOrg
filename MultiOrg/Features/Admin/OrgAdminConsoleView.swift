@@ -92,6 +92,9 @@ struct OrgAdminConsoleView: View {
     case features = "Features"
     case billing = "Billing"
     case finance = "Finance"
+    case communication = "Communication"
+    case registration = "Registration"
+    case analytics = "Analytics"
     case facilities = "Facilities"
     case members = "Members"
     case teamOperations = "Team Operations"
@@ -104,6 +107,9 @@ struct OrgAdminConsoleView: View {
       case .features: "switch.2"
       case .billing: "creditcard"
       case .finance: "chart.line.uptrend.xyaxis"
+      case .communication: "bubble.left.and.bubble.right"
+      case .registration: "person.crop.circle.badge.plus"
+      case .analytics: "chart.bar.xaxis"
       case .facilities: "building.2"
       case .members: "person.2.badge.gearshape"
       case .teamOperations: "person.3.sequence.fill"
@@ -397,6 +403,12 @@ struct OrgAdminConsoleView: View {
           )
         }
       }
+    case .communication:
+      organizationOperationsSection(.communication)
+    case .registration:
+      organizationOperationsSection(.registration)
+    case .analytics:
+      organizationOperationsSection(.analytics)
     case .facilities:
       facilitiesCard(context)
     case .members:
@@ -409,6 +421,24 @@ struct OrgAdminConsoleView: View {
   private var visibleTabs: [Tab] {
     Tab.allCases.filter {
       ($0 != .billing && $0 != .finance) || appState.canAdminActiveOrg
+    }
+  }
+
+  @ViewBuilder
+  private func organizationOperationsSection(
+    _ section: OrganizationOperationsAdminView.Section
+  ) -> some View {
+    if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
+      OrganizationOperationsAdminView(section: section, organizationId: organizationId)
+        .environmentObject(appState)
+    } else {
+      HPCard {
+        HPEmptyState(
+          title: "Organization access required",
+          message: "This workspace is available to active organization owners and administrators.",
+          systemImage: "lock.shield"
+        )
+      }
     }
   }
 
@@ -3112,5 +3142,281 @@ private struct AdminInputChrome: ViewModifier {
           .strokeBorder(HP.Color.border, lineWidth: 1)
           .allowsHitTesting(false)
       )
+  }
+}
+
+private struct OrganizationOperationsAdminView: View {
+  enum Section { case communication, registration, analytics }
+
+  let section: Section
+  let organizationId: UUID
+  @EnvironmentObject private var appState: AppState
+  @State private var announcements: [SDCommunicationAnnouncementRecipient] = []
+  @State private var deliveries: [SDNotificationDeliveryStatus] = []
+  @State private var offerings: [SDRegistrationOffering] = []
+  @State private var applications: [SDRegistrationApplication] = []
+  @State private var analytics: SDOrganizationAnalytics?
+  @State private var definitions: [SDMetricDefinition] = []
+  @State private var isLoading = false
+  @State private var errorText: String?
+  @State private var statusText: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          Text(title).font(HP.Font.title)
+          Text(subtitle).font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+        }
+        Spacer()
+        Button {
+          Task { await load() }
+        } label: {
+          Label("Refresh", systemImage: "arrow.clockwise")
+        }
+        .disabled(isLoading)
+      }
+
+      if let errorText {
+        HPCard {
+          Label(errorText, systemImage: "exclamationmark.triangle.fill")
+            .foregroundStyle(HP.Color.danger)
+            .accessibilityLabel("Error: \(errorText)")
+        }
+      }
+      if let statusText {
+        HPCard { Label(statusText, systemImage: "checkmark.circle") }
+      }
+      if isLoading && isEmpty {
+        ProgressView("Loading \(title.lowercased())")
+          .frame(maxWidth: .infinity, minHeight: 160)
+      } else {
+        switch section {
+        case .communication: communicationContent
+        case .registration: registrationContent
+        case .analytics: analyticsContent
+        }
+      }
+    }
+    .task(id: "\(organizationId)-\(title)") { await load() }
+  }
+
+  private var title: String {
+    switch section {
+    case .communication: "Communication Operations"
+    case .registration: "Registration & Seasons"
+    case .analytics: "Organization Analytics"
+    }
+  }
+
+  private var subtitle: String {
+    switch section {
+    case .communication: "Announcements, acknowledgments, and delivery attention"
+    case .registration: "Offerings, capacity, requirements, and applicant review"
+    case .analytics: "Explainable business, registration, operations, and communication metrics"
+    }
+  }
+
+  private var isEmpty: Bool {
+    announcements.isEmpty && deliveries.isEmpty && offerings.isEmpty && applications.isEmpty && analytics == nil
+  }
+
+  @ViewBuilder private var communicationContent: some View {
+    let failed = deliveries.filter { $0.delivery_state == "failed" }
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: HP.Space.sm)], spacing: HP.Space.sm) {
+      metricCard("Published", value: "\(announcements.count)", systemImage: "megaphone")
+      metricCard("Failed delivery", value: "\(failed.count)", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+      metricCard("Unacknowledged", value: "\(announcements.filter { $0.announcement.acknowledgment_required && $0.acknowledged_at == nil }.count)", systemImage: "checkmark.message")
+    }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HStack {
+          Text("Delivery review").font(HP.Font.headline)
+          Spacer()
+          Button("Dry-run pending intents") {
+            Task { await dryRunIntents() }
+          }
+          .disabled(isLoading)
+        }
+        if deliveries.isEmpty {
+          HPEmptyState(title: "No delivery attention", message: "Delivery receipts will appear after operational intents are consumed.", systemImage: "bell.badge")
+        } else {
+          ForEach(deliveries.prefix(20)) { delivery in
+            HStack {
+              Image(systemName: delivery.delivery_state == "failed" ? "exclamationmark.triangle.fill" : "checkmark.circle")
+              VStack(alignment: .leading) {
+                Text(delivery.category.replacingOccurrences(of: "_", with: " ").capitalized)
+                Text(delivery.preference_decision).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              Text(delivery.delivery_state.capitalized).font(HP.Font.caption.weight(.semibold))
+            }
+            .accessibilityElement(children: .combine)
+          }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private var registrationContent: some View {
+    let waitlisted = applications.filter { $0.state == "waitlisted" }.count
+    let reviewCount = applications.filter { ["submitted", "under_review", "action_required"].contains($0.state) }.count
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: HP.Space.sm)], spacing: HP.Space.sm) {
+      metricCard("Offerings", value: "\(offerings.count)", systemImage: "list.bullet.clipboard")
+      metricCard("Needs review", value: "\(reviewCount)", systemImage: "person.crop.circle.badge.questionmark")
+      metricCard("Waitlisted", value: "\(waitlisted)", systemImage: "clock.badge")
+    }
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Text("Registration attention").font(HP.Font.headline)
+        if offerings.isEmpty && applications.isEmpty {
+          HPEmptyState(title: "No registration activity", message: "Create and activate an offering to begin accepting registrations.", systemImage: "person.crop.circle.badge.plus")
+        } else {
+          ForEach(applications.prefix(30)) { application in
+            HStack {
+              VStack(alignment: .leading) {
+                Text(application.state.replacingOccurrences(of: "_", with: " ").capitalized)
+                  .font(HP.Font.body.weight(.semibold))
+                Text("Application \(application.id.uuidString.prefix(8))")
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              if let balance = application.balance_cents, balance > 0 {
+                Text(SDMoney(minorUnits: balance, currency: "usd").formatted())
+                  .font(HP.Font.callout.monospacedDigit())
+                  .accessibilityLabel("Balance \(SDMoney(minorUnits: balance, currency: "usd").formatted())")
+              }
+              if ["submitted", "under_review", "action_required", "waitlisted"].contains(application.state) {
+                Menu {
+                  Button("Approve") { Task { await review(application, action: "approve") } }
+                  Button("Waitlist") { Task { await review(application, action: "waitlist") } }
+                  Button("Request action") { Task { await review(application, action: "request_action") } }
+                  Button("Decline", role: .destructive) { Task { await review(application, action: "decline") } }
+                } label: {
+                  Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("Review application")
+                .disabled(isLoading)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private var analyticsContent: some View {
+    if let analytics {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: HP.Space.sm)], spacing: HP.Space.sm) {
+        metricCard("Collected", value: SDMoney(minorUnits: analytics.financial.collected_cents, currency: "usd").formatted(), systemImage: "dollarsign.circle")
+        metricCard("Receivables", value: SDMoney(minorUnits: analytics.financial.outstanding_cents, currency: "usd").formatted(), systemImage: "clock.badge.exclamationmark")
+        metricCard("Net result", value: SDMoney(minorUnits: analytics.financial.net_operating_result_cents, currency: "usd").formatted(), systemImage: "chart.line.uptrend.xyaxis")
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          Text("Operational summary").font(HP.Font.headline)
+          analyticsRow("Registrations", "\(analytics.registration.total)")
+          analyticsRow("Outstanding registration balance", SDMoney(minorUnits: analytics.registration.balance, currency: "usd").formatted())
+          analyticsRow("Events completed", "\(analytics.operations.completed) of \(analytics.operations.events)")
+          analyticsRow("Attendance completion", percent(analytics.operations.attendance_rate))
+          analyticsRow("Availability response", percent(analytics.operations.availability_response_rate))
+          analyticsRow("Announcement read rate", percent(analytics.communication.read_rate))
+          Text("As of \(analytics.as_of)").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+      }
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          Text("Metric definitions").font(HP.Font.headline)
+          ForEach(definitions) { definition in
+            DisclosureGroup(definition.name) {
+              Text(definition.definition).font(HP.Font.callout)
+              Text("Includes: \(definition.inclusion_rules)").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              Text("Excludes: \(definition.exclusion_rules)").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+          }
+        }
+      }
+    } else {
+      HPCard { HPEmptyState(title: "No analytics yet", message: "Metrics appear once authoritative organization activity exists.", systemImage: "chart.bar") }
+    }
+  }
+
+  private func metricCard(_ label: String, value: String, systemImage: String) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Label(label, systemImage: systemImage).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        Text(value).font(HP.Font.number(.title3)).minimumScaleFactor(0.75)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityElement(children: .combine)
+    }
+  }
+
+  private func analyticsRow(_ label: String, _ value: String) -> some View {
+    HStack { Text(label); Spacer(); Text(value).fontWeight(.semibold) }
+      .accessibilityElement(children: .combine)
+  }
+
+  private func percent(_ value: Decimal?) -> String {
+    guard let value else { return "No data" }
+    return Double(truncating: NSDecimalNumber(decimal: value))
+      .formatted(.percent.precision(.fractionLength(0)))
+  }
+
+  @MainActor private func load() async {
+    guard let service = appState.supabase else {
+      errorText = "Connect to Home Plate to load organization operations."
+      return
+    }
+    isLoading = true; errorText = nil; statusText = nil
+    do {
+      switch section {
+      case .communication:
+        async let announcementResponse = service.communicationAnnouncements(organizationId: organizationId)
+        async let deliveryResponse = service.communicationDeliveryStatus(organizationId: organizationId)
+        let loaded = try await (announcementResponse, deliveryResponse)
+        announcements = loaded.0.announcements; deliveries = loaded.1.deliveries
+      case .registration:
+        async let offeringResponse = service.registrationOfferings(organizationId: organizationId)
+        async let applicationResponse = service.registrationApplications(organizationId: organizationId)
+        let loaded = try await (offeringResponse, applicationResponse)
+        offerings = loaded.0.offerings; applications = loaded.1.applications
+      case .analytics:
+        let response = try await service.organizationAnalytics(organizationId: organizationId)
+        analytics = response.analytics; definitions = response.definitions
+      }
+    } catch { errorText = error.localizedDescription }
+    isLoading = false
+  }
+
+  @MainActor private func dryRunIntents() async {
+    guard let service = appState.supabase else { return }
+    isLoading = true; errorText = nil
+    do {
+      try await service.dryRunOperationalNotificationIntents(organizationId: organizationId)
+      statusText = "Dry run completed. No notifications were sent or queued."
+    } catch { errorText = error.localizedDescription }
+    isLoading = false
+  }
+
+  @MainActor private func review(
+    _ application: SDRegistrationApplication,
+    action: String
+  ) async {
+    guard let service = appState.supabase else { return }
+    isLoading = true; errorText = nil
+    do {
+      let updated = try await service.reviewRegistration(
+        organizationId: organizationId,
+        application: application,
+        action: action,
+        notes: "Updated from Registration Operations"
+      )
+      if let index = applications.firstIndex(where: { $0.id == updated.id }) {
+        applications[index] = updated
+      }
+      statusText = "Application updated to \(updated.state.replacingOccurrences(of: "_", with: " "))."
+    } catch { errorText = error.localizedDescription }
+    isLoading = false
   }
 }

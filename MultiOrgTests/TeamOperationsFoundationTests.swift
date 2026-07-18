@@ -110,6 +110,57 @@ struct TeamOperationsFoundationTests {
     #expect(source.contains("sd_team_operations_audit_logs"))
   }
 
+  @Test("organization lifecycle and finance rules preserve history")
+  func organizationLifecycleRules() {
+    #expect(SDSeasonLifecycle.planning.canTransition(to: .registrationOpen))
+    #expect(!SDSeasonLifecycle.planning.canTransition(to: .active))
+    #expect(!SDSeasonLifecycle.archived.canTransition(to: .planning))
+    #expect(SDInvoiceLifecycleRule.nextStatus(current: "draft", action: "issue") == "issued")
+    #expect(SDInvoiceLifecycleRule.nextStatus(current: "paid", action: "void") == nil)
+  }
+
+  @Test("required in-app notices survive quiet-hours push suppression")
+  func notificationPreferenceRules() {
+    let decision = SDNotificationPreferenceRule.delivery(
+      inAppEnabled: false,
+      pushEnabled: true,
+      required: true,
+      localMinutes: 23 * 60,
+      quietStartMinutes: 22 * 60,
+      quietEndMinutes: 7 * 60
+    )
+    #expect(decision.inApp)
+    #expect(!decision.push)
+  }
+
+  @Test("organization operations stay contextual instead of becoming tabs")
+  func organizationNavigationContract() throws {
+    let shell = try sourceFile("MultiOrg/Features/Home/HomePlateNavigationShell.swift")
+    #expect(!shell.contains("case registration"))
+    #expect(!shell.contains("case reports"))
+    let admin = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    #expect(admin.contains("case communication = \"Communication\""))
+    #expect(admin.contains("case registration = \"Registration\""))
+    #expect(admin.contains("case analytics = \"Analytics\""))
+  }
+
+  @Test("organization operations migrations preserve isolation and provider safety")
+  func organizationOperationsMigrationContracts() throws {
+    let communication = try sourceFile("supabase/migrations/20260718100000_organization_communication.sql")
+    #expect(communication.contains("sd_notification_intent_receipts"))
+    #expect(communication.contains("app.notification_delivery_enabled"))
+    #expect(communication.contains("p_dry_run boolean default true"))
+    let registration = try sourceFile("supabase/migrations/20260718110000_registration_season_lifecycle.sql")
+    #expect(registration.contains("sd_season_transition_allowed"))
+    #expect(registration.contains("players_copied',0"))
+    let finance = try sourceFile("supabase/migrations/20260718120000_organization_business_operations.sql")
+    #expect(finance.contains("financial_layer='organization_customer'"))
+    #expect(finance.contains("m.role in ('owner','admin')"))
+    let analytics = try sourceFile("supabase/migrations/20260718130000_organization_analytics.sql")
+    #expect(analytics.contains("'as_of',pg_catalog.now()"))
+    #expect(!analytics.localizedCaseInsensitiveContains("health score"))
+  }
+
   private func team(
     name: String,
     organizationId: UUID? = nil,

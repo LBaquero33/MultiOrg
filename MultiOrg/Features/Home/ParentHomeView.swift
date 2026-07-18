@@ -59,6 +59,7 @@ struct ParentHomeView: View {
           ScrollView {
             VStack(spacing: HP.Space.md) {
               parentTodayCard
+              RegistrationFamilySummaryCard(audience: .parent, players: children)
               AccountView().environmentObject(appState)
             }
             .padding(HP.Space.md)
@@ -94,6 +95,7 @@ struct ParentHomeView: View {
           )
         } supporting: {
           parentTodayCard
+          RegistrationFamilySummaryCard(audience: .parent, players: children)
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
               HPSectionHeader("Children") {
@@ -489,6 +491,167 @@ struct ParentHomeView: View {
     } catch {
       errorText = error.localizedDescription
     }
+  }
+}
+
+struct RegistrationFamilySummaryCard: View {
+  enum Audience: Equatable { case player, parent }
+  let audience: Audience
+  let players: [Profile]
+  @EnvironmentObject private var appState: AppState
+  @State private var offerings: [SDRegistrationOffering] = []
+  @State private var applications: [SDRegistrationApplication] = []
+  @State private var isLoading = false
+  @State private var errorText: String?
+  @State private var selectedOffering: SDRegistrationOffering?
+
+  init(audience: Audience, players: [Profile] = []) {
+    self.audience = audience
+    self.players = players
+  }
+
+  var body: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(audience == .parent ? "Family registration" : "My registration") {
+          if isLoading { ProgressView().controlSize(.small) }
+          else { HPStatusBadge(text: "\(attentionCount) attention", kind: attentionCount == 0 ? .neutral : .warning) }
+        }
+        if let errorText {
+          Label(errorText, systemImage: "wifi.exclamationmark")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+        } else if offerings.isEmpty && applications.isEmpty && !isLoading {
+          HPEmptyState(title: "Nothing open right now", message: "Available registrations and application status will appear here.", systemImage: "person.crop.circle.badge.plus")
+        } else {
+          ForEach(applications.prefix(3)) { application in
+            HStack {
+              Label(application.state.replacingOccurrences(of: "_", with: " ").capitalized, systemImage: "doc.text")
+              Spacer()
+              if let balance = application.balance_cents, balance > 0 {
+                Text(SDMoney(minorUnits: balance, currency: "usd").formatted())
+                  .font(HP.Font.caption.weight(.semibold)).monospacedDigit()
+              }
+            }
+            .accessibilityElement(children: .combine)
+          }
+          ForEach(offerings.filter { $0.accepting_submissions == true }.prefix(3)) { offering in
+            Button {
+              selectedOffering = offering
+            } label: {
+              HStack {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(offering.name).font(HP.Font.callout.weight(.semibold))
+                Text("Registration open • \(SDMoney(minorUnits: offering.fee_cents, currency: "usd").formatted())")
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted).accessibilityHidden(true)
+              }
+            }
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Open registration details")
+          }
+        }
+      }
+    }
+    .task(id: appState.activeOrgId) { await load() }
+    .sheet(item: $selectedOffering) { offering in
+      NavigationStack {
+        RegistrationDraftSheet(
+          offering: offering,
+          players: players,
+          audience: audience,
+          onComplete: {
+            selectedOffering = nil
+            Task { await load() }
+          }
+        )
+        .environmentObject(appState)
+      }
+    }
+  }
+
+  private var attentionCount: Int {
+    applications.filter { ["action_required", "waitlisted"].contains($0.state) || ($0.balance_cents ?? 0) > 0 }.count
+  }
+
+  @MainActor private func load() async {
+    guard let organizationId = appState.activeOrgId, let service = appState.supabase else { return }
+    isLoading = true; errorText = nil
+    do {
+      async let loadedOfferings = service.registrationOfferings(organizationId: organizationId)
+      async let loadedApplications = service.registrationApplications(organizationId: organizationId)
+      let result = try await (loadedOfferings, loadedApplications)
+      offerings = result.0.offerings
+      applications = result.1.applications
+    } catch { errorText = "Registration is unavailable offline. Pull to refresh when connected." }
+    isLoading = false
+  }
+}
+
+private struct RegistrationDraftSheet: View {
+  let offering: SDRegistrationOffering
+  let players: [Profile]
+  let audience: RegistrationFamilySummaryCard.Audience
+  let onComplete: () -> Void
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var appState: AppState
+  @State private var selectedPlayerId: UUID?
+  @State private var jerseyNumber = ""
+  @State private var positionPreference = ""
+  @State private var isSubmitting = false
+  @State private var errorText: String?
+
+  var body: some View {
+    Form {
+      Section("Offering") {
+        LabeledContent("Registration", value: offering.name)
+        LabeledContent("Fee", value: SDMoney(minorUnits: offering.fee_cents, currency: "usd").formatted())
+        if let description = offering.description?.sdNilIfBlank { Text(description) }
+      }
+      if audience == .parent {
+        Section("Player") {
+          Picker("Register", selection: $selectedPlayerId) {
+            Text("Select a linked child").tag(UUID?.none)
+            ForEach(players) { player in Text(player.displayName).tag(Optional(player.id)) }
+          }
+        }
+      }
+      Section("Player preferences") {
+        TextField("Jersey number request (optional)", text: $jerseyNumber)
+        TextField("Position preference (optional)", text: $positionPreference)
+      }
+      Section {
+        Text("Submitting records your application. Required waivers or forms must be completed before approval; Home Plate does not claim legal enforceability for typed signatures.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      }
+      if let errorText { Section { Label(errorText, systemImage: "exclamationmark.triangle.fill").foregroundStyle(HP.Color.danger) } }
+    }
+    .navigationTitle("Registration")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isSubmitting) }
+      ToolbarItem(placement: .confirmationAction) { Button("Save & Submit") { Task { await submit() } }.disabled(isSubmitting || (audience == .parent && selectedPlayerId == nil)) }
+    }
+  }
+
+  @MainActor private func submit() async {
+    guard let organizationId = appState.activeOrgId, let service = appState.supabase else { return }
+    let playerId = audience == .player ? appState.myProfile?.id : selectedPlayerId
+    isSubmitting = true; errorText = nil
+    do {
+      let draft = try await service.saveRegistrationDraft(
+        organizationId: organizationId,
+        offering: offering,
+        playerId: playerId,
+        jerseyNumber: jerseyNumber,
+        positionPreference: positionPreference
+      )
+      _ = try await service.submitRegistration(organizationId: organizationId, application: draft)
+      onComplete(); dismiss()
+    } catch { errorText = error.localizedDescription }
+    isSubmitting = false
   }
 }
 
