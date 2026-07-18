@@ -1085,6 +1085,121 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  private struct GameOperationsRequest: Encodable, Sendable {
+    let action: String
+    let organization_id: UUID
+    var event_id: UUID? = nil
+    var team_id: UUID? = nil
+    var season_id: UUID? = nil
+    var player_id: UUID? = nil
+    var rule_profile_id: UUID? = nil
+    var request_id: UUID? = nil
+    var data: [String: SDJSONValue]? = nil
+  }
+
+  func gamePlan(
+    organizationId: UUID,
+    eventId: UUID,
+    playerId: UUID? = nil
+  ) async throws -> SDGamePlanDetailResponse {
+    try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: "fetch_game_plan",
+        organization_id: organizationId,
+        event_id: eventId,
+        player_id: playerId
+      )
+    )
+  }
+
+  func gameRuleProfiles(
+    organizationId: UUID,
+    eventId: UUID,
+    teamId: UUID,
+    seasonId: UUID
+  ) async throws -> [SDGameRuleProfile] {
+    let response: SDGameRuleProfileListResponse = try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: "list_rule_profiles",
+        organization_id: organizationId,
+        event_id: eventId,
+        team_id: teamId,
+        season_id: seasonId
+      )
+    )
+    return response.rule_profiles
+  }
+
+  func gamePlanHistory(
+    organizationId: UUID,
+    eventId: UUID
+  ) async throws -> [SDGamePlanSnapshot] {
+    let response: SDGamePlanHistoryResponse = try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: "fetch_game_plan_history",
+        organization_id: organizationId,
+        event_id: eventId
+      )
+    )
+    return response.snapshots
+  }
+
+  func gamePlanSummaries(
+    organizationId: UUID,
+    seasonId: UUID,
+    teamId: UUID
+  ) async throws -> [SDGamePlanSummary] {
+    let response: SDGamePlanSummaryListResponse = try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: "list_game_plan_summaries",
+        organization_id: organizationId,
+        team_id: teamId,
+        season_id: seasonId
+      )
+    )
+    return response.plans
+  }
+
+  func priorGamePlans(
+    organizationId: UUID,
+    eventId: UUID,
+    teamId: UUID
+  ) async throws -> [SDGamePriorPlan] {
+    let response: SDGamePriorPlanListResponse = try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: "fetch_prior_game_plans",
+        organization_id: organizationId,
+        event_id: eventId,
+        team_id: teamId
+      )
+    )
+    return response.plans
+  }
+
+  func mutateGamePlan(
+    action: String,
+    organizationId: UUID,
+    eventId: UUID,
+    data: [String: SDJSONValue] = [:],
+    requestId: UUID = UUID()
+  ) async throws -> SDGameMutationResponse {
+    try await invokeAuthenticatedFunction(
+      "game-operations",
+      body: GameOperationsRequest(
+        action: action,
+        organization_id: organizationId,
+        event_id: eventId,
+        request_id: requestId,
+        data: data
+      )
+    )
+  }
+
   private struct SeasonMutationResponse: Decodable, Sendable {
     let season: SDSeason
   }

@@ -112,6 +112,22 @@ enum SDTeamCapability: String, CaseIterable, Codable, Hashable, Identifiable, Se
   case executePracticeBlocks = "execute_practice_blocks"
   case completePracticePlan = "complete_practice_plan"
   case reopenPracticePlan = "reopen_practice_plan"
+  case viewGamePlan = "view_game_plan"
+  case createGamePlan = "create_game_plan"
+  case editGamePlan = "edit_game_plan"
+  case publishGamePlan = "publish_game_plan"
+  case archiveGamePlan = "archive_game_plan"
+  case configureGameRules = "configure_game_rules"
+  case manageBattingOrder = "manage_batting_order"
+  case manageDefensivePlan = "manage_defensive_plan"
+  case managePitcherCatcherPlan = "manage_pitcher_catcher_plan"
+  case manageGameStaff = "manage_game_staff"
+  case manageGameChecklist = "manage_game_checklist"
+  case viewStartedGameSnapshot = "view_started_game_snapshot"
+  case modifyActiveGamePlan = "modify_active_game_plan"
+  case recordGameResult = "record_game_result"
+  case completeGameOperation = "complete_game_operation"
+  case reopenGameOperation = "reopen_game_operation"
 
   var id: String { rawValue }
 

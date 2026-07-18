@@ -12,7 +12,7 @@ struct CoachTeamScheduleView: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var editor: EventEditorPresentation?
-  @State private var practiceEvent: SDTeamEvent?
+  @State private var planningEvent: SDTeamEvent?
 
   var body: some View {
     NavigationStack {
@@ -104,10 +104,10 @@ struct CoachTeamScheduleView: View {
           Task { await reload() }
         }
       }
-      .sheet(item: $practiceEvent) { practice in
+      .sheet(item: $planningEvent) { planningEvent in
         NavigationStack {
-          CoachEventOperationView(event: practice, teamName: teamName(practice.team_id))
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { practiceEvent = nil } } }
+          CoachEventOperationView(event: planningEvent, teamName: teamName(planningEvent.team_id))
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { self.planningEvent = nil } } }
         }
       }
     }
@@ -128,11 +128,11 @@ struct CoachTeamScheduleView: View {
             ForEach(group.events) { event in
               HStack(alignment: .top, spacing: HP.Space.xs) {
                 TeamEventRow(event: event, teamName: teamName(event.team_id))
-                if canMutate(event) || canOpenPractice(event) {
+                if canMutate(event) || canOpenPlan(event) {
                   Menu {
-                    if canOpenPractice(event) {
-                      Button { practiceEvent = event } label: {
-                        Label("Open Practice Plan", systemImage: "list.number")
+                    if canOpenPlan(event) {
+                      Button { planningEvent = event } label: {
+                        Label(event.event_type == .game ? "Open Game Plan" : "Open Practice Plan", systemImage: "list.number")
                       }
                     }
                     if canEdit(event) {
@@ -190,8 +190,13 @@ struct CoachTeamScheduleView: View {
     canEdit(event) || canDuplicate(event) || canCancel(event)
   }
 
-  private func canOpenPractice(_ event: SDTeamEvent) -> Bool {
-    event.event_type == .practice && (appState.canAdminActiveOrg || (event.team_id == appState.selectedTeam?.id && appState.selectedTeamCapabilities.contains(.viewPracticePlan)))
+  private func canOpenPlan(_ event: SDTeamEvent) -> Bool {
+    guard event.event_type == .practice || event.event_type == .game else { return false }
+    if appState.canAdminActiveOrg { return true }
+    guard event.team_id == appState.selectedTeam?.id else { return false }
+    return event.event_type == .practice
+      ? appState.selectedTeamCapabilities.contains(.viewPracticePlan)
+      : appState.selectedTeamCapabilities.contains(.viewGamePlan)
   }
 
   private func canEdit(_ event: SDTeamEvent) -> Bool {

@@ -37,6 +37,7 @@ struct CoachTodayFoundationView: View {
   @State private var events: [SDTeamEvent] = []
   @State private var operations: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlans: [UUID: SDPracticePlanSummary] = [:]
+  @State private var gamePlans: [UUID: SDGamePlanSummary] = [:]
 
   var body: some View {
     NavigationStack {
@@ -148,6 +149,16 @@ struct CoachTodayFoundationView: View {
         default: break
         }
       }
+      if event.event_type == .game {
+        switch gamePlans[event.id]?.status {
+        case nil: items.append("\(event.title) has no game plan")
+        case .draft: items.append("\(event.title) game plan is still a draft")
+        case .ready: items.append("\(event.title) game plan is not published")
+        case .active: items.append("\(event.title) Game Day is active")
+        case .completed where operation.status != .completed: items.append("\(event.title) needs completion review")
+        default: break
+        }
+      }
       if operation.checklist_total > operation.checklist_completed {
         items.append("\(event.title) has \(operation.checklist_total - operation.checklist_completed) checklist item(s) remaining")
       }
@@ -173,6 +184,11 @@ struct CoachTodayFoundationView: View {
       }
       if event.event_type == .practice {
         Text("Practice plan: \(practicePlans[event.id]?.status.label ?? "No Plan")")
+          .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+      }
+      if event.event_type == .game {
+        let gamePlan = gamePlans[event.id]
+        Text("Game plan: \(gamePlan?.status.label ?? "No Plan") • \(gamePlan?.lineup_mode.label ?? "Lineup not started")")
           .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
       }
       Label(primaryMissionAction(operation), systemImage: "arrow.right.circle.fill")
@@ -231,14 +247,26 @@ struct CoachTodayFoundationView: View {
         } catch {
           practicePlans = [:]
         }
+        do {
+          let plans = try await service.gamePlanSummaries(
+            organizationId: orgId,
+            seasonId: team.season_id,
+            teamId: team.id
+          )
+          gamePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+        } catch {
+          gamePlans = [:]
+        }
       } else {
         operations = [:]
         practicePlans = [:]
+        gamePlans = [:]
       }
     } catch {
       events = []
       operations = [:]
       practicePlans = [:]
+      gamePlans = [:]
     }
   }
 }
@@ -255,6 +283,7 @@ struct CoachTeamCommandCenterView: View {
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var operationSummaries: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
+  @State private var gamePlanSummaries: [UUID: SDGamePlanSummary] = [:]
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -392,6 +421,11 @@ struct CoachTeamCommandCenterView: View {
               Text("Plan readiness: \(practicePlanSummaries[next.id]?.status.label ?? "No Plan")")
                 .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
             }
+            if next.event_type == .game {
+              let gamePlan = gamePlanSummaries[next.id]
+              Text("Game readiness: \(gamePlan?.status.label ?? "No Plan") • \(gamePlan?.lineup_mode.label ?? "Lineup not started")")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
           }
         } else {
           HPEmptyState(title: "No upcoming event", message: "Published team schedule items will appear here.", systemImage: "calendar")
@@ -407,6 +441,11 @@ struct CoachTeamCommandCenterView: View {
             TeamEventRow(event: today, teamName: team.name)
             if today.event_type == .practice {
               Text("Practice plan: \(practicePlanSummaries[today.id]?.status.label ?? "No Plan")")
+                .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+            }
+            if today.event_type == .game {
+              let gamePlan = gamePlanSummaries[today.id]
+              Text("Game plan: \(gamePlan?.status.label ?? "No Plan") • \(gamePlan?.lineup_mode.label ?? "Lineup not started")")
                 .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
             }
             Text("\(operation?.unresolved_availability ?? 0) unresolved availability • \(operation?.unrecorded_attendance ?? 0) attendance remaining • \(operation?.checklist_completed ?? 0)/\(operation?.checklist_total ?? 0) checklist")
@@ -500,6 +539,16 @@ struct CoachTeamCommandCenterView: View {
         practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
       } catch {
         practicePlanSummaries = [:]
+      }
+      do {
+        let plans = try await service.gamePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        gamePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+      } catch {
+        gamePlanSummaries = [:]
       }
     } catch {
       teamEvents = []

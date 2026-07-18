@@ -33,6 +33,9 @@ struct CoachEventOperationView: View {
           if event.event_type == .practice {
             PracticePlannerView(event: event, operation: operation, teamName: teamName)
           }
+          if event.event_type == .game {
+            GamePlannerView(event: event, operation: operation, teamName: teamName)
+          }
           participantsCard(operation)
           checklistCard
           notesCard
@@ -505,6 +508,26 @@ struct CoachEventOperationView: View {
           _ = try await service.initializeEventOperation(organizationId: event.organization_id, eventId: event.id, requestId: requestId)
         case .transition(let status, let reason, let summary, let requestId):
           guard let operation else { return }
+          if event.event_type == .game {
+            let game = try? await service.gamePlan(organizationId: event.organization_id, eventId: event.id)
+            if status == .inProgress, operation.status == .ready, game?.plan?.status == .published {
+              _ = try await service.mutateGamePlan(
+                action: "capture_started_game_snapshot",
+                organizationId: event.organization_id,
+                eventId: event.id,
+                requestId: requestId
+              )
+            }
+            if status == .completed, game?.plan?.status == .active {
+              _ = try await service.mutateGamePlan(
+                action: "complete_game_operation",
+                organizationId: event.organization_id,
+                eventId: event.id,
+                data: ["completion_notes": .string(summary ?? "")],
+                requestId: requestId
+              )
+            }
+          }
           _ = try await service.transitionEventOperation(
             organizationId: event.organization_id,
             eventId: event.id,
@@ -1441,6 +1464,904 @@ private struct PracticeExecutionAdjustmentSheet: View {
           }
           .disabled(reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+      }
+    }
+  }
+}
+
+private struct GamePlannerView: View {
+  @EnvironmentObject private var appState: AppState
+  let event: SDTeamEvent
+  let operation: SDEventOperation
+  let teamName: String
+
+  @State private var plan: SDGamePlan?
+  @State private var ruleProfile: SDGameRuleProfile?
+  @State private var profiles: [SDGameRuleProfile] = []
+  @State private var eligibility: [SDGameEligibility] = []
+  @State private var batting: [SDGameBattingEntry] = []
+  @State private var defense: [SDGameDefensiveAssignment] = []
+  @State private var pitcherCatcher: [SDGamePitcherCatcherPlan] = []
+  @State private var staff: [SDGameStaffAssignment] = []
+  @State private var recaps: [SDGameRecap] = []
+  @State private var result: SDGameResult?
+  @State private var validation: SDGamePlanValidation?
+  @State private var capabilities: Set<SDTeamCapability> = []
+  @State private var history: [SDGamePlanSnapshot] = []
+  @State private var priorPlans: [SDGamePriorPlan] = []
+  @State private var selectedDefenseInning = 0
+  @State private var isLoading = false
+  @State private var errorText: String?
+  @State private var pending: GamePendingMutation?
+  @State private var playerEditor: GamePlayerEditorPresentation?
+  @State private var exclusionEditor: SDGameEligibility?
+  @State private var defenseEditor: GameDefenseEditorPresentation?
+  @State private var pitcherEditor: GamePitcherEditorPresentation?
+  @State private var staffEditor = false
+  @State private var ruleEditor = false
+  @State private var multipleEH = false
+  @State private var adjustmentEditor = false
+  @State private var resultEditor = false
+  @State private var recapEditor = false
+  @State private var showPublishConfirmation = false
+
+  var body: some View {
+    Group {
+      if let plan {
+        summaryCard(plan)
+        validationCard
+        eligibilityCard(plan)
+        battingCard(plan)
+        defenseCard(plan)
+        pitcherCatcherCard(plan)
+        staffCard(plan)
+        gameDayCard(plan)
+        resultAndRecapCard(plan)
+        historyCard
+      } else if isLoading {
+        HPCard { HPLoadingState(text: "Loading game plan…") }
+      } else {
+        HPCard {
+          HPEmptyState(
+            title: "No game plan",
+            message: "Create a team-scoped plan from this canonical game event. Attendance and availability remain in Game Day.",
+            systemImage: "list.number"
+          )
+          if can(.createGamePlan) {
+            HPButton(title: "Create Game Plan", systemImage: "plus", variant: .primary, size: .md) {
+              run("initialize_game_plan", ["title": .string(event.title)])
+            }
+          }
+        }
+      }
+      if let pending {
+        HPCard {
+          HPSectionHeader("Pending game-plan change") { HPStatusBadge(text: "Unsaved", kind: .warning) }
+          Text("The original mutation identifier is preserved. Retry it after refreshing if another coach changed the plan.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          HPButton(title: "Retry Pending Change", systemImage: "arrow.clockwise", variant: .primary, size: .md) {
+            run(pending.action, pending.data, requestId: pending.id)
+          }
+        }
+      }
+    }
+    .task { await reload() }
+    .sheet(item: $playerEditor) { editor in
+      GamePlayerEditorSheet(presentation: editor, players: eligiblePlayers) { playerId, role, label in
+        run("add_batting_entry", [
+          "player_id": .string(playerId.uuidString),
+          "batting_slot": .int(nextBattingSlot),
+          "offensive_role": .string(role.rawValue),
+          "role_label": .string(label),
+        ])
+      }
+    }
+    .sheet(item: $exclusionEditor) { entry in
+      GameExclusionSheet(entry: entry, name: playerName(entry.player_id)) { status, reason in
+        run("update_eligibility", ["player_id": .string(entry.player_id.uuidString), "status": .string(status), "reason": .string(reason)])
+      }
+    }
+    .sheet(item: $defenseEditor) { editor in
+      GameDefenseEditorSheet(presentation: editor, players: eligibility) { playerId, position, label in
+        run("assign_defensive_position", [
+          "player_id": .string(playerId.uuidString),
+          "inning_number": .int(editor.inning),
+          "position_code": .string(position),
+          "position_label": .string(label),
+          "starter": .bool(editor.inning == 0),
+        ])
+      }
+    }
+    .sheet(item: $pitcherEditor) { editor in
+      GamePitcherCatcherEditorSheet(presentation: editor, players: eligibility) { data in run(editor.action, data) }
+    }
+    .sheet(isPresented: $staffEditor) {
+      GameStaffEditorSheet(people: teamStaff) { userId, responsibility, label in
+        run("assign_game_staff", [
+          "staff_user_id": .string(userId.uuidString),
+          "responsibility_code": .string(responsibility),
+          "responsibility_label": .string(label),
+        ])
+      }
+    }
+    .sheet(isPresented: $ruleEditor) {
+      GameRuleProfileEditorSheet(event: event) { data in run("create_rule_profile", data) }
+    }
+    .sheet(isPresented: $multipleEH) {
+      GameMultipleEHSheet(players: availableBattingPlayers) { playerIds in
+        guard let plan else { return }
+        let existing = batting.enumerated().map { index, entry in
+          SDJSONValue.object(["player_id": .string(entry.player_id.uuidString), "batting_slot": .int(index + 1), "offensive_role": .string(entry.offensive_role.rawValue), "role_label": .string(entry.role_label ?? "")])
+        }
+        let extras = playerIds.enumerated().map { index, playerId in
+          SDJSONValue.object(["player_id": .string(playerId.uuidString), "batting_slot": .int(existing.count + index + 1), "offensive_role": .string(SDGameOffensiveRole.eh.rawValue), "role_label": .string("EH\(index + 1)")])
+        }
+        run("initialize_multiple_eh", ["expected_version": .int(plan.version), "entries": .array(existing + extras)])
+      }
+    }
+    .sheet(isPresented: $adjustmentEditor) {
+      GameActiveAdjustmentSheet { type, reason, summary in
+        run(type, ["reason": .string(reason), "new_value": .object(["summary": .string(summary)])])
+      }
+    }
+    .sheet(isPresented: $resultEditor) {
+      GameResultEditorSheet(result: result) { data in run("record_game_result", data) }
+    }
+    .sheet(isPresented: $recapEditor) {
+      GameRecapEditorSheet { data in run("add_game_recap", data) }
+    }
+    .confirmationDialog("Publish this game plan?", isPresented: $showPublishConfirmation, titleVisibility: .visible) {
+      Button(plan?.published_version == nil ? "Publish Game Plan" : "Publish Revised Version") {
+        run("publish_game_plan", [:])
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("Players and parents will see only their authorized assignments. The published revision is preserved for Game Day.")
+    }
+    .alert("Game Plan", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+      Button("OK", role: .cancel) {}
+    } message: { Text(errorText ?? "") }
+  }
+
+  private func summaryCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Game Plan") { HPStatusBadge(text: plan.status.label, kind: plan.status == .completed ? .success : .info) }
+        if let game = event.sd_team_event_games?.first {
+          Text("\(teamName) vs. \(game.opponent) • \(game.venue_side.capitalized)")
+            .font(HP.Font.callout.weight(.semibold))
+        }
+        HStack {
+          Label(plan.lineup_mode.label, systemImage: "list.number")
+          if validation?.eh_count ?? 0 > 0 { HPStatusBadge(text: "\(validation?.eh_count ?? 0) EH", kind: .info) }
+          if plan.lineup_mode == .batEntireAvailableRoster { HPStatusBadge(text: "Entire roster", kind: .success) }
+        }
+        .font(HP.Font.callout)
+        Picker("Rule Profile", selection: Binding(
+          get: { plan.rule_profile_id },
+          set: { profileId in
+            guard let profileId else { return }
+            run("apply_rule_profile", ["rule_profile_id": .string(profileId.uuidString), "expected_version": .int(plan.version)])
+          }
+        )) {
+          Text("No profile — advisory validation").tag(UUID?.none)
+          ForEach(profiles) { Text($0.name).tag(Optional($0.id)) }
+        }
+        .disabled(!can(.editGamePlan) || plan.status == .active || plan.status == .completed)
+        HStack(spacing: HP.Space.sm) {
+          if can(.configureGameRules) { Button("New Rule Profile") { ruleEditor = true }.buttonStyle(.bordered) }
+          if can(.createGamePlan), !priorPlans.isEmpty, plan.status != .active, plan.status != .completed {
+            Menu("Duplicate Prior") {
+              ForEach(priorPlans) { prior in
+                Button("\(prior.title) • \(prior.lineup_mode.label)") {
+                  run("duplicate_prior_game_plan", ["source_plan_id": .string(prior.id.uuidString), "title": .string(event.title)])
+                }
+              }
+            }
+            .buttonStyle(.bordered)
+          }
+          if can(.publishGamePlan), plan.status != .active, plan.status != .completed {
+            HPButton(title: "Publish Game Plan", systemImage: "paperplane", variant: .primary, size: .sm) {
+              showPublishConfirmation = true
+            }
+            .disabled(!(validation?.valid ?? false))
+          }
+          Button("Refresh") { Task { await reload() } }.buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
+  private var validationCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Game Readiness") {
+          HPStatusBadge(text: validation?.valid == true ? "Structurally ready" : "Action needed", kind: validation?.valid == true ? .success : .warning)
+        }
+        findingSection("Blocking", validation?.blocking_errors ?? [], kind: .danger)
+        findingSection("Warnings", validation?.readiness_warnings ?? [], kind: .warning)
+        findingSection("Notices", validation?.notices ?? [], kind: .info)
+        if validation?.blocking_errors.isEmpty == true && validation?.readiness_warnings.isEmpty == true && validation?.notices.isEmpty == true {
+          Text("No current validation findings.").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private func findingSection(_ title: String, _ findings: [SDGameValidationFinding], kind: HPStatusKind) -> some View {
+    if !findings.isEmpty {
+      DisclosureGroup("\(title) (\(findings.count))") {
+        ForEach(findings) { finding in
+          HStack { HPStatusBadge(text: title, kind: kind); Text(finding.label).font(HP.Font.callout) }
+        }
+      }
+    }
+  }
+
+  private func eligibilityCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Expected Roster & Eligibility") { HPStatusBadge(text: "\(eligibility.count)", kind: .neutral) }
+        Text("Availability and attendance remain authoritative in Game Day. Eligibility controls only this game plan.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        ForEach(eligibility) { entry in
+          HStack {
+            Text(playerName(entry.player_id)).font(HP.Font.callout.weight(.semibold))
+            Spacer()
+            HPStatusBadge(text: entry.status.replacingOccurrences(of: "_", with: " ").capitalized, kind: entry.status == "eligible" ? .success : .warning)
+            if can(.manageBattingOrder), plan.status != .active, plan.status != .completed {
+              Button("Review") { exclusionEditor = entry }.buttonStyle(.bordered).controlSize(.small)
+            }
+          }
+          if let reason = entry.exclusion_reason?.sdNilIfBlank {
+            Text(reason).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          }
+        }
+      }
+    }
+  }
+
+  private func battingCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Batting Order") { HPStatusBadge(text: "\(batting.count) hitters", kind: .neutral) }
+        Text("Offense is independent from defense. EH and DH never require a defensive position.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        if can(.manageBattingOrder), plan.status != .active, plan.status != .completed {
+          Menu("Lineup Mode") {
+            ForEach(SDGameLineupMode.allCases) { mode in
+              Button(mode.label) {
+                run(mode.initializationAction, [
+                  "expected_version": .int(plan.version),
+                  "entries": .array(mode == .batEntireAvailableRoster ? [] : presetEntries(for: mode)),
+                ])
+              }
+            }
+          }
+          .buttonStyle(.bordered)
+          HStack {
+            HPButton(title: "Bat Entire Roster", systemImage: "person.3.fill", variant: .primary, size: .sm) {
+              run("initialize_bat_entire_roster", ["expected_version": .int(plan.version), "entries": .array([])])
+            }
+            Button("Add Hitter") { playerEditor = GamePlayerEditorPresentation(defaultRole: .hitter) }.buttonStyle(.bordered)
+            Button("Add EH") { playerEditor = GamePlayerEditorPresentation(defaultRole: .eh) }.buttonStyle(.bordered)
+            Button("Add Multiple EH") { multipleEH = true }.buttonStyle(.bordered)
+          }
+        }
+        if batting.isEmpty { Text("No hitters added.").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+        ForEach(Array(batting.enumerated()), id: \.element.id) { index, entry in
+          HStack(spacing: HP.Space.sm) {
+            Text(entry.batting_slot.map(String.init) ?? "—").font(HP.Font.number(.title3)).frame(width: 32)
+            VStack(alignment: .leading) {
+              Text(playerName(entry.player_id)).font(HP.Font.callout.weight(.semibold))
+              Text(entry.role_label?.sdNilIfBlank ?? entry.offensive_role.label).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+            Spacer()
+            if entry.offensive_role == .eh || entry.offensive_role == .dh { HPStatusBadge(text: entry.offensive_role == .eh ? "EH" : "DH", kind: .info) }
+            if can(.manageBattingOrder), plan.status != .active, plan.status != .completed {
+              Menu {
+                ForEach(SDGameOffensiveRole.allCases) { role in
+                  Button(role.label) { updateRole(entry, role) }
+                }
+                Divider()
+                Button("Move Up") { move(entry, by: -1) }.disabled(index == 0)
+                Button("Move Down") { move(entry, by: 1) }.disabled(index == batting.count - 1)
+                Button("Remove", role: .destructive) {
+                  run("remove_batting_entry", ["entry_id": .string(entry.id.uuidString), "entry_version": .int(entry.version)])
+                }
+              } label: { Image(systemName: "ellipsis.circle").frame(width: 44, height: 44) }
+              .accessibilityLabel("Actions for \(playerName(entry.player_id))")
+            }
+          }
+          .frame(minHeight: 48)
+        }
+      }
+    }
+  }
+
+  private func defenseCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Defensive Planning") { HPStatusBadge(text: selectedDefenseInning == 0 ? "Starting" : "Inning \(selectedDefenseInning)", kind: .info) }
+        Picker("Alignment", selection: $selectedDefenseInning) {
+          Text("Starting").tag(0)
+          ForEach(1...(plan.scheduled_innings ?? ruleProfile?.innings ?? 7), id: \.self) { Text("Inning \($0)").tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Defensive inning")
+        if can(.manageDefensivePlan), plan.status != .active, plan.status != .completed {
+          HStack {
+            Button("Assign Position") { defenseEditor = GameDefenseEditorPresentation(inning: selectedDefenseInning) }.buttonStyle(.borderedProminent)
+            if selectedDefenseInning > 0 {
+              Button("Copy Prior Inning") {
+                run("copy_defensive_inning", [
+                  "expected_version": .int(plan.version),
+                  "source_inning": .int(max(0, selectedDefenseInning - 1)),
+                  "target_innings": .array([.int(selectedDefenseInning)]),
+                ])
+              }.buttonStyle(.bordered)
+            }
+            Button("Clear Inning", role: .destructive) { run("clear_defensive_inning", ["inning_number": .int(selectedDefenseInning)]) }.buttonStyle(.bordered)
+          }
+        }
+        ForEach(defense.filter { $0.inning_number == selectedDefenseInning }) { assignment in
+          HStack {
+            Text(assignment.position_label?.sdNilIfBlank ?? assignment.position_code).font(HP.Font.callout.weight(.bold)).frame(width: 70, alignment: .leading)
+            Text(playerName(assignment.player_id))
+            Spacer()
+            if can(.manageDefensivePlan), plan.status != .active, plan.status != .completed {
+              Button(role: .destructive) {
+                run("remove_defensive_assignment", ["assignment_id": .string(assignment.id.uuidString), "assignment_version": .int(assignment.version)])
+              } label: { Image(systemName: "trash") }
+              .accessibilityLabel("Remove \(assignment.position_code) assignment")
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func pitcherCatcherCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Pitcher & Catcher Plan") { HPStatusBadge(text: "Manual guidance", kind: .neutral) }
+        Text("Pitch limits and inning ranges are coach-entered planning guidance. Home Plate does not calculate workload or live pitch counts.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        if can(.managePitcherCatcherPlan), plan.status != .active, plan.status != .completed {
+          HStack {
+            Button("Starting Pitcher") { pitcherEditor = GamePitcherEditorPresentation(action: "assign_starting_pitcher", role: "starting_pitcher") }.buttonStyle(.bordered)
+            Button("Relief Pitcher") { pitcherEditor = GamePitcherEditorPresentation(action: "add_relief_pitcher", role: "relief_pitcher") }.buttonStyle(.bordered)
+            Button("Starting Catcher") { pitcherEditor = GamePitcherEditorPresentation(action: "assign_starting_catcher", role: "starting_catcher") }.buttonStyle(.bordered)
+            Button("Backup Catcher") { pitcherEditor = GamePitcherEditorPresentation(action: "assign_backup_catcher", role: "backup_catcher") }.buttonStyle(.bordered)
+          }
+        }
+        ForEach(pitcherCatcher) { entry in
+          HStack {
+            VStack(alignment: .leading) {
+              Text(entry.role_type.replacingOccurrences(of: "_", with: " ").capitalized).font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+              Text(playerName(entry.player_id)).font(HP.Font.callout.weight(.semibold))
+            }
+            Spacer()
+            if let start = entry.planned_start_inning { Text("Inn. \(start)–\(entry.planned_end_inning ?? start)").font(HP.Font.caption) }
+            if let limit = entry.manual_pitch_limit { HPStatusBadge(text: "Target \(limit)", kind: .info) }
+          }
+        }
+      }
+    }
+  }
+
+  private func staffCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Game Staff Assignments") { HPStatusBadge(text: "\(staff.count)", kind: .neutral) }
+        if can(.manageGameStaff), plan.status != .completed { Button("Assign Responsibility") { staffEditor = true }.buttonStyle(.bordered) }
+        ForEach(staff) { assignment in
+          HStack {
+            Text(assignment.responsibility_label?.sdNilIfBlank ?? assignment.responsibility_code.replacingOccurrences(of: "_", with: " ").capitalized)
+            Spacer()
+            Text(playerName(assignment.staff_user_id)).foregroundStyle(HP.Color.textMuted)
+            if can(.manageGameStaff), plan.status != .completed {
+              Button(role: .destructive) {
+                run("remove_game_staff", ["staff_assignment_id": .string(assignment.id.uuidString), "assignment_version": .int(assignment.version)])
+              } label: { Image(systemName: "trash") }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func gameDayCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Started Game Snapshot") { HPStatusBadge(text: operation.status.label, kind: operation.status == .completed ? .success : .info) }
+        if plan.status == .active || plan.status == .completed {
+          Text("The published lineup, defense, pitcher/catcher plan, staff, and visibility-controlled reminders were captured when Game Day began. Later changes are explicit adjustments and never rewrite that snapshot.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          if can(.modifyActiveGamePlan), plan.status == .active {
+            HPButton(title: "Record Active Adjustment", systemImage: "arrow.triangle.2.circlepath", variant: .primary, size: .sm) { adjustmentEditor = true }
+          }
+        } else {
+          Text(plan.status == .published ? "Start Game Day from the mission controls to capture this exact published revision." : "Publish a structurally valid plan before Game Day to preserve the started lineup.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+      }
+    }
+  }
+
+  private func resultAndRecapCard(_ plan: SDGamePlan) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Result & Post-Game Recap") { HPStatusBadge(text: result?.result_status.capitalized ?? "Result pending", kind: result == nil ? .warning : .success) }
+        if let result {
+          Text(result.team_score.map { "Home Plate \($0)" } ?? "Score not confirmed")
+            + Text(result.opponent_score.map { " – \($0) Opponent" } ?? "")
+          Text(result.outcome.replacingOccurrences(of: "_", with: " ").capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+        HStack {
+          if can(.recordGameResult) { Button(result == nil ? "Enter Simple Result" : "Correct Result") { resultEditor = true }.buttonStyle(.borderedProminent) }
+          if can(.completeGameOperation) { Button("Add Recap") { recapEditor = true }.buttonStyle(.bordered) }
+        }
+        ForEach(recaps) { recap in
+          VStack(alignment: .leading) {
+            Text(recap.visibility.capitalized).font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+            Text(recap.body).font(HP.Font.callout)
+          }
+        }
+      }
+    }
+  }
+
+  private var historyCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Completed Game History") { HPStatusBadge(text: "\(history.count) snapshots", kind: .neutral) }
+        ForEach(history.prefix(8)) { snapshot in
+          HStack {
+            Label(snapshot.snapshot_type.capitalized, systemImage: snapshot.snapshot_type == "completed" ? "checkmark.seal" : "clock.arrow.circlepath")
+            Spacer()
+            Text("v\(snapshot.plan_version)").font(HP.Font.caption.monospacedDigit()).foregroundStyle(HP.Color.textMuted)
+          }
+        }
+      }
+    }
+  }
+
+  private func playerName(_ id: UUID) -> String {
+    appState.teamOperationsContext?.people.first(where: { $0.id == id })?.displayName ?? "Player \(id.uuidString.prefix(6))"
+  }
+
+  private var eligiblePlayers: [SDGameEligibility] { eligibility.filter { $0.status != "suspended" && $0.status != "injured" } }
+  private var availableBattingPlayers: [SDGameEligibility] { eligiblePlayers.filter { entry in !batting.contains(where: { $0.player_id == entry.player_id }) } }
+  private var nextBattingSlot: Int { (batting.compactMap(\.batting_slot).max() ?? 0) + 1 }
+  private var teamStaff: [Profile] {
+    let ids = Set(appState.teamOperationsContext?.coach_assignments.filter { $0.team_id == event.team_id && $0.active }.map(\.coach_id) ?? [])
+    return appState.teamOperationsContext?.people.filter { ids.contains($0.id) } ?? []
+  }
+  private func can(_ capability: SDTeamCapability) -> Bool { capabilities.contains(capability) }
+
+  private func presetEntries(for mode: SDGameLineupMode) -> [SDJSONValue] {
+    let desired: Int
+    switch mode {
+    case .continuousBattingOrder, .standardNineWithMultipleEH: desired = availableBattingPlayers.count
+    case .standardNineWithOneEH: desired = min(10, availableBattingPlayers.count)
+    default: desired = min(9, availableBattingPlayers.count)
+    }
+    let count = desired
+    return Array(availableBattingPlayers.prefix(count).enumerated()).map { index, entry in
+      var role = SDGameOffensiveRole.hitter
+      if mode == .standardNineWithDH && index == 8 { role = .dh }
+      if mode == .standardNineWithOneEH && index == 9 { role = .eh }
+      if mode == .standardNineWithMultipleEH && index >= 9 { role = .eh }
+      return .object(["player_id": .string(entry.player_id.uuidString), "batting_slot": .int(index + 1), "offensive_role": .string(role.rawValue), "role_label": .string(role == .eh ? "EH\(max(1, index - 8))" : role == .dh ? "DH" : "")])
+    }
+  }
+
+  private func updateRole(_ entry: SDGameBattingEntry, _ role: SDGameOffensiveRole) {
+    run("update_batting_entry", [
+      "entry_id": .string(entry.id.uuidString),
+      "entry_version": .int(entry.version),
+      "offensive_role": .string(role.rawValue),
+      "role_label": .string(role == .eh ? "EH" : role == .dh ? "DH" : role.label),
+    ])
+  }
+
+  private func move(_ entry: SDGameBattingEntry, by offset: Int) {
+    guard let index = batting.firstIndex(where: { $0.id == entry.id }), batting.indices.contains(index + offset), let plan else { return }
+    var reordered = batting
+    reordered.swapAt(index, index + offset)
+    let entries = reordered.enumerated().map { index, item in
+      SDJSONValue.object(["id": .string(item.id.uuidString), "batting_slot": .int(index + 1)])
+    }
+    run("reorder_batting_order", ["expected_version": .int(plan.version), "entries": .array(entries)])
+  }
+
+  private func reload() async {
+    guard let service = appState.supabase else { return }
+    isLoading = true
+    defer { isLoading = false }
+    do {
+      async let detailRequest = service.gamePlan(organizationId: event.organization_id, eventId: event.id)
+      async let profilesRequest = service.gameRuleProfiles(organizationId: event.organization_id, eventId: event.id, teamId: event.team_id, seasonId: event.season_id)
+      async let priorRequest = service.priorGamePlans(organizationId: event.organization_id, eventId: event.id, teamId: event.team_id)
+      let detail = try await detailRequest
+      profiles = try await profilesRequest
+      priorPlans = (try? await priorRequest) ?? []
+      plan = detail.plan
+      ruleProfile = detail.rule_profile
+      eligibility = detail.eligibility ?? []
+      batting = (detail.batting_order ?? []).sorted { ($0.batting_slot ?? .max) < ($1.batting_slot ?? .max) }
+      defense = detail.defense ?? []
+      pitcherCatcher = detail.pitcher_catcher ?? []
+      staff = detail.staff ?? []
+      recaps = detail.recaps ?? []
+      result = detail.result
+      validation = detail.validation
+      capabilities = Set(detail.capabilities ?? [])
+      history = detail.plan == nil ? [] : (try await service.gamePlanHistory(organizationId: event.organization_id, eventId: event.id))
+      errorText = nil
+    } catch {
+      errorText = "The game plan could not be refreshed. Any pending mutation remains available to retry."
+    }
+  }
+
+  private func run(_ action: String, _ data: [String: SDJSONValue], requestId: UUID = UUID()) {
+    Task {
+      guard let service = appState.supabase else { return }
+      isLoading = true
+      defer { isLoading = false }
+      do {
+        _ = try await service.mutateGamePlan(action: action, organizationId: event.organization_id, eventId: event.id, data: data, requestId: requestId)
+        pending = nil
+        await reload()
+      } catch {
+        pending = GamePendingMutation(id: requestId, action: action, data: data)
+        errorText = "The server did not confirm this change. Refresh to resolve stale data, or retry the preserved mutation."
+      }
+    }
+  }
+}
+
+private struct GamePendingMutation: Identifiable {
+  let id: UUID
+  let action: String
+  let data: [String: SDJSONValue]
+}
+
+private struct GamePlayerEditorPresentation: Identifiable {
+  let id = UUID()
+  let defaultRole: SDGameOffensiveRole
+}
+
+private struct GamePlayerEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let presentation: GamePlayerEditorPresentation
+  let players: [SDGameEligibility]
+  let onSave: (UUID, SDGameOffensiveRole, String) -> Void
+  @State private var playerId: UUID?
+  @State private var role: SDGameOffensiveRole
+  @State private var label = ""
+
+  init(presentation: GamePlayerEditorPresentation, players: [SDGameEligibility], onSave: @escaping (UUID, SDGameOffensiveRole, String) -> Void) {
+    self.presentation = presentation; self.players = players; self.onSave = onSave
+    _role = State(initialValue: presentation.defaultRole)
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Player", selection: $playerId) {
+          Text("Select player").tag(UUID?.none)
+          ForEach(players) { Text(String($0.player_id.uuidString.prefix(8))).tag(Optional($0.player_id)) }
+        }
+        Picker("Offensive role", selection: $role) { ForEach(SDGameOffensiveRole.allCases) { Text($0.label).tag($0) } }
+        TextField("Role label (for example EH1)", text: $label)
+      }
+      .navigationTitle(role == .eh ? "Add Extra Hitter" : "Add Hitter")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Add") { if let playerId { onSave(playerId, role, label); dismiss() } }.disabled(playerId == nil) }
+      }
+    }
+  }
+}
+
+private struct GameExclusionSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let entry: SDGameEligibility
+  let name: String
+  let onSave: (String, String) -> Void
+  @State private var status: String
+  @State private var reason: String
+
+  init(entry: SDGameEligibility, name: String, onSave: @escaping (String, String) -> Void) {
+    self.entry = entry; self.name = name; self.onSave = onSave
+    _status = State(initialValue: entry.status); _reason = State(initialValue: entry.exclusion_reason ?? "")
+  }
+  var body: some View {
+    NavigationStack {
+      Form {
+        Text(name)
+        Picker("Game eligibility", selection: $status) {
+          ForEach(["eligible","tentative","unavailable","late","leaving_early","injured","suspended","absent","coach_excluded","pending_confirmation","rostered_not_dressing","custom"], id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0) }
+        }
+        TextField("Required exclusion or override reason", text: $reason, axis: .vertical)
+      }
+      .navigationTitle("Player Eligibility")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(status, reason); dismiss() }.disabled(["coach_excluded","rostered_not_dressing"].contains(status) && reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+      }
+    }
+  }
+}
+
+private struct GameDefenseEditorPresentation: Identifiable { let id = UUID(); let inning: Int }
+
+private struct GameDefenseEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let presentation: GameDefenseEditorPresentation
+  let players: [SDGameEligibility]
+  let onSave: (UUID, String, String) -> Void
+  @State private var playerId: UUID?
+  @State private var position = "P"
+  @State private var customLabel = ""
+  private let positions = ["P","C","1B","2B","3B","SS","LF","CF","RF","OF","UTIL","BENCH","CUSTOM"]
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Player", selection: $playerId) { Text("Select player").tag(UUID?.none); ForEach(players) { Text(String($0.player_id.uuidString.prefix(8))).tag(Optional($0.player_id)) } }
+        Picker("Position", selection: $position) { ForEach(positions, id: \.self) { Text($0).tag($0) } }
+        if position == "CUSTOM" { TextField("Custom position label", text: $customLabel) }
+        Text("EH and DH are offensive designations and cannot be selected as defensive positions.").font(.caption).foregroundStyle(.secondary)
+      }
+      .navigationTitle(presentation.inning == 0 ? "Starting Defense" : "Inning \(presentation.inning) Defense")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Assign") { if let playerId { onSave(playerId, position, customLabel); dismiss() } }.disabled(playerId == nil || (position == "CUSTOM" && customLabel.isEmpty)) }
+      }
+    }
+  }
+}
+
+private struct GamePitcherEditorPresentation: Identifiable { let id = UUID(); let action: String; let role: String }
+
+private struct GamePitcherCatcherEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let presentation: GamePitcherEditorPresentation
+  let players: [SDGameEligibility]
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var playerId: UUID?
+  @State private var startInning = 1
+  @State private var endInning = 1
+  @State private var pitchTarget = 0
+  @State private var pairingId: UUID?
+  @State private var notes = ""
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Player", selection: $playerId) { Text("Select player").tag(UUID?.none); ForEach(players) { Text(String($0.player_id.uuidString.prefix(8))).tag(Optional($0.player_id)) } }
+        Stepper("Start inning: \(startInning)", value: $startInning, in: 1...30)
+        Stepper("End inning: \(endInning)", value: $endInning, in: startInning...30)
+        Stepper("Manual pitch target: \(pitchTarget == 0 ? "None" : String(pitchTarget))", value: $pitchTarget, in: 0...250)
+        Picker("Pitcher-catcher pairing", selection: $pairingId) { Text("None").tag(UUID?.none); ForEach(players) { Text(String($0.player_id.uuidString.prefix(8))).tag(Optional($0.player_id)) } }
+        TextField("Internal restrictions or warm-up notes", text: $notes, axis: .vertical)
+      }
+      .navigationTitle(presentation.role.replacingOccurrences(of: "_", with: " ").capitalized)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Assign") {
+            guard let playerId else { return }
+            var data: [String: SDJSONValue] = ["player_id": .string(playerId.uuidString), "role_type": .string(presentation.role), "planned_start_inning": .int(startInning), "planned_end_inning": .int(endInning), "notes": .string(notes)]
+            if pitchTarget > 0 { data["manual_pitch_limit"] = .int(pitchTarget) }
+            if let pairingId { data["pairing_player_id"] = .string(pairingId.uuidString) }
+            onSave(data); dismiss()
+          }.disabled(playerId == nil)
+        }
+      }
+    }
+  }
+}
+
+private struct GameStaffEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let people: [Profile]
+  let onSave: (UUID, String, String) -> Void
+  @State private var userId: UUID?
+  @State private var responsibility = "head_coach"
+  @State private var customLabel = ""
+  private let roles = ["head_coach","bench_coach","offensive_coordinator","defensive_coordinator","pitching_coach","bullpen_coach","first_base_coach","third_base_coach","catching_coach","scorebook_contact","team_manager","equipment_lead","medical_contact","custom"]
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Authorized staff", selection: $userId) { Text("Select staff").tag(UUID?.none); ForEach(people) { Text($0.displayName).tag(Optional($0.id)) } }
+        Picker("Responsibility", selection: $responsibility) { ForEach(roles, id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0) } }
+        if responsibility == "custom" { TextField("Custom responsibility", text: $customLabel) }
+      }
+      .navigationTitle("Game Staff")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Assign") { if let userId { onSave(userId, responsibility, customLabel); dismiss() } }.disabled(userId == nil || (responsibility == "custom" && customLabel.isEmpty)) }
+      }
+    }
+  }
+}
+
+struct GameRuleProfileEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let event: SDTeamEvent
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var name = ""
+  @State private var innings = 7
+  @State private var minimum = 1
+  @State private var maximum = 0
+  @State private var defensiveCount = 9
+  @State private var allowContinuous = true
+  @State private var allowEntireRoster = true
+  @State private var allowDH = true
+  @State private var allowEH = true
+  @State private var maximumEH = 0
+  @State private var allowDefensiveOnly = true
+  @State private var allowOffensiveOnly = true
+  @State private var scope = "team"
+  @State private var tournamentEventId = ""
+  var body: some View {
+    NavigationStack {
+      Form {
+        TextField("Profile name", text: $name)
+        Picker("Scope", selection: $scope) {
+          Text("Organization").tag("organization")
+          Text("Season").tag("season")
+          Text("Team").tag("team")
+          Text("Tournament").tag("tournament")
+          Text("This Game").tag("game")
+        }
+        if scope == "tournament" {
+          TextField("Canonical tournament event ID", text: $tournamentEventId)
+          Text("Use the tournament’s canonical schedule identifier; child games retain their own game plans.").font(.caption).foregroundStyle(.secondary)
+        }
+        Stepper("Scheduled innings: \(innings)", value: $innings, in: 1...30)
+        Stepper("Minimum batting slots: \(minimum)", value: $minimum, in: 1...50)
+        Stepper("Maximum batting slots: \(maximum == 0 ? "No configured cap" : String(maximum))", value: $maximum, in: 0...100)
+        Stepper("Defensive player count: \(defensiveCount)", value: $defensiveCount, in: 1...20)
+        Toggle("Continuous batting order allowed", isOn: $allowContinuous)
+        Toggle("Bat entire roster allowed", isOn: $allowEntireRoster)
+        Toggle("DH allowed", isOn: $allowDH)
+        Toggle("Extra Hitters allowed", isOn: $allowEH)
+        Stepper("Maximum EH: \(maximumEH == 0 ? "No configured cap" : String(maximumEH))", value: $maximumEH, in: 0...30)
+        Toggle("Defensive-only players allowed", isOn: $allowDefensiveOnly)
+        Toggle("Offensive-only players allowed", isOn: $allowOffensiveOnly)
+        Text("This profile stores practical planning constraints, not a universal league rulebook.").font(.caption).foregroundStyle(.secondary)
+      }
+      .navigationTitle("Rule Profile")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Create") {
+            var data: [String: SDJSONValue] = [
+              "name": .string(name), "innings": .int(innings), "minimum_batting_slots": .int(minimum), "defensive_player_count": .int(defensiveCount), "continuous_batting_order_allowed": .bool(allowContinuous), "bat_entire_roster_allowed": .bool(allowEntireRoster), "dh_allowed": .bool(allowDH), "eh_allowed": .bool(allowEH), "defensive_only_players_allowed": .bool(allowDefensiveOnly), "offensive_only_players_allowed": .bool(allowOffensiveOnly), "required_positions": .array(["P","C","1B","2B","3B","SS","LF","CF","RF"].map(SDJSONValue.string)),
+            ]
+            if scope == "season" || scope == "team" { data["season_id"] = .string(event.season_id.uuidString) }
+            if scope == "team" { data["team_id"] = .string(event.team_id.uuidString) }
+            if scope == "game" { data["event_id"] = .string(event.id.uuidString) }
+            if scope == "tournament", let id = UUID(uuidString: tournamentEventId.trimmingCharacters(in: .whitespacesAndNewlines)) { data["tournament_event_id"] = .string(id.uuidString) }
+            if maximum > 0 { data["maximum_batting_slots"] = .int(maximum) }
+            if maximumEH > 0 { data["maximum_eh"] = .int(maximumEH) }
+            onSave(data); dismiss()
+          }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (scope == "tournament" && UUID(uuidString: tournamentEventId.trimmingCharacters(in: .whitespacesAndNewlines)) == nil))
+        }
+      }
+    }
+  }
+}
+
+private struct GameMultipleEHSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let players: [SDGameEligibility]
+  let onSave: ([UUID]) -> Void
+  @State private var selected: Set<UUID> = []
+  var body: some View {
+    NavigationStack {
+      List(players) { entry in
+        Button { if selected.contains(entry.player_id) { selected.remove(entry.player_id) } else { selected.insert(entry.player_id) } } label: {
+          Label(String(entry.player_id.uuidString.prefix(8)), systemImage: selected.contains(entry.player_id) ? "checkmark.circle.fill" : "circle")
+        }.buttonStyle(.plain)
+      }
+      .navigationTitle("Add Multiple Extra Hitters")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Add \(selected.count) EH") { onSave(Array(selected)); dismiss() }.disabled(selected.isEmpty) }
+      }
+    }
+  }
+}
+
+private struct GameActiveAdjustmentSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let onSave: (String, String, String) -> Void
+  @State private var type = "apply_active_lineup_adjustment"
+  @State private var summary = ""
+  @State private var reason = ""
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Adjustment area", selection: $type) {
+          Text("Lineup").tag("apply_active_lineup_adjustment")
+          Text("Defense").tag("apply_active_defense_adjustment")
+          Text("Pitcher / Catcher").tag("apply_active_pitcher_adjustment")
+          Text("Eligibility").tag("apply_active_eligibility_adjustment")
+        }
+        TextField("What changed", text: $summary, axis: .vertical)
+        TextField("Required reason", text: $reason, axis: .vertical)
+        Text("This planning adjustment is audited. It does not record an official substitution or game statistic.").font(.caption).foregroundStyle(.secondary)
+      }
+      .navigationTitle("Active Game Adjustment")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Record") { onSave(type, reason, summary); dismiss() }.disabled(reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+      }
+    }
+  }
+}
+
+struct GameResultEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let result: SDGameResult?
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var teamScore: Int
+  @State private var opponentScore: Int
+  @State private var outcome: String
+  @State private var innings: Int
+  @State private var endedEarly: Bool
+  @State private var notes: String
+  @State private var correctionReason = ""
+  init(result: SDGameResult?, onSave: @escaping ([String: SDJSONValue]) -> Void) {
+    self.result = result; self.onSave = onSave
+    _teamScore = State(initialValue: result?.team_score ?? 0); _opponentScore = State(initialValue: result?.opponent_score ?? 0)
+    _outcome = State(initialValue: result?.outcome ?? "unknown"); _innings = State(initialValue: result?.innings_played ?? 7)
+    _endedEarly = State(initialValue: result?.ended_early ?? false); _notes = State(initialValue: result?.result_notes ?? "")
+  }
+  var body: some View {
+    NavigationStack {
+      Form {
+        Stepper("Team score: \(teamScore)", value: $teamScore, in: 0...200)
+        Stepper("Opponent score: \(opponentScore)", value: $opponentScore, in: 0...200)
+        Picker("Outcome", selection: $outcome) { ForEach(["win","loss","tie","no_contest","cancelled","postponed","incomplete","unknown"], id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0) } }
+        Stepper("Innings played: \(innings)", value: $innings, in: 0...30)
+        Toggle("Ended early", isOn: $endedEarly)
+        TextField("Result notes", text: $notes, axis: .vertical)
+        if result != nil { TextField("Required correction reason", text: $correctionReason, axis: .vertical) }
+      }
+      .navigationTitle(result == nil ? "Final Result" : "Correct Result")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") { onSave(["team_score": .int(teamScore), "opponent_score": .int(opponentScore), "outcome": .string(outcome), "innings_played": .int(innings), "ended_early": .bool(endedEarly), "result_notes": .string(notes), "correction_reason": .string(correctionReason)]); dismiss() }
+            .disabled(result != nil && correctionReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      }
+    }
+  }
+}
+
+private struct GameRecapEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var visibility = "staff"
+  @State private var recapBody = ""
+  @State private var followUp = ""
+  var body: some View {
+    NavigationStack {
+      Form {
+        Picker("Visibility", selection: $visibility) { Text("Staff only").tag("staff"); Text("Team visible").tag("team"); Text("Player visible").tag("player"); Text("Parent visible").tag("parent") }
+        TextField("Recap", text: $recapBody, axis: .vertical)
+        TextField("Follow-up items, one per line", text: $followUp, axis: .vertical)
+      }
+      .navigationTitle("Post-Game Recap")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Publish") { onSave(["visibility": .string(visibility), "body": .string(recapBody), "follow_up_items": .array(followUp.split(separator: "\n").map { .string(String($0)) }), "publish": .bool(true)]); dismiss() }.disabled(recapBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
       }
     }
   }

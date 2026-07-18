@@ -34,6 +34,7 @@ struct SDPlayerTodayViewInternal: View {
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var eventOperations: [UUID: SDEventOperationDetailResponse] = [:]
   @State private var practicePlans: [UUID: SDPracticePlanDetailResponse] = [:]
+  @State private var gamePlans: [UUID: SDGamePlanDetailResponse] = [:]
   @State private var availabilityEditor: PlayerAvailabilityPresentation?
   @State private var pendingAvailability: PlayerPendingAvailability?
 
@@ -189,6 +190,26 @@ struct SDPlayerTodayViewInternal: View {
                   }
                 }
                 .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              if event.event_type == .game, let game = gamePlans[event.id], let plan = game.plan {
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("Game plan: \(plan.status.label) • \(plan.lineup_mode.label)")
+                    .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+                  ForEach(game.batting_order ?? []) { entry in
+                    Text("Your batting assignment: \(entry.batting_slot.map { "#\($0)" } ?? "Bench") • \(entry.offensive_role.label)")
+                  }
+                  ForEach(game.defense ?? []) { assignment in
+                    Text("\(assignment.inning_number == 0 ? "Starting defense" : "Inning \(assignment.inning_number)"): \(assignment.position_label?.sdNilIfBlank ?? assignment.position_code)")
+                  }
+                  ForEach(game.pitcher_catcher ?? []) { assignment in
+                    Text(assignment.role_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                  }
+                  if let result = game.result {
+                    Text(result.team_score.flatMap { team in result.opponent_score.map { "Final: \(team)–\($0)" } } ?? "Game completed")
+                  }
+                  ForEach(game.recaps ?? []) { recap in Text(recap.body) }
+                }
+                .font(HP.Font.caption).foregroundStyle(HP.Color.text)
               }
               if detail?.operation?.status == .completed, detail?.notes?.contains(where: { $0.note_type == "post_event_recap" }) != true {
                 Text("Event complete. No visible recap has been published.")
@@ -532,6 +553,7 @@ struct SDPlayerTodayViewInternal: View {
       ).filter { $0.status != .draft }
       var details: [UUID: SDEventOperationDetailResponse] = [:]
       var plans: [UUID: SDPracticePlanDetailResponse] = [:]
+      var games: [UUID: SDGamePlanDetailResponse] = [:]
       for event in teamEvents {
         do {
           details[event.id] = try await supabase.eventOperation(
@@ -560,12 +582,21 @@ struct SDPlayerTodayViewInternal: View {
             playerId: playerId
           )
         }
+        if event.event_type == .game {
+          games[event.id] = try? await supabase.gamePlan(
+            organizationId: organizationId,
+            eventId: event.id,
+            playerId: playerId
+          )
+        }
       }
       eventOperations = details
       practicePlans = plans
+      gamePlans = games
     } catch {
       eventOperations = [:]
       practicePlans = [:]
+      gamePlans = [:]
     }
   }
 

@@ -5,7 +5,9 @@ struct OrgEventOperationsAdminView: View {
   @State private var events: [SDTeamEvent] = []
   @State private var summaries: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlans: [UUID: SDPracticePlanSummary] = [:]
+  @State private var gamePlans: [UUID: SDGamePlanSummary] = [:]
   @State private var selectedEvent: SDTeamEvent?
+  @State private var selectedTeamId: UUID?
   @State private var isLoading = false
   @State private var errorText: String?
 
@@ -17,15 +19,22 @@ struct OrgEventOperationsAdminView: View {
         context: "Administrative inspection and correction"
       )
     } controls: {
-      Text("Inspect completion, unresolved attendance, and audit history. Day-of coaching remains in Coach Today.")
-        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Text("Inspect completion, unresolved attendance, and audit history. Day-of coaching remains in Coach Today.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        Picker("Team", selection: $selectedTeamId) {
+          Text("All authorized teams").tag(UUID?.none)
+          ForEach(appState.authorizedCoachTeams) { team in Text(team.name).tag(Optional(team.id)) }
+        }
+        .pickerStyle(.menu)
+      }
     } results: { _ in
-      if isLoading && events.isEmpty {
+      if isLoading && filteredEvents.isEmpty {
         HPCard { HPLoadingState(text: "Loading event operations…") }
-      } else if events.isEmpty {
+      } else if filteredEvents.isEmpty {
         HPCard { HPEmptyState(title: "No event operations", message: "No canonical events are available in the review window.", systemImage: "checklist") }
       } else {
-        ForEach(events) { event in
+        ForEach(filteredEvents) { event in
           HPCard {
             Button { selectedEvent = event } label: {
               HStack(alignment: .top, spacing: HP.Space.sm) {
@@ -42,6 +51,11 @@ struct OrgEventOperationsAdminView: View {
                   }
                   if event.event_type == .practice {
                     Text("Practice plan: \(practicePlans[event.id]?.status.label ?? "No Plan")")
+                      .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                  }
+                  if event.event_type == .game {
+                    let gamePlan = gamePlans[event.id]
+                    Text("Game plan: \(gamePlan?.status.label ?? "No Plan") • \(gamePlan?.lineup_mode.label ?? "Lineup not started")")
                       .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                   }
                 }
@@ -73,6 +87,11 @@ struct OrgEventOperationsAdminView: View {
     appState.authorizedCoachTeams.first(where: { $0.id == id })?.name ?? "Team"
   }
 
+  private var filteredEvents: [SDTeamEvent] {
+    guard let selectedTeamId else { return events }
+    return events.filter { $0.team_id == selectedTeamId }
+  }
+
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
     isLoading = true
@@ -89,6 +108,7 @@ struct OrgEventOperationsAdminView: View {
       ).filter { $0.status != .draft }
       var all: [SDEventOperationSummary] = []
       var plans: [SDPracticePlanSummary] = []
+      var games: [SDGamePlanSummary] = []
       for team in appState.authorizedCoachTeams {
         let ids = events.filter { $0.team_id == team.id }.map(\.id)
         if !ids.isEmpty {
@@ -99,9 +119,15 @@ struct OrgEventOperationsAdminView: View {
           seasonId: team.season_id,
           teamId: team.id
         )) ?? []
+        games += (try? await service.gamePlanSummaries(
+          organizationId: organizationId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )) ?? []
       }
       summaries = Dictionary(uniqueKeysWithValues: all.map { ($0.event_id, $0) })
       practicePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+      gamePlans = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
     } catch {
       errorText = "Administrative operation state could not be loaded."
     }
@@ -116,6 +142,9 @@ private struct OrgEventOperationInspectionView: View {
   @State private var detail: SDEventOperationDetailResponse?
   @State private var audit: [SDEventOperationAuditEntry] = []
   @State private var practicePlan: SDPracticePlanDetailResponse?
+  @State private var gamePlan: SDGamePlanDetailResponse?
+  @State private var gameHistory: [SDGamePlanSnapshot] = []
+  @State private var gameRuleProfiles: [SDGameRuleProfile] = []
   @State private var practiceTemplates: [SDPracticePlanTemplate] = []
   @State private var organizationTemplateName = ""
   @State private var selectedTemplateId: UUID?
@@ -124,6 +153,8 @@ private struct OrgEventOperationInspectionView: View {
   @State private var correctionStatus: SDEventAttendanceStatus = .present
   @State private var correctionReason = ""
   @State private var reopenReason = ""
+  @State private var showGameResultEditor = false
+  @State private var showGameRuleEditor = false
   @State private var errorText: String?
 
   var body: some View {
@@ -205,6 +236,43 @@ private struct OrgEventOperationInspectionView: View {
           }.disabled(organizationTemplateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
+      if event.event_type == .game {
+        Section("Game plan inspection") {
+          Text("Plan status: \(gamePlan?.plan?.status.label ?? "No Plan")")
+          Text("Lineup mode: \(gamePlan?.plan?.lineup_mode.label ?? "Not selected")")
+          Text("Readiness: \(gamePlan?.validation?.blocking_errors.count ?? 0) blocking, \(gamePlan?.validation?.readiness_warnings.count ?? 0) warning(s)")
+          Text("\(gamePlan?.batting_order?.count ?? 0) hitters • \(gamePlan?.validation?.eh_count ?? 0) EH • \(gamePlan?.defense?.count ?? 0) defensive assignments")
+          if let result = gamePlan?.result {
+            Text(result.team_score.flatMap { team in result.opponent_score.map { "Result: \(team)–\($0) • \(result.outcome.capitalized)" } } ?? "Result recorded without confirmed score")
+            Button("Correct Result with Reason") { showGameResultEditor = true }
+          }
+          if gamePlan?.plan?.status == .completed {
+            TextField("Required game reopen reason", text: $reopenReason, axis: .vertical)
+            Button("Reopen Completed Game Plan") { reopenGamePlan() }
+              .disabled(reopenReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          }
+        }
+        Section("Rule profile inspection") {
+          if gameRuleProfiles.isEmpty { Text("No scoped rule profiles are available.") }
+          ForEach(gameRuleProfiles) { profile in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(profile.name)
+              Text("\(ruleScope(profile)) • \(profile.innings.map { "\($0) innings" } ?? "Innings advisory") • \(profile.maximum_eh.map { "Up to \($0) EH" } ?? "No EH cap")")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+          }
+          Button("Create Scoped Rule Profile") { showGameRuleEditor = true }
+        }
+        Section("Game-plan history") {
+          if gameHistory.isEmpty { Text("No preserved revisions are available.") }
+          ForEach(gameHistory.prefix(12)) { snapshot in
+            VStack(alignment: .leading, spacing: 2) {
+              Text("\(snapshot.snapshot_type.capitalized) • Version \(snapshot.plan_version)")
+              Text(snapshot.created_at).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+          }
+        }
+      }
       Section("Audit history") {
         if audit.isEmpty { Text("No audit entries available.") }
         ForEach(audit) { entry in
@@ -220,6 +288,12 @@ private struct OrgEventOperationInspectionView: View {
     .navigationTitle("Operation Review")
     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
     .task { await reload() }
+    .sheet(isPresented: $showGameResultEditor) {
+      GameResultEditorSheet(result: gamePlan?.result) { data in mutateGame("record_game_result", data: data) }
+    }
+    .sheet(isPresented: $showGameRuleEditor) {
+      GameRuleProfileEditorSheet(event: event) { data in mutateGame("create_rule_profile", data: data) }
+    }
     .alert("Administrative Correction", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
@@ -249,6 +323,16 @@ private struct OrgEventOperationInspectionView: View {
           eventId: event.id,
           teamId: event.team_id,
           includeArchived: true
+        )) ?? []
+      }
+      if event.event_type == .game {
+        gamePlan = try? await service.gamePlan(organizationId: event.organization_id, eventId: event.id)
+        gameHistory = (try? await service.gamePlanHistory(organizationId: event.organization_id, eventId: event.id)) ?? []
+        gameRuleProfiles = (try? await service.gameRuleProfiles(
+          organizationId: event.organization_id,
+          eventId: event.id,
+          teamId: event.team_id,
+          seasonId: event.season_id
         )) ?? []
       }
       if detail?.operation != nil {
@@ -309,6 +393,45 @@ private struct OrgEventOperationInspectionView: View {
         await reload()
       } catch { errorText = "The completed practice could not be reopened. Refresh and verify operation state." }
     }
+  }
+
+  private func reopenGamePlan() {
+    guard let service = appState.supabase else { return }
+    Task {
+      do {
+        _ = try await service.mutateGamePlan(
+          action: "reopen_completed_game",
+          organizationId: event.organization_id,
+          eventId: event.id,
+          data: ["reason": .string(reopenReason)]
+        )
+        reopenReason = ""
+        await reload()
+      } catch { errorText = "The completed game could not be reopened. Reopen the event operation first, then refresh." }
+    }
+  }
+
+  private func mutateGame(_ action: String, data: [String: SDJSONValue]) {
+    guard let service = appState.supabase else { return }
+    Task {
+      do {
+        _ = try await service.mutateGamePlan(
+          action: action,
+          organizationId: event.organization_id,
+          eventId: event.id,
+          data: data
+        )
+        await reload()
+      } catch { errorText = "The game-plan correction was rejected. Refresh and verify authorization and current state." }
+    }
+  }
+
+  private func ruleScope(_ profile: SDGameRuleProfile) -> String {
+    if profile.event_id != nil { return "Game" }
+    if profile.tournament_event_id != nil { return "Tournament" }
+    if profile.team_id != nil { return "Team" }
+    if profile.season_id != nil { return "Season" }
+    return "Organization"
   }
 
   private func mutateTemplate(_ action: String, template: SDPracticePlanTemplate) {

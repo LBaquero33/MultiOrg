@@ -258,6 +258,22 @@ struct ParentHomeView: View {
                       Label("Bring \(item.quantity)× \(item.name)", systemImage: "shippingbox")
                     }
                   }
+                  if let game = mission.gamePlan, let plan = game.plan {
+                    Text("Game plan: \(plan.status.label) • \(plan.lineup_mode.label)").font(HP.Font.callout.weight(.semibold))
+                    ForEach(game.batting_order ?? []) { entry in
+                      Text("\(mission.child.displayName): batting \(entry.batting_slot.map { "#\($0)" } ?? "bench") • \(entry.offensive_role.label)")
+                    }
+                    ForEach(game.defense ?? []) { assignment in
+                      Text("\(assignment.inning_number == 0 ? "Starting defense" : "Inning \(assignment.inning_number)"): \(assignment.position_label?.sdNilIfBlank ?? assignment.position_code)")
+                    }
+                    ForEach(game.pitcher_catcher ?? []) { assignment in
+                      Text(assignment.role_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                    }
+                    if let result = game.result {
+                      Text(result.team_score.flatMap { team in result.opponent_score.map { "Final: \(team)–\($0)" } } ?? "Game completed")
+                    }
+                    ForEach(game.recaps ?? []) { recap in Text(recap.body) }
+                  }
                 }
                 .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                 if mission.id != missions.last?.id { Divider() }
@@ -422,7 +438,10 @@ struct ParentHomeView: View {
           let practicePlan = event.event_type == .practice
             ? try? await supabase.practicePlan(organizationId: organizationId, eventId: event.id, playerId: child.id)
             : nil
-          missions.append(ParentTodayMission(child: child, event: event, detail: detail, practicePlan: practicePlan))
+          let gamePlan = event.event_type == .game
+            ? try? await supabase.gamePlan(organizationId: organizationId, eventId: event.id, playerId: child.id)
+            : nil
+          missions.append(ParentTodayMission(child: child, event: event, detail: detail, practicePlan: practicePlan, gamePlan: gamePlan))
         }
       } catch {
         // One child failing must not hide another child's verified missions.
@@ -478,6 +497,7 @@ private struct ParentTodayMission: Identifiable {
   let event: SDTeamEvent
   let detail: SDEventOperationDetailResponse
   let practicePlan: SDPracticePlanDetailResponse?
+  let gamePlan: SDGamePlanDetailResponse?
   var id: String { "\(child.id.uuidString):\(event.id.uuidString)" }
   var participant: SDEventOperationParticipant? {
     detail.participants?.first(where: { $0.user_id == child.id })

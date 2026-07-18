@@ -460,3 +460,324 @@ struct SDPracticePlanHistoryResponse: Decodable, Sendable {
   let plan: SDPracticePlan
   let snapshots: [SDPracticePlanSnapshot]
 }
+
+enum SDGamePlanStatus: String, Codable, CaseIterable, Identifiable, Sendable {
+  case draft, ready, published, active, completed, archived
+  var id: String { rawValue }
+  var label: String { rawValue.capitalized }
+}
+
+enum SDGameLineupMode: String, Codable, CaseIterable, Identifiable, Sendable {
+  case standardNine = "standard_nine"
+  case standardNineWithDH = "standard_nine_with_dh"
+  case standardNineWithOneEH = "standard_nine_with_one_eh"
+  case standardNineWithMultipleEH = "standard_nine_with_multiple_eh"
+  case continuousBattingOrder = "continuous_batting_order"
+  case batEntireAvailableRoster = "bat_entire_available_roster"
+  case custom
+
+  var id: String { rawValue }
+  var label: String {
+    switch self {
+    case .standardNine: "Standard Nine"
+    case .standardNineWithDH: "Standard Nine + DH"
+    case .standardNineWithOneEH: "Standard Nine + One EH"
+    case .standardNineWithMultipleEH: "Standard Nine + Multiple EH"
+    case .continuousBattingOrder: "Continuous Batting Order"
+    case .batEntireAvailableRoster: "Bat Entire Available Roster"
+    case .custom: "Custom"
+    }
+  }
+
+  var initializationAction: String {
+    switch self {
+    case .standardNine: "initialize_standard_nine"
+    case .standardNineWithDH: "initialize_dh"
+    case .standardNineWithOneEH: "initialize_one_eh"
+    case .standardNineWithMultipleEH: "initialize_multiple_eh"
+    case .continuousBattingOrder: "initialize_continuous_order"
+    case .batEntireAvailableRoster: "initialize_bat_entire_roster"
+    case .custom: "reconcile_batting_order"
+    }
+  }
+}
+
+enum SDGameOffensiveRole: String, Codable, CaseIterable, Identifiable, Sendable {
+  case hitter, eh, dh
+  case pitcherBatting = "pitcher_batting"
+  case offensiveOnly = "offensive_only"
+  case substitute
+  case courtesyRunner = "courtesy_runner"
+  case bench, custom
+  var id: String { rawValue }
+  var label: String {
+    switch self {
+    case .eh: "Extra Hitter"
+    case .dh: "Designated Hitter"
+    default: rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+  }
+}
+
+struct SDGamePlan: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let team_id: UUID
+  let event_id: UUID
+  let event_operation_id: UUID?
+  let title: String
+  let status: SDGamePlanStatus
+  let lineup_mode: SDGameLineupMode
+  let rule_profile_id: UUID?
+  let scheduled_innings: Int?
+  let batting_order_locked: Bool
+  let defense_plan_locked: Bool
+  let is_primary: Bool
+  let published_version: Int?
+  let published_at: String?
+  let published_by: UUID?
+  let current_snapshot_id: UUID?
+  let internal_strategy_notes: String?
+  let player_reminders: String?
+  let parent_reminders: String?
+  let archived_at: String?
+  let version: Int
+  let created_at: String?
+  let updated_at: String?
+}
+
+struct SDGameRuleProfile: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID?
+  let team_id: UUID?
+  let tournament_event_id: UUID?
+  let event_id: UUID?
+  let name: String
+  let innings: Int?
+  let minimum_batting_slots: Int?
+  let maximum_batting_slots: Int?
+  let continuous_batting_order_allowed: Bool?
+  let bat_entire_roster_allowed: Bool?
+  let dh_allowed: Bool?
+  let eh_allowed: Bool?
+  let maximum_eh: Int?
+  let defensive_only_players_allowed: Bool?
+  let offensive_only_players_allowed: Bool?
+  let reentry_policy: String?
+  let courtesy_runner_policy: String?
+  let pitcher_reentry_policy: String?
+  let defensive_player_count: Int?
+  let required_positions: [String]
+  let custom_position_labels: [String]
+  let notes: String?
+  let active: Bool
+  let version: Int
+}
+
+struct SDGameEligibility: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let player_id: UUID
+  let status: String
+  let exclusion_reason: String?
+  let source_participant_version: Int?
+  let version: Int
+}
+
+struct SDGameBattingEntry: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let player_id: UUID
+  let batting_slot: Int?
+  let offensive_role: SDGameOffensiveRole
+  let role_label: String?
+  let active: Bool
+  let starter: Bool
+  let eligible: Bool
+  let source: String
+  let notes: String?
+  let version: Int
+}
+
+struct SDGameDefensiveAssignment: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let player_id: UUID
+  let inning_number: Int
+  let inning_half: String
+  let position_code: String
+  let position_label: String?
+  let assignment_type: String
+  let starter: Bool
+  let planned: Bool
+  let active: Bool
+  let notes: String?
+  let version: Int
+}
+
+struct SDGamePitcherCatcherPlan: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let player_id: UUID
+  let role_type: String
+  let sequence_index: Int
+  let planned_start_inning: Int?
+  let planned_end_inning: Int?
+  let manual_pitch_limit: Int?
+  let pairing_player_id: UUID?
+  let notes: String?
+  let status: String
+  let version: Int
+}
+
+struct SDGameStaffAssignment: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let staff_user_id: UUID
+  let responsibility_code: String
+  let responsibility_label: String?
+  let notes: String?
+  let active: Bool
+  let version: Int
+}
+
+struct SDGameResult: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let team_score: Int?
+  let opponent_score: Int?
+  let outcome: String
+  let innings_played: Int?
+  let ended_early: Bool
+  let end_reason: String?
+  let result_status: String
+  let result_notes: String?
+  let recorded_by: UUID?
+  let recorded_at: String?
+  let verified_by: UUID?
+  let verified_at: String?
+  let version: Int
+}
+
+struct SDGameRecap: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let visibility: String
+  let subject_player_id: UUID?
+  let body: String
+  let follow_up_items: [String]
+  let published_at: String?
+  let version: Int
+}
+
+struct SDGameValidationFinding: Identifiable, Codable, Equatable, Sendable {
+  let code: String
+  let severity: String
+  let actual: Int?
+  let expected: Int?
+  var id: String { "\(severity):\(code)" }
+  var label: String { code.replacingOccurrences(of: "_", with: " ").capitalized }
+}
+
+struct SDGamePlanValidation: Codable, Equatable, Sendable {
+  let blocking_errors: [SDGameValidationFinding]
+  let readiness_warnings: [SDGameValidationFinding]
+  let notices: [SDGameValidationFinding]
+  let valid: Bool
+  let batting_count: Int
+  let eh_count: Int
+}
+
+struct SDGamePlanDetailResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDGamePlan?
+  let rule_profile: SDGameRuleProfile?
+  let eligibility: [SDGameEligibility]?
+  let batting_order: [SDGameBattingEntry]?
+  let defense: [SDGameDefensiveAssignment]?
+  let pitcher_catcher: [SDGamePitcherCatcherPlan]?
+  let staff: [SDGameStaffAssignment]?
+  let recaps: [SDGameRecap]?
+  let result: SDGameResult?
+  let validation: SDGamePlanValidation?
+  let capabilities: [SDTeamCapability]?
+}
+
+struct SDGamePlanSnapshot: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let game_plan_id: UUID
+  let event_operation_id: UUID?
+  let snapshot_type: String
+  let plan_version: Int
+  let snapshot: [String: SDJSONValue]
+  let reason: String?
+  let created_by: UUID?
+  let created_at: String
+}
+
+struct SDGamePlanHistoryResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDGamePlan
+  let snapshots: [SDGamePlanSnapshot]
+}
+
+struct SDGamePlanSummary: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let organization_id: UUID
+  let season_id: UUID
+  let team_id: UUID
+  let event_id: UUID
+  let title: String
+  let status: SDGamePlanStatus
+  let lineup_mode: SDGameLineupMode
+  let version: Int
+  let published_version: Int?
+  let published_at: String?
+  let updated_at: String?
+}
+
+struct SDGamePlanSummaryListResponse: Decodable, Sendable {
+  let ok: Bool
+  let plans: [SDGamePlanSummary]
+}
+
+struct SDGamePriorPlan: Identifiable, Codable, Equatable, Sendable {
+  let id: UUID
+  let event_id: UUID
+  let title: String
+  let status: SDGamePlanStatus
+  let lineup_mode: SDGameLineupMode
+  let published_version: Int?
+  let updated_at: String?
+}
+
+struct SDGamePriorPlanListResponse: Decodable, Sendable {
+  let ok: Bool
+  let plans: [SDGamePriorPlan]
+}
+
+struct SDGameRuleProfileListResponse: Decodable, Sendable {
+  let ok: Bool
+  let rule_profiles: [SDGameRuleProfile]
+}
+
+struct SDGameMutationResponse: Decodable, Sendable {
+  let ok: Bool
+  let plan: SDGamePlan?
+  let snapshot: SDGamePlanSnapshot?
+  let started_snapshot: SDGamePlanSnapshot?
+  let completion_snapshot: SDGamePlanSnapshot?
+  let result: SDGameResult?
+  let batting_entry_id: UUID?
+  let defensive_assignment_id: UUID?
+  let pitcher_catcher_id: UUID?
+  let staff_assignment_id: UUID?
+  let adjustment_id: UUID?
+  let recap_id: UUID?
+  let rule_profile_id: UUID?
+  let initialized: Bool?
+  let replayed: Bool?
+  let capabilities: [SDTeamCapability]?
+}
