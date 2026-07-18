@@ -3982,6 +3982,27 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  func organizationReport(
+    organizationId: UUID,
+    reportType: String,
+    filters: [String: String] = [:]
+  ) async throws -> SDOrganizationReportExport {
+    struct Request: Encodable {
+      let action = "export"
+      let organization_id: String
+      let report_type: String
+      let filters: [String: String]
+    }
+    return try await invokeAuthenticatedFunction(
+      "organization-analytics",
+      body: Request(
+        organization_id: organizationId.uuidString.lowercased(),
+        report_type: reportType,
+        filters: filters
+      )
+    )
+  }
+
   // MARK: - Read-only organization finance dashboard
 
   private func invokeFinanceDashboard<Request: Encodable, Response: Decodable>(

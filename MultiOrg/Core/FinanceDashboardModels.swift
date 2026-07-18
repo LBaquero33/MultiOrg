@@ -18,6 +18,13 @@ struct SDOrganizationAnalyticsResponse: Decodable, Sendable {
   let definitions: [SDMetricDefinition]
 }
 
+struct SDOrganizationReportExport: Decodable, Equatable, Sendable {
+  let filename: String
+  let content_type: String
+  let csv: String
+  let as_of: String
+}
+
 struct SDOrganizationAnalytics: Decodable, Equatable, Sendable {
   let as_of: String
   let financial: SDFinancialAnalytics

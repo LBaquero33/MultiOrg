@@ -142,6 +142,8 @@ struct TeamOperationsFoundationTests {
     #expect(admin.contains("case communication = \"Communication\""))
     #expect(admin.contains("case registration = \"Registration\""))
     #expect(admin.contains("case analytics = \"Analytics\""))
+    #expect(admin.contains("Report center"))
+    #expect(admin.contains("Share CSV"))
   }
 
   @Test("organization operations migrations preserve isolation and provider safety")

@@ -3147,6 +3147,11 @@ private struct AdminInputChrome: ViewModifier {
 
 private struct OrganizationOperationsAdminView: View {
   enum Section { case communication, registration, analytics }
+  private struct ReportType: Identifiable {
+    let key: String
+    let title: String
+    var id: String { key }
+  }
 
   let section: Section
   let organizationId: UUID
@@ -3157,6 +3162,7 @@ private struct OrganizationOperationsAdminView: View {
   @State private var applications: [SDRegistrationApplication] = []
   @State private var analytics: SDOrganizationAnalytics?
   @State private var definitions: [SDMetricDefinition] = []
+  @State private var reportExport: SDOrganizationReportExport?
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var statusText: String?
@@ -3307,6 +3313,42 @@ private struct OrganizationOperationsAdminView: View {
 
   @ViewBuilder private var analyticsContent: some View {
     if let analytics {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HStack {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              Text("Report center").font(HP.Font.headline)
+              Text("Generate a permission-scoped CSV from authoritative organization data.")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+            Spacer()
+            Menu {
+              ForEach(Self.reportTypes) { report in
+                Button(report.title) { Task { await generateReport(report.key) } }
+              }
+            } label: {
+              Label("Generate", systemImage: "square.and.arrow.down")
+                .frame(minHeight: 44)
+            }
+            .disabled(isLoading)
+          }
+          if let reportExport {
+            Divider()
+            HStack {
+              VStack(alignment: .leading, spacing: HP.Space.xs) {
+                Text(reportExport.filename).font(HP.Font.callout.weight(.semibold))
+                Text("Generated as of \(reportExport.as_of)")
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              ShareLink(item: reportExport.csv) {
+                Label("Share CSV", systemImage: "square.and.arrow.up")
+                  .frame(minHeight: 44)
+              }
+            }
+          }
+        }
+      }
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: HP.Space.sm)], spacing: HP.Space.sm) {
         metricCard("Collected", value: SDMoney(minorUnits: analytics.financial.collected_cents, currency: "usd").formatted(), systemImage: "dollarsign.circle")
         metricCard("Receivables", value: SDMoney(minorUnits: analytics.financial.outstanding_cents, currency: "usd").formatted(), systemImage: "clock.badge.exclamationmark")
@@ -3363,6 +3405,23 @@ private struct OrganizationOperationsAdminView: View {
       .formatted(.percent.precision(.fractionLength(0)))
   }
 
+  private static let reportTypes: [ReportType] = [
+    ReportType(key: "financial_summary", title: "Financial summary"),
+    ReportType(key: "receivables_aging", title: "Receivables aging"),
+    ReportType(key: "revenue_detail", title: "Revenue detail"),
+    ReportType(key: "expense_detail", title: "Expense detail"),
+    ReportType(key: "registration_status", title: "Registration status"),
+    ReportType(key: "team_roster", title: "Team roster"),
+    ReportType(key: "attendance", title: "Attendance"),
+    ReportType(key: "availability", title: "Availability"),
+    ReportType(key: "schedule", title: "Schedule"),
+    ReportType(key: "practice_completion", title: "Practice completion"),
+    ReportType(key: "game_completion", title: "Game completion"),
+    ReportType(key: "communication_delivery", title: "Communication delivery"),
+    ReportType(key: "missing_requirements", title: "Missing requirements"),
+    ReportType(key: "season_summary", title: "Season summary")
+  ]
+
   @MainActor private func load() async {
     guard let service = appState.supabase else {
       errorText = "Connect to Home Plate to load organization operations."
@@ -3395,6 +3454,19 @@ private struct OrganizationOperationsAdminView: View {
     do {
       try await service.dryRunOperationalNotificationIntents(organizationId: organizationId)
       statusText = "Dry run completed. No notifications were sent or queued."
+    } catch { errorText = error.localizedDescription }
+    isLoading = false
+  }
+
+  @MainActor private func generateReport(_ reportType: String) async {
+    guard let service = appState.supabase else { return }
+    isLoading = true; errorText = nil; statusText = nil
+    do {
+      reportExport = try await service.organizationReport(
+        organizationId: organizationId,
+        reportType: reportType
+      )
+      statusText = "Report generated. Review and share the CSV below."
     } catch { errorText = error.localizedDescription }
     isLoading = false
   }
