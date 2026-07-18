@@ -171,7 +171,7 @@ begin
     if invoice.id is null or item_amount<=0 or item_amount>invoice.amount_remaining_cents or allocated+item_amount>p_amount_cents then raise exception using errcode='22023',message='invalid_payment_allocation'; end if;
     insert into public.sd_payment_applications(org_id,payment_id,invoice_id,amount_cents,applied_by) values(p_org_id,payment.id,invoice.id,item_amount,p_actor_id);
     update public.sd_invoices set amount_paid_cents=amount_paid_cents+item_amount,amount_remaining_cents=amount_remaining_cents-item_amount,status=case when amount_remaining_cents-item_amount=0 then 'paid' else 'partially_paid' end,paid_at=case when amount_remaining_cents-item_amount=0 then pg_catalog.now() else paid_at end,version=version+1 where id=invoice.id;
-    if invoice.registration_application_id is not null then update public.sd_registration_applications set balance_cents=pg_catalog.greatest(balance_cents-item_amount,0),fee_status=case when pg_catalog.greatest(balance_cents-item_amount,0)=0 then 'paid' else 'partial' end,version=version+1,updated_at=pg_catalog.now() where id=invoice.registration_application_id and organization_id=p_org_id; end if;
+    if invoice.registration_application_id is not null then update public.sd_registration_applications set balance_cents=greatest(balance_cents-item_amount,0),fee_status=case when greatest(balance_cents-item_amount,0)=0 then 'paid' else 'partial' end,version=version+1,updated_at=pg_catalog.now() where id=invoice.registration_application_id and organization_id=p_org_id; end if;
     allocated:=allocated+item_amount;
   end loop;
   update public.sd_payments set unapplied_cents=p_amount_cents-allocated where id=payment.id returning * into payment;
@@ -189,8 +189,8 @@ begin
   if invoice.id is null or invoice.version<>p_expected_version then raise exception using errcode='P0001',message='stale_invoice'; end if;
   next_status:=case p_action when 'issue' then 'issued' when 'void' then 'void' when 'cancel' then 'cancelled' when 'write_off' then 'written_off' else null end;
   if next_status is null or (p_action='issue' and invoice.status<>'draft') or (p_action<>'issue' and invoice.status not in ('issued','partially_paid','overdue')) then raise exception using errcode='P0001',message='invalid_invoice_transition'; end if;
-  if p_action in ('void','cancel','write_off') and pg_catalog.btrim(pg_catalog.coalesce(p_reason,''))='' then raise exception using errcode='22023',message='financial_reason_required'; end if;
-  update public.sd_invoices set status=next_status,issue_date=case when p_action='issue' then pg_catalog.current_date else issue_date end,sent_at=case when p_action='issue' then pg_catalog.now() else sent_at end,voided_at=case when p_action='void' then pg_catalog.now() else voided_at end,cancelled_at=case when p_action='cancel' then pg_catalog.now() else cancelled_at end,written_off_at=case when p_action='write_off' then pg_catalog.now() else written_off_at end,written_off_cents=case when p_action='write_off' then amount_remaining_cents else written_off_cents end,amount_remaining_cents=case when p_action='write_off' then 0 else amount_remaining_cents end,version=version+1 where id=invoice.id returning * into invoice;
+  if p_action in ('void','cancel','write_off') and pg_catalog.btrim(coalesce(p_reason,''))='' then raise exception using errcode='22023',message='financial_reason_required'; end if;
+  update public.sd_invoices set status=next_status,issue_date=case when p_action='issue' then current_date else issue_date end,sent_at=case when p_action='issue' then pg_catalog.now() else sent_at end,voided_at=case when p_action='void' then pg_catalog.now() else voided_at end,cancelled_at=case when p_action='cancel' then pg_catalog.now() else cancelled_at end,written_off_at=case when p_action='write_off' then pg_catalog.now() else written_off_at end,written_off_cents=case when p_action='write_off' then amount_remaining_cents else written_off_cents end,amount_remaining_cents=case when p_action='write_off' then 0 else amount_remaining_cents end,version=version+1 where id=invoice.id returning * into invoice;
   insert into public.sd_financial_audit_logs(org_id,actor_id,action,target_type,target_id,request_id,amount_cents,details) values(p_org_id,p_actor_id,p_action||'_invoice','invoice',invoice.id,p_request_id,invoice.total_cents,pg_catalog.jsonb_build_object('reason',p_reason));
   if p_action='issue' then insert into public.sd_financial_notification_intents(org_id,customer_account_id,invoice_id,intent_type,deduplication_key,payload,created_by) values(p_org_id,invoice.customer_account_id,invoice.id,'invoice_issued',p_request_id::text||':invoice_issued',pg_catalog.jsonb_build_object('balance_cents',invoice.amount_remaining_cents,'due_date',invoice.due_date),p_actor_id); end if;
   return pg_catalog.jsonb_build_object('invoice',pg_catalog.to_jsonb(invoice));
@@ -200,12 +200,12 @@ create or replace function public.sd_issue_financial_adjustment(p_org_id uuid,p_
 declare payment public.sd_payments%rowtype; refund public.sd_refunds%rowtype; credit public.sd_account_credits%rowtype; account public.sd_customer_accounts%rowtype; already_adjusted integer:=0; adjustment_status text;
 begin
   if not exists(select 1 from public.sd_org_memberships where org_id=p_org_id and user_id=p_actor_id and status='active' and role in ('owner','admin')) then raise exception using errcode='42501',message='financial_adjustment_required'; end if;
-  if p_amount_cents<=0 or pg_catalog.btrim(pg_catalog.coalesce(p_reason,''))='' then raise exception using errcode='22023',message='financial_reason_and_amount_required'; end if;
+  if p_amount_cents<=0 or pg_catalog.btrim(coalesce(p_reason,''))='' then raise exception using errcode='22023',message='financial_reason_and_amount_required'; end if;
   if exists(select 1 from public.sd_financial_audit_logs where org_id=p_org_id and request_id=p_request_id and action=p_action) then return pg_catalog.jsonb_build_object('replayed',true,'target_id',(select target_id from public.sd_financial_audit_logs where org_id=p_org_id and request_id=p_request_id and action=p_action)); end if;
   if p_action='issue_refund' then
     select * into payment from public.sd_payments where id=p_target_id and org_id=p_org_id and financial_layer='organization_customer' and status in ('succeeded','paid') for update;
     if payment.id is null then raise exception using errcode='P0002',message='payment_not_found'; end if;
-    select pg_catalog.coalesce(sum(amount_cents),0) into already_adjusted from public.sd_refunds where payment_id=payment.id and status in ('pending','confirmed','succeeded');
+    select coalesce(sum(amount_cents),0) into already_adjusted from public.sd_refunds where payment_id=payment.id and status in ('pending','confirmed','succeeded');
     if already_adjusted+p_amount_cents>payment.amount_cents then raise exception using errcode='22023',message='refund_exceeds_payment'; end if;
     adjustment_status:=case when payment.provider='manual' then 'confirmed' else 'pending' end;
     insert into public.sd_refunds(org_id,payment_id,amount_cents,status,reason,requested_by,financial_layer,confirmed_at) values(p_org_id,payment.id,p_amount_cents,adjustment_status,p_reason,p_actor_id,'organization_customer',case when adjustment_status='confirmed' then pg_catalog.now() else null end) returning * into refund;
@@ -234,16 +234,16 @@ begin
   return pg_catalog.to_jsonb(expense);
 end $$;
 
-create or replace function public.sd_generate_financial_reminder_intents(p_org_id uuid,p_actor_id uuid,p_as_of date default pg_catalog.current_date,p_dry_run boolean default true) returns jsonb language plpgsql security definer set search_path='' as $$
+create or replace function public.sd_generate_financial_reminder_intents(p_org_id uuid,p_actor_id uuid,p_as_of date default current_date,p_dry_run boolean default true) returns jsonb language plpgsql security definer set search_path='' as $$
 declare policy public.sd_financial_reminder_policies%rowtype; invoice record; generated integer:=0; reminder_type text; day_delta integer;
 begin
   if not exists(select 1 from public.sd_org_memberships where org_id=p_org_id and user_id=p_actor_id and status='active' and role in ('owner','admin')) then raise exception using errcode='42501',message='manage_notification_delivery_required'; end if;
   select * into policy from public.sd_financial_reminder_policies where org_id=p_org_id;
-  if pg_catalog.coalesce(policy.paused,false) then return pg_catalog.jsonb_build_object('dry_run',p_dry_run,'generated_count',0,'paused',true); end if;
+  if coalesce(policy.paused,false) then return pg_catalog.jsonb_build_object('dry_run',p_dry_run,'generated_count',0,'paused',true); end if;
   for invoice in select i.* from public.sd_invoices i where i.org_id=p_org_id and i.financial_layer='organization_customer' and i.status in ('issued','partially_paid','overdue') and i.amount_remaining_cents>0 and i.due_date is not null loop
     day_delta:=invoice.due_date-p_as_of;
-    reminder_type:=case when day_delta>0 and day_delta=any(pg_catalog.coalesce(policy.days_before_due,'{7,1}')) then 'upcoming_due' when day_delta=0 and pg_catalog.coalesce(policy.remind_on_due_date,true) then 'payment_due' when day_delta<0 and -day_delta=any(pg_catalog.coalesce(policy.days_after_due,'{1,7,14}')) then 'invoice_overdue' else null end;
-    if reminder_type is not null and (select pg_catalog.count(*) from public.sd_financial_notification_intents n where n.invoice_id=invoice.id and n.intent_type in ('upcoming_due','payment_due','invoice_overdue'))<pg_catalog.coalesce(policy.maximum_reminders,6) then
+    reminder_type:=case when day_delta>0 and day_delta=any(coalesce(policy.days_before_due,'{7,1}')) then 'upcoming_due' when day_delta=0 and coalesce(policy.remind_on_due_date,true) then 'payment_due' when day_delta<0 and -day_delta=any(coalesce(policy.days_after_due,'{1,7,14}')) then 'invoice_overdue' else null end;
+    if reminder_type is not null and (select pg_catalog.count(*) from public.sd_financial_notification_intents n where n.invoice_id=invoice.id and n.intent_type in ('upcoming_due','payment_due','invoice_overdue'))<coalesce(policy.maximum_reminders,6) then
       generated:=generated+1;
       if not p_dry_run then
         insert into public.sd_financial_notification_intents(org_id,customer_account_id,invoice_id,intent_type,deduplication_key,payload,created_by) values(p_org_id,invoice.customer_account_id,invoice.id,reminder_type,invoice.id::text||':'||reminder_type||':'||p_as_of::text,pg_catalog.jsonb_build_object('invoice_id',invoice.id,'balance_cents',invoice.amount_remaining_cents,'due_date',invoice.due_date),p_actor_id) on conflict do nothing;

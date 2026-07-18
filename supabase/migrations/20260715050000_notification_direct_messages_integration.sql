@@ -549,7 +549,7 @@ begin
     p_through_message_id
   )
   on conflict (channel_id, user_id) do update
-  set last_read_at = pg_catalog.greatest(
+  set last_read_at = greatest(
     coalesce(public.sd_chat_memberships.last_read_at, '-infinity'::timestamptz),
     excluded.last_read_at
   ),

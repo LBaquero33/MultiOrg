@@ -809,7 +809,7 @@ Deno.test("Phase 9C read synchronization advances an exact boundary and leaves n
       "add column if not exists last_read_message_id uuid",
       "order by message.created_at desc, message.id desc",
       "message.id as message_id",
-      "set last_read_at = pg_catalog.greatest",
+      "set last_read_at = greatest",
       "last_read_message_id = case",
       "excluded.last_read_at > public.sd_chat_memberships.last_read_at",
       "public.sd_chat_memberships.last_read_message_id is null",

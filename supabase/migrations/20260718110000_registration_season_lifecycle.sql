@@ -137,7 +137,7 @@ begin
   if application.state<>'draft' or application.version<>p_expected_version then raise exception using errcode='P0001',message='stale_registration'; end if;
   select * into offering from public.sd_registration_offerings where id=application.offering_id and organization_id=p_organization_id for update;
   if offering.state<>'active' or pg_catalog.now() not between offering.opens_at and offering.closes_at then raise exception using errcode='P0001',message='registration_closed'; end if;
-  select pg_catalog.count(*) into missing_count from public.sd_registration_offering_requirements x left join public.sd_registration_requirement_responses r on r.application_id=application.id and r.requirement_template_id=x.requirement_template_id where x.offering_id=offering.id and x.required and pg_catalog.coalesce(r.status,'missing')<>'accepted';
+  select pg_catalog.count(*) into missing_count from public.sd_registration_offering_requirements x left join public.sd_registration_requirement_responses r on r.application_id=application.id and r.requirement_template_id=x.requirement_template_id where x.offering_id=offering.id and x.required and coalesce(r.status,'missing')<>'accepted';
   if missing_count>0 then raise exception using errcode='P0001',message='registration_requirements_missing'; end if;
   select pg_catalog.count(*) into approved_count from public.sd_registration_applications where offering_id=offering.id and state in ('approved','assigned','completed');
   if offering.capacity is not null and approved_count>=offering.capacity then
@@ -163,7 +163,7 @@ begin
   select * into application from public.sd_registration_applications where id=p_application_id and organization_id=p_organization_id for update;
   if application.id is null or application.version<>p_expected_version then raise exception using errcode='P0001',message='stale_registration'; end if;
   if application.state not in ('submitted','under_review','action_required','waitlisted') then raise exception using errcode='P0001',message='invalid_registration_transition'; end if;
-  if next_state='approved' and exists(select 1 from public.sd_registration_offering_requirements x left join public.sd_registration_requirement_responses r on r.application_id=application.id and r.requirement_template_id=x.requirement_template_id where x.offering_id=application.offering_id and x.required and pg_catalog.coalesce(r.status,'missing')<>'accepted') then raise exception using errcode='P0001',message='registration_requirements_missing'; end if;
+  if next_state='approved' and exists(select 1 from public.sd_registration_offering_requirements x left join public.sd_registration_requirement_responses r on r.application_id=application.id and r.requirement_template_id=x.requirement_template_id where x.offering_id=application.offering_id and x.required and coalesce(r.status,'missing')<>'accepted') then raise exception using errcode='P0001',message='registration_requirements_missing'; end if;
   prior_state:=application.state;
   update public.sd_registration_applications set state=next_state,reviewer_notes=p_notes,reviewed_at=pg_catalog.now(),version=version+1,updated_at=pg_catalog.now() where id=application.id returning * into application;
   if next_state='waitlisted' then insert into public.sd_registration_waitlist(organization_id,offering_id,application_id) values(p_organization_id,application.offering_id,application.id) on conflict(application_id) do update set status='waiting'; end if;
@@ -199,12 +199,12 @@ begin
   select * into plan from public.sd_season_rollover_plans where id=p_plan_id and organization_id=p_organization_id for update;
   if plan.id is null or plan.state<>'confirmed' then raise exception using errcode='P0001',message='confirmed_rollover_plan_required'; end if;
   insert into public.sd_seasons(organization_id,name,start_date,end_date,status,is_default,created_by,updated_by) values(p_organization_id,plan.target_name,plan.target_start_date,plan.target_end_date,'planning',false,p_actor_id,p_actor_id) returning * into target;
-  if pg_catalog.coalesce((plan.copy_options->>'teams')::boolean,false) then
+  if coalesce((plan.copy_options->>'teams')::boolean,false) then
     insert into public.sd_teams(org_id,season_id,name,color_hex,description,is_active,sort_order,created_by)
       select p_organization_id,target.id,pg_catalog.left(t.name||' · '||target.name,120),t.color_hex,t.description,true,t.sort_order,p_actor_id from public.sd_teams t where t.org_id=p_organization_id and t.season_id=plan.source_season_id;
     get diagnostics team_count=row_count;
   end if;
-  if pg_catalog.coalesce((plan.copy_options->>'coach_assignments')::boolean,false) and team_count>0 then
+  if coalesce((plan.copy_options->>'coach_assignments')::boolean,false) and team_count>0 then
     insert into public.sd_coach_team_assignments(coach_id,organization_id,season_id,team_id,is_primary,organization_wide_access,created_by,updated_by)
       select a.coach_id,p_organization_id,target.id,new_team.id,false,a.organization_wide_access,p_actor_id,p_actor_id from public.sd_coach_team_assignments a join public.sd_teams old_team on old_team.id=a.team_id join public.sd_teams new_team on new_team.org_id=p_organization_id and new_team.season_id=target.id and new_team.name=pg_catalog.left(old_team.name||' · '||target.name,120) where a.organization_id=p_organization_id and a.season_id=plan.source_season_id and a.active and a.ended_at is null;
     insert into public.sd_coach_team_responsibilities(assignment_id,responsibility,created_by)
@@ -217,12 +217,12 @@ begin
       where new_assignment.season_id=target.id
       on conflict do nothing;
   end if;
-  if pg_catalog.coalesce((plan.copy_options->>'offerings')::boolean,false) then
+  if coalesce((plan.copy_options->>'offerings')::boolean,false) then
     insert into public.sd_registration_offerings(organization_id,season_id,team_id,offering_type,name,description,opens_at,closes_at,capacity,waitlist_capacity,age_guidance,graduation_year_guidance,eligibility_notes,fee_cents,deposit_cents,installment_configuration,refund_policy,custom_questions,state,visibility,auto_assign_team,created_by,updated_by)
-      select p_organization_id,target.id,new_team.id,o.offering_type,o.name,o.description,pg_catalog.coalesce(target.start_date::timestamptz,pg_catalog.now()),pg_catalog.coalesce(target.end_date::timestamptz,pg_catalog.now()+interval '90 days'),o.capacity,o.waitlist_capacity,o.age_guidance,o.graduation_year_guidance,o.eligibility_notes,o.fee_cents,o.deposit_cents,o.installment_configuration,o.refund_policy,o.custom_questions,'draft',o.visibility,o.auto_assign_team,p_actor_id,p_actor_id from public.sd_registration_offerings o left join public.sd_teams old_team on old_team.id=o.team_id left join public.sd_teams new_team on new_team.org_id=p_organization_id and new_team.season_id=target.id and new_team.name=pg_catalog.left(old_team.name||' · '||target.name,120) where o.organization_id=p_organization_id and o.season_id=plan.source_season_id;
+      select p_organization_id,target.id,new_team.id,o.offering_type,o.name,o.description,coalesce(target.start_date::timestamptz,pg_catalog.now()),coalesce(target.end_date::timestamptz,pg_catalog.now()+interval '90 days'),o.capacity,o.waitlist_capacity,o.age_guidance,o.graduation_year_guidance,o.eligibility_notes,o.fee_cents,o.deposit_cents,o.installment_configuration,o.refund_policy,o.custom_questions,'draft',o.visibility,o.auto_assign_team,p_actor_id,p_actor_id from public.sd_registration_offerings o left join public.sd_teams old_team on old_team.id=o.team_id left join public.sd_teams new_team on new_team.org_id=p_organization_id and new_team.season_id=target.id and new_team.name=pg_catalog.left(old_team.name||' · '||target.name,120) where o.organization_id=p_organization_id and o.season_id=plan.source_season_id;
     get diagnostics offering_count=row_count;
   end if;
-  if pg_catalog.coalesce((plan.copy_options->>'requirements')::boolean,false) then
+  if coalesce((plan.copy_options->>'requirements')::boolean,false) then
     insert into public.sd_registration_requirement_templates(organization_id,season_id,name,requirement_type,version,content,expires_after_days,active,created_by,updated_by)
       select p_organization_id,target.id,pg_catalog.left(r.name||' · '||target.name,120),r.requirement_type,r.version,r.content,r.expires_after_days,true,p_actor_id,p_actor_id from public.sd_registration_requirement_templates r where r.organization_id=p_organization_id and (r.season_id=plan.source_season_id or r.season_id is null);
     get diagnostics requirement_count=row_count;

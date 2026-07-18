@@ -512,7 +512,7 @@ begin
       expected_arrival_at = nullif(p_payload->>'expected_arrival_at', '')::timestamptz,
       expected_departure_at = nullif(p_payload->>'expected_departure_at', '')::timestamptz,
       availability_submitted_by = p_actor_id,
-      availability_submitted_at = pg_catalog.coalesce(availability_submitted_at, v_now),
+      availability_submitted_at = coalesce(availability_submitted_at, v_now),
       availability_last_changed_at = v_now,
       version = version + 1
     where id = v_participant.id
@@ -606,8 +606,8 @@ begin
         v_operation.id, p_organization_id, v_expected + 1,
         pg_catalog.jsonb_build_object(
           'operation', pg_catalog.to_jsonb(v_operation),
-          'participants', (select pg_catalog.coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(p)), '[]'::jsonb) from public.sd_event_operation_participants p where p.event_operation_id = v_operation.id),
-          'checklist', (select pg_catalog.coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(c)), '[]'::jsonb) from public.sd_event_operation_checklist_items c where c.event_operation_id = v_operation.id),
+          'participants', (select coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(p)), '[]'::jsonb) from public.sd_event_operation_participants p where p.event_operation_id = v_operation.id),
+          'checklist', (select coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(c)), '[]'::jsonb) from public.sd_event_operation_checklist_items c where c.event_operation_id = v_operation.id),
           'prior_event_status', v_event.status
         ),
         v_reason, p_actor_id
@@ -622,8 +622,8 @@ begin
     end if;
     update public.sd_event_operations
     set status = v_status,
-      started_at = case when v_status = 'in_progress' then pg_catalog.coalesce(started_at, v_now) else started_at end,
-      started_by = case when v_status = 'in_progress' then pg_catalog.coalesce(started_by, p_actor_id) else started_by end,
+      started_at = case when v_status = 'in_progress' then coalesce(started_at, v_now) else started_at end,
+      started_by = case when v_status = 'in_progress' then coalesce(started_by, p_actor_id) else started_by end,
       completed_at = case when v_status = 'completed' then v_now when v_operation.status = 'completed' then null else completed_at end,
       completed_by = case when v_status = 'completed' then p_actor_id when v_operation.status = 'completed' then null else completed_by end,
       reopened_at = case when v_operation.status = 'completed' then v_now else reopened_at end,
@@ -722,7 +722,7 @@ begin
         arrival_at = case
           when p_payload->>'attendance_status' in ('absent','excused','injured') then null
           when p_payload ? 'arrival_at' then nullif(p_payload->>'arrival_at', '')::timestamptz
-          when p_payload->>'attendance_status' in ('present','late') then pg_catalog.coalesce(participant.arrival_at, v_now)
+          when p_payload->>'attendance_status' in ('present','late') then coalesce(participant.arrival_at, v_now)
           else participant.arrival_at
         end,
         departure_at = case
@@ -739,7 +739,7 @@ begin
         and participant.event_operation_id = v_operation.id
         and participant.version = input.expected_version
       returning participant.*
-    ) select pg_catalog.coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(changed)), '[]'::jsonb) into v_rows from changed;
+    ) select coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(changed)), '[]'::jsonb) into v_rows from changed;
     insert into public.sd_event_operation_audit_logs (
       organization_id, season_id, team_id, event_id, event_operation_id,
       actor_id, action, request_id, previous_value, new_value, reason
@@ -942,7 +942,7 @@ begin
             and snapshot.user_id = membership.player_id
         )
       returning user_id
-    ) select pg_catalog.coalesce(pg_catalog.jsonb_agg(user_id), '[]'::jsonb) into v_rows from added;
+    ) select coalesce(pg_catalog.jsonb_agg(user_id), '[]'::jsonb) into v_rows from added;
     update public.sd_event_operations set version = version + 1
     where id = v_operation.id and version = v_expected returning * into v_operation;
     insert into public.sd_event_operation_audit_logs (
@@ -1042,7 +1042,7 @@ as $$
       'view_team','view_development','view_documents','view_team_schedule','view_event_operation'
     ]) where exists (select 1 from responsibilities where responsibility = 'read_only')
   )
-  select pg_catalog.coalesce(pg_catalog.array_agg(capability order by capability), '{}'::text[]) from resolved;
+  select coalesce(pg_catalog.array_agg(capability order by capability), '{}'::text[]) from resolved;
 $$;
 
 alter table public.sd_event_operations enable row level security;

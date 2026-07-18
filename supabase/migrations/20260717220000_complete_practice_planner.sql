@@ -254,13 +254,13 @@ create or replace function public.sd_practice_plan_snapshot(target_plan uuid)
 returns jsonb language sql stable security definer set search_path = '' as $$
   select pg_catalog.jsonb_build_object(
     'plan', pg_catalog.to_jsonb(plan),
-    'blocks', pg_catalog.coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(block) order by block.sequence_index, block.created_at)
+    'blocks', coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(block) order by block.sequence_index, block.created_at)
       from public.sd_practice_plan_blocks block where block.practice_plan_id = plan.id and block.archived_at is null), '[]'::jsonb),
-    'groups', pg_catalog.coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(grp) order by grp.sort_order, grp.created_at)
+    'groups', coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(grp) order by grp.sort_order, grp.created_at)
       from public.sd_practice_plan_groups grp where grp.practice_plan_id = plan.id and grp.active), '[]'::jsonb),
-    'assignments', pg_catalog.coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(a) order by a.created_at)
+    'assignments', coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(a) order by a.created_at)
       from public.sd_practice_plan_assignments a where a.practice_plan_id = plan.id), '[]'::jsonb),
-    'equipment', pg_catalog.coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(e) order by e.created_at)
+    'equipment', coalesce((select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(e) order by e.created_at)
       from public.sd_practice_plan_equipment e where e.practice_plan_id = plan.id), '[]'::jsonb)
   ) from public.sd_practice_plans plan where plan.id = target_plan;
 $$;
@@ -273,30 +273,30 @@ declare
   group_map jsonb := '{}'::jsonb;
   block_map jsonb := '{}'::jsonb;
 begin
-  for item in select value from pg_catalog.jsonb_array_elements(pg_catalog.coalesce(source_snapshot->'groups','[]'::jsonb)) loop
+  for item in select value from pg_catalog.jsonb_array_elements(coalesce(source_snapshot->'groups','[]'::jsonb)) loop
     insert into public.sd_practice_plan_groups(practice_plan_id,organization_id,name,description,sort_order,color_token,created_by)
-      values(target_plan,target_organization,item->>'name',item->>'description',pg_catalog.coalesce((item->>'sort_order')::integer,0),item->>'color_token',target_actor) returning id into new_id;
+      values(target_plan,target_organization,item->>'name',item->>'description',coalesce((item->>'sort_order')::integer,0),item->>'color_token',target_actor) returning id into new_id;
     group_map:=pg_catalog.jsonb_set(group_map,array[item->>'id'],pg_catalog.to_jsonb(new_id::text),true);
   end loop;
-  for item in select value from pg_catalog.jsonb_array_elements(pg_catalog.coalesce(source_snapshot->'blocks','[]'::jsonb)) where value->>'parent_block_id' is null loop
+  for item in select value from pg_catalog.jsonb_array_elements(coalesce(source_snapshot->'blocks','[]'::jsonb)) where value->>'parent_block_id' is null loop
     insert into public.sd_practice_plan_blocks(practice_plan_id,organization_id,title,block_type,sequence_index,start_offset_minutes,duration_minutes,location_area,objectives,instructions,coaching_points,equipment_notes,source_entity_type,source_entity_id,visibility,required,created_by,updated_by)
       values(target_plan,target_organization,item->>'title',item->>'block_type',(item->>'sequence_index')::integer,(item->>'start_offset_minutes')::integer,(item->>'duration_minutes')::integer,item->>'location_area',
-        pg_catalog.coalesce(array(select pg_catalog.jsonb_array_elements_text(item->'objectives')),'{}'::text[]),item->>'instructions',item->>'coaching_points',item->>'equipment_notes',item->>'source_entity_type',nullif(item->>'source_entity_id','')::uuid,item->>'visibility',pg_catalog.coalesce((item->>'required')::boolean,true),target_actor,target_actor) returning id into new_id;
+        coalesce(array(select pg_catalog.jsonb_array_elements_text(item->'objectives')),'{}'::text[]),item->>'instructions',item->>'coaching_points',item->>'equipment_notes',item->>'source_entity_type',nullif(item->>'source_entity_id','')::uuid,item->>'visibility',coalesce((item->>'required')::boolean,true),target_actor,target_actor) returning id into new_id;
     block_map:=pg_catalog.jsonb_set(block_map,array[item->>'id'],pg_catalog.to_jsonb(new_id::text),true);
   end loop;
-  for item in select value from pg_catalog.jsonb_array_elements(pg_catalog.coalesce(source_snapshot->'blocks','[]'::jsonb)) where value->>'parent_block_id' is not null loop
+  for item in select value from pg_catalog.jsonb_array_elements(coalesce(source_snapshot->'blocks','[]'::jsonb)) where value->>'parent_block_id' is not null loop
     insert into public.sd_practice_plan_blocks(practice_plan_id,organization_id,parent_block_id,title,block_type,sequence_index,start_offset_minutes,duration_minutes,parallel_group_key,station_name,location_area,objectives,instructions,coaching_points,equipment_notes,visibility,required,created_by,updated_by)
       values(target_plan,target_organization,(block_map->>(item->>'parent_block_id'))::uuid,item->>'title',item->>'block_type',(item->>'sequence_index')::integer,(item->>'start_offset_minutes')::integer,(item->>'duration_minutes')::integer,item->>'parallel_group_key',item->>'station_name',item->>'location_area',
-        pg_catalog.coalesce(array(select pg_catalog.jsonb_array_elements_text(item->'objectives')),'{}'::text[]),item->>'instructions',item->>'coaching_points',item->>'equipment_notes',item->>'visibility',pg_catalog.coalesce((item->>'required')::boolean,true),target_actor,target_actor) returning id into new_id;
+        coalesce(array(select pg_catalog.jsonb_array_elements_text(item->'objectives')),'{}'::text[]),item->>'instructions',item->>'coaching_points',item->>'equipment_notes',item->>'visibility',coalesce((item->>'required')::boolean,true),target_actor,target_actor) returning id into new_id;
     block_map:=pg_catalog.jsonb_set(block_map,array[item->>'id'],pg_catalog.to_jsonb(new_id::text),true);
   end loop;
-  for item in select value from pg_catalog.jsonb_array_elements(pg_catalog.coalesce(source_snapshot->'assignments','[]'::jsonb)) where value->>'assignment_type'='group' loop
+  for item in select value from pg_catalog.jsonb_array_elements(coalesce(source_snapshot->'assignments','[]'::jsonb)) where value->>'assignment_type'='group' loop
     insert into public.sd_practice_plan_assignments(practice_plan_id,organization_id,assignment_type,group_id,block_id,assignment_role,created_by)
       values(target_plan,target_organization,'group',(group_map->>(item->>'group_id'))::uuid,(block_map->>(item->>'block_id'))::uuid,item->>'assignment_role',target_actor) on conflict do nothing;
   end loop;
-  for item in select value from pg_catalog.jsonb_array_elements(pg_catalog.coalesce(source_snapshot->'equipment','[]'::jsonb)) loop
+  for item in select value from pg_catalog.jsonb_array_elements(coalesce(source_snapshot->'equipment','[]'::jsonb)) loop
     insert into public.sd_practice_plan_equipment(practice_plan_id,organization_id,block_id,name,quantity,required,prepared,notes,visibility,created_by)
-      values(target_plan,target_organization,case when item->>'block_id' is null then null else (block_map->>(item->>'block_id'))::uuid end,item->>'name',(item->>'quantity')::integer,pg_catalog.coalesce((item->>'required')::boolean,true),false,item->>'notes',item->>'visibility',target_actor);
+      values(target_plan,target_organization,case when item->>'block_id' is null then null else (block_map->>(item->>'block_id'))::uuid end,item->>'name',(item->>'quantity')::integer,coalesce((item->>'required')::boolean,true),false,item->>'notes',item->>'visibility',target_actor);
   end loop;
 end;
 $$;
@@ -315,9 +315,9 @@ begin
   select * into p from public.sd_practice_plans where id = target_plan;
   if not found then raise exception using errcode = 'P0001', message = 'plan_not_found'; end if;
   select * into e from public.sd_team_events where id = p.event_id;
-  select pg_catalog.coalesce(pg_catalog.sum(duration_minutes),0)::integer into total_minutes
+  select coalesce(pg_catalog.sum(duration_minutes),0)::integer into total_minutes
     from public.sd_practice_plan_blocks where practice_plan_id = p.id and parent_block_id is null and archived_at is null;
-  event_minutes := pg_catalog.greatest(1, pg_catalog.extract(epoch from (e.end_at-e.start_at))/60)::integer;
+  event_minutes := greatest(1, extract(epoch from (e.end_at-e.start_at))/60)::integer;
   if pg_catalog.btrim(p.title) = '' then errors := errors || '[{"code":"missing_title"}]'::jsonb; end if;
   if not exists (select 1 from public.sd_practice_plan_blocks where practice_plan_id=p.id and archived_at is null)
     then errors := errors || '[{"code":"no_blocks"}]'::jsonb; end if;
@@ -407,8 +407,8 @@ begin
     if found then raise exception using errcode='P0001',message='primary_plan_exists'; end if;
     insert into public.sd_practice_plans(organization_id,season_id,team_id,event_id,source_template_id,source_plan_id,title,objectives,created_by,updated_by)
       values(p_organization_id,evt.season_id,evt.team_id,evt.id,nullif(p_payload->>'template_id','')::uuid,nullif(p_payload->>'source_plan_id','')::uuid,
-        pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),evt.title),
-        pg_catalog.coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]),p_actor_id,p_actor_id)
+        coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),evt.title),
+        coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]),p_actor_id,p_actor_id)
       returning * into plan;
     if p_action='initialize_from_template' then
       select template.snapshot into source_snapshot from public.sd_practice_plan_templates template
@@ -430,10 +430,10 @@ begin
     expected := (p_payload->>'expected_version')::integer;
     if expected is null or plan.version<>expected then raise exception using errcode='P0001',message='stale_version'; end if;
     old:=pg_catalog.to_jsonb(plan);
-    update public.sd_practice_plans set title=pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),title),
+    update public.sd_practice_plans set title=coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),title),
       objectives=case when p_payload?'objectives' then array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')) else objectives end,
       coach_notes=case when p_payload?'coach_notes' then nullif(p_payload->>'coach_notes','') else coach_notes end,
-      status=case when status='published' then 'draft' else pg_catalog.coalesce(nullif(p_payload->>'status',''),status) end,
+      status=case when status='published' then 'draft' else coalesce(nullif(p_payload->>'status',''),status) end,
       version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=plan.id returning * into plan;
     result:=pg_catalog.jsonb_build_object('plan',pg_catalog.to_jsonb(plan));
   elsif p_action in ('add_block','add_station','add_active_block') then
@@ -441,8 +441,8 @@ begin
     if p_action='add_active_block' and (plan.status<>'active' or reason is null) then raise exception using errcode='P0001',message='adjustment_reason_required'; end if;
     insert into public.sd_practice_plan_blocks(practice_plan_id,organization_id,parent_block_id,title,block_type,sequence_index,start_offset_minutes,duration_minutes,parallel_group_key,station_name,facility_id,location_area,objectives,instructions,coaching_points,equipment_notes,source_entity_type,source_entity_id,visibility,required,created_by,updated_by)
       values(plan.id,p_organization_id,nullif(p_payload->>'parent_block_id','')::uuid,pg_catalog.btrim(p_payload->>'title'),p_payload->>'block_type',(p_payload->>'sequence_index')::integer,
-      pg_catalog.coalesce((p_payload->>'start_offset_minutes')::integer,0),(p_payload->>'duration_minutes')::integer,nullif(p_payload->>'parallel_group_key',''),nullif(p_payload->>'station_name',''),nullif(p_payload->>'facility_id','')::uuid,nullif(p_payload->>'location_area',''),
-      pg_catalog.coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]),nullif(p_payload->>'instructions',''),nullif(p_payload->>'coaching_points',''),nullif(p_payload->>'equipment_notes',''),nullif(p_payload->>'source_entity_type',''),nullif(p_payload->>'source_entity_id','')::uuid,pg_catalog.coalesce(nullif(p_payload->>'visibility',''),'staff_only'),pg_catalog.coalesce((p_payload->>'required')::boolean,true),p_actor_id,p_actor_id)
+      coalesce((p_payload->>'start_offset_minutes')::integer,0),(p_payload->>'duration_minutes')::integer,nullif(p_payload->>'parallel_group_key',''),nullif(p_payload->>'station_name',''),nullif(p_payload->>'facility_id','')::uuid,nullif(p_payload->>'location_area',''),
+      coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]),nullif(p_payload->>'instructions',''),nullif(p_payload->>'coaching_points',''),nullif(p_payload->>'equipment_notes',''),nullif(p_payload->>'source_entity_type',''),nullif(p_payload->>'source_entity_id','')::uuid,coalesce(nullif(p_payload->>'visibility',''),'staff_only'),coalesce((p_payload->>'required')::boolean,true),p_actor_id,p_actor_id)
       returning * into block;
     update public.sd_practice_plans set version=version+1,status=case when status='published' then 'draft' else status end,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=plan.id returning * into plan;
     if p_action='add_active_block' then
@@ -458,11 +458,11 @@ begin
     if not found then raise exception using errcode='P0001',message='block_not_found'; end if;
     if block.version<>expected then raise exception using errcode='P0001',message='stale_version'; end if;
     old:=pg_catalog.to_jsonb(block);
-    update public.sd_practice_plan_blocks set title=pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),title),block_type=pg_catalog.coalesce(nullif(p_payload->>'block_type',''),block_type),
-      start_offset_minutes=pg_catalog.coalesce((p_payload->>'start_offset_minutes')::integer,start_offset_minutes),duration_minutes=pg_catalog.coalesce((p_payload->>'duration_minutes')::integer,duration_minutes),
+    update public.sd_practice_plan_blocks set title=coalesce(nullif(pg_catalog.btrim(p_payload->>'title'),''),title),block_type=coalesce(nullif(p_payload->>'block_type',''),block_type),
+      start_offset_minutes=coalesce((p_payload->>'start_offset_minutes')::integer,start_offset_minutes),duration_minutes=coalesce((p_payload->>'duration_minutes')::integer,duration_minutes),
       location_area=case when p_payload?'location_area' then nullif(p_payload->>'location_area','') else location_area end,facility_id=case when p_payload?'facility_id' then nullif(p_payload->>'facility_id','')::uuid else facility_id end,
       instructions=case when p_payload?'instructions' then nullif(p_payload->>'instructions','') else instructions end,coaching_points=case when p_payload?'coaching_points' then nullif(p_payload->>'coaching_points','') else coaching_points end,
-      visibility=pg_catalog.coalesce(nullif(p_payload->>'visibility',''),visibility),version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=block.id returning * into block;
+      visibility=coalesce(nullif(p_payload->>'visibility',''),visibility),version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=block.id returning * into block;
     update public.sd_practice_plans set version=version+1,status=case when status='published' then 'draft' else status end,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=plan.id returning * into plan;
     result:=pg_catalog.jsonb_build_object('plan',pg_catalog.to_jsonb(plan),'block',pg_catalog.to_jsonb(block));
   elsif p_action in ('remove_block','remove_station') then
@@ -486,10 +486,10 @@ begin
   elsif p_action in ('create_group','update_group','archive_group') then
     if p_action='create_group' then
       insert into public.sd_practice_plan_groups(practice_plan_id,organization_id,name,description,sort_order,created_by)
-        values(plan.id,p_organization_id,pg_catalog.btrim(p_payload->>'name'),nullif(p_payload->>'description',''),pg_catalog.coalesce((p_payload->>'sort_order')::integer,0),p_actor_id) returning id into target;
+        values(plan.id,p_organization_id,pg_catalog.btrim(p_payload->>'name'),nullif(p_payload->>'description',''),coalesce((p_payload->>'sort_order')::integer,0),p_actor_id) returning id into target;
     else
       target:=(p_payload->>'group_id')::uuid; expected:=(p_payload->>'expected_version')::integer;
-      update public.sd_practice_plan_groups set name=case when p_action='update_group' then pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name) else name end,
+      update public.sd_practice_plan_groups set name=case when p_action='update_group' then coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name) else name end,
         description=case when p_action='update_group' and p_payload?'description' then nullif(p_payload->>'description','') else description end,
         active=case when p_action='archive_group' then false else active end,version=version+1,updated_at=pg_catalog.now()
         where id=target and practice_plan_id=plan.id and version=expected;
@@ -505,7 +505,7 @@ begin
       then raise exception using errcode='P0001',message='cross_team_coach'; end if;
     insert into public.sd_practice_plan_assignments(practice_plan_id,organization_id,assignment_type,user_id,group_id,block_id,assignment_role,is_lead,created_by)
       values(plan.id,p_organization_id,case when p_action like 'assign_player%' then 'player' when p_action like 'assign_coach%' then 'coach' else 'group' end,
-        nullif(p_payload->>'user_id','')::uuid,nullif(p_payload->>'group_id','')::uuid,nullif(p_payload->>'block_id','')::uuid,nullif(p_payload->>'assignment_role',''),pg_catalog.coalesce((p_payload->>'is_lead')::boolean,false),p_actor_id)
+        nullif(p_payload->>'user_id','')::uuid,nullif(p_payload->>'group_id','')::uuid,nullif(p_payload->>'block_id','')::uuid,nullif(p_payload->>'assignment_role',''),coalesce((p_payload->>'is_lead')::boolean,false),p_actor_id)
       on conflict (practice_plan_id,assignment_type,user_id,group_id,block_id) do nothing returning id into target;
     update public.sd_practice_plans set version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now() where id=plan.id returning * into plan;
     result:=pg_catalog.jsonb_build_object('plan',pg_catalog.to_jsonb(plan),'assignment_id',target);
@@ -526,10 +526,10 @@ begin
   elsif p_action in ('add_equipment_requirement','update_equipment_requirement','remove_equipment_requirement') then
     if p_action='add_equipment_requirement' then
       insert into public.sd_practice_plan_equipment(practice_plan_id,organization_id,block_id,name,quantity,required,prepared,prepared_by,notes,visibility,created_by)
-        values(plan.id,p_organization_id,nullif(p_payload->>'block_id','')::uuid,pg_catalog.btrim(p_payload->>'name'),pg_catalog.coalesce((p_payload->>'quantity')::integer,1),pg_catalog.coalesce((p_payload->>'required')::boolean,true),pg_catalog.coalesce((p_payload->>'prepared')::boolean,false),case when (p_payload->>'prepared')::boolean then p_actor_id else null end,nullif(p_payload->>'notes',''),pg_catalog.coalesce(nullif(p_payload->>'visibility',''),'staff_only'),p_actor_id) returning id into target;
+        values(plan.id,p_organization_id,nullif(p_payload->>'block_id','')::uuid,pg_catalog.btrim(p_payload->>'name'),coalesce((p_payload->>'quantity')::integer,1),coalesce((p_payload->>'required')::boolean,true),coalesce((p_payload->>'prepared')::boolean,false),case when (p_payload->>'prepared')::boolean then p_actor_id else null end,nullif(p_payload->>'notes',''),coalesce(nullif(p_payload->>'visibility',''),'staff_only'),p_actor_id) returning id into target;
     elsif p_action='update_equipment_requirement' then
       target:=(p_payload->>'equipment_id')::uuid; expected:=(p_payload->>'expected_version')::integer;
-      update public.sd_practice_plan_equipment set name=pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name),quantity=pg_catalog.coalesce((p_payload->>'quantity')::integer,quantity),prepared=pg_catalog.coalesce((p_payload->>'prepared')::boolean,prepared),prepared_by=case when (p_payload->>'prepared')::boolean then p_actor_id else prepared_by end,notes=case when p_payload?'notes' then nullif(p_payload->>'notes','') else notes end,version=version+1,updated_at=pg_catalog.now() where id=target and practice_plan_id=plan.id and version=expected;
+      update public.sd_practice_plan_equipment set name=coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name),quantity=coalesce((p_payload->>'quantity')::integer,quantity),prepared=coalesce((p_payload->>'prepared')::boolean,prepared),prepared_by=case when (p_payload->>'prepared')::boolean then p_actor_id else prepared_by end,notes=case when p_payload?'notes' then nullif(p_payload->>'notes','') else notes end,version=version+1,updated_at=pg_catalog.now() where id=target and practice_plan_id=plan.id and version=expected;
       if not found then raise exception using errcode='P0001',message='stale_or_missing_equipment'; end if;
     else delete from public.sd_practice_plan_equipment where id=(p_payload->>'equipment_id')::uuid and practice_plan_id=plan.id;
     end if;
@@ -574,11 +574,11 @@ begin
     old:=pg_catalog.to_jsonb(execution);
     update public.sd_practice_block_executions set
       status=case p_action when 'start_block' then 'active' when 'complete_block' then 'completed' when 'skip_block' then 'skipped' when 'reopen_block' then 'pending' else 'adjusted' end,
-      actual_started_at=case when p_action='start_block' then pg_catalog.coalesce(actual_started_at,pg_catalog.now()) else actual_started_at end,
+      actual_started_at=case when p_action='start_block' then coalesce(actual_started_at,pg_catalog.now()) else actual_started_at end,
       actual_completed_at=case when p_action in ('complete_block','skip_block') then pg_catalog.now() when p_action='reopen_block' then null else actual_completed_at end,
-      actual_duration_minutes=case when p_action='adjust_active_block' then pg_catalog.coalesce((p_payload->>'duration_minutes')::integer,actual_duration_minutes) else actual_duration_minutes end,
-      sequence_index=case when p_action='adjust_active_block' then pg_catalog.coalesce((p_payload->>'sequence_index')::integer,sequence_index) else sequence_index end,
-      title=case when p_action='adjust_active_block' then pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'substitute_title'),''),title) else title end,
+      actual_duration_minutes=case when p_action='adjust_active_block' then coalesce((p_payload->>'duration_minutes')::integer,actual_duration_minutes) else actual_duration_minutes end,
+      sequence_index=case when p_action='adjust_active_block' then coalesce((p_payload->>'sequence_index')::integer,sequence_index) else sequence_index end,
+      title=case when p_action='adjust_active_block' then coalesce(nullif(pg_catalog.btrim(p_payload->>'substitute_title'),''),title) else title end,
       adjustment_reason=case when reason is not null then reason else adjustment_reason end,version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now()
       where id=execution.id returning * into execution;
     if p_action in ('reopen_block','adjust_active_block') then insert into public.sd_practice_plan_adjustments(practice_plan_id,execution_id,adjustment_type,previous_value,new_value,reason,actor_id)
@@ -615,11 +615,11 @@ begin
     if p_action in ('create_template','save_plan_as_template','duplicate_template') then
       insert into public.sd_practice_plan_templates(organization_id,season_id,team_id,name,description,objectives,snapshot,created_by,updated_by)
         values(p_organization_id,nullif(p_payload->>'season_id','')::uuid,nullif(p_payload->>'team_id','')::uuid,pg_catalog.btrim(p_payload->>'name'),nullif(p_payload->>'description',''),
-          case when p_action='save_plan_as_template' then plan.objectives else pg_catalog.coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]) end,
-          case when p_action='save_plan_as_template' then public.sd_practice_plan_snapshot(plan.id) else pg_catalog.coalesce(p_payload->'snapshot','{}'::jsonb) end,p_actor_id,p_actor_id) returning id into target;
+          case when p_action='save_plan_as_template' then plan.objectives else coalesce(array(select pg_catalog.jsonb_array_elements_text(p_payload->'objectives')),'{}'::text[]) end,
+          case when p_action='save_plan_as_template' then public.sd_practice_plan_snapshot(plan.id) else coalesce(p_payload->'snapshot','{}'::jsonb) end,p_actor_id,p_actor_id) returning id into target;
     else
       target:=(p_payload->>'template_id')::uuid; expected:=(p_payload->>'expected_version')::integer;
-      update public.sd_practice_plan_templates set name=case when p_action='update_template' then pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name) else name end,
+      update public.sd_practice_plan_templates set name=case when p_action='update_template' then coalesce(nullif(pg_catalog.btrim(p_payload->>'name'),''),name) else name end,
         description=case when p_action='update_template' and p_payload?'description' then nullif(p_payload->>'description','') else description end,
         active=case when p_action='archive_template' then false when p_action='restore_template' then true else active end,
         archived_at=case when p_action='archive_template' then pg_catalog.now() when p_action='restore_template' then null else archived_at end,
@@ -684,7 +684,7 @@ returns text[] language sql stable security definer set search_path='' as $$
     union select pg_catalog.unnest(array['view_practice_plan','create_practice_plan','edit_practice_plan','publish_practice_plan','archive_practice_plan','assign_practice_players','assign_practice_coaches','assign_practice_groups','manage_practice_equipment','view_started_practice_snapshot','modify_active_practice_plan','execute_practice_blocks','complete_practice_plan']) where exists(select 1 from responsibilities where responsibility='assistant_coach')
     union select pg_catalog.unnest(array['view_practice_plan','edit_practice_plan','view_started_practice_snapshot','modify_active_practice_plan','execute_practice_blocks']) where exists(select 1 from responsibilities where responsibility in ('hitting_coach','pitching_coach','catching_coach','strength_coach'))
     union select pg_catalog.unnest(array['view_practice_plan','view_started_practice_snapshot']) where exists(select 1 from responsibilities where responsibility in ('evaluator','read_only'))
-  ) select pg_catalog.coalesce(pg_catalog.array_agg(capability order by capability),'{}'::text[]) from (select capability from base union select capability from practice) all_caps;
+  ) select coalesce(pg_catalog.array_agg(capability order by capability),'{}'::text[]) from (select capability from base union select capability from practice) all_caps;
 $$;
 
 alter table public.sd_team_event_notification_intents drop constraint if exists sd_team_event_notification_intents_intent_type_check;

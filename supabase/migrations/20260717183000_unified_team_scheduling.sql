@@ -269,7 +269,7 @@ as $$
     select pg_catalog.unnest(array['view_team','view_development','view_documents','view_team_schedule'])
       where exists (select 1 from responsibilities where responsibility = 'read_only')
   )
-  select pg_catalog.coalesce(pg_catalog.array_agg(capability order by capability), '{}'::text[]) from resolved;
+  select coalesce(pg_catalog.array_agg(capability order by capability), '{}'::text[]) from resolved;
 $$;
 
 create or replace function public.sd_validate_team_event_scope()
@@ -344,14 +344,14 @@ as $$
       and event.id is distinct from p_exclude_event_id and coach.coach_id = any(p_coach_ids)
       and pg_catalog.tstzrange(event.start_at,event.end_at,'[)') && pg_catalog.tstzrange(p_start_at,p_end_at,'[)')
     union all
-    select booking.id, pg_catalog.coalesce(booking.title,'Facility booking'), 'facility_booking'::text
+    select booking.id, coalesce(booking.title,'Facility booking'), 'facility_booking'::text
     from public.sd_facility_bookings booking
     join public.sd_facilities facility on facility.id = booking.facility_id
     where p_facility_id is not null and facility.org_id = p_organization_id
       and booking.facility_id = p_facility_id and booking.status = 'approved'
       and pg_catalog.tstzrange(booking.start_at,booking.end_at,'[)') && pg_catalog.tstzrange(p_start_at,p_end_at,'[)')
   )
-  select pg_catalog.coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+  select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
     'id', id, 'title', title, 'type', conflict_type
   ) order by conflict_type,title), '[]'::jsonb) from candidate;
 $$;
