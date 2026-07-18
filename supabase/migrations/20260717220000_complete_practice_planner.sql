@@ -563,6 +563,12 @@ begin
     if not found then raise exception using errcode='P0001',message='execution_not_found'; end if;
     if execution.version<>expected then raise exception using errcode='P0001',message='stale_version'; end if;
     if p_action in ('skip_block','reopen_block','adjust_active_block') and reason is null then raise exception using errcode='P0001',message='adjustment_reason_required'; end if;
+    if p_action='adjust_active_block' and not (p_payload?'duration_minutes' or p_payload?'sequence_index' or nullif(pg_catalog.btrim(p_payload->>'substitute_title'),'') is not null)
+      then raise exception using errcode='P0001',message='invalid_active_adjustment'; end if;
+    if p_action='adjust_active_block' and p_payload?'duration_minutes' and (p_payload->>'duration_minutes')::integer<=0
+      then raise exception using errcode='P0001',message='invalid_duration'; end if;
+    if p_action='adjust_active_block' and p_payload?'sequence_index' and (p_payload->>'sequence_index')::integer<0
+      then raise exception using errcode='P0001',message='invalid_active_adjustment'; end if;
     if p_action='start_block' and execution.parent_block_id is null and exists(select 1 from public.sd_practice_block_executions where practice_plan_id=plan.id and status='active' and parent_block_id is null and id<>execution.id)
       then raise exception using errcode='P0001',message='sequential_block_already_active'; end if;
     old:=pg_catalog.to_jsonb(execution);
@@ -570,11 +576,13 @@ begin
       status=case p_action when 'start_block' then 'active' when 'complete_block' then 'completed' when 'skip_block' then 'skipped' when 'reopen_block' then 'pending' else 'adjusted' end,
       actual_started_at=case when p_action='start_block' then pg_catalog.coalesce(actual_started_at,pg_catalog.now()) else actual_started_at end,
       actual_completed_at=case when p_action in ('complete_block','skip_block') then pg_catalog.now() when p_action='reopen_block' then null else actual_completed_at end,
-      actual_duration_minutes=case when p_action='adjust_active_block' then (p_payload->>'duration_minutes')::integer else actual_duration_minutes end,
+      actual_duration_minutes=case when p_action='adjust_active_block' then pg_catalog.coalesce((p_payload->>'duration_minutes')::integer,actual_duration_minutes) else actual_duration_minutes end,
+      sequence_index=case when p_action='adjust_active_block' then pg_catalog.coalesce((p_payload->>'sequence_index')::integer,sequence_index) else sequence_index end,
+      title=case when p_action='adjust_active_block' then pg_catalog.coalesce(nullif(pg_catalog.btrim(p_payload->>'substitute_title'),''),title) else title end,
       adjustment_reason=case when reason is not null then reason else adjustment_reason end,version=version+1,updated_by=p_actor_id,updated_at=pg_catalog.now()
       where id=execution.id returning * into execution;
     if p_action in ('reopen_block','adjust_active_block') then insert into public.sd_practice_plan_adjustments(practice_plan_id,execution_id,adjustment_type,previous_value,new_value,reason,actor_id)
-      values(plan.id,execution.id,case when p_action='reopen_block' then 'reopen' else 'duration' end,old,pg_catalog.to_jsonb(execution),reason,p_actor_id); end if;
+      values(plan.id,execution.id,case when p_action='reopen_block' then 'reopen' when nullif(pg_catalog.btrim(p_payload->>'substitute_title'),'') is not null then 'substitution' when p_payload?'sequence_index' then 'order' else 'duration' end,old,pg_catalog.to_jsonb(execution),reason,p_actor_id); end if;
     result:=pg_catalog.jsonb_build_object('plan',pg_catalog.to_jsonb(plan),'execution',pg_catalog.to_jsonb(execution));
   elsif p_action in ('capture_completion_snapshot','complete_practice_plan') then
     if exists(select 1 from public.sd_practice_block_executions where practice_plan_id=plan.id and status='active') then raise exception using errcode='P0001',message='active_blocks_remaining'; end if;

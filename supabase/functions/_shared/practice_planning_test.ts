@@ -175,6 +175,9 @@ Deno.test("active execution enforces sequential and parallel behavior", async ()
   assert(sql.includes("sequential_block_already_active"), "sequential gate");
   assert(sql.includes("parent_block_id is null"), "parallel distinction");
   assert(sql.includes("adjustment_reason_required"), "audited adjustment");
+  assert(sql.includes("invalid_active_adjustment"), "adjustment payload gate");
+  assert(sql.includes("'substitution'"), "substitution history");
+  assert(sql.includes("'order'"), "active order history");
 });
 
 Deno.test("mutations are transactional idempotent versioned and audited", async () => {

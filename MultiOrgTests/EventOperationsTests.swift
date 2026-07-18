@@ -186,7 +186,7 @@ struct PracticePlanningTests {
   @Test("Practice Day contains complete planning and execution workflow")
   func coachWorkflow() throws {
     let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
-    for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Edit Block", "Edit Station", "Group Manager", "Player and Coach Assignment", "Equipment Requirements", "Edit Equipment", "Save Current Plan as Template", "Readiness Validation", "Active Practice Plan", "Add Emergency Block", "Completion Review", "Completed Plan History"] {
+    for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Edit Block", "Edit Station", "Group Manager", "Edit Group", "Player and Coach Assignment", "Player block / station override", "Coach group", "Assign Group to Block", "Equipment Requirements", "Edit Equipment", "Save Current Plan as Template", "Readiness Validation", "Publish this practice plan?", "Active Practice Plan", "Adjust Active Block", "Add Emergency Block", "Completion Review", "Completed Plan History"] {
       #expect(source.contains(label))
     }
     #expect(source.contains("Retry Pending Plan Change"))

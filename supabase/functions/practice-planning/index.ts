@@ -420,6 +420,7 @@ Deno.serve(async (req) => {
         "block_not_found",
         "stale_or_missing_block",
         "invalid_duration",
+        "invalid_active_adjustment",
         "incomplete_block_order",
         "cross_team_player",
         "cross_team_coach",

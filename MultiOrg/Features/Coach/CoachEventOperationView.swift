@@ -832,7 +832,7 @@ private struct PracticePlannerView: View {
               }
             }
             Menu("Duplicate Prior") {
-              if priorPlans.isEmpty { Text("No completed practices") }
+              if priorPlans.isEmpty { Text("No prior practices") }
               ForEach(priorPlans) { prior in
                 Button(prior.title) { run("duplicate_prior_plan", ["source_plan_id": .string(prior.id.uuidString), "title": .string(event.title), "objectives": .array(prior.objectives.map(SDJSONValue.string))]) }
               }
@@ -968,13 +968,19 @@ private struct PracticePlannerWorkspace: View {
   @State private var equipmentName = ""
   @State private var equipmentQuantity = 1
   @State private var selectedPlayer: UUID?
+  @State private var selectedPlayerBlock: UUID?
   @State private var selectedCoach: UUID?
+  @State private var selectedCoachGroup: UUID?
   @State private var selectedGroup: UUID?
   @State private var selectedBlock: UUID?
   @State private var templateName = ""
   @State private var adjustmentReason = ""
   @State private var editingBlock: SDPracticePlanBlock?
+  @State private var editingGroup: SDPracticePlanGroup?
   @State private var editingEquipment: SDPracticeEquipmentRequirement?
+  @State private var adjustingExecution: SDPracticeBlockExecution?
+  @State private var pendingPublishAction: String?
+  @State private var showPublishConfirmation = false
 
   var body: some View {
     Form {
@@ -985,7 +991,7 @@ private struct PracticePlannerWorkspace: View {
       if capabilities.contains(.editPracticePlan), plan?.status != .active, plan?.status != .completed { editorSection }
       blocksSection
       if capabilities.contains(.assignPracticeGroups) { groupsSection }
-      if capabilities.contains(.assignPracticePlayers) || capabilities.contains(.assignPracticeCoaches) { assignmentsSection }
+      if capabilities.contains(.assignPracticePlayers) || capabilities.contains(.assignPracticeCoaches) || capabilities.contains(.assignPracticeGroups) { assignmentsSection }
       if capabilities.contains(.managePracticeEquipment) { equipmentSection }
       if capabilities.contains(.managePracticeTemplates) { templateSection }
       publicationSection
@@ -1000,8 +1006,25 @@ private struct PracticePlannerWorkspace: View {
     .sheet(item: $editingBlock) { block in
       PracticeBlockEditSheet(block: block) { data in onMutation("update_block", data); editingBlock = nil }
     }
+    .sheet(item: $editingGroup) { group in
+      PracticeGroupEditSheet(group: group) { data in onMutation("update_group", data); editingGroup = nil }
+    }
     .sheet(item: $editingEquipment) { item in
       PracticeEquipmentEditSheet(item: item) { data in onMutation("update_equipment_requirement", data); editingEquipment = nil }
+    }
+    .sheet(item: $adjustingExecution) { execution in
+      PracticeExecutionAdjustmentSheet(execution: execution) { data in
+        onMutation("adjust_active_block", data); adjustingExecution = nil
+      }
+    }
+    .confirmationDialog("Publish this practice plan?", isPresented: $showPublishConfirmation, titleVisibility: .visible) {
+      Button("Publish Plan") {
+        if let pendingPublishAction { onMutation(pendingPublishAction, [:]) }
+        pendingPublishAction = nil
+      }
+      Button("Cancel", role: .cancel) { pendingPublishAction = nil }
+    } message: {
+      Text("The published version becomes the team-visible source used when Practice Day starts.")
     }
   }
 
@@ -1084,7 +1107,12 @@ private struct PracticePlannerWorkspace: View {
   private var groupsSection: some View {
     Section("Group Manager") {
       ForEach(groups) { group in
-        HStack { Text(group.name); Spacer(); Button("Archive") { onMutation("archive_group", ["group_id": .string(group.id.uuidString), "expected_version": .int(group.version)]) } }
+        HStack {
+          Text(group.name)
+          Spacer()
+          Button("Edit") { editingGroup = group }
+          Button("Archive") { onMutation("archive_group", ["group_id": .string(group.id.uuidString), "expected_version": .int(group.version)]) }
+        }
       }
       TextField("Group name", text: $groupName)
       Button("Create Group") { onMutation("create_group", ["name": .string(groupName), "sort_order": .int(groups.count)]); groupName = "" }
@@ -1097,12 +1125,39 @@ private struct PracticePlannerWorkspace: View {
       if capabilities.contains(.assignPracticePlayers), !players.isEmpty {
         Picker("Player", selection: $selectedPlayer) { ForEach(players) { Text($0.displayName).tag(Optional($0.id)) } }
         Picker("Default group", selection: $selectedGroup) { Text("Unassigned").tag(UUID?.none); ForEach(groups) { Text($0.name).tag(Optional($0.id)) } }
-        Button("Assign Player") { if let selectedPlayer { onMutation("assign_player", ["user_id": .string(selectedPlayer.uuidString), "group_id": selectedGroup.map { .string($0.uuidString) } ?? .null]) } }
+        Picker("Player block / station override", selection: $selectedPlayerBlock) { Text("Whole practice").tag(UUID?.none); ForEach(blocks) { Text($0.title).tag(Optional($0.id)) } }
+        Button("Assign Player") {
+          if let selectedPlayer {
+            onMutation(selectedPlayerBlock == nil ? "assign_player" : "assign_player_to_station", [
+              "user_id": .string(selectedPlayer.uuidString),
+              "group_id": selectedGroup.map { .string($0.uuidString) } ?? .null,
+              "block_id": selectedPlayerBlock.map { .string($0.uuidString) } ?? .null,
+            ])
+          }
+        }
       }
       if capabilities.contains(.assignPracticeCoaches), !coaches.isEmpty {
         Picker("Coach", selection: $selectedCoach) { ForEach(coaches) { Text($0.displayName).tag(Optional($0.id)) } }
         Picker("Block / Station", selection: $selectedBlock) { Text("Plan lead").tag(UUID?.none); ForEach(blocks) { Text($0.title).tag(Optional($0.id)) } }
-        Button("Assign Coach") { if let selectedCoach { onMutation("assign_coach", ["user_id": .string(selectedCoach.uuidString), "block_id": selectedBlock.map { .string($0.uuidString) } ?? .null, "is_lead": .bool(selectedBlock == nil)]) } }
+        Picker("Coach group", selection: $selectedCoachGroup) { Text("All groups").tag(UUID?.none); ForEach(groups) { Text($0.name).tag(Optional($0.id)) } }
+        Button("Assign Coach") {
+          if let selectedCoach {
+            onMutation(selectedBlock == nil ? "assign_coach" : "assign_coach_to_station", [
+              "user_id": .string(selectedCoach.uuidString),
+              "block_id": selectedBlock.map { .string($0.uuidString) } ?? .null,
+              "group_id": selectedCoachGroup.map { .string($0.uuidString) } ?? .null,
+              "is_lead": .bool(selectedBlock == nil && selectedCoachGroup == nil),
+            ])
+          }
+        }
+      }
+      if capabilities.contains(.assignPracticeGroups), let selectedGroup, let selectedBlock {
+        Button("Assign Group to Block") {
+          onMutation("assign_group_to_block", [
+            "group_id": .string(selectedGroup.uuidString),
+            "block_id": .string(selectedBlock.uuidString),
+          ])
+        }
       }
       Text("Assignments are revalidated against the event participant snapshot and active team staff.").font(.caption)
       ForEach(assignments) { assignment in
@@ -1120,8 +1175,18 @@ private struct PracticePlannerWorkspace: View {
   private var equipmentSection: some View {
     Section("Equipment Requirements") {
       ForEach(equipment) { item in
-        HStack { Text("\(item.quantity)× \(item.name)"); Spacer(); Button("Edit") { editingEquipment = item }; Image(systemName: item.prepared ? "checkmark.circle.fill" : "circle") }
-          .contentShape(Rectangle()).onTapGesture { onMutation("update_equipment_requirement", ["equipment_id": .string(item.id.uuidString), "expected_version": .int(item.version), "prepared": .bool(!item.prepared)]) }
+        HStack {
+          Text("\(item.quantity)× \(item.name)")
+          Spacer()
+          Button("Edit") { editingEquipment = item }
+          Button("Remove", role: .destructive) { onMutation("remove_equipment_requirement", ["equipment_id": .string(item.id.uuidString), "expected_version": .int(item.version)]) }
+          Button {
+            onMutation("update_equipment_requirement", ["equipment_id": .string(item.id.uuidString), "expected_version": .int(item.version), "prepared": .bool(!item.prepared)])
+          } label: {
+            Image(systemName: item.prepared ? "checkmark.circle.fill" : "circle")
+          }
+          .accessibilityLabel(item.prepared ? "Mark equipment unprepared" : "Mark equipment prepared")
+        }
       }
       TextField("Equipment name", text: $equipmentName)
       Stepper("Quantity: \(equipmentQuantity)", value: $equipmentQuantity, in: 1...100)
@@ -1141,7 +1206,10 @@ private struct PracticePlannerWorkspace: View {
   @ViewBuilder private var publicationSection: some View {
     Section("Publish and Operation") {
       if let plan, capabilities.contains(.publishPracticePlan), plan.status != .active, plan.status != .completed {
-        Button(plan.published_version == nil ? "Publish Plan" : "Publish Revised Version") { onMutation(plan.published_version == nil ? "publish_plan" : "republish_plan", [:]) }
+        Button(plan.published_version == nil ? "Publish Plan" : "Publish Revised Version") {
+          pendingPublishAction = plan.published_version == nil ? "publish_plan" : "republish_plan"
+          showPublishConfirmation = true
+        }
           .disabled(validation?.valid != true)
       }
       if plan?.status == .published, capabilities.contains(.modifyActivePracticePlan), operation.status == .inProgress || operation.status == .ready {
@@ -1164,6 +1232,9 @@ private struct PracticePlannerWorkspace: View {
             if execution.status == .active { Button("Complete") { mutateExecution("complete_block", execution) } }
             if execution.status == .pending || execution.status == .active { Button("Skip") { mutateExecution("skip_block", execution, reason: adjustmentReason.sdNilIfBlank ?? "Field adjustment") } }
             if execution.status == .completed || execution.status == .skipped { Button("Reopen") { mutateExecution("reopen_block", execution, reason: adjustmentReason.sdNilIfBlank ?? "Authorized correction") } }
+          }
+          if capabilities.contains(.modifyActivePracticePlan), execution.status == .pending || execution.status == .active {
+            Button("Adjust") { adjustingExecution = execution }
           }
         }
       }
@@ -1286,6 +1357,89 @@ private struct PracticeEquipmentEditSheet: View {
             onSave(["equipment_id": .string(item.id.uuidString), "expected_version": .int(item.version), "name": .string(name), "quantity": .int(quantity), "prepared": .bool(prepared), "notes": .string(notes)])
             dismiss()
           }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      }
+    }
+  }
+}
+
+private struct PracticeGroupEditSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let group: SDPracticePlanGroup
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var name: String
+  @State private var description: String
+
+  init(group: SDPracticePlanGroup, onSave: @escaping ([String: SDJSONValue]) -> Void) {
+    self.group = group; self.onSave = onSave
+    _name = State(initialValue: group.name); _description = State(initialValue: group.description ?? "")
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        TextField("Group name", text: $name)
+        TextField("Group description", text: $description, axis: .vertical)
+      }
+      .navigationTitle("Edit Group")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            onSave([
+              "group_id": .string(group.id.uuidString),
+              "expected_version": .int(group.version),
+              "name": .string(name),
+              "description": .string(description),
+            ])
+            dismiss()
+          }
+          .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      }
+    }
+  }
+}
+
+private struct PracticeExecutionAdjustmentSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let execution: SDPracticeBlockExecution
+  let onSave: ([String: SDJSONValue]) -> Void
+  @State private var duration: Int
+  @State private var sequence: Int
+  @State private var substituteTitle = ""
+  @State private var reason = ""
+
+  init(execution: SDPracticeBlockExecution, onSave: @escaping ([String: SDJSONValue]) -> Void) {
+    self.execution = execution; self.onSave = onSave
+    _duration = State(initialValue: execution.actual_duration_minutes ?? execution.planned_duration_minutes)
+    _sequence = State(initialValue: execution.sequence_index)
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Stepper("Adjusted duration: \(duration) minutes", value: $duration, in: 1...240)
+        Stepper("Run order: \(sequence + 1)", value: $sequence, in: 0...100)
+        TextField("Substitute block title (optional)", text: $substituteTitle)
+        TextField("Required adjustment reason", text: $reason, axis: .vertical)
+      }
+      .navigationTitle("Adjust Active Block")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Apply Adjustment") {
+            onSave([
+              "execution_id": .string(execution.id.uuidString),
+              "expected_version": .int(execution.version),
+              "duration_minutes": .int(duration),
+              "sequence_index": .int(sequence),
+              "substitute_title": .string(substituteTitle),
+              "reason": .string(reason),
+            ])
+            dismiss()
+          }
+          .disabled(reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
     }
