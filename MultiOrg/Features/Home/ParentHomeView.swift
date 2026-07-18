@@ -250,6 +250,14 @@ struct ParentHomeView: View {
                   ForEach(mission.detail.notes ?? []) { note in
                     Text(note.body).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                   }
+                  if let practice = mission.practicePlan, let plan = practice.plan {
+                    Text("Practice: \(plan.title)").font(HP.Font.callout.weight(.semibold))
+                    if !plan.objectives.isEmpty { Text(plan.objectives.joined(separator: " • ")) }
+                    ForEach(practice.groups) { group in Text("\(mission.child.displayName)’s group: \(group.name)") }
+                    ForEach(practice.equipment.filter { $0.visibility == "player_visible" }) { item in
+                      Label("Bring \(item.quantity)× \(item.name)", systemImage: "shippingbox")
+                    }
+                  }
                 }
                 .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                 if mission.id != missions.last?.id { Divider() }
@@ -411,7 +419,10 @@ struct ParentHomeView: View {
               replayed: nil
             )
           }
-          missions.append(ParentTodayMission(child: child, event: event, detail: detail))
+          let practicePlan = event.event_type == .practice
+            ? try? await supabase.practicePlan(organizationId: organizationId, eventId: event.id, playerId: child.id)
+            : nil
+          missions.append(ParentTodayMission(child: child, event: event, detail: detail, practicePlan: practicePlan))
         }
       } catch {
         // One child failing must not hide another child's verified missions.
@@ -466,6 +477,7 @@ private struct ParentTodayMission: Identifiable {
   let child: Profile
   let event: SDTeamEvent
   let detail: SDEventOperationDetailResponse
+  let practicePlan: SDPracticePlanDetailResponse?
   var id: String { "\(child.id.uuidString):\(event.id.uuidString)" }
   var participant: SDEventOperationParticipant? {
     detail.participants?.first(where: { $0.user_id == child.id })

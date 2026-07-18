@@ -4,6 +4,7 @@ struct OrgEventOperationsAdminView: View {
   @EnvironmentObject private var appState: AppState
   @State private var events: [SDTeamEvent] = []
   @State private var summaries: [UUID: SDEventOperationSummary] = [:]
+  @State private var practicePlans: [UUID: SDPracticePlanSummary] = [:]
   @State private var selectedEvent: SDTeamEvent?
   @State private var isLoading = false
   @State private var errorText: String?
@@ -38,6 +39,10 @@ struct OrgEventOperationsAdminView: View {
                       .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                   } else {
                     Text("Not initialized").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                  }
+                  if event.event_type == .practice {
+                    Text("Practice plan: \(practicePlans[event.id]?.status.label ?? "No Plan")")
+                      .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                   }
                 }
                 Spacer()
@@ -83,13 +88,20 @@ struct OrgEventOperationsAdminView: View {
         rangeEnd: end
       ).filter { $0.status != .draft }
       var all: [SDEventOperationSummary] = []
+      var plans: [SDPracticePlanSummary] = []
       for team in appState.authorizedCoachTeams {
         let ids = events.filter { $0.team_id == team.id }.map(\.id)
         if !ids.isEmpty {
           all += try await service.listEventOperations(organizationId: organizationId, teamId: team.id, eventIds: ids)
         }
+        plans += (try? await service.practicePlanSummaries(
+          organizationId: organizationId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )) ?? []
       }
       summaries = Dictionary(uniqueKeysWithValues: all.map { ($0.event_id, $0) })
+      practicePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
     } catch {
       errorText = "Administrative operation state could not be loaded."
     }
@@ -103,6 +115,9 @@ private struct OrgEventOperationInspectionView: View {
   let teamName: String
   @State private var detail: SDEventOperationDetailResponse?
   @State private var audit: [SDEventOperationAuditEntry] = []
+  @State private var practicePlan: SDPracticePlanDetailResponse?
+  @State private var practiceTemplates: [SDPracticePlanTemplate] = []
+  @State private var organizationTemplateName = ""
   @State private var correctionParticipantId: UUID?
   @State private var correctionStatus: SDEventAttendanceStatus = .present
   @State private var correctionReason = ""
@@ -138,6 +153,44 @@ private struct OrgEventOperationInspectionView: View {
             Button("Reopen Operation") { reopen(operation) }
               .disabled(reopenReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
           }
+        }
+      }
+      if event.event_type == .practice {
+        Section("Practice plan inspection") {
+          Text("Plan status: \(practicePlan?.plan?.status.label ?? "No Plan")")
+          Text("Readiness: \(practicePlan?.validation?.blocking_errors.count ?? 0) blocking, \(practicePlan?.validation?.readiness_warnings.count ?? 0) warning(s)")
+          Text("\(practicePlan?.blocks.count ?? 0) blocks • \(practicePlan?.groups.count ?? 0) groups • \(practicePlan?.equipment.count ?? 0) equipment requirements")
+          if practicePlan?.plan?.status == .completed {
+            TextField("Required practice reopen reason", text: $reopenReason, axis: .vertical)
+            Button("Reopen Completed Practice Plan") { reopenPracticePlan() }
+              .disabled(reopenReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          }
+        }
+        Section("Template inventory") {
+          ForEach(practiceTemplates) { template in
+            HStack {
+              VStack(alignment: .leading) { Text(template.name); Text(template.active ? "Active" : "Archived").font(.caption) }
+              Spacer()
+              Button(template.active ? "Archive" : "Restore") {
+                mutateTemplate(template.active ? "archive_template" : "restore_template", template: template)
+              }
+            }
+          }
+          TextField("Organization template name", text: $organizationTemplateName)
+          Button("Create Organization Template") {
+            guard let service = appState.supabase else { return }
+            Task {
+              do {
+                _ = try await service.mutatePracticePlan(
+                  action: "create_template",
+                  organizationId: event.organization_id,
+                  eventId: event.id,
+                  data: ["name": .string(organizationTemplateName), "snapshot": .object([:]), "objectives": .array([])]
+                )
+                organizationTemplateName = ""; await reload()
+              } catch { errorText = "The organization template could not be created." }
+            }
+          }.disabled(organizationTemplateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
       Section("Audit history") {
@@ -177,6 +230,15 @@ private struct OrgEventOperationInspectionView: View {
     guard let service = appState.supabase else { return }
     do {
       detail = try await service.eventOperation(organizationId: event.organization_id, eventId: event.id)
+      if event.event_type == .practice {
+        practicePlan = try? await service.practicePlan(organizationId: event.organization_id, eventId: event.id)
+        practiceTemplates = (try? await service.practiceTemplates(
+          organizationId: event.organization_id,
+          eventId: event.id,
+          teamId: event.team_id,
+          includeArchived: true
+        )) ?? []
+      }
       if detail?.operation != nil {
         audit = try await service.eventOperationAuditHistory(organizationId: event.organization_id, eventId: event.id).audit
       }
@@ -218,6 +280,37 @@ private struct OrgEventOperationInspectionView: View {
         reopenReason = ""
         await reload()
       } catch { errorText = "The operation could not be reopened. Refresh and verify its current version." }
+    }
+  }
+
+  private func reopenPracticePlan() {
+    guard let service = appState.supabase else { return }
+    Task {
+      do {
+        _ = try await service.mutatePracticePlan(
+          action: "reopen_completed_practice",
+          organizationId: event.organization_id,
+          eventId: event.id,
+          data: ["reason": .string(reopenReason)]
+        )
+        reopenReason = ""
+        await reload()
+      } catch { errorText = "The completed practice could not be reopened. Refresh and verify operation state." }
+    }
+  }
+
+  private func mutateTemplate(_ action: String, template: SDPracticePlanTemplate) {
+    guard let service = appState.supabase else { return }
+    Task {
+      do {
+        _ = try await service.mutatePracticePlan(
+          action: action,
+          organizationId: event.organization_id,
+          eventId: event.id,
+          data: ["template_id": .string(template.id.uuidString), "expected_version": .int(template.version)]
+        )
+        await reload()
+      } catch { errorText = "The template changed or authorization failed. Refresh and try again." }
     }
   }
 }

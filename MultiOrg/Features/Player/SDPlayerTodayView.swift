@@ -33,6 +33,7 @@ struct SDPlayerTodayViewInternal: View {
   @State private var testingEntries: [SDTestingEntry] = []
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var eventOperations: [UUID: SDEventOperationDetailResponse] = [:]
+  @State private var practicePlans: [UUID: SDPracticePlanDetailResponse] = [:]
   @State private var availabilityEditor: PlayerAvailabilityPresentation?
   @State private var pendingAvailability: PlayerPendingAvailability?
 
@@ -174,6 +175,20 @@ struct SDPlayerTodayViewInternal: View {
                 if note.visibility == "team" || note.subject_player_id == appState.myProfile?.id {
                   Text(note.body).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
                 }
+              }
+              if event.event_type == .practice, let practice = practicePlans[event.id], let plan = practice.plan {
+                VStack(alignment: .leading, spacing: HP.Space.xs) {
+                  Text("Practice: \(plan.title)").font(HP.Font.callout.weight(.semibold))
+                  if !plan.objectives.isEmpty { Text(plan.objectives.joined(separator: " • ")) }
+                  ForEach(practice.groups) { group in Text("Your group: \(group.name)") }
+                  ForEach(practice.blocks.filter { $0.visibility != "staff_only" }) { block in
+                    Text("\(block.title) • \(block.duration_minutes)m")
+                  }
+                  ForEach(practice.equipment.filter { $0.visibility == "player_visible" }) { item in
+                    Label("Bring \(item.quantity)× \(item.name)", systemImage: "shippingbox")
+                  }
+                }
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
               }
               if detail?.operation?.status == .completed, detail?.notes?.contains(where: { $0.note_type == "post_event_recap" }) != true {
                 Text("Event complete. No visible recap has been published.")
@@ -516,6 +531,7 @@ struct SDPlayerTodayViewInternal: View {
         rangeEnd: end
       ).filter { $0.status != .draft }
       var details: [UUID: SDEventOperationDetailResponse] = [:]
+      var plans: [UUID: SDPracticePlanDetailResponse] = [:]
       for event in teamEvents {
         do {
           details[event.id] = try await supabase.eventOperation(
@@ -537,10 +553,19 @@ struct SDPlayerTodayViewInternal: View {
             replayed: nil
           )
         }
+        if event.event_type == .practice {
+          plans[event.id] = try? await supabase.practicePlan(
+            organizationId: organizationId,
+            eventId: event.id,
+            playerId: playerId
+          )
+        }
       }
       eventOperations = details
+      practicePlans = plans
     } catch {
       eventOperations = [:]
+      practicePlans = [:]
     }
   }
 

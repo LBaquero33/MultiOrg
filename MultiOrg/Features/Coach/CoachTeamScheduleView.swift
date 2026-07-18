@@ -12,6 +12,7 @@ struct CoachTeamScheduleView: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var editor: EventEditorPresentation?
+  @State private var practiceEvent: SDTeamEvent?
 
   var body: some View {
     NavigationStack {
@@ -103,6 +104,12 @@ struct CoachTeamScheduleView: View {
           Task { await reload() }
         }
       }
+      .sheet(item: $practiceEvent) { practice in
+        NavigationStack {
+          CoachEventOperationView(event: practice, teamName: teamName(practice.team_id))
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { practiceEvent = nil } } }
+        }
+      }
     }
   }
 
@@ -121,8 +128,13 @@ struct CoachTeamScheduleView: View {
             ForEach(group.events) { event in
               HStack(alignment: .top, spacing: HP.Space.xs) {
                 TeamEventRow(event: event, teamName: teamName(event.team_id))
-                if canMutate(event) {
+                if canMutate(event) || canOpenPractice(event) {
                   Menu {
+                    if canOpenPractice(event) {
+                      Button { practiceEvent = event } label: {
+                        Label("Open Practice Plan", systemImage: "list.number")
+                      }
+                    }
                     if canEdit(event) {
                       Button { editor = EventEditorPresentation(teams: teams(for: event), seasonId: event.season_id, event: event) } label: {
                         Label("Edit or Reschedule", systemImage: "pencil")
@@ -176,6 +188,10 @@ struct CoachTeamScheduleView: View {
 
   private func canMutate(_ event: SDTeamEvent) -> Bool {
     canEdit(event) || canDuplicate(event) || canCancel(event)
+  }
+
+  private func canOpenPractice(_ event: SDTeamEvent) -> Bool {
+    event.event_type == .practice && (appState.canAdminActiveOrg || (event.team_id == appState.selectedTeam?.id && appState.selectedTeamCapabilities.contains(.viewPracticePlan)))
   }
 
   private func canEdit(_ event: SDTeamEvent) -> Bool {

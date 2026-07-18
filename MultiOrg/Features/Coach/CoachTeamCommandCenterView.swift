@@ -36,6 +36,7 @@ struct CoachTodayFoundationView: View {
   @EnvironmentObject private var appState: AppState
   @State private var events: [SDTeamEvent] = []
   @State private var operations: [UUID: SDEventOperationSummary] = [:]
+  @State private var practicePlans: [UUID: SDPracticePlanSummary] = [:]
 
   var body: some View {
     NavigationStack {
@@ -138,6 +139,15 @@ struct CoachTodayFoundationView: View {
       if operation.unresolved_availability > 0 {
         items.append("\(event.title) has \(operation.unresolved_availability) unresolved availability response(s)")
       }
+      if event.event_type == .practice {
+        switch practicePlans[event.id]?.status {
+        case nil: items.append("\(event.title) has no practice plan")
+        case .draft: items.append("\(event.title) practice plan is still a draft")
+        case .ready: items.append("\(event.title) practice plan is not published")
+        case .active: items.append("\(event.title) practice is active")
+        default: break
+        }
+      }
       if operation.checklist_total > operation.checklist_completed {
         items.append("\(event.title) has \(operation.checklist_total - operation.checklist_completed) checklist item(s) remaining")
       }
@@ -160,6 +170,10 @@ struct CoachTodayFoundationView: View {
       if let operation {
         Text("\(operation.unresolved_availability) availability unresolved • \(operation.unrecorded_attendance) attendance not recorded • \(operation.checklist_completed)/\(operation.checklist_total) checklist")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      }
+      if event.event_type == .practice {
+        Text("Practice plan: \(practicePlans[event.id]?.status.label ?? "No Plan")")
+          .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
       }
       Label(primaryMissionAction(operation), systemImage: "arrow.right.circle.fill")
         .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.accent)
@@ -207,12 +221,24 @@ struct CoachTodayFoundationView: View {
         } catch {
           operations = [:]
         }
+        do {
+          let plans = try await service.practicePlanSummaries(
+            organizationId: orgId,
+            seasonId: team.season_id,
+            teamId: team.id
+          )
+          practicePlans = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+        } catch {
+          practicePlans = [:]
+        }
       } else {
         operations = [:]
+        practicePlans = [:]
       }
     } catch {
       events = []
       operations = [:]
+      practicePlans = [:]
     }
   }
 }
@@ -228,6 +254,7 @@ struct CoachTeamCommandCenterView: View {
   @State private var section: Section = .overview
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var operationSummaries: [UUID: SDEventOperationSummary] = [:]
+  @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -361,6 +388,10 @@ struct CoachTeamCommandCenterView: View {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             HPSectionHeader("Next Event") { HPStatusBadge(text: next.event_type.label, kind: .info) }
             TeamEventRow(event: next, teamName: team.name)
+            if next.event_type == .practice {
+              Text("Plan readiness: \(practicePlanSummaries[next.id]?.status.label ?? "No Plan")")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
           }
         } else {
           HPEmptyState(title: "No upcoming event", message: "Published team schedule items will appear here.", systemImage: "calendar")
@@ -374,6 +405,10 @@ struct CoachTeamCommandCenterView: View {
               HPStatusBadge(text: operation?.status.label ?? "Not Prepared", kind: operation?.status == .completed ? .success : .info)
             }
             TeamEventRow(event: today, teamName: team.name)
+            if today.event_type == .practice {
+              Text("Practice plan: \(practicePlanSummaries[today.id]?.status.label ?? "No Plan")")
+                .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+            }
             Text("\(operation?.unresolved_availability ?? 0) unresolved availability • \(operation?.unrecorded_attendance ?? 0) attendance remaining • \(operation?.checklist_completed ?? 0)/\(operation?.checklist_total ?? 0) checklist")
               .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
             if team.capabilitySet.contains(.viewEventOperation) {
@@ -456,9 +491,20 @@ struct CoachTeamCommandCenterView: View {
       } catch {
         operationSummaries = [:]
       }
+      do {
+        let plans = try await service.practicePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+      } catch {
+        practicePlanSummaries = [:]
+      }
     } catch {
       teamEvents = []
       operationSummaries = [:]
+      practicePlanSummaries = [:]
     }
   }
 
