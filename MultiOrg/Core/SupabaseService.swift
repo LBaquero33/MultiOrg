@@ -601,6 +601,52 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  private struct TodayRequest: Encodable, Sendable {
+    let organization_id: UUID
+    let season_id: UUID?
+    let team_id: UUID?
+    let child_id: UUID?
+    let local_date: String
+    let timezone: String
+    let context_token: String
+  }
+
+  /// Role, household scope, capabilities, redaction, mission priority, and
+  /// primary actions are resolved by the authenticated Today aggregation.
+  /// Existing scheduling and Phase 12 operation stores remain authoritative.
+  func today(
+    organizationId: UUID,
+    seasonId: UUID?,
+    teamId: UUID?,
+    childId: UUID? = nil,
+    date: Date = Date(),
+    timezone: TimeZone = .current,
+    contextToken: String
+  ) async throws -> SDTodayResponse {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timezone
+    let components = calendar.dateComponents([.year, .month, .day], from: date)
+    let localDate = String(
+      format: "%04d-%02d-%02d",
+      locale: Locale(identifier: "en_US_POSIX"),
+      components.year ?? 0,
+      components.month ?? 0,
+      components.day ?? 0
+    )
+    return try await invokeAuthenticatedFunction(
+      "today",
+      body: TodayRequest(
+        organization_id: organizationId,
+        season_id: seasonId,
+        team_id: teamId,
+        child_id: childId,
+        local_date: localDate,
+        timezone: timezone.identifier,
+        context_token: contextToken
+      )
+    )
+  }
+
   private struct TeamScheduleListRequest: Encodable, Sendable {
     let action = "list"
     let organization_id: UUID

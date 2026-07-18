@@ -22,6 +22,7 @@ private struct PlayerPendingAvailability {
 
 struct SDPlayerTodayViewInternal: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.scenePhase) private var scenePhase
 
   let initialDate: Date
   @State private var date: Date
@@ -32,6 +33,10 @@ struct SDPlayerTodayViewInternal: View {
   @State private var dailyLog: SDDailyLog?
   @State private var testingEntries: [SDTestingEntry] = []
   @State private var teamEvents: [SDTeamEvent] = []
+  @State private var todayAggregate: SDTodayResponse?
+  @State private var todayServiceError: String?
+  @State private var todayLoadToken: UUID?
+  @State private var todayPublishedContext: String?
   @State private var eventOperations: [UUID: SDEventOperationDetailResponse] = [:]
   @State private var practicePlans: [UUID: SDPracticePlanDetailResponse] = [:]
   @State private var gamePlans: [UUID: SDGamePlanDetailResponse] = [:]
@@ -71,6 +76,7 @@ struct SDPlayerTodayViewInternal: View {
     } dateContext: {
       dateContextCard
     } programSummary: {
+      playerTodayAttentionCard
       playerBaseballDayCard
       RegistrationFamilySummaryCard(audience: .player)
       improvementCard
@@ -123,11 +129,14 @@ struct SDPlayerTodayViewInternal: View {
     .task(id: todayContextIdentity) {
       await reloadAll()
     }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { Task { await reloadAll() } }
+    }
   }
 
   private var dateISO: String { DateUtils.toISODate(date) }
   private var todayContextIdentity: String {
-    "\(appState.myProfile?.id.uuidString ?? "none"):\(appState.activeOrgId?.uuidString ?? "none"):\(dateISO)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(appState.selectedSeason?.id.uuidString ?? "none"):\(dateISO):\(TimeZone.current.identifier)"
   }
 
   private var playerBaseballDayCard: some View {
@@ -232,6 +241,37 @@ struct SDPlayerTodayViewInternal: View {
               saveAvailability(event: pendingAvailability.event, draft: pendingAvailability.draft, requestId: pendingAvailability.requestId)
             }
             .buttonStyle(.bordered)
+          }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private var playerTodayAttentionCard: some View {
+    if let todayServiceError {
+      HPCard {
+        HPErrorState(
+          title: "Today’s mission summary is unavailable",
+          message: todayServiceError,
+          onRetry: { Task { await reloadTodayAggregate() } }
+        )
+      }
+    } else if let aggregate = todayAggregate,
+              !aggregate.attention_items.isEmpty || aggregate.services.values.contains(where: { ![.available, .unauthorized].contains($0.state) }) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("My attention") {
+            HPStatusBadge(text: "\(aggregate.attention_items.count)", kind: aggregate.attention_items.isEmpty ? .neutral : .warning)
+          }
+          ForEach(aggregate.attention_items) { item in
+            Label(item.title, systemImage: item.severity == .urgent ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
+              .font(HP.Font.callout).foregroundStyle(HP.Color.text)
+          }
+          ForEach(aggregate.services.keys.sorted(), id: \.self) { name in
+            if let state = aggregate.services[name], ![.available, .unauthorized].contains(state.state) {
+              Label(state.message ?? "This section is temporarily unavailable.", systemImage: "wifi.exclamationmark")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+            }
           }
         }
       }
@@ -535,10 +575,49 @@ struct SDPlayerTodayViewInternal: View {
   }
 
   private func reloadAll() async {
+    await reloadTodayAggregate()
     await reloadAssignment()
     await reloadDay()
     await reloadTesting()
     await reloadBaseballDay()
+  }
+
+  private func reloadTodayAggregate() async {
+    guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    let context = todayContextIdentity
+    if todayPublishedContext != context { todayAggregate = nil }
+    let token = UUID()
+    todayLoadToken = token
+    todayServiceError = nil
+    do {
+      let response = try await supabase.today(
+        organizationId: organizationId,
+        seasonId: appState.selectedSeason?.id,
+        teamId: nil,
+        date: date,
+        contextToken: context
+      )
+      guard SDAsyncRequestGuard.accepts(
+        responseContext: context,
+        responseToken: token,
+        activeContext: todayContextIdentity,
+        currentToken: todayLoadToken,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
+      guard response.context.organization_id == organizationId,
+            response.context.role == .player else { return }
+      todayAggregate = response
+      todayPublishedContext = context
+    } catch {
+      guard SDAsyncRequestGuard.accepts(
+        responseContext: context,
+        responseToken: token,
+        activeContext: todayContextIdentity,
+        currentToken: todayLoadToken,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
+      todayServiceError = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
   }
 
   private func reloadBaseballDay() async {

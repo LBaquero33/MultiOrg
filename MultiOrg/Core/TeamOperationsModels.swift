@@ -152,6 +152,235 @@ struct SDRegistrationCommandResponse: Decodable, Sendable {
   let result: SDRegistrationCommandResult
 }
 
+// MARK: - Phase 12Y role-scoped Today aggregation
+
+enum SDTodayRole: String, Codable, CaseIterable, Sendable {
+  case coach, player, parent, owner, admin
+
+  var isOrganizationAdministrator: Bool { self == .owner || self == .admin }
+}
+
+enum SDTodayServiceAvailability: String, Codable, CaseIterable, Sendable {
+  case available, loading, stale, unavailable, unauthorized, offline
+}
+
+struct SDTodayServiceState: Codable, Equatable, Sendable {
+  let state: SDTodayServiceAvailability
+  let message: String?
+  let as_of: String?
+
+  static let available = Self(state: .available, message: nil, as_of: nil)
+
+  var preservesAuthoritativeEmptyState: Bool { state == .available }
+}
+
+enum SDTodayUrgency: String, Codable, CaseIterable, Sendable {
+  case urgent, important, informational
+
+  var rank: Int {
+    switch self {
+    case .urgent: 0
+    case .important: 1
+    case .informational: 2
+    }
+  }
+}
+
+struct SDTodayAction: Codable, Equatable, Identifiable, Sendable {
+  let id: String
+  let label: String
+  let route: String
+  let capability: String?
+}
+
+struct SDTodayMission: Codable, Equatable, Identifiable, Sendable {
+  let id: String
+  let source_type: String
+  let source_id: UUID
+  let mission_type: String
+  let title: String
+  let subtitle: String?
+  let status: String
+  let start_at: String?
+  let arrival_at: String?
+  let end_at: String?
+  let location: String?
+  let team_id: UUID?
+  let team_name: String?
+  let season_id: UUID?
+  let child_id: UUID?
+  let child_name: String?
+  let urgency: SDTodayUrgency
+  let is_current: Bool
+  let is_next: Bool
+  let requires_review: Bool
+  let operation_state: String?
+  let plan_state: String?
+  let availability_unresolved: Int?
+  let attendance_unresolved: Int?
+  let lineup_mode: String?
+  let eh_count: Int?
+  let batting_slot: Int?
+  let offensive_role: String?
+  let defensive_assignment: String?
+  let pitcher_catcher_assignment: String?
+  let primary_action: SDTodayAction?
+  let secondary_actions: [SDTodayAction]
+  let attention_count: Int
+  let deep_link: String?
+
+  var arrivalDate: Date? { SDTodayDateParser.date(arrival_at) }
+  var startDate: Date? { SDTodayDateParser.date(start_at) }
+  var endDate: Date? { SDTodayDateParser.date(end_at) }
+}
+
+struct SDTodayAttentionItem: Codable, Equatable, Identifiable, Sendable {
+  let id: String
+  let source_type: String
+  let source_id: UUID?
+  let category: String
+  let severity: SDTodayUrgency
+  let title: String
+  let detail: String?
+  let due_at: String?
+  let action: SDTodayAction?
+  let deep_link: String?
+}
+
+struct SDTodaySummaryItem: Codable, Equatable, Identifiable, Sendable {
+  let category: String
+  let label: String
+  let value: String
+  let status: String?
+  let as_of: String?
+  let action: SDTodayAction?
+  var id: String { category }
+}
+
+struct SDTodayContext: Codable, Equatable, Sendable {
+  let organization_id: UUID
+  let organization_name: String
+  let role: SDTodayRole
+  let season_id: UUID?
+  let season_name: String?
+  let team_id: UUID?
+  let team_name: String?
+  let child_id: UUID?
+  let child_name: String?
+  let local_date: String
+  let timezone: String
+  let scope_type: String
+  let context_token: String
+}
+
+struct SDTodayResponse: Codable, Equatable, Sendable {
+  let context: SDTodayContext
+  let missions: [SDTodayMission]
+  let attention_items: [SDTodayAttentionItem]
+  let summaries: [SDTodaySummaryItem]
+  let primary_action: SDTodayAction?
+  let secondary_actions: [SDTodayAction]
+  let services: [String: SDTodayServiceState]
+  let capabilities: [String]
+  let generated_at: String
+  let as_of: String
+
+  func service(_ name: String) -> SDTodayServiceState {
+    services[name] ?? SDTodayServiceState(
+      state: .unavailable,
+      message: "This section is temporarily unavailable.",
+      as_of: nil
+    )
+  }
+}
+
+enum SDTodayDateParser {
+  static func date(_ value: String?) -> Date? {
+    guard let value else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+  }
+}
+
+enum SDTodayMissionOrdering {
+  static func ordered(_ missions: [SDTodayMission], now: Date = Date()) -> [SDTodayMission] {
+    missions.sorted { left, right in
+      let leftKey = key(left, now: now)
+      let rightKey = key(right, now: now)
+      if leftKey.priority != rightKey.priority { return leftKey.priority < rightKey.priority }
+      if leftKey.date != rightKey.date { return leftKey.date < rightKey.date }
+      return left.id < right.id
+    }
+  }
+
+  private static func key(_ mission: SDTodayMission, now: Date) -> (priority: Int, date: Date) {
+    let status = mission.status.lowercased()
+    if mission.is_current || ["in_progress", "active", "paused"].contains(mission.operation_state?.lowercased() ?? "") {
+      return (0, mission.arrivalDate ?? mission.startDate ?? .distantFuture)
+    }
+    if !["cancelled", "postponed"].contains(status),
+       let arrival = mission.arrivalDate,
+       arrival <= now,
+       (mission.endDate ?? mission.startDate ?? .distantPast) >= now {
+      return (1, arrival)
+    }
+    if mission.is_next { return (2, mission.arrivalDate ?? mission.startDate ?? .distantFuture) }
+    if !["completed", "cancelled", "postponed"].contains(status),
+       (mission.startDate ?? .distantPast) >= now {
+      return (3, mission.arrivalDate ?? mission.startDate ?? .distantFuture)
+    }
+    if mission.requires_review { return (4, mission.startDate ?? .distantFuture) }
+    return (5, mission.startDate ?? .distantFuture)
+  }
+}
+
+enum SDTodayAttentionOrdering {
+  static func ordered(_ items: [SDTodayAttentionItem]) -> [SDTodayAttentionItem] {
+    items.sorted {
+      if $0.severity.rank != $1.severity.rank { return $0.severity.rank < $1.severity.rank }
+      let leftDate = SDTodayDateParser.date($0.due_at) ?? .distantFuture
+      let rightDate = SDTodayDateParser.date($1.due_at) ?? .distantFuture
+      if leftDate != rightDate { return leftDate < rightDate }
+      return $0.id < $1.id
+    }
+  }
+}
+
+enum SDTodayPrimaryActionResolver {
+  static func coachAction(
+    eventType: String,
+    eventStatus: String,
+    operationState: String?,
+    planState: String?,
+    unresolvedAvailability: Int,
+    unresolvedAttendance: Int,
+    capabilities: Set<String>
+  ) -> SDTodayAction? {
+    func action(_ id: String, _ label: String, _ capability: String) -> SDTodayAction? {
+      guard capabilities.contains(capability) else { return nil }
+      return SDTodayAction(id: id, label: label, route: "event", capability: capability)
+    }
+    if eventStatus == "cancelled" || eventStatus == "postponed" { return action("review_event", "Review Event", "view_event_operation") }
+    if operationState == "completed" {
+      if unresolvedAttendance > 0 { return action("resolve_attendance", "Resolve Attendance", "manage_event_attendance") }
+      return action("review_completed", "Review Completed Event", "view_event_operation")
+    }
+    if operationState == "in_progress" { return action("complete_event", "Complete Event", "complete_event_operation") }
+    if operationState == "paused" {
+      return action(eventType == "game" ? "resume_game" : "resume_practice", eventType == "game" ? "Resume Game Day" : "Resume Practice", eventType == "game" ? "manage_game" : "manage_practice")
+    }
+    if unresolvedAvailability > 0 { return action("review_availability", "Review Availability", "manage_event_availability") }
+    if eventType == "practice", planState == nil { return action("prepare_practice", "Prepare Practice", "create_practice_plan") }
+    if eventType == "practice", ["draft", "ready"].contains(planState ?? "") { return action("review_practice", "Review Practice Plan", "edit_practice_plan") }
+    if eventType == "practice", planState == "published" { return action("start_practice", "Start Practice", "start_event_operation") }
+    if eventType == "game", planState == nil { return action("prepare_game", "Prepare Game", "create_game_plan") }
+    if eventType == "game", ["draft", "ready"].contains(planState ?? "") { return action("build_lineup", "Build Lineup", "manage_batting_order") }
+    if eventType == "game", planState == "published" { return action("start_game", "Start Game Day", "start_event_operation") }
+    return action("start_check_in", "Start Check-In", "start_event_operation")
+  }
+}
+
 enum SDSeasonLifecycle: String, CaseIterable, Codable, Identifiable, Sendable {
   case planning
   case registrationOpen = "registration_open"

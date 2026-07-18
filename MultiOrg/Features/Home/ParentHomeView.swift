@@ -6,11 +6,16 @@ import SwiftUI
 /// - Book facilities + request payment on behalf
 struct ParentHomeView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.scenePhase) private var scenePhase
 
   @State private var invites: [SDParentInvite] = []
   @State private var links: [SDParentChildLink] = []
   @State private var children: [Profile] = []
   @State private var todayMissions: [ParentTodayMission] = []
+  @State private var todayAggregate: SDTodayResponse?
+  @State private var todayServiceError: String?
+  @State private var loadToken: UUID?
+  @State private var publishedContext: String?
   @State private var availabilityEditor: ParentAvailabilityPresentation?
   @State private var pendingAvailability: ParentPendingAvailability?
 
@@ -73,7 +78,7 @@ struct ParentHomeView: View {
           }
         }
       }
-      .task(id: appState.activeOrgId) { await reload() }
+      .task(id: parentContextIdentity) { await reload() }
 #else
       NavigationStack {
         HPWorkspaceScreenLayout {
@@ -170,7 +175,7 @@ struct ParentHomeView: View {
             }
           }
         }
-        .task(id: appState.activeOrgId) { await reload() }
+        .task(id: parentContextIdentity) { await reload() }
       }
 #endif
     }
@@ -190,6 +195,9 @@ struct ParentHomeView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { Task { await reload() } }
+    }
     .sheet(item: $availabilityEditor) { presentation in
       EventAvailabilityEditorSheet(playerName: presentation.child.displayName, initial: presentation.draft) { draft, requestId in
         availabilityEditor = nil
@@ -203,6 +211,21 @@ struct ParentHomeView: View {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader("Today’s Baseball Missions") {
           HPStatusBadge(text: "\(todayMissions.count)", kind: todayMissions.isEmpty ? .neutral : .info)
+        }
+        if let todayServiceError {
+          HPErrorState(title: "Family attention is unavailable", message: todayServiceError, onRetry: { Task { await reload() } })
+        } else if let aggregate = todayAggregate {
+          ForEach(aggregate.attention_items) { item in
+            Label(item.title, systemImage: item.severity == .urgent ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
+              .font(HP.Font.caption.weight(.semibold))
+              .foregroundStyle(item.severity == .urgent ? HP.Color.danger : HP.Color.warning)
+          }
+          ForEach(aggregate.services.keys.sorted(), id: \.self) { name in
+            if let state = aggregate.services[name], ![.available, .unauthorized].contains(state.state) {
+              Label(state.message ?? "This section is temporarily unavailable.", systemImage: "wifi.exclamationmark")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+            }
+          }
         }
         if todayMissions.isEmpty {
           HPEmptyState(title: "No child events today", message: "Visible events for linked children appear here.", systemImage: "calendar")
@@ -371,20 +394,47 @@ struct ParentHomeView: View {
 #endif
 
   private func reload() async {
-    invites = []
-    links = []
-    children = []
     guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
+    let context = parentContextIdentity
+    if publishedContext != context {
+      invites = []
+      links = []
+      children = []
+      todayMissions = []
+      todayAggregate = nil
+    }
+    let token = UUID()
+    loadToken = token
     isLoading = true
-    defer { isLoading = false }
+    todayServiceError = nil
     do {
-      invites = try await supabase.listMyParentInvites()
-      links = try await supabase.listMyParentChildLinks(orgId: orgId)
-      let ids = links.map(\.child_id)
+      async let loadedInvites = supabase.listMyParentInvites()
+      async let loadedLinks = supabase.listMyParentChildLinks(orgId: orgId)
+      let (newInvites, newLinks) = try await (loadedInvites, loadedLinks)
+      let ids = newLinks.map(\.child_id)
       let profiles = try await supabase.listProfiles(ids: ids)
+      guard acceptsParent(context: context, token: token) else { return }
+      invites = newInvites
+      links = newLinks
       // Only show player children.
       children = profiles.filter(\.isPlayer).sorted { $0.displayName < $1.displayName }
+      do {
+        let aggregate = try await supabase.today(
+          organizationId: orgId,
+          seasonId: appState.selectedSeason?.id,
+          teamId: nil,
+          contextToken: context
+        )
+        guard aggregate.context.organization_id == orgId,
+              aggregate.context.role == .parent else { return }
+        todayAggregate = aggregate
+      } catch {
+        guard acceptsParent(context: context, token: token) else { return }
+        todayServiceError = SDApplicationErrorClassifier.alertMessage(for: error)
+      }
       await reloadTodayMissions(supabase: supabase, organizationId: orgId)
+      guard acceptsParent(context: context, token: token) else { return }
+      publishedContext = context
 
 #if os(macOS)
       if let parsed = SidebarSelection(storageValue: selectionStorage) {
@@ -399,11 +449,31 @@ struct ParentHomeView: View {
       selectionStorage = selection?.storageValue ?? ""
 #endif
     } catch {
-      errorText = SDApplicationErrorClassifier.alertMessage(
-        for: error,
-        taskIsCancelled: Task.isCancelled
-      )
+      guard acceptsParent(context: context, token: token) else { return }
+      if let presentation = SDApplicationErrorClassifier.presentation(for: error, taskIsCancelled: Task.isCancelled) {
+        if presentation.category == .notDeployed || presentation.category == .serviceUnavailable {
+          todayServiceError = presentation.message
+        } else {
+          errorText = presentation.message
+        }
+      }
     }
+    guard acceptsParent(context: context, token: token) else { return }
+    isLoading = false
+  }
+
+  private var parentContextIdentity: String {
+    "\(appState.activeOrgAuthorizationKey):\(appState.selectedSeason?.id.uuidString ?? "none"):\(DateUtils.toISODate(Date())):\(TimeZone.current.identifier)"
+  }
+
+  private func acceptsParent(context: String, token: UUID) -> Bool {
+    SDAsyncRequestGuard.accepts(
+      responseContext: context,
+      responseToken: token,
+      activeContext: parentContextIdentity,
+      currentToken: loadToken,
+      taskIsCancelled: Task.isCancelled
+    )
   }
 
   private func reloadTodayMissions(supabase: SupabaseService, organizationId: UUID) async {
