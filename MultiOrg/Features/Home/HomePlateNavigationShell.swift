@@ -231,9 +231,10 @@ struct HPAppNavigationInventory: Equatable {
   ) -> Self {
     let today = item(.coachToday, "Today", "sun.max")
     let team = item(.coachTeam, "Team", "person.3.fill")
+    let currentTeam = item(.coachTeam, "Current Team", "person.3.fill")
     let schedule = item(.coachSchedule, "Schedule", "calendar")
     let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
-    let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
+    let teams = item(.coachTeams, "Team Management", "person.3.sequence.fill")
     let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
     let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
     let finance = item(.finance, "Finance", "dollarsign.circle")
@@ -263,13 +264,13 @@ struct HPAppNavigationInventory: Equatable {
         }
       ),
       HPAppNavigationSection(
-        title: "Run",
+        title: "Operate",
         items: directoryItems.filter {
           [.coachFacilities, .chat, .finance].contains($0.destination)
         }
       ),
       HPAppNavigationSection(
-        title: "Manage",
+        title: "Administer",
         items: directoryItems.filter {
           [.organizationAdmin, .platformAdmin, .account].contains($0.destination)
         }
@@ -277,19 +278,19 @@ struct HPAppNavigationInventory: Equatable {
     ].filter { !$0.items.isEmpty }
 
     let regular = [
-      HPAppNavigationSection(title: nil, items: [today, team, schedule]),
+      HPAppNavigationSection(title: nil, items: [today, currentTeam, schedule]),
       HPAppNavigationSection(
         title: "Develop",
         items: (canAdministerOrganization ? [teams] : []) + (programsEnabled ? [programs] : [])
       ),
       HPAppNavigationSection(
-        title: "Run",
+        title: "Operate",
         items: (facilitiesEnabled ? [facilities] : [])
           + (chatEnabled ? [chat] : [])
           + (canAdministerOrganization ? [finance] : [])
       ),
       HPAppNavigationSection(
-        title: "Manage",
+        title: "Administer",
         items: (canAdministerOrganization ? [organization] : [])
           + (isPlatformAdmin ? [platform] : [])
           + [account]
@@ -315,10 +316,11 @@ struct HPAppNavigationInventory: Equatable {
     let overview = item(.coachToday, "Overview", "rectangle.3.group")
     let finance = item(.finance, "Finance", "dollarsign.circle")
     let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
+    let communication = item(.chat, "Communication", "bubble.left.and.bubble.right")
     let organization = item(.organizationAdmin, "Organization", "slider.horizontal.3")
-    let team = item(.coachTeam, "Team", "person.3.fill")
+    let team = item(.coachTeam, "Current Team", "person.3.fill")
     let schedule = item(.coachSchedule, "Schedule", "calendar")
-    let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
+    let teams = item(.coachTeams, "Team Management", "person.3.sequence.fill")
     let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
     let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
@@ -327,7 +329,7 @@ struct HPAppNavigationInventory: Equatable {
     let compact = [overview, finance] + (chatEnabled ? [chat] : []) + [organization]
     let directory = [
       HPAppNavigationSection(
-        title: "Run",
+        title: "Operate",
         items: [team, schedule] + (facilitiesEnabled ? [facilities] : [])
       ),
       HPAppNavigationSection(
@@ -335,15 +337,15 @@ struct HPAppNavigationInventory: Equatable {
         items: [teams] + (programsEnabled ? [programs] : [])
       ),
       HPAppNavigationSection(
-        title: "Manage",
+        title: "Administer",
         items: (isPlatformAdmin ? [platform] : []) + [account]
       ),
     ].filter { !$0.items.isEmpty }
     let regular = [
-      HPAppNavigationSection(title: nil, items: compact),
-      HPAppNavigationSection(title: "Run", items: [team, schedule] + (facilitiesEnabled ? [facilities] : [])),
+      HPAppNavigationSection(title: nil, items: [overview, finance] + (chatEnabled ? [communication] : []) + [organization]),
+      HPAppNavigationSection(title: "Operate", items: [team, schedule] + (facilitiesEnabled ? [facilities] : [])),
       HPAppNavigationSection(title: "Develop", items: [teams] + (programsEnabled ? [programs] : [])),
-      HPAppNavigationSection(title: "Manage", items: (isPlatformAdmin ? [platform] : []) + [account]),
+      HPAppNavigationSection(title: "Administer", items: (isPlatformAdmin ? [platform] : []) + [account]),
     ].filter { !$0.items.isEmpty }
 
     return Self(

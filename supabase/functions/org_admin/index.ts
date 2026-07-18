@@ -15,6 +15,12 @@ import {
   canOperateOrganization,
 } from "../_shared/org_authorization.ts";
 import { cleanResponsibilities } from "../_shared/team_operations.ts";
+import {
+  isOrgAdminAction,
+  ORG_ADMIN_ACTIONS,
+} from "../_shared/org_admin_actions.ts";
+
+export { ORG_ADMIN_ACTIONS };
 
 type Json = Record<string, unknown>;
 
@@ -178,6 +184,11 @@ Deno.serve(async (req) => {
   }
 
   const action = String(payload.action ?? "").trim();
+
+  if (!isOrgAdminAction(action)) {
+    console.warn("org_admin unsupported_action", { action });
+    return json(400, { error: "unsupported_action" });
+  }
 
   const teamOperationsAdminActions = [
     "create_season",
@@ -456,6 +467,35 @@ Deno.serve(async (req) => {
     }
     const isDefault = payload.is_default === true ||
       String(payload.is_default).toLowerCase() === "true";
+    const requestId = cleanText(payload.request_id);
+    if (requestId) {
+      const { data: priorAudit, error: priorAuditError } = await admin
+        .from("sd_team_operations_audit_logs")
+        .select("target_id")
+        .eq("organization_id", orgId)
+        .eq("actor_id", callerId)
+        .eq("action", action)
+        .eq("target_type", "season")
+        .eq("request_id", requestId)
+        .maybeSingle();
+      if (priorAuditError) {
+        return json(500, { error: "season_retry_lookup_failed" });
+      }
+      if (priorAudit?.target_id) {
+        const { data: existingSeason, error: existingSeasonError } = await admin
+          .from("sd_seasons")
+          .select()
+          .eq("id", priorAudit.target_id)
+          .eq("organization_id", orgId)
+          .maybeSingle();
+        if (existingSeasonError) {
+          return json(500, { error: "season_retry_lookup_failed" });
+        }
+        if (existingSeason) {
+          return json(200, { season: existingSeason, replayed: true });
+        }
+      }
+    }
     if (isDefault) {
       const { error } = await admin.from("sd_seasons").update({
         is_default: false,
@@ -506,7 +546,7 @@ Deno.serve(async (req) => {
       action,
       target_type: "season",
       target_id: result.data.id,
-      request_id: cleanText(payload.request_id),
+      request_id: requestId,
       details: { status, is_default: isDefault },
     });
     return json(200, { season: result.data });
@@ -1190,5 +1230,8 @@ Deno.serve(async (req) => {
     return json(200, { ok: true });
   }
 
-  return json(400, { error: "unknown_action" });
+  // All values in ORG_ADMIN_ACTIONS are handled above. Keep the fallback safe
+  // if a future action is added to the contract without a dispatch branch.
+  console.error("org_admin action missing dispatch", { action });
+  return json(400, { error: "unsupported_action" });
 });

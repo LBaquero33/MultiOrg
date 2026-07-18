@@ -4,8 +4,10 @@ struct OrgTeamOperationsAdminView: View {
   @EnvironmentObject private var appState: AppState
   @State private var context: SDTeamOperationsContext?
   @State private var seasonName = ""
-  @State private var seasonStart = ""
-  @State private var seasonEnd = ""
+  @State private var seasonStart = Date()
+  @State private var seasonEnd = Date()
+  @State private var hasSeasonStart = false
+  @State private var hasSeasonEnd = false
   @State private var seasonStatus: SDSeasonLifecycle = .planning
   @State private var seasonIsDefault = false
   @State private var editingSeasonId: UUID?
@@ -16,26 +18,67 @@ struct OrgTeamOperationsAdminView: View {
   @State private var selectedResponsibilities: Set<SDTeamResponsibility> = [.readOnly]
   @State private var coachPrimary = false
   @State private var coachAllTeams = false
-  @State private var isLoading = false
-  @State private var errorText: String?
+  @State private var isInitialLoading = false
+  @State private var activeMutations: Set<Mutation> = []
+  @State private var loadErrorText: String?
+  @State private var operationErrorText: String?
+  @State private var seasonErrorText: String?
+  @State private var seasonRequestId = UUID()
+  @State private var loadRequestToken: UUID?
+
+  private enum Mutation: Hashable {
+    case season, team, teamSeason, player, coach
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPWorkspaceHeader(
+        "Team Management",
+        orgLabel: organizationName,
+        context: organizationContext
+      )
+      if isInitialLoading, context == nil {
+        HPCard { HPLoadingState(text: "Loading team operations…") }
+      }
+      if let loadErrorText {
+        HPCard {
+          HPErrorState(
+            title: "Team operations couldn’t be loaded.",
+            message: loadErrorText,
+            onRetry: { Task { await reload() } }
+          )
+        }
+      }
       seasonCard
       teamSeasonCard
       schedulingCard
       playerAssignmentsCard
       coachAssignmentsCard
+      if let operationErrorText {
+        HPCard {
+          HPErrorState(
+            title: "Team operations couldn’t be updated.",
+            message: operationErrorText
+          )
+        }
+      }
     }
-    .task { await reload() }
-    .alert("Team Operations", isPresented: Binding(
-      get: { errorText != nil },
-      set: { if !$0 { errorText = nil } }
-    )) {
-      Button("OK", role: .cancel) {}
-    } message: {
-      Text(errorText ?? "")
+    .task(id: appState.activeOrgId) { await reload() }
+    .accessibilityElement(children: .contain)
+  }
+
+  private var organizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.name
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Organization"
+  }
+
+  private var organizationContext: String {
+    if let season = context?.activeSeason?.name {
+      return "Organization Administration · \(season) · Organization-wide"
     }
+    return "Organization Administration · Organization-wide"
   }
 
   private var activeTeams: [SDTeamOperationsTeam] { context?.teams.filter(\.is_active) ?? [] }
@@ -72,14 +115,18 @@ struct OrgTeamOperationsAdminView: View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader("Seasons") {
-          if isLoading { ProgressView().controlSize(.small) }
+          if activeMutations.contains(.season) { ProgressView().controlSize(.small) }
         }
         Text("Create the organization lifecycle used by team operations.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         HPFormField(label: "Season name", text: $seasonName, placeholder: "2027 Spring")
-        HStack(spacing: HP.Space.sm) {
-          HPFormField(label: "Start date", text: $seasonStart, placeholder: "YYYY-MM-DD")
-          HPFormField(label: "End date", text: $seasonEnd, placeholder: "YYYY-MM-DD")
+        Toggle("Add start date", isOn: $hasSeasonStart)
+        if hasSeasonStart {
+          DatePicker("Start date", selection: $seasonStart, displayedComponents: .date)
+        }
+        Toggle("Add end date", isOn: $hasSeasonEnd)
+        if hasSeasonEnd {
+          DatePicker("End date", selection: $seasonEnd, displayedComponents: .date)
         }
         Picker("Lifecycle", selection: $seasonStatus) {
           ForEach(SDSeasonLifecycle.allCases) { status in Text(status.label).tag(status) }
@@ -92,7 +139,21 @@ struct OrgTeamOperationsAdminView: View {
           size: .md,
           action: { Task { await createSeason() } }
         )
-        .disabled(seasonName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+        .disabled(!seasonDraft.isValid || activeMutations.contains(.season))
+        .accessibilityHint(seasonDraft.validationIssue?.message ?? "Saves this season to the organization")
+        if let validation = seasonDraft.validationIssue {
+          Text(validation.message)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.warning)
+            .accessibilityLabel("Season form error: \(validation.message)")
+        }
+        if let seasonErrorText {
+          HPErrorState(
+            title: "The season could not be created.",
+            message: seasonErrorText,
+            onRetry: { Task { await createSeason() } }
+          )
+        }
         ForEach(context?.seasons ?? []) { season in
           HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -129,7 +190,7 @@ struct OrgTeamOperationsAdminView: View {
           size: .md,
           action: { Task { await createTeam() } }
         )
-        .disabled(newTeamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newTeamSeasonId == nil || isLoading)
+        .disabled(newTeamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newTeamSeasonId == nil || activeMutations.contains(.team))
         Divider()
         ForEach(activeTeams) { team in
           HStack {
@@ -200,7 +261,7 @@ struct OrgTeamOperationsAdminView: View {
           size: .md,
           action: { Task { await saveCoachAssignment() } }
         )
-        .disabled(selectedCoachId == nil || selectedCoachTeamId == nil || selectedResponsibilities.isEmpty || isLoading)
+        .disabled(selectedCoachId == nil || selectedCoachTeamId == nil || selectedResponsibilities.isEmpty || activeMutations.contains(.coach))
         capabilityPreview
       }
     }
@@ -236,62 +297,103 @@ struct OrgTeamOperationsAdminView: View {
 
   private func reload() async {
     guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
+    let token = UUID()
+    loadRequestToken = token
+    isInitialLoading = true
+    loadErrorText = nil
+    defer {
+      if loadRequestToken == token { isInitialLoading = false }
+    }
     do {
-      context = try await supabase.fetchTeamOperationsContext(orgId: orgId)
-      newTeamSeasonId = context?.activeSeason?.id
+      let loaded = try await supabase.fetchTeamOperationsContext(orgId: orgId)
+      guard SDAsyncRequestGuard.accepts(
+        responseContext: orgId,
+        responseToken: token,
+        activeContext: appState.activeOrgId,
+        currentToken: loadRequestToken,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
+      context = loaded
+      newTeamSeasonId = loaded.activeSeason?.id
       await appState.refreshTeamOperationsContext()
     } catch {
-      errorText = error.localizedDescription
+      guard SDAsyncRequestGuard.accepts(
+        responseContext: orgId,
+        responseToken: token,
+        activeContext: appState.activeOrgId,
+        currentToken: loadRequestToken,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
+      loadErrorText = workflowMessage(for: error)
     }
   }
 
   private func createSeason() async {
     guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
+    guard seasonDraft.isValid, activeMutations.insert(.season).inserted else { return }
+    let requestId = seasonRequestId
+    seasonErrorText = nil
+    defer { activeMutations.remove(.season) }
     do {
-      _ = try await supabase.adminSaveSeason(
+      let saved = try await supabase.adminSaveSeason(
         orgId: orgId,
         seasonId: editingSeasonId,
         name: seasonName.trimmingCharacters(in: .whitespacesAndNewlines),
-        startDate: seasonStart.isEmpty ? nil : seasonStart,
-        endDate: seasonEnd.isEmpty ? nil : seasonEnd,
+        startDate: hasSeasonStart ? dateString(seasonStart) : nil,
+        endDate: hasSeasonEnd ? dateString(seasonEnd) : nil,
         status: seasonStatus,
-        isDefault: seasonIsDefault
+        isDefault: seasonIsDefault,
+        requestId: requestId
       )
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      let loaded = try await supabase.fetchTeamOperationsContext(orgId: orgId)
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
       seasonName = ""
-      seasonStart = ""
-      seasonEnd = ""
+      hasSeasonStart = false
+      hasSeasonEnd = false
       seasonStatus = .planning
       seasonIsDefault = false
       editingSeasonId = nil
-      context = try await supabase.fetchTeamOperationsContext(orgId: orgId)
-    } catch { errorText = error.localizedDescription }
+      seasonRequestId = UUID()
+      context = loaded
+      newTeamSeasonId = loaded.activeSeason?.id
+      if !loaded.seasons.contains(where: { $0.id == saved.id }) {
+        loadErrorText = "The season was saved, but the season list could not be refreshed."
+      }
+    } catch {
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      seasonErrorText = workflowMessage(for: error, currentEnvironment: true)
+    }
   }
 
   private func beginEditing(_ season: SDSeason) {
     editingSeasonId = season.id
     seasonName = season.name
-    seasonStart = season.start_date ?? ""
-    seasonEnd = season.end_date ?? ""
+    hasSeasonStart = season.start_date != nil
+    hasSeasonEnd = season.end_date != nil
+    seasonStart = date(from: season.start_date) ?? Date()
+    seasonEnd = date(from: season.end_date) ?? Date()
     seasonStatus = season.status
     seasonIsDefault = season.is_default
+    seasonRequestId = UUID()
   }
 
   private func assign(team: SDTeamOperationsTeam, to season: SDSeason) async {
     guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
+    guard activeMutations.insert(.teamSeason).inserted else { return }
+    defer { activeMutations.remove(.teamSeason) }
     do {
       try await supabase.adminAssignTeamToSeason(orgId: orgId, teamId: team.id, seasonId: season.id)
       await reload()
-    } catch { errorText = error.localizedDescription }
+    } catch { publishOperationError(error, organizationId: orgId) }
   }
 
   private func createTeam() async {
     guard let orgId = appState.activeOrgId,
           let seasonId = newTeamSeasonId,
           let supabase = appState.supabase else { return }
+    guard activeMutations.insert(.team).inserted else { return }
+    defer { activeMutations.remove(.team) }
     do {
       try await supabase.adminCreateTeam(
         orgId: orgId,
@@ -302,11 +404,13 @@ struct OrgTeamOperationsAdminView: View {
       )
       newTeamName = ""
       await reload()
-    } catch { errorText = error.localizedDescription }
+    } catch { publishOperationError(error, organizationId: orgId) }
   }
 
   private func assign(player: Profile, to team: SDTeamOperationsTeam) async {
     guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
+    guard activeMutations.insert(.player).inserted else { return }
+    defer { activeMutations.remove(.player) }
     do {
       try await supabase.adminAssignPlayerToTeam(
         orgId: orgId,
@@ -315,7 +419,7 @@ struct OrgTeamOperationsAdminView: View {
         reason: "organization_admin_assignment"
       )
       await reload()
-    } catch { errorText = error.localizedDescription }
+    } catch { publishOperationError(error, organizationId: orgId) }
   }
 
   private func saveCoachAssignment() async {
@@ -323,8 +427,8 @@ struct OrgTeamOperationsAdminView: View {
           let coachId = selectedCoachId,
           let teamId = selectedCoachTeamId,
           let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
+    guard activeMutations.insert(.coach).inserted else { return }
+    defer { activeMutations.remove(.coach) }
     do {
       _ = try await supabase.adminAssignCoachToTeam(
         orgId: orgId,
@@ -334,8 +438,56 @@ struct OrgTeamOperationsAdminView: View {
         isPrimary: coachPrimary,
         organizationWideAccess: coachAllTeams
       )
-      context = try await supabase.fetchTeamOperationsContext(orgId: orgId)
+      let loaded = try await supabase.fetchTeamOperationsContext(orgId: orgId)
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      context = loaded
       await appState.refreshTeamOperationsContext()
-    } catch { errorText = error.localizedDescription }
+    } catch { publishOperationError(error, organizationId: orgId) }
+  }
+
+  private var seasonDraft: SDSeasonDraft {
+    SDSeasonDraft(
+      organizationId: appState.activeOrgId,
+      name: seasonName,
+      startDate: hasSeasonStart ? dateString(seasonStart) : nil,
+      endDate: hasSeasonEnd ? dateString(seasonEnd) : nil,
+      lifecycle: seasonStatus,
+      isDefault: seasonIsDefault
+    )
+  }
+
+  private func publishOperationError(_ error: Error, organizationId: UUID) {
+    guard !Task.isCancelled, appState.activeOrgId == organizationId else { return }
+    operationErrorText = workflowMessage(for: error)
+  }
+
+  private func workflowMessage(for error: Error, currentEnvironment: Bool = false) -> String? {
+    guard let presentation = SDApplicationErrorClassifier.presentation(
+      for: error,
+      taskIsCancelled: Task.isCancelled
+    ) else { return nil }
+    if currentEnvironment,
+       [.unsupportedAction, .notDeployed, .serviceUnavailable].contains(presentation.category) {
+      return "This action is not available in the current environment."
+    }
+    return presentation.message
+  }
+
+  private func dateString(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.string(from: date)
+  }
+
+  private func date(from value: String?) -> Date? {
+    guard let value else { return nil }
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.isLenient = false
+    return formatter.date(from: value)
   }
 }

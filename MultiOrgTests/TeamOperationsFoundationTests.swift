@@ -117,6 +117,76 @@ struct TeamOperationsFoundationTests {
     #expect(source.contains("sd_team_operations_audit_logs"))
   }
 
+  @Test("Swift and backend org_admin action contracts stay synchronized")
+  func orgAdminActionContractSynchronization() throws {
+    let backend = try sourceFile("supabase/functions/_shared/org_admin_actions.ts")
+    let swiftActions = Set(SDOrgAdminAction.allCases.map(\.rawValue))
+    #expect(swiftActions.contains("create_season"))
+    #expect(swiftActions.contains("update_season"))
+    #expect(swiftActions.count == 17)
+    for action in swiftActions {
+      #expect(backend.contains("\"\(action)\""))
+    }
+    #expect(!backend.contains("createSeason"))
+  }
+
+  @Test("unsupported actions map to controlled copy without raw server text")
+  func unsupportedActionMapping() {
+    for code in ["unknown_action", "unsupported_action"] {
+      let error = SDEdgeFunctionHTTPError(
+        statusCode: 400,
+        code: code,
+        message: "Unknown Action. RPC sd_create_season failed."
+      )
+      let presentation = SDApplicationErrorClassifier.presentation(for: error)
+      #expect(presentation?.category == .unsupportedAction)
+      #expect(presentation?.message == "This action is not available in this version.")
+      #expect(presentation?.message.localizedCaseInsensitiveContains("unknown") == false)
+      #expect(presentation?.message.localizedCaseInsensitiveContains("sd_create_season") == false)
+    }
+  }
+
+  @Test("season draft validates required context name and date order")
+  func seasonDraftValidation() {
+    let valid = SDSeasonDraft(
+      organizationId: orgA,
+      name: "2027 Spring",
+      startDate: "2027-05-09",
+      endDate: "2027-07-26",
+      lifecycle: .planning,
+      isDefault: true
+    )
+    #expect(valid.isValid)
+    #expect(SDSeasonDraft(
+      organizationId: orgA,
+      name: "Spring",
+      startDate: "2027-07-26",
+      endDate: "2027-05-09",
+      lifecycle: .planning,
+      isDefault: false
+    ).validationIssue == .endBeforeStart)
+    #expect(SDSeasonDraft(
+      organizationId: nil,
+      name: "Spring",
+      startDate: nil,
+      endDate: nil,
+      lifecycle: .planning,
+      isDefault: false
+    ).validationIssue == .missingOrganization)
+  }
+
+  @Test("Team Operations uses local loading contextual errors and a context header")
+  func teamOperationsUsabilityContracts() throws {
+    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    #expect(source.contains("HPWorkspaceHeader("))
+    #expect(source.contains("Organization Administration"))
+    #expect(source.contains("activeMutations.contains(.season)"))
+    #expect(source.contains("This action is not available in the current environment."))
+    #expect(source.contains("DatePicker(\"Start date\""))
+    #expect(source.contains(".alert(\"Team Operations\"") == false)
+    #expect(source.contains("error.localizedDescription") == false)
+  }
+
   @Test("organization lifecycle and finance rules preserve history")
   func organizationLifecycleRules() {
     #expect(SDSeasonLifecycle.planning.canTransition(to: .registrationOpen))
@@ -261,6 +331,21 @@ struct TeamOperationsFoundationTests {
     )
     #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
     #expect(owner.compactTabCountIncludingDirectory == 5)
+    #expect(owner.regularItems.contains(where: { $0.title == "Current Team" }))
+    #expect(owner.regularItems.contains(where: { $0.title == "Team Management" }))
+    #expect(!owner.regularItems.contains(where: { $0.destination == .platformAdmin }))
+    #expect(owner.regularSections.contains(where: { $0.title == "Operate" }))
+    #expect(owner.regularSections.contains(where: { $0.title == "Administer" }))
+
+    let platformOwner = HPAppNavigationInventory.owner(
+      facilitiesTitle: "Facilities",
+      programsTitle: "Programs",
+      facilitiesEnabled: true,
+      chatEnabled: true,
+      programsEnabled: true,
+      isPlatformAdmin: true
+    )
+    #expect(platformOwner.regularItems.contains(where: { $0.destination == .platformAdmin }))
   }
 
   private func team(
@@ -325,6 +410,123 @@ final class Phase12UnavailableStateRenderTests: XCTestCase {
     XCTAssertGreaterThan(data.count, 5_000)
     XCTAssertFalse(String(describing: view).contains("404"))
 
+    window.isHidden = true
+    window.rootViewController = nil
+  }
+
+  func testRenderCreateSeasonRepresentativeStates() throws {
+    try assertRenders(AnyView(
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Seasons")
+          HPFormField(label: "Season name", text: .constant("2027 Spring"), placeholder: "2027 Spring")
+          DatePicker("Start date", selection: .constant(Date()), displayedComponents: .date)
+          DatePicker("End date", selection: .constant(Date()), displayedComponents: .date)
+          Picker("Lifecycle", selection: .constant(SDSeasonLifecycle.planning)) {
+            Text("Planning").tag(SDSeasonLifecycle.planning)
+          }
+          Toggle("Default season", isOn: .constant(true))
+          HPButton(title: "Create Season", systemImage: "plus", variant: .primary, size: .md) {}
+        }
+      }
+    ))
+    try assertRenders(AnyView(
+      HPCard {
+        VStack(spacing: HP.Space.sm) {
+          HPFormField(label: "Season name", text: .constant(""), placeholder: "2027 Spring")
+          Text("Enter a season name.").foregroundStyle(HP.Color.warning)
+          HPButton(title: "Create Season", variant: .primary, size: .md) {}
+            .disabled(true)
+        }
+      }
+    ))
+    try assertRenders(AnyView(
+      HPCard {
+        HPErrorState(
+          title: "The season could not be created.",
+          message: "This action is not available in the current environment.",
+          onRetry: {}
+        )
+      }
+    ))
+  }
+
+  func testRenderMacContextLoadingAndSidebarFixtures() throws {
+    try assertRenders(AnyView(
+      VStack(spacing: HP.Space.md) {
+        HPWorkspaceHeader(
+          "Team Management",
+          orgLabel: "Red Foxes",
+          context: "Organization Administration · 2027 Spring · Organization-wide"
+        )
+        HPCard { HPLoadingState(text: "Creating season…") }
+      }
+    ), width: 720, height: 420)
+
+    for platformAdmin in [false, true] {
+      let inventory = HPAppNavigationInventory.owner(
+        facilitiesTitle: "Facilities",
+        programsTitle: "Program Templates",
+        facilitiesEnabled: true,
+        chatEnabled: true,
+        programsEnabled: true,
+        isPlatformAdmin: platformAdmin
+      )
+      try assertRenders(AnyView(
+        HPSidebar(
+          orgIdentity: .homePlate,
+          role: .owner,
+          groups: inventory.regularGroups,
+          selectionKey: .constant(Optional(HPAppNavigationDestination.coachToday.rawValue))
+        )
+      ), width: 300, height: 700)
+    }
+  }
+
+  func testRenderPopulatedOperationsAndScopedUnavailableFixtures() throws {
+    try assertRenders(AnyView(
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Seasons") { HPStatusBadge(text: "1 active", kind: .success) }
+          Text("2027 Spring").font(HP.Font.headline)
+          Text("May 9 – July 26").foregroundStyle(HP.Color.textMuted)
+          HPStatusBadge(text: "Planning", kind: .neutral)
+        }
+      }
+    ))
+    for title in ["Today’s schedule couldn’t be loaded.", "Calendar couldn’t be loaded."] {
+      try assertRenders(AnyView(
+        HPCard {
+          HPErrorState(
+            title: title,
+            message: "The scheduling service is not available in this environment.",
+            onRetry: {}
+          )
+        }
+      ))
+    }
+  }
+
+  private func assertRenders(
+    _ view: AnyView,
+    width: CGFloat = 393,
+    height: CGFloat = 480
+  ) throws {
+    let root = view
+      .padding(HP.Space.md)
+      .background(HP.Color.bg)
+      .frame(width: width, height: height)
+    let host = UIHostingController(rootView: root)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: height))
+    window.rootViewController = host
+    window.makeKeyAndVisible()
+    host.view.frame = window.bounds
+    host.view.layoutIfNeeded()
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    let image = UIGraphicsImageRenderer(size: window.bounds.size).image { context in
+      host.view.layer.render(in: context.cgContext)
+    }
+    XCTAssertGreaterThan(try XCTUnwrap(image.pngData()).count, 5_000)
     window.isHidden = true
     window.rootViewController = nil
   }

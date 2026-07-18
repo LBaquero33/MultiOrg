@@ -625,5 +625,6 @@ Deno.serve(async (req) => {
     return json(200, { entries: data ?? [] });
   }
 
-  return json(400, { error: "unknown_action" });
+  console.warn("platform_admin unsupported_action", { action });
+  return json(400, { error: "unsupported_action" });
 });

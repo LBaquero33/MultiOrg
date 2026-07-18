@@ -1,5 +1,80 @@
 import Foundation
 
+enum SDOrgAdminAction: String, CaseIterable, Codable, Sendable {
+  case teamContext = "team_context"
+  case createSeason = "create_season"
+  case updateSeason = "update_season"
+  case assignTeamSeason = "assign_team_season"
+  case assignPlayerTeam = "assign_player_team"
+  case assignCoachTeam = "assign_coach_team"
+  case getPlayerAccess = "get_player_access"
+  case setPlayerAccess = "set_player_access"
+  case listMembers = "list_members"
+  case createUser = "create_user"
+  case updateMember = "update_member"
+  case setUsername = "set_username"
+  case listTeams = "list_teams"
+  case createTeam = "create_team"
+  case updateTeam = "update_team"
+  case assignTeamMember = "assign_team_member"
+  case removeTeamMember = "remove_team_member"
+}
+
+struct SDSeasonDraft: Equatable, Sendable {
+  let organizationId: UUID?
+  var name: String
+  var startDate: String?
+  var endDate: String?
+  var lifecycle: SDSeasonLifecycle
+  var isDefault: Bool
+
+  enum ValidationIssue: Equatable, Sendable {
+    case missingOrganization
+    case missingName
+    case invalidStartDate
+    case invalidEndDate
+    case endBeforeStart
+
+    var message: String {
+      switch self {
+      case .missingOrganization: "Select an organization before creating a season."
+      case .missingName: "Enter a season name."
+      case .invalidStartDate: "Choose a valid start date."
+      case .invalidEndDate: "Choose a valid end date."
+      case .endBeforeStart: "End date must be on or after the start date."
+      }
+    }
+  }
+
+  var validationIssue: ValidationIssue? {
+    guard organizationId != nil else { return .missingOrganization }
+    guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return .missingName
+    }
+    let start = normalizedDate(startDate)
+    let end = normalizedDate(endDate)
+    if startDate?.isEmpty == false, start == nil { return .invalidStartDate }
+    if endDate?.isEmpty == false, end == nil { return .invalidEndDate }
+    if let start, let end, end < start { return .endBeforeStart }
+    return nil
+  }
+
+  var isValid: Bool { validationIssue == nil }
+
+  private func normalizedDate(_ value: String?) -> String? {
+    guard let value, !value.isEmpty else { return nil }
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.isLenient = false
+    guard let date = formatter.date(from: value), formatter.string(from: date) == value else {
+      return nil
+    }
+    return value
+  }
+}
+
 enum SDOrganizationCapability: String, Codable, Hashable, Sendable {
   case viewTeamCommunication = "view_team_communication"
   case createOrgAnnouncement = "create_org_announcement"

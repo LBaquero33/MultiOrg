@@ -9,6 +9,7 @@ enum SDApplicationErrorCategory: String, Equatable, Sendable {
   case notDeployed = "feature_not_deployed"
   case staleData = "stale_data"
   case validation
+  case unsupportedAction = "unsupported_action"
   case serverError = "server_error"
   case unknown
 }
@@ -55,6 +56,9 @@ enum SDApplicationErrorClassifier {
       }
     }
     if let edgeError = error as? SDEdgeFunctionHTTPError {
+      if ["unknown_action", "unsupported_action"].contains(edgeError.code) {
+        return presentation(for: .unsupportedAction)
+      }
       return presentation(for: category(forHTTPStatus: edgeError.statusCode))
     }
     if let urlError = error as? URLError {
@@ -130,6 +134,8 @@ enum SDApplicationErrorClassifier {
       SDUserFacingError(category: category, message: "This information changed. Refresh and try again.", allowsRetry: true)
     case .validation:
       SDUserFacingError(category: category, message: "Check the information and try again.", allowsRetry: false)
+    case .unsupportedAction:
+      SDUserFacingError(category: category, message: "This action is not available in this version.", allowsRetry: false)
     case .serverError:
       SDUserFacingError(category: category, message: "Home Plate couldn’t complete the request. Try again.", allowsRetry: true)
     case .unknown:
@@ -500,7 +506,7 @@ final class SupabaseService: ObservableObject {
       "org_admin",
       options: FunctionInvokeOptions(
         body: [
-          "action": "list_members",
+          "action": SDOrgAdminAction.listMembers.rawValue,
           "org_id": orgId.uuidString,
         ]
       )
@@ -515,7 +521,7 @@ final class SupabaseService: ObservableObject {
                           fullName: String?,
                           role: String) async throws -> UUID? {
     var body: [String: String] = [
-      "action": "create_user",
+      "action": SDOrgAdminAction.createUser.rawValue,
       "org_id": orgId.uuidString,
       "email": email,
       "username": username,
@@ -537,7 +543,7 @@ final class SupabaseService: ObservableObject {
       "org_admin",
       options: FunctionInvokeOptions(
         body: [
-          "action": "update_member",
+          "action": SDOrgAdminAction.updateMember.rawValue,
           "org_id": orgId.uuidString,
           "user_id": userId.uuidString,
           "role": role,
@@ -552,7 +558,7 @@ final class SupabaseService: ObservableObject {
       "org_admin",
       options: FunctionInvokeOptions(
         body: [
-          "action": "set_username",
+          "action": SDOrgAdminAction.setUsername.rawValue,
           "org_id": orgId.uuidString,
           "user_id": userId.uuidString,
           "username": username,
@@ -570,7 +576,7 @@ final class SupabaseService: ObservableObject {
   func adminListTeams(orgId: UUID) async throws -> OrgTeamsResponse {
     try await invokeAuthenticatedFunction(
       "org_admin",
-      body: ["action": "list_teams", "org_id": orgId.uuidString]
+      body: ["action": SDOrgAdminAction.listTeams.rawValue, "org_id": orgId.uuidString]
     )
   }
 
@@ -582,7 +588,7 @@ final class SupabaseService: ObservableObject {
     seasonId: UUID? = nil
   ) async throws {
     let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": "create_team", "org_id": orgId.uuidString, "name": name,
+      "action": SDOrgAdminAction.createTeam.rawValue, "org_id": orgId.uuidString, "name": name,
       "color_hex": colorHex ?? "", "description": description ?? "",
       "season_id": seasonId?.uuidString ?? "",
     ])
@@ -591,7 +597,7 @@ final class SupabaseService: ObservableObject {
   func fetchTeamOperationsContext(orgId: UUID) async throws -> SDTeamOperationsContext {
     try await invokeAuthenticatedFunction(
       "org_admin",
-      body: ["action": "team_context", "org_id": orgId.uuidString]
+      body: ["action": SDOrgAdminAction.teamContext.rawValue, "org_id": orgId.uuidString]
     )
   }
 
@@ -1391,12 +1397,13 @@ final class SupabaseService: ObservableObject {
     startDate: String?,
     endDate: String?,
     status: SDSeasonLifecycle,
-    isDefault: Bool
+    isDefault: Bool,
+    requestId: UUID = UUID()
   ) async throws -> SDSeason {
     let response: SeasonMutationResponse = try await invokeAuthenticatedFunction(
       "org_admin",
       body: SeasonMutationRequest(
-        action: seasonId == nil ? "create_season" : "update_season",
+        action: (seasonId == nil ? SDOrgAdminAction.createSeason : .updateSeason).rawValue,
         org_id: orgId.uuidString,
         season_id: seasonId?.uuidString,
         name: name,
@@ -1404,7 +1411,7 @@ final class SupabaseService: ObservableObject {
         end_date: endDate,
         status: status.rawValue,
         is_default: isDefault,
-        request_id: UUID().uuidString
+        request_id: requestId.uuidString
       )
     )
     return response.season
@@ -1412,7 +1419,7 @@ final class SupabaseService: ObservableObject {
 
   func adminAssignTeamToSeason(orgId: UUID, teamId: UUID, seasonId: UUID) async throws {
     let _: TeamMutationResponse = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": "assign_team_season",
+      "action": SDOrgAdminAction.assignTeamSeason.rawValue,
       "org_id": orgId.uuidString,
       "team_id": teamId.uuidString,
       "season_id": seasonId.uuidString,
@@ -1428,7 +1435,7 @@ final class SupabaseService: ObservableObject {
   ) async throws {
     struct Response: Decodable { let membership: SDPlayerTeamMembership }
     let _: Response = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": "assign_player_team",
+      "action": SDOrgAdminAction.assignPlayerTeam.rawValue,
       "org_id": orgId.uuidString,
       "player_id": playerId.uuidString,
       "team_id": teamId.uuidString,
@@ -1460,7 +1467,7 @@ final class SupabaseService: ObservableObject {
     let response: Response = try await invokeAuthenticatedFunction(
       "org_admin",
       body: CoachAssignmentMutationRequest(
-        action: "assign_coach_team",
+        action: SDOrgAdminAction.assignCoachTeam.rawValue,
         org_id: orgId.uuidString,
         coach_id: coachId.uuidString,
         team_id: teamId.uuidString,
@@ -1476,12 +1483,12 @@ final class SupabaseService: ObservableObject {
   func adminAssignTeam(orgId: UUID, teamId: UUID?, memberId: UUID) async throws {
     if let teamId {
       let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
-        "action": "assign_team_member", "org_id": orgId.uuidString,
+        "action": SDOrgAdminAction.assignTeamMember.rawValue, "org_id": orgId.uuidString,
         "team_id": teamId.uuidString, "member_id": memberId.uuidString
       ])
     } else {
       let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
-        "action": "remove_team_member", "org_id": orgId.uuidString, "member_id": memberId.uuidString
+        "action": SDOrgAdminAction.removeTeamMember.rawValue, "org_id": orgId.uuidString, "member_id": memberId.uuidString
       ])
     }
   }
@@ -1489,7 +1496,7 @@ final class SupabaseService: ObservableObject {
   func adminFetchPlayerAccess(orgId: UUID, playerId: UUID) async throws -> SDAdminPlayerAccess {
     struct Response: Decodable { let entitlement: SDAdminPlayerAccess }
     let response: Response = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": "get_player_access",
+      "action": SDOrgAdminAction.getPlayerAccess.rawValue,
       "org_id": orgId.uuidString,
       "player_id": playerId.uuidString,
     ])
@@ -1499,7 +1506,7 @@ final class SupabaseService: ObservableObject {
   func adminSetPlayerAccess(orgId: UUID, playerId: UUID, isActive: Bool) async throws -> SDAdminPlayerAccess {
     struct Response: Decodable { let entitlement: SDAdminPlayerAccess }
     let response: Response = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": "set_player_access",
+      "action": SDOrgAdminAction.setPlayerAccess.rawValue,
       "org_id": orgId.uuidString,
       "player_id": playerId.uuidString,
       "is_active": isActive ? "true" : "false",
@@ -1540,7 +1547,15 @@ final class SupabaseService: ObservableObject {
               statusCode: statusCode
             )
           }
-          throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+          let decoded = SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+          if ["unknown_action", "unsupported_action"].contains(decoded.code) {
+            throw SDServiceError(
+              category: .unsupportedAction,
+              functionName: name,
+              statusCode: statusCode
+            )
+          }
+          throw decoded
         case .relayError:
           SDApplicationErrorClassifier.log(error, functionName: name)
           throw SDServiceError(

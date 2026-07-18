@@ -215,7 +215,12 @@ struct SDEdgeFunctionHTTPError: LocalizedError, Equatable, Sendable {
   let code: String
   let message: String
 
-  var errorDescription: String? { message }
+  var errorDescription: String? {
+    if ["unknown_action", "unsupported_action"].contains(code) {
+      return "This action is not available in this version."
+    }
+    return message
+  }
 
   static func decode(statusCode: Int, data: Data) -> SDEdgeFunctionHTTPError {
     do {
@@ -246,7 +251,7 @@ struct SDEdgeFunctionHTTPError: LocalizedError, Equatable, Sendable {
       return SDEdgeFunctionHTTPError(
         statusCode: statusCode,
         code: "invalid_error_response",
-        message: "The server rejected the request (HTTP \(statusCode))."
+        message: "Home Plate couldn’t complete the request. Try again."
       )
     }
   }
