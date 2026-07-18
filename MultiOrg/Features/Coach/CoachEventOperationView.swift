@@ -30,6 +30,9 @@ struct CoachEventOperationView: View {
         missionCard
         if let operation {
           readinessCard(operation)
+          if event.event_type == .practice {
+            PracticePlannerView(event: event, operation: operation, teamName: teamName)
+          }
           participantsCard(operation)
           checklistCard
           notesCard
@@ -763,5 +766,397 @@ private struct OperationCompletionSheet: View {
         }
       }
     }
+  }
+}
+
+private struct PracticePlannerView: View {
+  @EnvironmentObject private var appState: AppState
+  let event: SDTeamEvent
+  let operation: SDEventOperation
+  let teamName: String
+  @State private var plan: SDPracticePlan?
+  @State private var blocks: [SDPracticePlanBlock] = []
+  @State private var groups: [SDPracticePlanGroup] = []
+  @State private var assignments: [SDPracticePlanAssignment] = []
+  @State private var equipment: [SDPracticeEquipmentRequirement] = []
+  @State private var executions: [SDPracticeBlockExecution] = []
+  @State private var validation: SDPracticePlanValidation?
+  @State private var templates: [SDPracticePlanTemplate] = []
+  @State private var priorPlans: [SDPracticePriorPlan] = []
+  @State private var showWorkspace = false
+  @State private var isLoading = false
+  @State private var errorText: String?
+  @State private var pendingMutation: PendingPracticeMutation?
+
+  var body: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Practice Plan") {
+          HPStatusBadge(text: plan?.status.label ?? "No Plan", kind: badgeKind)
+        }
+        if let plan {
+          Text(plan.title).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+          HStack(spacing: HP.Space.sm) {
+            HPMetricCard(title: "Duration", value: "\(validation?.total_duration_minutes ?? 0)m", context: "planned")
+            HPMetricCard(title: "Blocks", value: "\(blocks.filter { $0.parent_block_id == nil }.count)", context: "sequential")
+            HPMetricCard(title: "Groups", value: "\(groups.count)", context: "player groups")
+          }
+          if let validation {
+            Label(
+              validation.blocking_errors.isEmpty
+                ? validation.readiness_warnings.isEmpty ? "Plan is ready" : "\(validation.readiness_warnings.count) readiness warning(s)"
+                : "\(validation.blocking_errors.count) blocking error(s)",
+              systemImage: validation.blocking_errors.isEmpty ? "checkmark.circle" : "exclamationmark.triangle"
+            )
+            .font(HP.Font.caption).foregroundStyle(validation.blocking_errors.isEmpty ? HP.Color.textMuted : HP.Color.danger)
+          }
+          if plan.status == .active, let current = currentExecution {
+            Text("Current: \(current.title)").font(HP.Font.callout.weight(.semibold))
+            if let nextExecution { Text("Next: \(nextExecution.title)").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+          }
+          HPButton(title: plan.status == .active ? "Run Practice Plan" : "Open Practice Plan", systemImage: "list.number", variant: .primary, size: .md) {
+            showWorkspace = true
+          }
+        } else if can(.createPracticePlan) {
+          Text("Create a plan from blank, an organization template, or a completed team practice.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+          HStack(spacing: HP.Space.sm) {
+            HPButton(title: "Create Plan", systemImage: "plus", variant: .primary, size: .sm) {
+              run("initialize_blank_plan", ["title": .string(event.title)])
+            }
+            Menu("Build from Template") {
+              if templates.isEmpty { Text("No active templates") }
+              ForEach(templates) { template in
+                Button(template.name) { run("initialize_from_template", ["template_id": .string(template.id.uuidString), "title": .string(event.title)]) }
+              }
+            }
+            Menu("Duplicate Prior") {
+              if priorPlans.isEmpty { Text("No completed practices") }
+              ForEach(priorPlans) { prior in
+                Button(prior.title) { run("duplicate_prior_plan", ["source_plan_id": .string(prior.id.uuidString), "title": .string(event.title), "objectives": .array(prior.objectives.map(SDJSONValue.string))]) }
+              }
+            }
+          }
+        } else {
+          Text("No practice plan is available. Your team responsibility is read-only.")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+        if pendingMutation != nil {
+          HPButton(title: "Retry Pending Plan Change", systemImage: "arrow.clockwise", variant: .secondary, size: .sm) {
+            if let pendingMutation { run(pendingMutation.action, pendingMutation.data, requestId: pendingMutation.requestId) }
+          }
+        }
+      }
+    }
+    .overlay { if isLoading { ProgressView() } }
+    .task { await reload() }
+    .sheet(isPresented: $showWorkspace) {
+      NavigationStack {
+        PracticePlannerWorkspace(
+          event: event,
+          teamName: teamName,
+          operation: operation,
+          plan: plan,
+          blocks: blocks,
+          groups: groups,
+          assignments: assignments,
+          equipment: equipment,
+          executions: executions,
+          validation: validation,
+          players: appState.teamOperationsContext?.players(for: event.team_id) ?? [],
+          coaches: appState.teamOperationsContext?.staff(for: event.team_id) ?? [],
+          capabilities: capabilitySet,
+          onMutation: { action, data in run(action, data) }
+        )
+      }
+    }
+    .alert("Practice Planner", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+      Button("OK", role: .cancel) {}
+    } message: { Text(errorText ?? "") }
+  }
+
+  private var capabilitySet: Set<SDTeamCapability> {
+    if appState.canAdminActiveOrg { return Set(SDTeamCapability.allCases) }
+    return appState.authorizedCoachTeams.first(where: { $0.id == event.team_id })?.capabilitySet ?? []
+  }
+  private func can(_ capability: SDTeamCapability) -> Bool { capabilitySet.contains(capability) }
+  private var badgeKind: HPStatusKind {
+    switch plan?.status { case .published, .completed: .success; case .active: .info; case .draft, .ready: .warning; default: .neutral }
+  }
+  private var currentExecution: SDPracticeBlockExecution? { executions.first { $0.status == .active && $0.parent_block_id == nil } }
+  private var nextExecution: SDPracticeBlockExecution? { executions.filter { $0.status == .pending && $0.parent_block_id == nil }.sorted { $0.sequence_index < $1.sequence_index }.first }
+
+  private func reload() async {
+    guard let service = appState.supabase else { return }
+    isLoading = true; defer { isLoading = false }
+    do {
+      async let detail = service.practicePlan(organizationId: event.organization_id, eventId: event.id)
+      async let availableTemplates = service.practiceTemplates(organizationId: event.organization_id, eventId: event.id, teamId: event.team_id)
+      async let availablePrior = service.priorPracticePlans(organizationId: event.organization_id, eventId: event.id, teamId: event.team_id)
+      let response = try await detail
+      plan = response.plan; blocks = response.blocks; groups = response.groups; assignments = response.assignments
+      equipment = response.equipment; executions = response.executions; validation = response.validation
+      templates = (try? await availableTemplates) ?? []
+      priorPlans = (try? await availablePrior) ?? []
+      errorText = nil
+    } catch { errorText = "The practice plan could not be refreshed. Any pending change remains available for retry." }
+  }
+
+  private func run(_ action: String, _ data: [String: SDJSONValue], requestId: UUID = UUID()) {
+    Task {
+      guard let service = appState.supabase else { return }
+      isLoading = true; defer { isLoading = false }
+      do {
+        _ = try await service.mutatePracticePlan(action: action, organizationId: event.organization_id, eventId: event.id, data: data, requestId: requestId)
+        pendingMutation = nil
+        await reload()
+      } catch {
+        pendingMutation = PendingPracticeMutation(action: action, data: data, requestId: requestId)
+        errorText = "This plan change was not confirmed. Refresh stale data or retry the preserved change."
+      }
+    }
+  }
+}
+
+private struct PendingPracticeMutation: Equatable {
+  let action: String
+  let data: [String: SDJSONValue]
+  let requestId: UUID
+}
+
+private struct PracticePlannerWorkspace: View {
+  @Environment(\.dismiss) private var dismiss
+  let event: SDTeamEvent
+  let teamName: String
+  let operation: SDEventOperation
+  let plan: SDPracticePlan?
+  let blocks: [SDPracticePlanBlock]
+  let groups: [SDPracticePlanGroup]
+  let assignments: [SDPracticePlanAssignment]
+  let equipment: [SDPracticeEquipmentRequirement]
+  let executions: [SDPracticeBlockExecution]
+  let validation: SDPracticePlanValidation?
+  let players: [Profile]
+  let coaches: [Profile]
+  let capabilities: Set<SDTeamCapability>
+  let onMutation: (String, [String: SDJSONValue]) -> Void
+  @State private var title = ""
+  @State private var objectives = ""
+  @State private var blockTitle = ""
+  @State private var blockType: SDPracticeBlockType = .warmup
+  @State private var blockDuration = 15
+  @State private var blockVisibility = "team_visible"
+  @State private var groupName = ""
+  @State private var equipmentName = ""
+  @State private var equipmentQuantity = 1
+  @State private var selectedPlayer: UUID?
+  @State private var selectedCoach: UUID?
+  @State private var selectedGroup: UUID?
+  @State private var selectedBlock: UUID?
+  @State private var templateName = ""
+  @State private var adjustmentReason = ""
+
+  var body: some View {
+    Form {
+      summarySection
+      validationSection
+      if plan?.status == .active { executionSection }
+      if plan?.status == .completed { completionSection }
+      if capabilities.contains(.editPracticePlan), plan?.status != .active, plan?.status != .completed { editorSection }
+      blocksSection
+      if capabilities.contains(.assignPracticeGroups) { groupsSection }
+      if capabilities.contains(.assignPracticePlayers) || capabilities.contains(.assignPracticeCoaches) { assignmentsSection }
+      if capabilities.contains(.managePracticeEquipment) { equipmentSection }
+      if capabilities.contains(.managePracticeTemplates) { templateSection }
+      publicationSection
+    }
+    .navigationTitle(plan?.title ?? "Practice Plan")
+    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+    .onAppear {
+      title = plan?.title ?? event.title
+      objectives = plan?.objectives.joined(separator: "\n") ?? ""
+      selectedPlayer = players.first?.id; selectedCoach = coaches.first?.id; selectedGroup = groups.first?.id; selectedBlock = topBlocks.first?.id
+    }
+  }
+
+  private var topBlocks: [SDPracticePlanBlock] { blocks.filter { $0.parent_block_id == nil }.sorted { $0.sequence_index < $1.sequence_index } }
+  private var current: SDPracticeBlockExecution? { executions.first { $0.status == .active && $0.parent_block_id == nil } }
+  private var next: SDPracticeBlockExecution? { executions.filter { $0.status == .pending && $0.parent_block_id == nil }.sorted { $0.sequence_index < $1.sequence_index }.first }
+
+  private var summarySection: some View {
+    Section("Plan Summary") {
+      LabeledContent("Team", value: teamName)
+      LabeledContent("Status", value: plan?.status.label ?? "No Plan")
+      LabeledContent("Planned duration", value: "\(validation?.total_duration_minutes ?? 0) minutes")
+      LabeledContent("Published version", value: plan?.published_version.map(String.init) ?? "Not published")
+      if let objectives = plan?.objectives, !objectives.isEmpty { Text(objectives.joined(separator: " • ")) }
+    }
+  }
+
+  @ViewBuilder private var validationSection: some View {
+    if let validation {
+      Section("Readiness Validation") {
+        if validation.blocking_errors.isEmpty && validation.readiness_warnings.isEmpty { Label("Ready", systemImage: "checkmark.circle.fill") }
+        ForEach(validation.blocking_errors) { Label($0.label, systemImage: "xmark.octagon").foregroundStyle(HP.Color.danger) }
+        ForEach(validation.readiness_warnings) { Label($0.label, systemImage: "exclamationmark.triangle") }
+        ForEach(validation.notices) { Label($0.label, systemImage: "info.circle") }
+      }
+    }
+  }
+
+  private var editorSection: some View {
+    Section("Plan Editor") {
+      TextField("Plan title", text: $title)
+      TextField("Objectives, one per line", text: $objectives, axis: .vertical)
+      Button("Save Plan Details") {
+        guard let plan else { return }
+        onMutation("update_plan", ["expected_version": .int(plan.version), "title": .string(title), "objectives": .array(objectives.split(separator: "\n").map { .string(String($0)) })])
+      }
+      TextField("New block title", text: $blockTitle)
+      Picker("Block type", selection: $blockType) { ForEach(SDPracticeBlockType.allCases) { Text($0.label).tag($0) } }
+      Stepper("Duration: \(blockDuration) minutes", value: $blockDuration, in: blockType == .arrival ? 0...240 : 1...240)
+      Picker("Visibility", selection: $blockVisibility) { Text("Staff Only").tag("staff_only"); Text("Team Visible").tag("team_visible"); Text("Player Visible").tag("player_visible") }
+      Button("Add Block") {
+        onMutation("add_block", ["title": .string(blockTitle), "block_type": .string(blockType.rawValue), "sequence_index": .int(topBlocks.count), "start_offset_minutes": .int(topBlocks.reduce(0) { $0 + $1.duration_minutes }), "duration_minutes": .int(blockDuration), "visibility": .string(blockVisibility)])
+        blockTitle = ""
+      }.disabled(blockTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+  }
+
+  private var blocksSection: some View {
+    Section("Block List and Parallel Stations") {
+      if topBlocks.isEmpty { Text("No blocks yet") }
+      ForEach(topBlocks) { block in
+        VStack(alignment: .leading) {
+          Text(block.title).font(.headline)
+          Text("\(block.start_offset_minutes)m • \(block.duration_minutes)m • \(block.block_type.label)").font(.caption)
+          ForEach(blocks.filter { $0.parent_block_id == block.id }) { station in Text("Station: \(station.station_name ?? station.title)").font(.caption) }
+          if capabilities.contains(.editPracticePlan), plan?.status != .active, plan?.status != .completed {
+            HStack {
+              Button("Move Up") { reorder(block, delta: -1) }.disabled(block.sequence_index == 0)
+              Button("Move Down") { reorder(block, delta: 1) }.disabled(block.sequence_index >= topBlocks.count - 1)
+              Button("Add Station") {
+                onMutation("add_station", ["parent_block_id": .string(block.id.uuidString), "title": .string("New Station"), "station_name": .string("New Station"), "parallel_group_key": .string(block.id.uuidString), "block_type": .string(block.block_type.rawValue), "sequence_index": .int(blocks.filter { $0.parent_block_id == block.id }.count), "start_offset_minutes": .int(block.start_offset_minutes), "duration_minutes": .int(block.duration_minutes), "visibility": .string(block.visibility)])
+              }
+              Button("Remove", role: .destructive) { onMutation("remove_block", ["block_id": .string(block.id.uuidString), "expected_version": .int(block.version)]) }
+            }.buttonStyle(.borderless)
+          }
+        }
+      }
+    }
+  }
+
+  private var groupsSection: some View {
+    Section("Group Manager") {
+      ForEach(groups) { Text($0.name) }
+      TextField("Group name", text: $groupName)
+      Button("Create Group") { onMutation("create_group", ["name": .string(groupName), "sort_order": .int(groups.count)]); groupName = "" }
+        .disabled(groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+  }
+
+  private var assignmentsSection: some View {
+    Section("Player and Coach Assignment") {
+      if capabilities.contains(.assignPracticePlayers), !players.isEmpty {
+        Picker("Player", selection: $selectedPlayer) { ForEach(players) { Text($0.displayName).tag(Optional($0.id)) } }
+        Picker("Default group", selection: $selectedGroup) { Text("Unassigned").tag(UUID?.none); ForEach(groups) { Text($0.name).tag(Optional($0.id)) } }
+        Button("Assign Player") { if let selectedPlayer { onMutation("assign_player", ["user_id": .string(selectedPlayer.uuidString), "group_id": selectedGroup.map { .string($0.uuidString) } ?? .null]) } }
+      }
+      if capabilities.contains(.assignPracticeCoaches), !coaches.isEmpty {
+        Picker("Coach", selection: $selectedCoach) { ForEach(coaches) { Text($0.displayName).tag(Optional($0.id)) } }
+        Picker("Block / Station", selection: $selectedBlock) { Text("Plan lead").tag(UUID?.none); ForEach(blocks) { Text($0.title).tag(Optional($0.id)) } }
+        Button("Assign Coach") { if let selectedCoach { onMutation("assign_coach", ["user_id": .string(selectedCoach.uuidString), "block_id": selectedBlock.map { .string($0.uuidString) } ?? .null, "is_lead": .bool(selectedBlock == nil)]) } }
+      }
+      Text("Assignments are revalidated against the event participant snapshot and active team staff.").font(.caption)
+    }
+  }
+
+  private var equipmentSection: some View {
+    Section("Equipment Requirements") {
+      ForEach(equipment) { item in
+        HStack { Text("\(item.quantity)× \(item.name)"); Spacer(); Image(systemName: item.prepared ? "checkmark.circle.fill" : "circle") }
+          .contentShape(Rectangle()).onTapGesture { onMutation("update_equipment_requirement", ["equipment_id": .string(item.id.uuidString), "expected_version": .int(item.version), "prepared": .bool(!item.prepared)]) }
+      }
+      TextField("Equipment name", text: $equipmentName)
+      Stepper("Quantity: \(equipmentQuantity)", value: $equipmentQuantity, in: 1...100)
+      Button("Add Equipment") { onMutation("add_equipment_requirement", ["name": .string(equipmentName), "quantity": .int(equipmentQuantity), "required": .bool(true), "visibility": .string("player_visible")]); equipmentName = "" }
+        .disabled(equipmentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+  }
+
+  private var templateSection: some View {
+    Section("Reusable Template") {
+      TextField("Template name", text: $templateName)
+      Button("Save Current Plan as Template") { onMutation("save_plan_as_template", ["name": .string(templateName), "team_id": .string(event.team_id.uuidString), "season_id": .string(event.season_id.uuidString)]) }
+        .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || plan == nil)
+    }
+  }
+
+  @ViewBuilder private var publicationSection: some View {
+    Section("Publish and Operation") {
+      if let plan, capabilities.contains(.publishPracticePlan), plan.status != .active, plan.status != .completed {
+        Button(plan.published_version == nil ? "Publish Plan" : "Publish Revised Version") { onMutation(plan.published_version == nil ? "publish_plan" : "republish_plan", [:]) }
+          .disabled(validation?.valid != true)
+      }
+      if plan?.status == .published, capabilities.contains(.modifyActivePracticePlan), operation.status == .inProgress || operation.status == .ready {
+        Button("Start Practice with Published Version") { onMutation("capture_started_snapshot", [:]) }
+      }
+    }
+  }
+
+  private var executionSection: some View {
+    Section("Active Practice Plan") {
+      if let current { LabeledContent("Current block", value: current.title) }
+      if let next { LabeledContent("Next block", value: next.title) }
+      ForEach(executions.filter { $0.parent_block_id != nil && $0.status == .active }) { Text("Active station: \($0.title)") }
+      ForEach(executions.sorted { $0.sequence_index < $1.sequence_index }) { execution in
+        HStack {
+          VStack(alignment: .leading) { Text(execution.title); Text(execution.status.rawValue.capitalized).font(.caption) }
+          Spacer()
+          if capabilities.contains(.executePracticeBlocks) {
+            if execution.status == .pending { Button("Start") { mutateExecution("start_block", execution) } }
+            if execution.status == .active { Button("Complete") { mutateExecution("complete_block", execution) } }
+            if execution.status == .pending || execution.status == .active { Button("Skip") { mutateExecution("skip_block", execution, reason: adjustmentReason.sdNilIfBlank ?? "Field adjustment") } }
+            if execution.status == .completed || execution.status == .skipped { Button("Reopen") { mutateExecution("reopen_block", execution, reason: adjustmentReason.sdNilIfBlank ?? "Authorized correction") } }
+          }
+        }
+      }
+      TextField("Adjustment reason", text: $adjustmentReason)
+      if capabilities.contains(.modifyActivePracticePlan) {
+        Button("Add Emergency Block") { onMutation("add_active_block", ["title": .string("Emergency Adjustment"), "block_type": .string("custom"), "sequence_index": .int(executions.count), "start_offset_minutes": .int(validation?.total_duration_minutes ?? 0), "duration_minutes": .int(10), "visibility": .string("staff_only"), "reason": .string(adjustmentReason)]) }
+          .disabled(adjustmentReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+      if capabilities.contains(.completePracticePlan) { Button("Complete Practice") { onMutation("complete_practice_plan", [:]) }.disabled(executions.contains { $0.status == .active }) }
+    }
+  }
+
+  private var completionSection: some View {
+    Section("Completion Review") {
+      LabeledContent("Completed blocks", value: "\(executions.filter { $0.status == .completed }.count)")
+      LabeledContent("Skipped blocks", value: "\(executions.filter { $0.status == .skipped }.count)")
+      LabeledContent("Adjusted blocks", value: "\(executions.filter { $0.status == .adjusted }.count)")
+      Text("Attendance completion remains in the Practice Day participants section.")
+      if capabilities.contains(.reopenPracticePlan) {
+        TextField("Required reopen reason", text: $adjustmentReason)
+        Button("Reopen Completed Practice") { onMutation("reopen_completed_practice", ["reason": .string(adjustmentReason)]) }
+          .disabled(adjustmentReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+    }
+  }
+
+  private func reorder(_ block: SDPracticePlanBlock, delta: Int) {
+    var ordered = topBlocks
+    guard let index = ordered.firstIndex(where: { $0.id == block.id }) else { return }
+    let destination = index + delta
+    guard ordered.indices.contains(destination), let plan else { return }
+    ordered.swapAt(index, destination)
+    let payload = ordered.enumerated().map { SDJSONValue.object(["id": .string($0.element.id.uuidString), "sequence_index": .int($0.offset)]) }
+    onMutation("reorder_blocks", ["expected_version": .int(plan.version), "blocks": .array(payload)])
+  }
+
+  private func mutateExecution(_ action: String, _ execution: SDPracticeBlockExecution, reason: String? = nil) {
+    var data: [String: SDJSONValue] = ["execution_id": .string(execution.id.uuidString), "expected_version": .int(execution.version)]
+    if let reason { data["reason"] = .string(reason) }
+    onMutation(action, data)
   }
 }
