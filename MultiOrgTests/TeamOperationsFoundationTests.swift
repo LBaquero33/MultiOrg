@@ -123,7 +123,7 @@ struct TeamOperationsFoundationTests {
     let swiftActions = Set(SDOrgAdminAction.allCases.map(\.rawValue))
     #expect(swiftActions.contains("create_season"))
     #expect(swiftActions.contains("update_season"))
-    #expect(swiftActions.count == 17)
+    #expect(swiftActions.count == 18)
     for action in swiftActions {
       #expect(backend.contains("\"\(action)\""))
     }
@@ -185,6 +185,70 @@ struct TeamOperationsFoundationTests {
     #expect(source.contains("DatePicker(\"Start date\""))
     #expect(source.contains(".alert(\"Team Operations\"") == false)
     #expect(source.contains("error.localizedDescription") == false)
+  }
+
+  @Test("team selection precedence is explicit persisted primary first active then none")
+  func teamSelectionPrecedence() {
+    let first = team(name: "First")
+    let primary = team(name: "Primary", isPrimary: true)
+    let explicit = team(name: "Explicit")
+    #expect(SDSelectedTeamResolver.resolve(
+      explicitTeamId: explicit.id, persistedTeamId: first.id,
+      organizationId: orgA, seasonId: seasonA,
+      teams: [first, primary, explicit]
+    ) == .init(teamId: explicit.id, source: .explicit))
+    #expect(SDSelectedTeamResolver.resolve(
+      explicitTeamId: UUID(), persistedTeamId: first.id,
+      organizationId: orgA, seasonId: seasonA,
+      teams: [first, primary]
+    ) == .init(teamId: first.id, source: .persisted))
+    #expect(SDSelectedTeamResolver.resolve(
+      explicitTeamId: nil, persistedTeamId: nil,
+      organizationId: orgA, seasonId: seasonA,
+      teams: [first, primary]
+    ) == .init(teamId: primary.id, source: .primaryAssignment))
+    #expect(SDSelectedTeamResolver.resolve(
+      explicitTeamId: nil, persistedTeamId: nil,
+      organizationId: orgA, seasonId: seasonA,
+      teams: [first]
+    ) == .init(teamId: first.id, source: .firstActiveTeam))
+    #expect(SDSelectedTeamResolver.resolve(
+      explicitTeamId: nil, persistedTeamId: nil,
+      organizationId: orgA, seasonId: seasonA,
+      teams: []
+    ) == .init(teamId: nil, source: .none))
+  }
+
+  @Test("Mac team roster board preserves history and offers accessible move alternatives")
+  func macTeamManagementContract() throws {
+    let view = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let migration = try sourceFile("supabase/migrations/20260718153000_phase_12zb_team_unassignment.sql")
+    #expect(view.contains(".dropDestination(for: String.self)"))
+    #expect(view.contains("Drag player cards between columns"))
+    #expect(view.contains("optimisticTeamByPlayer"))
+    #expect(migration.contains("set active = false, ended_at = now()"))
+    #expect(!migration.localizedCaseInsensitiveContains("delete from public.sd_player_team_memberships"))
+    #expect(migration.contains("sd_team_operations_audit_logs"))
+  }
+
+  @Test("Mac destination shell owns notification chrome and one vertical screen scroll")
+  func macShellContract() throws {
+    let root = try sourceFile("MultiOrg/App/RootView.swift")
+    let shell = try sourceFile("MultiOrg/Features/Home/HomePlateNavigationShell.swift")
+    let scaffold = try sourceFile("MultiOrg/DesignSystem/Templates/HPScreenScaffold.swift")
+    #expect(root.contains("#if os(iOS)\n    .safeAreaInset(edge: .top"))
+    #expect(shell.contains("ToolbarItem(placement: .primaryAction)"))
+    #expect(scaffold.contains(".contentMargins(.top, HP.Space.lg, for: .scrollContent)"))
+  }
+
+  @Test("Programs use a two-pane desktop workspace without a nested split or editor cap")
+  func macProgramsContract() throws {
+    let programs = try sourceFile("MultiOrg/Features/Coach/CoachProgramsView.swift")
+    let editor = try sourceFile("MultiOrg/Features/Coach/ProgramTemplateEditorView.swift")
+    #expect(programs.contains("HSplitView"))
+    #expect(programs.contains("idealWidth: 300"))
+    #expect(!programs.contains("NavigationSplitView"))
+    #expect(editor.contains("HPFormScreenLayout(maxContentWidth: nil)"))
   }
 
   @Test("organization lifecycle and finance rules preserve history")
@@ -361,6 +425,9 @@ struct TeamOperationsFoundationTests {
       name: name,
       color_hex: nil,
       description: nil,
+      age_group: nil,
+      competitive_level: nil,
+      roster_capacity: nil,
       is_active: true,
       sort_order: 0,
       created_by: nil,

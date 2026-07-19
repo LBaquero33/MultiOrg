@@ -262,13 +262,14 @@ struct OrganizationSetupTests {
     #expect(schedule.contains("Previously loaded events remain visible"))
   }
 
-  @Test("organization admin navigation is grouped and immediate")
+  @Test("organization admin navigation is horizontal responsive and immediate")
   func adminNavigationContract() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(contentsOf: root.appendingPathComponent("MultiOrg/Features/Admin/OrgAdminConsoleView.swift"))
-    #expect(source.contains("Section(\"General\")"))
-    #expect(source.contains("Section(\"People & Teams\")"))
-    #expect(source.contains("Section(\"Business\")"))
+    #expect(source.contains("ViewThatFits(in: .horizontal)"))
+    #expect(source.contains("adminNavigationRow"))
+    #expect(source.contains("Label(\"More\", systemImage: \"ellipsis.circle\")"))
+    #expect(source.contains(".onMoveCommand"))
     #expect(source.contains("withTransaction(transaction) { selectedTab = tab }"))
     #expect(source.contains("admin_navigation_stall"))
     #expect(source.contains("case setup = \"Setup\""))

@@ -47,7 +47,10 @@ final class AppState: ObservableObject {
   @Published private(set) var platformFeatureFlags: [SDPlatformFeatureFlag] = []
   @Published private(set) var teamOperationsContext: SDTeamOperationsContext?
   @Published private(set) var selectedTeamId: UUID?
+  @Published private(set) var selectedTeamSource: SDTeamSelectionSource = .none
   @Published private(set) var isAllTeamsSelected = false
+  @Published private(set) var teamOperationsIssue: SDTeamWorkspaceIssue?
+  @Published private(set) var isTeamOperationsLoading = false
   @Published private(set) var pendingInvitation: SDOrganizationInvitationValidation?
   @Published private(set) var pendingInvitationToken: String?
   @Published var invitationErrorText: String?
@@ -60,6 +63,7 @@ final class AppState: ObservableObject {
   private var chatListenerStarted = false
   private var chatListenerOrganizationId: UUID?
   private var activeChatChannelId: UUID?
+  private var teamOperationsRequestToken: UUID?
 
   init() {
     NotificationCenter.default.addObserver(
@@ -227,7 +231,10 @@ final class AppState: ObservableObject {
     platformFeatureFlags = []
     teamOperationsContext = nil
     selectedTeamId = nil
+    selectedTeamSource = .none
     isAllTeamsSelected = false
+    teamOperationsIssue = nil
+    teamOperationsRequestToken = nil
   }
 
   private func clearChatContext() {
@@ -458,16 +465,27 @@ final class AppState: ObservableObject {
           let userId = myProfile?.id else {
       teamOperationsContext = nil
       selectedTeamId = nil
+      selectedTeamSource = .none
       isAllTeamsSelected = false
+      teamOperationsIssue = nil
       return
+    }
+    let requestToken = UUID()
+    teamOperationsRequestToken = requestToken
+    isTeamOperationsLoading = true
+    defer {
+      if teamOperationsRequestToken == requestToken { isTeamOperationsLoading = false }
     }
     do {
       let context = try await supabase.fetchTeamOperationsContext(orgId: organizationId)
-      guard activeOrgId == organizationId,
+      guard SDAsyncRequestGuard.accepts(
+              responseContext: organizationId,
+              responseToken: requestToken,
+              activeContext: activeOrgId,
+              currentToken: teamOperationsRequestToken,
+              taskIsCancelled: Task.isCancelled
+            ),
             let seasonId = context.activeSeason?.id else {
-        teamOperationsContext = context
-        selectedTeamId = nil
-        isAllTeamsSelected = false
         return
       }
       let key = selectedTeamPersistenceKey(
@@ -479,27 +497,50 @@ final class AppState: ObservableObject {
       if persisted == "all", context.can_access_all_teams, context.teams.count > 1 {
         teamOperationsContext = context
         selectedTeamId = nil
+        selectedTeamSource = .persisted
         isAllTeamsSelected = true
+        teamOperationsIssue = nil
         return
       }
-      let resolved = SDSelectedTeamResolver.resolve(
+      let explicit = teamOperationsContext?.teams.contains(where: {
+        $0.org_id == organizationId && $0.season_id == seasonId
+      }) == true ? selectedTeamId : nil
+      let resolution = SDSelectedTeamResolver.resolve(
+        explicitTeamId: explicit,
         persistedTeamId: persisted.flatMap(UUID.init(uuidString:)),
         organizationId: organizationId,
         seasonId: seasonId,
         teams: context.teams
       )
       teamOperationsContext = context
-      selectedTeamId = resolved
+      selectedTeamId = resolution.teamId
+      selectedTeamSource = resolution.source
       isAllTeamsSelected = false
-      if let resolved {
+      teamOperationsIssue = context.teams.isEmpty ? .noTeams : (resolution.teamId == nil ? .noAuthorizedTeams : nil)
+      if let resolved = resolution.teamId {
         UserDefaults.standard.set(resolved.uuidString, forKey: key)
       } else {
         UserDefaults.standard.removeObject(forKey: key)
       }
     } catch {
-      teamOperationsContext = nil
-      selectedTeamId = nil
-      isAllTeamsSelected = false
+      guard SDAsyncRequestGuard.accepts(
+        responseContext: organizationId,
+        responseToken: requestToken,
+        activeContext: activeOrgId,
+        currentToken: teamOperationsRequestToken,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
+      SDApplicationErrorClassifier.log(error, functionName: "org_admin")
+      teamOperationsIssue = SDTeamWorkspaceIssue(error: error)
+      // Preserve matching cached context. A refresh failure is not an
+      // authoritative statement that the organization has no teams.
+      if teamOperationsContext?.teams.contains(where: { $0.org_id == organizationId }) != true {
+        teamOperationsContext = nil
+        selectedTeamId = nil
+        selectedTeamSource = .none
+        isAllTeamsSelected = false
+      }
     }
   }
 
@@ -516,6 +557,7 @@ final class AppState: ObservableObject {
     if teamId == nil {
       guard context.can_access_all_teams, authorizedCoachTeams.count > 1 else { return }
       selectedTeamId = nil
+      selectedTeamSource = .explicit
       isAllTeamsSelected = true
       UserDefaults.standard.set("all", forKey: key)
       return
@@ -525,7 +567,9 @@ final class AppState: ObservableObject {
             $0.id == teamId && $0.org_id == organizationId && $0.season_id == seasonId && $0.is_active
           }) else { return }
     selectedTeamId = teamId
+    selectedTeamSource = .explicit
     isAllTeamsSelected = false
+    teamOperationsIssue = nil
     UserDefaults.standard.set(teamId.uuidString, forKey: key)
   }
 

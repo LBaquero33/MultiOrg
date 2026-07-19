@@ -324,6 +324,7 @@ struct CoachTeamCommandCenterView: View {
   @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
   @State private var gamePlanSummaries: [UUID: SDGamePlanSummary] = [:]
   @State private var loadError: String?
+  @State private var supportingLoadError: String?
   @State private var loadToken: UUID?
 
   enum Section: String, CaseIterable, Identifiable {
@@ -391,7 +392,7 @@ struct CoachTeamCommandCenterView: View {
 
   @ViewBuilder
   private var content: some View {
-    if let loadError {
+    if let loadError, teamEvents.isEmpty {
       HPCard {
         HPErrorState(
           title: "Team unavailable",
@@ -411,6 +412,14 @@ struct CoachTeamCommandCenterView: View {
       case .communication: placeholder("Communication", "Team-scoped communication will use this authorized roster.", "bubble.left.and.bubble.right")
       case .documents: placeholder("Documents", "Team documents will appear here when added.", "doc")
       case .settings: placeholder("Settings", "Team settings are managed by authorized staff.", "gearshape")
+      }
+    } else if let issue = appState.teamOperationsIssue {
+      HPCard {
+        HPErrorState(
+          title: issue.title,
+          message: issue.message,
+          onRetry: issue.allowsRetry ? { Task { await appState.refreshTeamOperationsContext() } } : nil
+        )
       }
     } else {
       HPCard {
@@ -450,6 +459,22 @@ struct CoachTeamCommandCenterView: View {
 
   private func overview(_ team: SDTeamOperationsTeam) -> some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
+      if let loadError, !teamEvents.isEmpty {
+        HPCard {
+          HPErrorState(
+            title: "Schedule may be out of date",
+            message: loadError,
+            onRetry: { Task { await reloadTeamEvents() } }
+          )
+        }
+      }
+      if let supportingLoadError {
+        HPCard {
+          Label(supportingLoadError, systemImage: "exclamationmark.circle")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.warning)
+        }
+      }
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           HPSectionHeader(team.name) {
@@ -566,6 +591,7 @@ struct CoachTeamCommandCenterView: View {
     let token = UUID()
     loadToken = token
     loadError = nil
+    supportingLoadError = nil
     do {
       let loadedEvents = try await service.listTeamEvents(
         organizationId: orgId,
@@ -573,30 +599,61 @@ struct CoachTeamCommandCenterView: View {
         rangeStart: Calendar.current.date(byAdding: .day, value: -7, to: Date())!,
         rangeEnd: Calendar.current.date(byAdding: .day, value: 60, to: Date())!
       ).filter { $0.status != .cancelled }
-      let operations = try await service.listEventOperations(
-        organizationId: orgId,
-        teamId: team.id,
-        eventIds: loadedEvents.map(\.id)
-      )
-      let plans = try await service.practicePlanSummaries(
-        organizationId: orgId,
-        seasonId: team.season_id,
-        teamId: team.id
-      )
-      let games = try await service.gamePlanSummaries(
-        organizationId: orgId,
-        seasonId: team.season_id,
-        teamId: team.id
-      )
       guard acceptsTeam(context: context, token: token) else { return }
       teamEvents = loadedEvents
-      operationSummaries = Dictionary(uniqueKeysWithValues: operations.map { ($0.event_id, $0) })
-      practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
-      gamePlanSummaries = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
+
+      // Schedule is authoritative for this surface. Readiness providers are
+      // additive and must not make an otherwise healthy team look unavailable.
+      do {
+        let operations = try await service.listEventOperations(
+          organizationId: orgId,
+          teamId: team.id,
+          eventIds: loadedEvents.map(\.id)
+        )
+        guard acceptsTeam(context: context, token: token) else { return }
+        operationSummaries = Dictionary(uniqueKeysWithValues: operations.map { ($0.event_id, $0) })
+      } catch {
+        publishSupportingFailure(error, functionName: "event-operations", context: context, token: token)
+      }
+      do {
+        let plans = try await service.practicePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        guard acceptsTeam(context: context, token: token) else { return }
+        practicePlanSummaries = Dictionary(uniqueKeysWithValues: plans.map { ($0.event_id, $0) })
+      } catch {
+        publishSupportingFailure(error, functionName: "practice-planner", context: context, token: token)
+      }
+      do {
+        let games = try await service.gamePlanSummaries(
+          organizationId: orgId,
+          seasonId: team.season_id,
+          teamId: team.id
+        )
+        guard acceptsTeam(context: context, token: token) else { return }
+        gamePlanSummaries = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
+      } catch {
+        publishSupportingFailure(error, functionName: "game-planning", context: context, token: token)
+      }
     } catch {
       guard acceptsTeam(context: context, token: token) else { return }
+      SDApplicationErrorClassifier.log(error, functionName: "team-scheduling")
       loadError = SDApplicationErrorClassifier.alertMessage(for: error)
     }
+  }
+
+  private func publishSupportingFailure(
+    _ error: Error,
+    functionName: String,
+    context: String,
+    token: UUID
+  ) {
+    guard acceptsTeam(context: context, token: token),
+          !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
+    SDApplicationErrorClassifier.log(error, functionName: functionName)
+    supportingLoadError = "Some readiness details are temporarily unavailable."
   }
 
   private var teamContextIdentity: String {

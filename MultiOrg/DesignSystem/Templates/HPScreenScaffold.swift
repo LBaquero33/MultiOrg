@@ -126,6 +126,13 @@ struct HPScreenScaffold<Content: View>: View {
         .frame(maxWidth: maxContentWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .top)
     }
+    #if os(macOS)
+    // Keep destination content below native window and split-view chrome.
+    // Each pane owns this single scroll container; feature views must not add
+    // another vertical ScrollView around a screen scaffold.
+    .contentMargins(.top, HP.Space.lg, for: .scrollContent)
+    .contentMargins(.bottom, HP.Space.lg, for: .scrollContent)
+    #endif
     .background(HP.Color.bg)
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.width

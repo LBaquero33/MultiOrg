@@ -585,12 +585,47 @@ final class SupabaseService: ObservableObject {
     name: String,
     colorHex: String?,
     description: String?,
-    seasonId: UUID? = nil
+    seasonId: UUID? = nil,
+    ageGroup: String? = nil,
+    competitiveLevel: String? = nil,
+    rosterCapacity: Int? = nil,
+    requestId: UUID = UUID()
   ) async throws {
     let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
       "action": SDOrgAdminAction.createTeam.rawValue, "org_id": orgId.uuidString, "name": name,
       "color_hex": colorHex ?? "", "description": description ?? "",
       "season_id": seasonId?.uuidString ?? "",
+      "age_group": ageGroup ?? "", "competitive_level": competitiveLevel ?? "",
+      "roster_capacity": rosterCapacity.map(String.init) ?? "",
+      "request_id": requestId.uuidString,
+    ])
+  }
+
+  func adminUpdateTeam(
+    orgId: UUID,
+    teamId: UUID,
+    name: String,
+    colorHex: String?,
+    description: String?,
+    seasonId: UUID?,
+    ageGroup: String?,
+    competitiveLevel: String?,
+    rosterCapacity: Int?,
+    isActive: Bool
+  ) async throws {
+    let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": SDOrgAdminAction.updateTeam.rawValue,
+      "org_id": orgId.uuidString,
+      "team_id": teamId.uuidString,
+      "name": name,
+      "color_hex": colorHex ?? "",
+      "description": description ?? "",
+      "season_id": seasonId?.uuidString ?? "",
+      "age_group": ageGroup ?? "",
+      "competitive_level": competitiveLevel ?? "",
+      "roster_capacity": rosterCapacity.map(String.init) ?? "",
+      "is_active": isActive ? "true" : "false",
+      "request_id": UUID().uuidString,
     ])
   }
 
@@ -1487,6 +1522,21 @@ final class SupabaseService: ObservableObject {
       "team_id": teamId.uuidString,
       "assignment_reason": reason ?? "",
       "request_id": UUID().uuidString,
+    ])
+  }
+
+  func adminUnassignPlayerFromTeam(
+    orgId: UUID,
+    playerId: UUID,
+    reason: String?,
+    requestId: UUID = UUID()
+  ) async throws {
+    let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+      "action": SDOrgAdminAction.unassignPlayerTeam.rawValue,
+      "org_id": orgId.uuidString,
+      "player_id": playerId.uuidString,
+      "assignment_reason": reason ?? "",
+      "request_id": requestId.uuidString,
     ])
   }
 

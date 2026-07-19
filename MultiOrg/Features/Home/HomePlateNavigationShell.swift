@@ -694,6 +694,13 @@ struct HPRegularApplicationShell<Detail: View>: View {
       retainedDetail
     }
     .navigationSplitViewStyle(.balanced)
+    #if os(macOS)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        NotificationBellButton()
+      }
+    }
+    #endif
     .onAppear { normalizeSelection() }
     .onChange(of: inventory) { _, _ in normalizeSelection() }
   }

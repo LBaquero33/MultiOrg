@@ -21,7 +21,7 @@ struct ProgramTemplateEditorView: View {
   @State private var confirmDeleteTemplate = false
 
   var body: some View {
-    HPFormScreenLayout { _ in
+    HPFormScreenLayout(maxContentWidth: nil) { _ in
       HPWorkspaceHeader(
         template.name,
         context: "\(template.kind.title) • \(template.weeks) weeks • \(template.lift_weekdays.count) days/week • \(weekdayLabel(template.lift_weekdays))"
@@ -198,7 +198,7 @@ struct ProgramTemplateEditorView: View {
     do {
       days = try await supabase.fetchProgramDays(templateId: template.id)
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -247,7 +247,7 @@ struct ProgramTemplateEditorView: View {
       days.sort { ($0.week, $0.day_index) < ($1.week, $1.day_index) }
       toastText = "Updated"
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -277,7 +277,7 @@ struct ProgramTemplateEditorView: View {
       days.sort { ($0.week, $0.day_index) < ($1.week, $1.day_index) }
       toastText = "Cleared"
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -290,7 +290,7 @@ struct ProgramTemplateEditorView: View {
       onDuplicated(duplicate)
       toastText = "Program duplicated"
     } catch {
-      errorText = "The program could not be duplicated. \(error.localizedDescription)"
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 

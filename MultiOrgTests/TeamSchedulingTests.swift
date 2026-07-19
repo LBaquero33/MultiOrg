@@ -69,6 +69,25 @@ struct TeamSchedulingTests {
     #expect(!source.contains("Scheduled team operations will appear here"))
   }
 
+  @Test("owner schedule scope validates organization ownership without coach assignment")
+  func ownerScheduleAuthorization() throws {
+    let edge = try sourceFile("supabase/functions/team-scheduling/index.ts")
+    #expect(edge.contains("if (isAdmin)"))
+    #expect(edge.contains(".eq(\"org_id\", organizationId).maybeSingle()"))
+    #expect(edge.contains("return fail(404, \"team_not_found\")"))
+  }
+
+  @Test("schedule keeps cached events and exposes progressive filters")
+  func scheduleReliabilityContract() throws {
+    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    #expect(source.contains("Schedule may be out of date"))
+    #expect(source.contains("Previously loaded events remain visible"))
+    #expect(source.contains("teamFilterId"))
+    #expect(source.contains("facilityFilterId"))
+    #expect(source.contains("moveAnchor(backward:"))
+    #expect(source.contains("Create First Event"))
+  }
+
   @Test("player and parent calendars consume redacted team events")
   func consumerCalendars() throws {
     let player = try sourceFile("MultiOrg/Features/Player/SDPlayerCalendarView.swift")

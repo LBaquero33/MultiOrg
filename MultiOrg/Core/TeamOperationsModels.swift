@@ -6,6 +6,7 @@ enum SDOrgAdminAction: String, CaseIterable, Codable, Sendable {
   case updateSeason = "update_season"
   case assignTeamSeason = "assign_team_season"
   case assignPlayerTeam = "assign_player_team"
+  case unassignPlayerTeam = "unassign_player_team"
   case assignCoachTeam = "assign_coach_team"
   case getPlayerAccess = "get_player_access"
   case setPlayerAccess = "set_player_access"
@@ -569,6 +570,9 @@ struct SDTeamOperationsTeam: Identifiable, Codable, Equatable, Sendable {
   let name: String
   let color_hex: String?
   let description: String?
+  let age_group: String?
+  let competitive_level: String?
+  let roster_capacity: Int?
   let is_active: Bool
   let sort_order: Int
   let created_by: UUID?
@@ -620,18 +624,107 @@ struct SDTeamOperationsContext: Decodable, Equatable, Sendable {
 }
 
 enum SDSelectedTeamResolver {
+  struct Resolution: Equatable, Sendable {
+    let teamId: UUID?
+    let source: SDTeamSelectionSource
+  }
+
+  static func resolve(
+    explicitTeamId: UUID?,
+    persistedTeamId: UUID?,
+    organizationId: UUID,
+    seasonId: UUID,
+    teams: [SDTeamOperationsTeam]
+  ) -> Resolution {
+    let authorized = teams.filter {
+      $0.org_id == organizationId && $0.season_id == seasonId && $0.is_active
+    }
+    if let explicitTeamId, authorized.contains(where: { $0.id == explicitTeamId }) {
+      return Resolution(teamId: explicitTeamId, source: .explicit)
+    }
+    if let persistedTeamId, authorized.contains(where: { $0.id == persistedTeamId }) {
+      return Resolution(teamId: persistedTeamId, source: .persisted)
+    }
+    if let primary = authorized.first(where: { $0.is_primary }) {
+      return Resolution(teamId: primary.id, source: .primaryAssignment)
+    }
+    if let first = authorized.first {
+      return Resolution(teamId: first.id, source: .firstActiveTeam)
+    }
+    return Resolution(teamId: nil, source: .none)
+  }
+
   static func resolve(
     persistedTeamId: UUID?,
     organizationId: UUID,
     seasonId: UUID,
     teams: [SDTeamOperationsTeam]
   ) -> UUID? {
-    let authorized = teams.filter {
-      $0.org_id == organizationId && $0.season_id == seasonId && $0.is_active
+    resolve(
+      explicitTeamId: nil,
+      persistedTeamId: persistedTeamId,
+      organizationId: organizationId,
+      seasonId: seasonId,
+      teams: teams
+    ).teamId
+  }
+}
+
+enum SDTeamSelectionSource: String, Equatable, Sendable {
+  case explicit
+  case persisted
+  case primaryAssignment = "primary_assignment"
+  case firstActiveTeam = "first_active_team"
+  case none
+}
+
+enum SDTeamWorkspaceIssue: Equatable, Sendable {
+  case noTeams
+  case noAuthorizedTeams
+  case noCurrentAssignment
+  case permission
+  case serviceUnavailable
+  case offline
+  case staleData
+  case unknown
+
+  init(error: Error) {
+    switch SDApplicationErrorClassifier.presentation(for: error)?.category {
+    case .offline: self = .offline
+    case .unauthorized, .forbidden: self = .permission
+    case .serviceUnavailable, .notDeployed, .unsupportedAction: self = .serviceUnavailable
+    case .staleData: self = .staleData
+    default: self = .unknown
     }
-    if let persistedTeamId, authorized.contains(where: { $0.id == persistedTeamId }) {
-      return persistedTeamId
+  }
+
+  var title: String {
+    switch self {
+    case .noTeams: "No teams yet"
+    case .noAuthorizedTeams: "No authorized teams"
+    case .noCurrentAssignment: "No current team assignment"
+    case .permission: "Team access is restricted"
+    case .serviceUnavailable: "Team service unavailable"
+    case .offline: "You’re offline"
+    case .staleData: "Team information may be out of date"
+    case .unknown: "Team information couldn’t be loaded"
     }
-    return authorized.first(where: { $0.is_primary })?.id ?? authorized.first?.id
+  }
+
+  var message: String {
+    switch self {
+    case .noTeams: "Create a team to begin organizing the season."
+    case .noAuthorizedTeams: "Ask an organization administrator to grant team access."
+    case .noCurrentAssignment: "Choose a team or ask an administrator to add an assignment."
+    case .permission: "You don’t have permission to view this team."
+    case .serviceUnavailable: "This feature is temporarily unavailable."
+    case .offline: "Check your connection and try again."
+    case .staleData: "Showing the last available team information. Try refreshing."
+    case .unknown: "Home Plate couldn’t load team information. Try again."
+    }
+  }
+
+  var allowsRetry: Bool {
+    ![.noTeams, .noAuthorizedTeams, .noCurrentAssignment, .permission].contains(self)
   }
 }

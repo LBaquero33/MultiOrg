@@ -18,13 +18,14 @@ struct CoachProgramsView: View {
 
   var body: some View {
 #if os(macOS)
-    NavigationSplitView {
+    HSplitView {
       templateListLayout
-        .navigationTitle("Program Templates")
-    } detail: {
+        .frame(minWidth: 280, idealWidth: 300, maxWidth: 340)
+      Divider()
       templateDetail
-        .navigationTitle(selectedTemplate?.name ?? "Program Templates")
+        .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
     }
+    .navigationTitle(selectedTemplate?.name ?? "Program Templates")
     .task { await reload() }
     .toolbar {
       ToolbarItem(placement: .automatic) {
@@ -305,7 +306,7 @@ struct CoachProgramsView: View {
       }
 #endif
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -453,7 +454,7 @@ private struct CreateProgramTemplateSheet: View {
       onCreated(created)
       dismiss()
     } catch {
-      errorText = error.localizedDescription
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 }

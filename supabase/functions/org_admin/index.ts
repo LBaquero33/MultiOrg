@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
     "update_season",
     "assign_team_season",
     "assign_player_team",
+    "unassign_player_team",
     "assign_coach_team",
   ];
   if (teamOperationsAdminActions.includes(action) && !hasAdminAuthority) {
@@ -260,10 +261,9 @@ Deno.serve(async (req) => {
     const { data: teamRows, error: teamsErr } = await admin
       .from("sd_teams")
       .select(
-        "id,org_id,season_id,name,color_hex,description,is_active,sort_order,created_by,created_at,updated_at",
+        "id,org_id,season_id,name,color_hex,description,age_group,competitive_level,roster_capacity,is_active,sort_order,created_by,created_at,updated_at",
       )
       .eq("org_id", orgId)
-      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
     if (teamsErr) {
@@ -614,6 +614,32 @@ Deno.serve(async (req) => {
       });
     }
     return json(200, { membership });
+  }
+
+  if (action === "unassign_player_team") {
+    let playerId: string;
+    try {
+      playerId = requireUuid(payload.player_id, "player_id");
+    } catch (err) {
+      return json(400, { error: (err as Error).message });
+    }
+    const { data: result, error } = await admin.rpc(
+      "sd_unassign_player_team",
+      {
+        p_actor_id: callerId,
+        p_organization_id: orgId,
+        p_player_id: playerId,
+        p_assignment_reason: cleanText(payload.assignment_reason) ?? "",
+        p_request_id: cleanText(payload.request_id),
+      },
+    );
+    if (error) {
+      return json(error.code === "42501" ? 403 : 400, {
+        error: "player_team_unassignment_failed",
+        message: error.message,
+      });
+    }
+    return json(200, { ok: true, result });
   }
 
   if (action === "assign_coach_team") {
@@ -1143,13 +1169,36 @@ Deno.serve(async (req) => {
       name,
       color_hex: cleanText(payload.color_hex),
       description: cleanText(payload.description),
-      is_active: payload.is_active !== false,
+      age_group: cleanText(payload.age_group),
+      competitive_level: cleanText(payload.competitive_level),
+      roster_capacity: cleanText(payload.roster_capacity) &&
+          Number.isFinite(Number(payload.roster_capacity))
+        ? Number(payload.roster_capacity)
+        : null,
+      is_active: !["false", "0"].includes(
+        String(payload.is_active ?? "true").toLowerCase(),
+      ),
       sort_order: Number.isFinite(Number(payload.sort_order))
         ? Number(payload.sort_order)
         : 0,
       created_by: callerId,
     };
     if (action === "create_team") {
+      const requestId = cleanText(payload.request_id);
+      if (requestId) {
+        const { data: prior } = await admin.from(
+          "sd_team_operations_audit_logs",
+        )
+          .select("target_id").eq("organization_id", orgId)
+          .eq("actor_id", callerId).eq("action", "create_team")
+          .eq("target_type", "team").eq("request_id", requestId)
+          .maybeSingle();
+        if (prior?.target_id) {
+          const { data: replay } = await admin.from("sd_teams").select()
+            .eq("id", prior.target_id).eq("org_id", orgId).maybeSingle();
+          if (replay) return json(200, { team: replay, replayed: true });
+        }
+      }
       const { data, error } = await admin.from("sd_teams").insert(patch)
         .select().single();
       if (error) {
@@ -1158,6 +1207,15 @@ Deno.serve(async (req) => {
           message: error.message,
         });
       }
+      await admin.from("sd_team_operations_audit_logs").insert({
+        organization_id: orgId,
+        actor_id: callerId,
+        action: "create_team",
+        target_type: "team",
+        target_id: data.id,
+        request_id: requestId,
+        details: { season_id: seasonId },
+      });
       return json(200, { team: data });
     }
     const teamId = cleanText(payload.team_id);

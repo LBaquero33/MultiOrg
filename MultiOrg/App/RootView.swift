@@ -19,6 +19,7 @@ struct RootView: View {
     .environment(\.dhdOrgBranding, activeBranding)
     .tint(DHDTheme.accent)
     .dhdToast($appState.globalToastText)
+    #if os(iOS)
     .safeAreaInset(edge: .top, spacing: 0) {
       if appState.isAuthenticated {
         HStack {
@@ -37,6 +38,7 @@ struct RootView: View {
         }
       }
     }
+    #endif
     .onChange(of: scenePhase) { _, next in
       guard next == .active else { return }
       guard appState.isAuthenticated else { return }

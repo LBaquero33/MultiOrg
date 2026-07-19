@@ -325,44 +325,68 @@ struct OrgAdminConsoleView: View {
 
   @ViewBuilder
   private func adminSectionNavigation(_ context: HPScreenLayoutContext) -> some View {
-    Menu {
-      Section("General") {
-        adminMenuButtons([.dashboard, .setup, .settings, .branding])
-      }
-      Section("People & Teams") {
-        adminMenuButtons([.members, .registration, .teamOperations])
-      }
-      Section("Business") {
-        adminMenuButtons(appState.canAdminActiveOrg ? [.billing, .analytics] : [.analytics])
-      }
-      Section("Operations") {
-        adminMenuButtons([.features])
-      }
-    } label: {
-      HStack(spacing: HP.Space.sm) {
-        Label(selectedTab.rawValue, systemImage: selectedTab.systemImage)
-        Spacer(minLength: HP.Space.sm)
-        Text("Organization section")
-          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-        Image(systemName: "chevron.up.chevron.down")
-          .font(.caption.weight(.semibold))
-      }
-      .font(HP.Font.callout.weight(.semibold))
-      .foregroundStyle(HP.Color.text)
-      .padding(.horizontal, HP.Space.sm)
-      .frame(maxWidth: .infinity, minHeight: 44)
-      .background(
-        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-          .fill(HP.Color.surfaceRaised)
+    ViewThatFits(in: .horizontal) {
+      adminNavigationRow(
+        [.dashboard, .setup, .members, .registration, .teamOperations, .billing, .analytics, .settings],
+        overflow: [.branding, .features, .facilities, .communication, .finance]
       )
-      .overlay(
-        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-          .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
-          .allowsHitTesting(false)
+      adminNavigationRow(
+        [.dashboard, .setup, .members, .teamOperations, .billing, .settings],
+        overflow: [.registration, .analytics, .branding, .features, .facilities, .communication, .finance]
+      )
+      adminNavigationRow(
+        [.dashboard, .setup, .members, .teamOperations],
+        overflow: [.registration, .billing, .analytics, .settings, .branding, .features, .facilities, .communication, .finance]
       )
     }
-    .accessibilityLabel("Organization admin section")
+    .accessibilityLabel("Organization admin sections")
     .accessibilityValue(selectedTab.rawValue)
+    #if os(macOS)
+    .onMoveCommand { direction in
+      if direction == .left { moveAdminSelection(by: -1) }
+      if direction == .right { moveAdminSelection(by: 1) }
+    }
+    #endif
+  }
+
+  private func adminNavigationRow(_ tabs: [Tab], overflow: [Tab]) -> some View {
+    HStack(spacing: HP.Space.xs) {
+      ForEach(tabs.filter { visibleTabs.contains($0) }) { tab in
+        adminNavigationButton(tab)
+      }
+      Menu {
+        adminMenuButtons(overflow)
+      } label: {
+        Label("More", systemImage: "ellipsis.circle")
+          .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
+          .frame(minHeight: 36)
+      }
+      .menuStyle(.borderlessButton)
+    }
+    .fixedSize(horizontal: true, vertical: false)
+  }
+
+  private func adminNavigationButton(_ tab: Tab) -> some View {
+    Button { selectAdminTab(tab) } label: {
+      Text(tab.rawValue)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, HP.Space.sm)
+        .frame(minHeight: 36)
+        .background(
+          Capsule().fill(selectedTab == tab ? HP.Color.accent.opacity(0.16) : .clear)
+        )
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(selectedTab == tab ? HP.Color.accent : HP.Color.text)
+    .accessibilityAddTraits(selectedTab == tab ? [.isButton, .isSelected] : .isButton)
+  }
+
+  private func moveAdminSelection(by offset: Int) {
+    let tabs = visibleTabs
+    guard let index = tabs.firstIndex(of: selectedTab), !tabs.isEmpty else { return }
+    selectAdminTab(tabs[(index + offset + tabs.count) % tabs.count])
   }
 
   @ViewBuilder
@@ -450,13 +474,13 @@ struct OrgAdminConsoleView: View {
     case .members:
       membersCard(context)
     case .teamOperations:
-      OrgTeamOperationsAdminView()
+      OrgTeamOperationsAdminView(embedded: true)
     }
   }
 
   private var visibleTabs: [Tab] {
     [.dashboard, .setup, .settings, .branding, .members, .registration,
-     .teamOperations, .billing, .analytics, .features].filter {
+     .teamOperations, .billing, .finance, .communication, .analytics, .facilities, .features].filter {
       $0 != .billing || appState.canAdminActiveOrg
     }
   }

@@ -13,6 +13,7 @@ Deno.test("every known org_admin action is accepted", () => {
 Deno.test("Create Season is an authoritative supported action", () => {
   assert(isOrgAdminAction("create_season"), "create_season");
   assert(isOrgAdminAction("update_season"), "update_season");
+  assert(isOrgAdminAction("unassign_player_team"), "unassign_player_team");
 });
 
 Deno.test("invalid org_admin actions fail closed", () => {

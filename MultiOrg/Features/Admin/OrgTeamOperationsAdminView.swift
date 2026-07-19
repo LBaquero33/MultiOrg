@@ -13,6 +13,12 @@ struct OrgTeamOperationsAdminView: View {
   @State private var editingSeasonId: UUID?
   @State private var newTeamName = ""
   @State private var newTeamSeasonId: UUID?
+  @State private var teamAgeGroup = ""
+  @State private var teamCompetitiveLevel = ""
+  @State private var teamRosterCapacity = ""
+  @State private var teamDescription = ""
+  @State private var editingTeamId: UUID?
+  @State private var teamRequestId = UUID()
   @State private var selectedCoachId: UUID?
   @State private var selectedCoachTeamId: UUID?
   @State private var selectedResponsibilities: Set<SDTeamResponsibility> = [.readOnly]
@@ -25,12 +31,33 @@ struct OrgTeamOperationsAdminView: View {
   @State private var seasonErrorText: String?
   @State private var seasonRequestId = UUID()
   @State private var loadRequestToken: UUID?
+  @State private var rosterQuery = ""
+  @State private var optimisticTeamByPlayer: [UUID: UUID] = [:]
+  @State private var optimisticUnassignedPlayers: Set<UUID> = []
+  @State private var rosterDropTarget: String?
+  let embedded: Bool
+
+  init(embedded: Bool = false) {
+    self.embedded = embedded
+  }
 
   private enum Mutation: Hashable {
     case season, team, teamSeason, player, coach
   }
 
   var body: some View {
+    Group {
+      if embedded {
+        pageContent
+      } else {
+        HPScreenScaffold { _ in pageContent }
+      }
+    }
+    .task(id: appState.activeOrgId) { await reload() }
+    .accessibilityElement(children: .contain)
+  }
+
+  private var pageContent: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
       HPWorkspaceHeader(
         "Team Management",
@@ -63,8 +90,6 @@ struct OrgTeamOperationsAdminView: View {
         }
       }
     }
-    .task(id: appState.activeOrgId) { await reload() }
-    .accessibilityElement(children: .contain)
   }
 
   private var organizationName: String {
@@ -178,28 +203,49 @@ struct OrgTeamOperationsAdminView: View {
         HPSectionHeader("Team Seasons")
         Text("Each active team is associated with one season.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-        HPFormField(label: "New team", text: $newTeamName, placeholder: "Team name")
+        HPFormField(label: editingTeamId == nil ? "New team" : "Team name", text: $newTeamName, placeholder: "Team name")
         Picker("Season", selection: $newTeamSeasonId) {
           Text("Select season").tag(UUID?.none)
           ForEach(context?.seasons ?? []) { season in Text(season.name).tag(Optional(season.id)) }
         }
+        HStack {
+          HPFormField(label: "Age group", text: $teamAgeGroup, placeholder: "14U")
+          HPFormField(label: "Competitive level", text: $teamCompetitiveLevel, placeholder: "Club")
+          HPFormField(label: "Roster capacity", text: $teamRosterCapacity, placeholder: "18")
+        }
+        HPFormField(label: "Description", text: $teamDescription, placeholder: "Optional team details")
         HPButton(
-          title: "Create Team",
-          systemImage: "plus",
+          title: editingTeamId == nil ? "Create Team" : "Save Team",
+          systemImage: editingTeamId == nil ? "plus" : "checkmark",
           variant: .primary,
           size: .md,
           action: { Task { await createTeam() } }
         )
         .disabled(newTeamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newTeamSeasonId == nil || activeMutations.contains(.team))
+        if editingTeamId != nil {
+          Button("Cancel Editing") { resetTeamDraft() }
+            .buttonStyle(.borderless)
+        }
         Divider()
-        ForEach(activeTeams) { team in
+        ForEach(context?.teams ?? []) { team in
           HStack {
-            Text(team.name).font(HP.Font.callout.weight(.semibold))
+            VStack(alignment: .leading, spacing: 2) {
+              Text(team.name).font(HP.Font.callout.weight(.semibold))
+              Text([team.age_group, team.competitive_level].compactMap { $0 }.joined(separator: " • "))
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
             Spacer()
+            if !team.is_active { HPStatusBadge(text: "Archived", kind: .neutral) }
             Menu(seasonName(for: team.season_id)) {
               ForEach(context?.seasons ?? []) { season in
                 Button(season.name) { Task { await assign(team: team, to: season) } }
               }
+            }
+            Button("Edit") { beginEditing(team) }
+              .buttonStyle(.borderless)
+            if team.is_active {
+              Button("Archive", role: .destructive) { Task { await archive(team) } }
+                .buttonStyle(.borderless)
             }
           }
           .frame(minHeight: 44)
@@ -214,6 +260,9 @@ struct OrgTeamOperationsAdminView: View {
         HPSectionHeader("Player Team Membership")
         Text("Moving a player closes the current assignment and preserves team history.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        #if os(macOS)
+        rosterBoard
+        #else
         ForEach(players) { player in
           HStack {
             Text(player.displayName).font(HP.Font.callout.weight(.semibold))
@@ -226,9 +275,107 @@ struct OrgTeamOperationsAdminView: View {
           }
           .frame(minHeight: 44)
         }
+        #endif
       }
     }
   }
+
+  #if os(macOS)
+  private var rosterBoard: some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HPSearchBar(text: $rosterQuery, placeholder: "Search roster")
+      ScrollView(.horizontal, showsIndicators: true) {
+        HStack(alignment: .top, spacing: HP.Space.sm) {
+          rosterColumn(title: "Unassigned", team: nil, players: playersForRoster(teamId: nil))
+          ForEach(activeTeams) { team in
+            rosterColumn(title: team.name, team: team, players: playersForRoster(teamId: team.id))
+          }
+        }
+        .padding(.bottom, HP.Space.xs)
+      }
+      Text("Drag player cards between columns, or use each card’s Move menu. Team history remains intact.")
+        .font(HP.Font.caption)
+        .foregroundStyle(HP.Color.textMuted)
+    }
+  }
+
+  private func rosterColumn(
+    title: String,
+    team: SDTeamOperationsTeam?,
+    players columnPlayers: [Profile]
+  ) -> some View {
+    let targetKey = team?.id.uuidString ?? "unassigned"
+    return VStack(alignment: .leading, spacing: HP.Space.xs) {
+      HStack {
+        Text(title).font(HP.Font.headline)
+        Spacer()
+        HPStatusBadge(text: "\(columnPlayers.count)", kind: .neutral)
+      }
+      ForEach(columnPlayers) { player in
+        rosterPlayerCard(player)
+      }
+      if columnPlayers.isEmpty {
+        Text("Drop players here")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .frame(maxWidth: .infinity, minHeight: 72)
+      }
+    }
+    .padding(HP.Space.sm)
+    .frame(width: 240, alignment: .topLeading)
+    .background(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .fill(rosterDropTarget == targetKey ? HP.Color.accent.opacity(0.14) : HP.Color.surfaceRaised)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        .stroke(rosterDropTarget == targetKey ? HP.Color.accent : HP.Color.border, lineWidth: 1)
+    )
+    .dropDestination(for: String.self) { values, _ in
+      guard let value = values.first, let playerId = UUID(uuidString: value) else { return false }
+      Task { await movePlayer(playerId, to: team) }
+      return true
+    } isTargeted: { targeted in
+      rosterDropTarget = targeted ? targetKey : nil
+    }
+  }
+
+  private func rosterPlayerCard(_ player: Profile) -> some View {
+    HStack(spacing: HP.Space.xs) {
+      HPAvatar(name: player.displayName, size: .sm)
+      Text(player.displayName)
+        .font(HP.Font.callout.weight(.semibold))
+        .lineLimit(2)
+      Spacer(minLength: 0)
+      Menu {
+        Button("Unassigned") { Task { await movePlayer(player.id, to: nil) } }
+        Divider()
+        ForEach(activeTeams) { team in
+          Button(team.name) { Task { await movePlayer(player.id, to: team) } }
+        }
+      } label: {
+        Image(systemName: "ellipsis.circle")
+          .frame(width: 32, height: 32)
+      }
+      .menuStyle(.borderlessButton)
+      .accessibilityLabel("Move \(player.displayName)")
+    }
+    .padding(HP.Space.xs)
+    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+    .background(HP.Color.surface)
+    .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+    .overlay(RoundedRectangle(cornerRadius: HP.Radius.sm).stroke(HP.Color.border))
+    .draggable(player.id.uuidString)
+  }
+
+  private func playersForRoster(teamId: UUID?) -> [Profile] {
+    let query = rosterQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    return players.filter { player in
+      playerTeamId(player.id) == teamId
+        && (query.isEmpty || player.displayName.localizedCaseInsensitiveContains(query))
+    }
+  }
+  #endif
 
   private var coachAssignmentsCard: some View {
     HPCard {
@@ -289,10 +436,16 @@ struct OrgTeamOperationsAdminView: View {
   }
 
   private func playerTeamName(_ playerId: UUID) -> String {
-    guard let membership = context?.player_memberships.first(where: {
+    guard let teamId = playerTeamId(playerId) else { return "Unassigned" }
+    return activeTeams.first(where: { $0.id == teamId })?.name ?? "Unassigned"
+  }
+
+  private func playerTeamId(_ playerId: UUID) -> UUID? {
+    if optimisticUnassignedPlayers.contains(playerId) { return nil }
+    if let optimistic = optimisticTeamByPlayer[playerId] { return optimistic }
+    return context?.player_memberships.first(where: {
       $0.player_id == playerId && $0.active && $0.ended_at == nil
-    }) else { return "Unassigned" }
-    return activeTeams.first(where: { $0.id == membership.team_id })?.name ?? "Unassigned"
+    })?.team_id
   }
 
   private func reload() async {
@@ -314,6 +467,8 @@ struct OrgTeamOperationsAdminView: View {
         taskIsCancelled: Task.isCancelled
       ) else { return }
       context = loaded
+      optimisticTeamByPlayer = [:]
+      optimisticUnassignedPlayers = []
       newTeamSeasonId = loaded.activeSeason?.id
       await appState.refreshTeamOperationsContext()
     } catch {
@@ -395,14 +550,75 @@ struct OrgTeamOperationsAdminView: View {
     guard activeMutations.insert(.team).inserted else { return }
     defer { activeMutations.remove(.team) }
     do {
-      try await supabase.adminCreateTeam(
+      if let editingTeamId,
+         let existing = context?.teams.first(where: { $0.id == editingTeamId }) {
+        try await supabase.adminUpdateTeam(
+          orgId: orgId,
+          teamId: editingTeamId,
+          name: newTeamName.trimmingCharacters(in: .whitespacesAndNewlines),
+          colorHex: existing.color_hex,
+          description: teamDescription.sdNilIfBlank,
+          seasonId: seasonId,
+          ageGroup: teamAgeGroup.sdNilIfBlank,
+          competitiveLevel: teamCompetitiveLevel.sdNilIfBlank,
+          rosterCapacity: Int(teamRosterCapacity),
+          isActive: existing.is_active
+        )
+      } else {
+        try await supabase.adminCreateTeam(
+          orgId: orgId,
+          name: newTeamName.trimmingCharacters(in: .whitespacesAndNewlines),
+          colorHex: nil,
+          description: teamDescription.sdNilIfBlank,
+          seasonId: seasonId,
+          ageGroup: teamAgeGroup.sdNilIfBlank,
+          competitiveLevel: teamCompetitiveLevel.sdNilIfBlank,
+          rosterCapacity: Int(teamRosterCapacity),
+          requestId: teamRequestId
+        )
+      }
+      resetTeamDraft()
+      await reload()
+    } catch { publishOperationError(error, organizationId: orgId) }
+  }
+
+  private func beginEditing(_ team: SDTeamOperationsTeam) {
+    editingTeamId = team.id
+    newTeamName = team.name
+    newTeamSeasonId = team.season_id
+    teamAgeGroup = team.age_group ?? ""
+    teamCompetitiveLevel = team.competitive_level ?? ""
+    teamRosterCapacity = team.roster_capacity.map(String.init) ?? ""
+    teamDescription = team.description ?? ""
+  }
+
+  private func resetTeamDraft() {
+    editingTeamId = nil
+    newTeamName = ""
+    teamAgeGroup = ""
+    teamCompetitiveLevel = ""
+    teamRosterCapacity = ""
+    teamDescription = ""
+    teamRequestId = UUID()
+  }
+
+  private func archive(_ team: SDTeamOperationsTeam) async {
+    guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
+    guard activeMutations.insert(.team).inserted else { return }
+    defer { activeMutations.remove(.team) }
+    do {
+      try await supabase.adminUpdateTeam(
         orgId: orgId,
-        name: newTeamName.trimmingCharacters(in: .whitespacesAndNewlines),
-        colorHex: nil,
-        description: nil,
-        seasonId: seasonId
+        teamId: team.id,
+        name: team.name,
+        colorHex: team.color_hex,
+        description: team.description,
+        seasonId: team.season_id,
+        ageGroup: team.age_group,
+        competitiveLevel: team.competitive_level,
+        rosterCapacity: team.roster_capacity,
+        isActive: false
       )
-      newTeamName = ""
       await reload()
     } catch { publishOperationError(error, organizationId: orgId) }
   }
@@ -420,6 +636,42 @@ struct OrgTeamOperationsAdminView: View {
       )
       await reload()
     } catch { publishOperationError(error, organizationId: orgId) }
+  }
+
+  private func movePlayer(_ playerId: UUID, to team: SDTeamOperationsTeam?) async {
+    guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
+    let previousTeamId = playerTeamId(playerId)
+    if let team {
+      optimisticTeamByPlayer[playerId] = team.id
+      optimisticUnassignedPlayers.remove(playerId)
+    } else {
+      optimisticTeamByPlayer.removeValue(forKey: playerId)
+      optimisticUnassignedPlayers.insert(playerId)
+    }
+    do {
+      if let team {
+        try await supabase.adminAssignPlayerToTeam(
+          orgId: orgId,
+          playerId: playerId,
+          teamId: team.id,
+          reason: "organization_admin_roster_board"
+        )
+      } else {
+        try await supabase.adminUnassignPlayerFromTeam(
+          orgId: orgId,
+          playerId: playerId,
+          reason: "organization_admin_roster_board"
+        )
+      }
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      await reload()
+    } catch {
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      optimisticTeamByPlayer.removeValue(forKey: playerId)
+      optimisticUnassignedPlayers.remove(playerId)
+      if let previousTeamId { optimisticTeamByPlayer[playerId] = previousTeamId }
+      publishOperationError(error, organizationId: orgId)
+    }
   }
 
   private func saveCoachAssignment() async {

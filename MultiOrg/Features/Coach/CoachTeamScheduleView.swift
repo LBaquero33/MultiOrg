@@ -9,6 +9,7 @@ struct CoachTeamScheduleView: View {
   @State private var facilities: [SDFacility] = []
   @State private var seasonFilterId: UUID?
   @State private var facilityFilterId: UUID?
+  @State private var teamFilterId: UUID?
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var loadToken: UUID?
@@ -29,7 +30,8 @@ struct CoachTeamScheduleView: View {
             ForEach(SDTeamScheduleMode.allCases) { Text($0.rawValue).tag($0) }
           }
           .pickerStyle(.segmented)
-          HStack {
+          ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: HP.Space.sm) {
             if appState.canAdminActiveOrg {
               Menu {
                 ForEach(appState.teamOperationsContext?.seasons ?? []) { season in
@@ -37,6 +39,17 @@ struct CoachTeamScheduleView: View {
                 }
               } label: {
                 Label(selectedSeasonName, systemImage: "calendar.badge.clock")
+              }
+              .frame(minHeight: 44)
+            }
+            if appState.isAllTeamsSelected {
+              Menu {
+                Button("All Teams") { teamFilterId = nil }
+                ForEach(seasonTeams) { team in
+                  Button(team.name) { teamFilterId = team.id }
+                }
+              } label: {
+                Label(selectedTeamFilterName, systemImage: "person.3")
               }
               .frame(minHeight: 44)
             }
@@ -58,15 +71,16 @@ struct CoachTeamScheduleView: View {
             }
             .frame(minHeight: 44)
             Spacer()
-            Button { anchorDate = Calendar.current.date(byAdding: .day, value: -1, to: anchorDate) ?? anchorDate } label: {
+            Button { moveAnchor(backward: true) } label: {
               Image(systemName: "chevron.left")
             }
             .accessibilityLabel("Previous date")
             Button("Today") { anchorDate = Date() }
-            Button { anchorDate = Calendar.current.date(byAdding: .day, value: 1, to: anchorDate) ?? anchorDate } label: {
+            Button { moveAnchor(backward: false) } label: {
               Image(systemName: "chevron.right")
             }
             .accessibilityLabel("Next date")
+          }
           }
         }
       } results: { _ in
@@ -113,7 +127,8 @@ struct CoachTeamScheduleView: View {
 
   @ViewBuilder private var scheduleResults: some View {
     if appState.selectedTeam == nil && !appState.isAllTeamsSelected {
-      HPCard { HPEmptyState(title: "Team assignment required", message: "An active team is needed to view its schedule.", systemImage: "calendar.badge.exclamationmark") }
+      let issue = appState.teamOperationsIssue ?? .noCurrentAssignment
+      HPCard { HPEmptyState(title: issue.title, message: issue.message, systemImage: "calendar.badge.exclamationmark") }
     } else if isLoading && events.isEmpty {
       HPCard { HPLoadingState(text: "Loading team schedule…") }
     } else if let errorText, events.isEmpty {
@@ -125,7 +140,24 @@ struct CoachTeamScheduleView: View {
         )
       }
     } else if filteredEvents.isEmpty {
-      HPCard { HPEmptyState(title: "No scheduled events", message: "No (filter.rawValue.lowercased()) match this (mode.rawValue.lowercased()) view.", systemImage: "calendar") }
+      HPCard {
+        VStack(spacing: HP.Space.sm) {
+          HPEmptyState(
+            title: "No scheduled events",
+            message: "No \(filter.rawValue.lowercased()) match this \(mode.rawValue.lowercased()) view.",
+            systemImage: "calendar"
+          )
+          if canCreate, let team = appState.selectedTeam {
+            HPButton(
+              title: "Create First Event",
+              systemImage: "plus",
+              variant: .primary,
+              size: .md,
+              action: { editor = EventEditorPresentation(teams: [team], seasonId: team.season_id) }
+            )
+          }
+        }
+      }
     } else {
       if let errorText {
         HPCard {
@@ -228,8 +260,15 @@ struct CoachTeamScheduleView: View {
 
   private var filteredEvents: [SDTeamEvent] {
     events.filter {
-      filter.includes($0.event_type) && (facilityFilterId == nil || $0.facility_id == facilityFilterId)
+      filter.includes($0.event_type)
+        && (facilityFilterId == nil || $0.facility_id == facilityFilterId)
+        && (teamFilterId == nil || $0.team_id == teamFilterId)
     }
+  }
+
+  private var selectedTeamFilterName: String {
+    guard let teamFilterId else { return "All Teams" }
+    return seasonTeams.first(where: { $0.id == teamFilterId })?.name ?? "Team"
   }
 
   private var selectedFacilityName: String {
@@ -280,6 +319,20 @@ struct CoachTeamScheduleView: View {
       let interval = calendar.dateInterval(of: .month, for: anchorDate)!
       return (interval.start, interval.end)
     }
+  }
+
+  private func moveAnchor(backward: Bool) {
+    let component: Calendar.Component
+    switch mode {
+    case .upcoming, .day: component = .day
+    case .week: component = .weekOfYear
+    case .month: component = .month
+    }
+    anchorDate = Calendar.current.date(
+      byAdding: component,
+      value: backward ? -1 : 1,
+      to: anchorDate
+    ) ?? anchorDate
   }
 
   private func reload() async {

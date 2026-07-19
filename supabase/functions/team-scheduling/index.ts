@@ -224,9 +224,20 @@ Deno.serve(async (req) => {
     } else {
       const requestedTeam = uuid(payload.team_id);
       if (requestedTeam) {
-        const resolved = await capabilities(requestedTeam);
-        if (!resolved.includes("view_team_schedule")) {
-          return fail(403, "view_team_schedule_required");
+        if (isAdmin) {
+          // Organization administrators already passed membership authority.
+          // Validate tenant ownership directly instead of depending on a
+          // coach-assignment capability RPC for an owner-selected team.
+          const { data: ownedTeam, error: ownedTeamError } = await admin
+            .from("sd_teams").select("id").eq("id", requestedTeam)
+            .eq("org_id", organizationId).maybeSingle();
+          if (ownedTeamError) return fail(500, "team_lookup_failed");
+          if (!ownedTeam) return fail(404, "team_not_found");
+        } else {
+          const resolved = await capabilities(requestedTeam);
+          if (!resolved.includes("view_team_schedule")) {
+            return fail(403, "view_team_schedule_required");
+          }
         }
         teamIds = [requestedTeam];
       } else if (isAdmin) {

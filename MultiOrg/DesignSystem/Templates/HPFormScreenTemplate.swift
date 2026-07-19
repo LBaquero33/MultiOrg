@@ -7,6 +7,7 @@ import SwiftUI
 /// 720-point single-column cap, and accessibility action relayout.
 struct HPFormScreenLayout<Header: View, Sections: View, PrimaryAction: View, SecondaryAction: View>: View {
   private let widthMode: HPScreenWidthMode
+  private let maxContentWidth: CGFloat?
   private let header: (HPScreenLayoutContext) -> Header
   private let sections: (HPScreenLayoutContext) -> Sections
   private let primaryAction: (HPScreenLayoutContext) -> PrimaryAction
@@ -14,12 +15,14 @@ struct HPFormScreenLayout<Header: View, Sections: View, PrimaryAction: View, Sec
 
   init(
     widthMode: HPScreenWidthMode = .automatic,
+    maxContentWidth: CGFloat? = 720,
     @ViewBuilder header: @escaping (HPScreenLayoutContext) -> Header,
     @ViewBuilder sections: @escaping (HPScreenLayoutContext) -> Sections,
     @ViewBuilder primaryAction: @escaping (HPScreenLayoutContext) -> PrimaryAction,
     @ViewBuilder secondaryAction: @escaping (HPScreenLayoutContext) -> SecondaryAction
   ) {
     self.widthMode = widthMode
+    self.maxContentWidth = maxContentWidth
     self.header = header
     self.sections = sections
     self.primaryAction = primaryAction
@@ -27,7 +30,7 @@ struct HPFormScreenLayout<Header: View, Sections: View, PrimaryAction: View, Sec
   }
 
   var body: some View {
-    HPScreenScaffold(widthMode: widthMode, maxContentWidth: 720) { context in
+    HPScreenScaffold(widthMode: widthMode, maxContentWidth: maxContentWidth) { context in
       VStack(alignment: .leading, spacing: HP.Space.md) {
         header(context)
         sections(context)
