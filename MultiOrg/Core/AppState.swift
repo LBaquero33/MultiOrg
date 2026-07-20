@@ -43,12 +43,14 @@ final class AppState: ObservableObject {
   @Published var chatReadUpdate: ChatReadUpdate?
   @Published var requestedChatChannelId: UUID?
   @Published var requestedNotification: AppNotification?
+  @Published private(set) var requestedTeamWorkspaceSection: HPTeamWorkspaceSection?
   @Published private(set) var isPlatformAdmin = false
   @Published private(set) var platformFeatureFlags: [SDPlatformFeatureFlag] = []
   @Published private(set) var teamOperationsContext: SDTeamOperationsContext?
   @Published private(set) var selectedTeamId: UUID?
   @Published private(set) var selectedTeamSource: SDTeamSelectionSource = .none
-  @Published private(set) var isAllTeamsSelected = false
+  @Published private(set) var teamContextToken = UUID()
+  @Published private(set) var teamContextUpdatedAt = Date()
   @Published private(set) var teamOperationsIssue: SDTeamWorkspaceIssue?
   @Published private(set) var isTeamOperationsLoading = false
   @Published private(set) var pendingInvitation: SDOrganizationInvitationValidation?
@@ -127,6 +129,29 @@ final class AppState: ObservableObject {
     }
   }
 
+  func handleAppURL(_ url: URL) async {
+    if url.host?.lowercased() == "invite" {
+      await handleInvitationURL(url)
+      return
+    }
+    guard let route = HPTeamWorkspaceRoute(url: url) else { return }
+    await switchActiveOrganization(to: route.organizationId)
+    guard activeOrgId == route.organizationId else {
+      globalToastText = "You do not have access to that organization."
+      return
+    }
+    await refreshTeamOperationsContext()
+    guard selectTeam(route.teamId) else {
+      globalToastText = "That team is no longer available."
+      return
+    }
+    requestedTeamWorkspaceSection = route.section
+  }
+
+  func clearRequestedTeamWorkspaceSection() {
+    requestedTeamWorkspaceSection = nil
+  }
+
   func acceptPendingInvitation() async {
     guard isAuthenticated, let token = pendingInvitationToken, let supabase else { return }
     invitationErrorText = nil
@@ -174,7 +199,7 @@ final class AppState: ObservableObject {
   }
 
   var selectedTeam: SDTeamOperationsTeam? {
-    guard !isAllTeamsSelected, let selectedTeamId else { return nil }
+    guard let selectedTeamId else { return nil }
     return teamOperationsContext?.teams.first(where: { $0.id == selectedTeamId })
   }
 
@@ -189,6 +214,29 @@ final class AppState: ObservableObject {
     return context.teams.filter {
       $0.org_id == activeOrgId && $0.season_id == seasonId && $0.is_active
     }
+  }
+
+  var authorizedScheduleTeams: [SDTeamOperationsTeam] {
+    guard let context = teamOperationsContext else { return [] }
+    return context.teams.filter { $0.org_id == activeOrgId && $0.is_active }
+  }
+
+  var teamContext: HPTeamContext? {
+    guard let organizationId = activeOrgId, let team = selectedTeam else { return nil }
+    return HPTeamContext(
+      organizationId: organizationId,
+      seasonId: team.season_id,
+      teamId: team.id,
+      teamName: team.name,
+      ageGroup: team.age_group,
+      level: team.competitive_level,
+      isActive: team.is_active,
+      selectionSource: selectedTeamSource,
+      actorCapabilities: team.capabilitySet,
+      availableTeamCount: authorizedCoachTeams.count,
+      updatedAt: teamContextUpdatedAt,
+      contextToken: teamContextToken
+    )
   }
 
   var activeOrgAuthorizationKey: String {
@@ -232,7 +280,7 @@ final class AppState: ObservableObject {
     teamOperationsContext = nil
     selectedTeamId = nil
     selectedTeamSource = .none
-    isAllTeamsSelected = false
+    replaceTeamContextToken()
     teamOperationsIssue = nil
     teamOperationsRequestToken = nil
   }
@@ -243,6 +291,7 @@ final class AppState: ObservableObject {
     chatReadUpdate = nil
     requestedChatChannelId = nil
     requestedNotification = nil
+    requestedTeamWorkspaceSection = nil
   }
 
   func bootstrap() async {
@@ -466,7 +515,7 @@ final class AppState: ObservableObject {
       teamOperationsContext = nil
       selectedTeamId = nil
       selectedTeamSource = .none
-      isAllTeamsSelected = false
+      replaceTeamContextToken()
       teamOperationsIssue = nil
       return
     }
@@ -484,43 +533,45 @@ final class AppState: ObservableObject {
               activeContext: activeOrgId,
               currentToken: teamOperationsRequestToken,
               taskIsCancelled: Task.isCancelled
-            ),
-            let seasonId = context.activeSeason?.id else {
+            ) else {
         return
       }
-      let key = selectedTeamPersistenceKey(
+      teamOperationsContext = context
+      guard let seasonId = context.activeSeason?.id else {
+        publishTeamSelection(nil, source: .none)
+        teamOperationsIssue = context.teams.isEmpty ? .noTeams : .noAuthorizedTeams
+        return
+      }
+      let key = HPTeamSelectionPersistence.key(
+        userId: userId,
+        organizationId: organizationId
+      )
+      let legacyKey = HPTeamSelectionPersistence.legacyKey(
         userId: userId,
         organizationId: organizationId,
         seasonId: seasonId
       )
-      let persisted = UserDefaults.standard.string(forKey: key)
-      if persisted == "all", context.can_access_all_teams, context.teams.count > 1 {
-        teamOperationsContext = context
-        selectedTeamId = nil
-        selectedTeamSource = .persisted
-        isAllTeamsSelected = true
-        teamOperationsIssue = nil
-        return
-      }
+      let persistedValue = UserDefaults.standard.string(forKey: key)
+        ?? UserDefaults.standard.string(forKey: legacyKey)
+      let persisted = persistedValue.flatMap(UUID.init(uuidString:))
       let explicit = teamOperationsContext?.teams.contains(where: {
         $0.org_id == organizationId && $0.season_id == seasonId
       }) == true ? selectedTeamId : nil
       let resolution = SDSelectedTeamResolver.resolve(
         explicitTeamId: explicit,
-        persistedTeamId: persisted.flatMap(UUID.init(uuidString:)),
+        persistedTeamId: persisted,
         organizationId: organizationId,
         seasonId: seasonId,
         teams: context.teams
       )
-      teamOperationsContext = context
-      selectedTeamId = resolution.teamId
-      selectedTeamSource = resolution.source
-      isAllTeamsSelected = false
+      publishTeamSelection(resolution.teamId, source: resolution.source)
       teamOperationsIssue = context.teams.isEmpty ? .noTeams : (resolution.teamId == nil ? .noAuthorizedTeams : nil)
       if let resolved = resolution.teamId {
         UserDefaults.standard.set(resolved.uuidString, forKey: key)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
       } else {
         UserDefaults.standard.removeObject(forKey: key)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
       }
     } catch {
       guard SDAsyncRequestGuard.accepts(
@@ -537,48 +588,47 @@ final class AppState: ObservableObject {
       // authoritative statement that the organization has no teams.
       if teamOperationsContext?.teams.contains(where: { $0.org_id == organizationId }) != true {
         teamOperationsContext = nil
-        selectedTeamId = nil
-        selectedTeamSource = .none
-        isAllTeamsSelected = false
+        publishTeamSelection(nil, source: .none)
       }
     }
   }
 
-  func selectCoachTeam(_ teamId: UUID?) {
+  @discardableResult
+  func selectTeam(_ teamId: UUID) -> Bool {
     guard let context = teamOperationsContext,
           let organizationId = activeOrgId,
           let seasonId = context.activeSeason?.id,
-          let userId = myProfile?.id else { return }
-    let key = selectedTeamPersistenceKey(
+          let userId = myProfile?.id else { return false }
+    let key = HPTeamSelectionPersistence.key(
       userId: userId,
-      organizationId: organizationId,
-      seasonId: seasonId
+      organizationId: organizationId
     )
-    if teamId == nil {
-      guard context.can_access_all_teams, authorizedCoachTeams.count > 1 else { return }
-      selectedTeamId = nil
-      selectedTeamSource = .explicit
-      isAllTeamsSelected = true
-      UserDefaults.standard.set("all", forKey: key)
-      return
-    }
-    guard let teamId,
-          context.teams.contains(where: {
+    guard context.teams.contains(where: {
             $0.id == teamId && $0.org_id == organizationId && $0.season_id == seasonId && $0.is_active
-          }) else { return }
-    selectedTeamId = teamId
-    selectedTeamSource = .explicit
-    isAllTeamsSelected = false
+          }) else { return false }
+    publishTeamSelection(teamId, source: .explicit)
     teamOperationsIssue = nil
     UserDefaults.standard.set(teamId.uuidString, forKey: key)
+    return true
   }
 
-  private func selectedTeamPersistenceKey(
-    userId: UUID,
-    organizationId: UUID,
-    seasonId: UUID
-  ) -> String {
-    "homePlate.selectedTeam.\(userId.uuidString.lowercased()).\(organizationId.uuidString.lowercased()).\(seasonId.uuidString.lowercased())"
+  /// Compatibility entry point for existing routes. `nil` no longer means an
+  /// implicit all-teams Team workspace.
+  func selectCoachTeam(_ teamId: UUID?) {
+    guard let teamId else { return }
+    selectTeam(teamId)
+  }
+
+  private func publishTeamSelection(_ teamId: UUID?, source: SDTeamSelectionSource) {
+    guard selectedTeamId != teamId || selectedTeamSource != source else { return }
+    selectedTeamId = teamId
+    selectedTeamSource = source
+    replaceTeamContextToken()
+  }
+
+  private func replaceTeamContextToken() {
+    teamContextToken = UUID()
+    teamContextUpdatedAt = Date()
   }
 
   func refreshEntitlement() async {

@@ -22,8 +22,8 @@ struct CoachTeamScheduleView: View {
         HPWorkspaceHeader(
           "Schedule",
           orgLabel: appState.selectedSeason?.name ?? "Season",
-          context: appState.isAllTeamsSelected ? "All authorized teams" : appState.selectedTeam?.name ?? "Team assignment required"
-        ) { CoachTeamSelector() }
+          context: scheduleScopeLabel
+        )
       } controls: {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           Picker("View", selection: $mode) {
@@ -42,9 +42,9 @@ struct CoachTeamScheduleView: View {
               }
               .frame(minHeight: 44)
             }
-            if appState.isAllTeamsSelected {
+            if seasonTeams.count > 1 {
               Menu {
-                Button("All Teams") { teamFilterId = nil }
+                Button(allTeamsLabel) { teamFilterId = nil }
                 ForEach(seasonTeams) { team in
                   Button(team.name) { teamFilterId = team.id }
                 }
@@ -52,6 +52,10 @@ struct CoachTeamScheduleView: View {
                 Label(selectedTeamFilterName, systemImage: "person.3")
               }
               .frame(minHeight: 44)
+            } else if let onlyTeam = seasonTeams.first {
+              Label(onlyTeam.name, systemImage: "person.3")
+                .frame(minHeight: 44)
+                .accessibilityLabel("Schedule team filter. \(onlyTeam.name)")
             }
             Menu {
               Picker("Event type", selection: $filter) {
@@ -88,22 +92,17 @@ struct CoachTeamScheduleView: View {
       }
       .navigationTitle("Schedule")
       .toolbar {
-        if canCreate, let team = appState.selectedTeam {
+        if canCreate, let scheduleSeasonId = selectedSeasonId, !seasonTeams.isEmpty {
           ToolbarItem(placement: .primaryAction) {
-            Button { editor = EventEditorPresentation(teams: [team], seasonId: team.season_id) } label: {
+            Button {
+              editor = EventEditorPresentation(
+                teams: seasonTeams,
+                seasonId: scheduleSeasonId,
+                preselectedTeamId: effectiveTeamFilterId
+              )
+            } label: {
               Label("New Event", systemImage: "plus")
             }
-          }
-        } else if appState.canAdminActiveOrg, appState.isAllTeamsSelected,
-                  let scheduleSeasonId = selectedSeasonId, !seasonTeams.isEmpty {
-          ToolbarItem(placement: .primaryAction) {
-            Menu {
-              Button("All Teams") { editor = EventEditorPresentation(teams: seasonTeams, seasonId: scheduleSeasonId) }
-              Divider()
-              ForEach(seasonTeams) { team in
-                Button(team.name) { editor = EventEditorPresentation(teams: [team], seasonId: team.season_id) }
-              }
-            } label: { Label("New Event", systemImage: "plus") }
           }
         }
       }
@@ -111,7 +110,14 @@ struct CoachTeamScheduleView: View {
       .task(id: appState.activeOrgId) { await loadFacilities() }
       .refreshable { await reload() }
       .sheet(item: $editor) { presentation in
-        TeamEventEditorView(teams: presentation.teams, seasonId: presentation.seasonId) {
+        TeamEventEditorView(
+          teams: presentation.teams,
+          seasonId: presentation.seasonId,
+          event: presentation.event,
+          preselectedTeamId: presentation.preselectedTeamId,
+          isDuplicate: presentation.isDuplicate,
+          editsFuture: presentation.editsFuture
+        ) {
           editor = nil
           Task { await reload() }
         }
@@ -126,8 +132,8 @@ struct CoachTeamScheduleView: View {
   }
 
   @ViewBuilder private var scheduleResults: some View {
-    if appState.selectedTeam == nil && !appState.isAllTeamsSelected {
-      let issue = appState.teamOperationsIssue ?? .noCurrentAssignment
+    if seasonTeams.isEmpty {
+      let issue = appState.teamOperationsIssue ?? .noAuthorizedTeams
       HPCard { HPEmptyState(title: issue.title, message: issue.message, systemImage: "calendar.badge.exclamationmark") }
     } else if isLoading && events.isEmpty {
       HPCard { HPLoadingState(text: "Loading team schedule…") }
@@ -147,13 +153,19 @@ struct CoachTeamScheduleView: View {
             message: "No \(filter.rawValue.lowercased()) match this \(mode.rawValue.lowercased()) view.",
             systemImage: "calendar"
           )
-          if canCreate, let team = appState.selectedTeam {
+          if canCreate, let scheduleSeasonId = selectedSeasonId {
             HPButton(
               title: "Create First Event",
               systemImage: "plus",
               variant: .primary,
               size: .md,
-              action: { editor = EventEditorPresentation(teams: [team], seasonId: team.season_id) }
+              action: {
+                editor = EventEditorPresentation(
+                  teams: seasonTeams,
+                  seasonId: scheduleSeasonId,
+                  preselectedTeamId: effectiveTeamFilterId
+                )
+              }
             )
           }
         }
@@ -226,7 +238,9 @@ struct CoachTeamScheduleView: View {
   }
 
   private var canCreate: Bool {
-    appState.selectedTeamCapabilities.contains(.createTeamEvent)
+    appState.canAdminActiveOrg || seasonTeams.contains {
+      $0.capabilitySet.contains(.createTeamEvent)
+    }
   }
 
   private func canMutate(_ event: SDTeamEvent) -> Bool {
@@ -236,26 +250,26 @@ struct CoachTeamScheduleView: View {
   private func canOpenPlan(_ event: SDTeamEvent) -> Bool {
     guard event.event_type == .practice || event.event_type == .game else { return false }
     if appState.canAdminActiveOrg { return true }
-    guard event.team_id == appState.selectedTeam?.id else { return false }
+    guard let eventTeam = team(for: event.team_id) else { return false }
     return event.event_type == .practice
-      ? appState.selectedTeamCapabilities.contains(.viewPracticePlan)
-      : appState.selectedTeamCapabilities.contains(.viewGamePlan)
+      ? eventTeam.capabilitySet.contains(.viewPracticePlan)
+      : eventTeam.capabilitySet.contains(.viewGamePlan)
   }
 
   private func canEdit(_ event: SDTeamEvent) -> Bool {
-    appState.canAdminActiveOrg || (event.team_id == appState.selectedTeam?.id && appState.selectedTeamCapabilities.contains(.editTeamEvent))
+    appState.canAdminActiveOrg || team(for: event.team_id)?.capabilitySet.contains(.editTeamEvent) == true
   }
 
   private func canDuplicate(_ event: SDTeamEvent) -> Bool {
-    appState.canAdminActiveOrg || (event.team_id == appState.selectedTeam?.id && appState.selectedTeamCapabilities.contains(.createTeamEvent))
+    appState.canAdminActiveOrg || team(for: event.team_id)?.capabilitySet.contains(.createTeamEvent) == true
   }
 
   private func canCancel(_ event: SDTeamEvent) -> Bool {
-    appState.canAdminActiveOrg || (event.team_id == appState.selectedTeam?.id && appState.selectedTeamCapabilities.contains(.cancelTeamEvent))
+    appState.canAdminActiveOrg || team(for: event.team_id)?.capabilitySet.contains(.cancelTeamEvent) == true
   }
 
   private func teams(for event: SDTeamEvent) -> [SDTeamOperationsTeam] {
-    appState.authorizedCoachTeams.filter { $0.id == event.team_id }
+    appState.authorizedScheduleTeams.filter { $0.id == event.team_id }
   }
 
   private var filteredEvents: [SDTeamEvent] {
@@ -267,8 +281,20 @@ struct CoachTeamScheduleView: View {
   }
 
   private var selectedTeamFilterName: String {
-    guard let teamFilterId else { return "All Teams" }
+    guard let teamFilterId else { return allTeamsLabel }
     return seasonTeams.first(where: { $0.id == teamFilterId })?.name ?? "Team"
+  }
+
+  private var allTeamsLabel: String {
+    appState.canAdminActiveOrg ? "All Teams" : "All My Teams"
+  }
+
+  private var scheduleScopeLabel: String {
+    "Visible filter: \(selectedTeamFilterName)"
+  }
+
+  private var effectiveTeamFilterId: UUID? {
+    teamFilterId ?? (seasonTeams.count == 1 ? seasonTeams[0].id : nil)
   }
 
   private var selectedFacilityName: String {
@@ -277,7 +303,7 @@ struct CoachTeamScheduleView: View {
   }
 
   private var selectedSeasonId: UUID? {
-    appState.selectedTeam?.season_id ?? seasonFilterId ?? appState.selectedSeason?.id
+    seasonFilterId ?? appState.selectedSeason?.id
   }
 
   private var selectedSeasonName: String {
@@ -286,8 +312,8 @@ struct CoachTeamScheduleView: View {
   }
 
   private var seasonTeams: [SDTeamOperationsTeam] {
-    guard let selectedSeasonId else { return appState.authorizedCoachTeams }
-    return appState.authorizedCoachTeams.filter { $0.season_id == selectedSeasonId }
+    guard let selectedSeasonId else { return appState.authorizedScheduleTeams }
+    return appState.authorizedScheduleTeams.filter { $0.season_id == selectedSeasonId }
   }
 
   private var groupedDays: [(day: Date, events: [SDTeamEvent])] {
@@ -297,11 +323,15 @@ struct CoachTeamScheduleView: View {
   }
 
   private var reloadKey: String {
-    "\(appState.selectedTeamId?.uuidString ?? "all"):\(selectedSeasonId?.uuidString ?? "all-seasons"):\(mode.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
+    "\(teamFilterId?.uuidString ?? "all"):\(selectedSeasonId?.uuidString ?? "all-seasons"):\(mode.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
   }
 
   private func teamName(_ id: UUID) -> String {
-    appState.authorizedCoachTeams.first(where: { $0.id == id })?.name ?? "Team"
+    team(for: id)?.name ?? "Team"
+  }
+
+  private func team(for id: UUID) -> SDTeamOperationsTeam? {
+    appState.authorizedScheduleTeams.first(where: { $0.id == id })
   }
 
   private func range() -> (Date, Date) {
@@ -337,11 +367,15 @@ struct CoachTeamScheduleView: View {
 
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
-    if appState.selectedTeam == nil && !appState.isAllTeamsSelected { events = []; return }
-    if appState.isAllTeamsSelected, let selectedSeasonId, seasonTeams.isEmpty,
-       let validSeasonId = appState.authorizedCoachTeams.first?.season_id,
+    if let selectedSeasonId, seasonTeams.isEmpty,
+       let validSeasonId = appState.authorizedScheduleTeams.first?.season_id,
        validSeasonId != selectedSeasonId {
       seasonFilterId = validSeasonId
+      teamFilterId = nil
+      return
+    }
+    if let teamFilterId, !seasonTeams.contains(where: { $0.id == teamFilterId }) {
+      self.teamFilterId = nil
       return
     }
     let context = scheduleContextIdentity
@@ -354,7 +388,7 @@ struct CoachTeamScheduleView: View {
       let loadedEvents = try await service.listTeamEvents(
         organizationId: organizationId,
         seasonId: selectedSeasonId,
-        teamId: appState.selectedTeam?.id,
+        teamId: effectiveTeamFilterId,
         rangeStart: limits.0,
         rangeEnd: limits.1
       )
@@ -439,13 +473,30 @@ struct CoachTeamScheduleView: View {
   }
 }
 
-private struct EventEditorPresentation: Identifiable {
+struct EventEditorPresentation: Identifiable {
   let id = UUID()
   let teams: [SDTeamOperationsTeam]
   let seasonId: UUID
+  let preselectedTeamId: UUID?
   var event: SDTeamEvent?
-  var isDuplicate = false
-  var editsFuture = false
+  var isDuplicate: Bool
+  var editsFuture: Bool
+
+  init(
+    teams: [SDTeamOperationsTeam],
+    seasonId: UUID,
+    preselectedTeamId: UUID? = nil,
+    event: SDTeamEvent? = nil,
+    isDuplicate: Bool = false,
+    editsFuture: Bool = false
+  ) {
+    self.teams = teams
+    self.seasonId = seasonId
+    self.preselectedTeamId = preselectedTeamId ?? event?.team_id
+    self.event = event
+    self.isDuplicate = isDuplicate
+    self.editsFuture = editsFuture
+  }
 }
 
 struct TeamEventRow: View {
@@ -493,10 +544,12 @@ struct TeamEventEditorView: View {
   let teams: [SDTeamOperationsTeam]
   let seasonId: UUID
   let event: SDTeamEvent?
+  let preselectedTeamId: UUID?
   let isDuplicate: Bool
   let editsFuture: Bool
   let onSaved: () -> Void
   @State private var draft: SDTeamEventDraft
+  @State private var selectedTeamId: UUID?
   @State private var facilities: [SDFacility] = []
   @State private var conflicts: [SDTeamEventConflict] = []
   @State private var overrideReason = ""
@@ -507,6 +560,7 @@ struct TeamEventEditorView: View {
     teams: [SDTeamOperationsTeam],
     seasonId: UUID,
     event: SDTeamEvent? = nil,
+    preselectedTeamId: UUID? = nil,
     isDuplicate: Bool = false,
     editsFuture: Bool = false,
     onSaved: @escaping () -> Void
@@ -514,10 +568,16 @@ struct TeamEventEditorView: View {
     self.teams = teams
     self.seasonId = seasonId
     self.event = event
+    self.preselectedTeamId = preselectedTeamId
     self.isDuplicate = isDuplicate
     self.editsFuture = editsFuture
     self.onSaved = onSaved
     _draft = State(initialValue: event.map(SDTeamEventDraft.init(event:)) ?? SDTeamEventDraft())
+    _selectedTeamId = State(
+      initialValue: event?.team_id
+        ?? preselectedTeamId
+        ?? (teams.count == 1 ? teams[0].id : nil)
+    )
   }
 
   var body: some View {
@@ -527,6 +587,11 @@ struct TeamEventEditorView: View {
           Picker("Type", selection: $draft.type) {
             ForEach(SDTeamEventType.allCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
           }
+          Picker("Team", selection: $selectedTeamId) {
+            Text("Select a team").tag(UUID?.none)
+            ForEach(teams) { team in Text(team.name).tag(Optional(team.id)) }
+          }
+          .disabled(event != nil && !isDuplicate)
           TextField("Title", text: $draft.title)
           TextField("Description", text: $draft.description, axis: .vertical)
           Toggle("All day", isOn: $draft.allDay)
@@ -642,7 +707,8 @@ struct TeamEventEditorView: View {
   }
 
   private var canSave: Bool {
-    !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    selectedTeamId != nil
+      && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && draft.endAt > draft.startAt
       && (draft.arrivalAt ?? draft.startAt) <= draft.startAt
       && (!draft.repeats || draft.recurrenceFrequency != "weekly" || !draft.recurrenceWeekdays.isEmpty)
@@ -661,39 +727,38 @@ struct TeamEventEditorView: View {
   }
 
   private func save(publish: Bool) async {
-    guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+    guard let service = appState.supabase,
+          let organizationId = appState.activeOrgId,
+          let selectedTeamId,
+          let selectedTeam = teams.first(where: { $0.id == selectedTeamId }) else { return }
     isSaving = true
     defer { isSaving = false }
     do {
       conflicts = []
-      for team in teams {
-        conflicts.append(contentsOf: try await service.teamEventConflicts(
-          organizationId: organizationId,
-          seasonId: seasonId,
-          teamId: team.id,
-          eventId: isDuplicate ? nil : event?.id,
-          startAt: draft.startAt,
-          endAt: draft.endAt,
-          facilityId: draft.facilityId
-        ))
-      }
+      conflicts = try await service.teamEventConflicts(
+        organizationId: organizationId,
+        seasonId: selectedTeam.season_id,
+        teamId: selectedTeam.id,
+        eventId: isDuplicate ? nil : event?.id,
+        startAt: draft.startAt,
+        endAt: draft.endAt,
+        facilityId: draft.facilityId
+      )
       if !conflicts.isEmpty && overrideReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         errorText = "Review the schedule warnings and enter an override reason to continue."
         return
       }
-      for team in teams {
-        _ = try await service.saveTeamEvent(
-          organizationId: organizationId,
-          seasonId: seasonId,
-          teamId: team.id,
-          eventId: event?.id,
-          draft: draft,
-          publish: publish,
-          overrideReason: overrideReason.sdNilIfBlank,
-          coachIds: event?.sd_team_event_coaches?.map(\.coach_id) ?? [],
-          actionOverride: isDuplicate ? "duplicate" : editsFuture ? "update_future" : nil
-        )
-      }
+      _ = try await service.saveTeamEvent(
+        organizationId: organizationId,
+        seasonId: selectedTeam.season_id,
+        teamId: selectedTeam.id,
+        eventId: event?.id,
+        draft: draft,
+        publish: publish,
+        overrideReason: overrideReason.sdNilIfBlank,
+        coachIds: event?.sd_team_event_coaches?.map(\.coach_id) ?? [],
+        actionOverride: isDuplicate ? "duplicate" : editsFuture ? "update_future" : nil
+      )
       onSaved()
     } catch {
       errorText = "The event could not be saved. Check its details and any schedule conflicts, then try again."

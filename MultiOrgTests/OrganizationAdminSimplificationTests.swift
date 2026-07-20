@@ -155,13 +155,13 @@ struct OrganizationAdminSimplificationTests {
   func teamDetailRouting() throws {
     let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
     for copy in [
-      "Open Current Team", "Manage Roster", "Manage Staff", "View Schedule", "Edit Team",
+      "Open Team", "Manage Roster", "Manage Staff", "View Schedule", "Edit Team",
       "Archive Team", "Next event",
     ] {
       #expect(source.contains(copy))
     }
     #expect(source.contains("CoachTeamCommandCenterView()"))
-    #expect(source.contains("CoachTeamScheduleView()"))
+    #expect(source.contains("CoachTeamCommandCenterView(initialSection: .schedule)"))
     #expect(source.contains("appState.selectCoachTeam(team.id)"))
   }
 

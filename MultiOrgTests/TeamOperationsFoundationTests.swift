@@ -81,19 +81,23 @@ struct TeamOperationsFoundationTests {
     #expect(!inventory.directoryItems.contains(where: { $0.destination == .coachPlayers }))
   }
 
-  @Test("team selector is hidden for one team and compact for multiple teams")
+  @Test("team selector is a label for one team and a compact menu for multiple teams")
   func switcherWiring() throws {
     let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
-    #expect(source.contains("if appState.authorizedCoachTeams.count > 1"))
+    #expect(source.contains("appState.authorizedCoachTeams.count == 1"))
     #expect(source.contains("struct CoachTeamSelector"))
     #expect(source.contains("Menu {"))
-    #expect(source.contains("teamOperationsContext?.can_access_all_teams == true"))
+    #expect(source.contains("No team assigned"))
+    #expect(source.contains("Create Team"))
+    #expect(source.contains("Manage Teams"))
+    #expect(source.contains("All Teams") == false)
   }
 
   @Test("Team opens the command-center overview")
   func commandCenterDefault() throws {
     let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
-    #expect(source.contains("@State private var section: Section = .overview"))
+    #expect(source.contains("@State private var section: Section"))
+    #expect(source.contains("init(initialSection: Section = .overview)"))
     #expect(source.contains("case overview = \"Overview\""))
     #expect(source.contains("case players = \"Players\""))
     #expect(source.contains("case settings = \"Settings\""))
@@ -402,8 +406,11 @@ struct TeamOperationsFoundationTests {
     )
     #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
     #expect(owner.compactTabCountIncludingDirectory == 5)
-    #expect(owner.regularItems.contains(where: { $0.title == "Current Team" }))
-    #expect(owner.regularItems.contains(where: { $0.title == "Team Management" }))
+    #expect(owner.regularItems.contains(where: { $0.title == "Team" }))
+    #expect(owner.regularItems.contains(where: { $0.title == "Teams" }))
+    #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))
+    #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
+    #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin }))
     #expect(!owner.regularItems.contains(where: { $0.destination == .platformAdmin }))
     #expect(owner.regularSections.contains(where: { $0.title == "Operate" }))
     #expect(owner.regularSections.contains(where: { $0.title == "Administer" }))

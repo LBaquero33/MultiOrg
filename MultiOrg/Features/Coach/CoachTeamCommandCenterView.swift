@@ -4,31 +4,73 @@ struct CoachTeamSelector: View {
   @EnvironmentObject private var appState: AppState
 
   var body: some View {
-    if appState.authorizedCoachTeams.count > 1 {
-      Menu {
-        if appState.teamOperationsContext?.can_access_all_teams == true {
-          Button { appState.selectCoachTeam(nil) } label: {
-            Label("All Teams", systemImage: appState.isAllTeamsSelected ? "checkmark" : "person.3")
+    if appState.authorizedCoachTeams.isEmpty {
+      if appState.canAdminActiveOrg {
+        Menu {
+          NavigationLink { OrgTeamOperationsAdminView(launchAction: .createTeam) } label: {
+            Label("Create Team", systemImage: "plus")
           }
-          Divider()
+          NavigationLink { OrgTeamOperationsAdminView() } label: {
+            Label("Manage Teams", systemImage: "person.3.sequence")
+          }
+          NavigationLink { OrgAdminConsoleView() } label: {
+            Label("Return to Organization Setup", systemImage: "building.2")
+          }
+        } label: {
+          selectorLabel(title: "No team selected", interactive: true)
         }
+        .accessibilityLabel("Team. No team selected")
+      } else {
+        selectorLabel(title: "No team assigned", interactive: false)
+          .accessibilityLabel("Team. No team assigned")
+      }
+    } else if appState.authorizedCoachTeams.count == 1 && !appState.canAdminActiveOrg {
+      selectorLabel(title: appState.authorizedCoachTeams[0].name, interactive: false)
+        .accessibilityLabel("Team. \(appState.authorizedCoachTeams[0].name)")
+    } else {
+      Menu {
         ForEach(appState.authorizedCoachTeams) { team in
-          Button { appState.selectCoachTeam(team.id) } label: {
-            Label(team.name, systemImage: appState.selectedTeamId == team.id ? "checkmark" : "shield")
+          Button { appState.selectTeam(team.id) } label: {
+            Label(
+              teamMenuTitle(team),
+              systemImage: appState.selectedTeamId == team.id ? "checkmark" : "shield"
+            )
+          }
+        }
+        if appState.canAdminActiveOrg {
+          Divider()
+          NavigationLink { OrgTeamOperationsAdminView(launchAction: .createTeam) } label: {
+            Label("Create Team", systemImage: "plus")
+          }
+          NavigationLink { OrgTeamOperationsAdminView() } label: {
+            Label("Manage Teams", systemImage: "person.3.sequence")
           }
         }
       } label: {
-        HStack(spacing: HP.Space.xs) {
-          Image(systemName: "shield.lefthalf.filled")
-          Text(appState.isAllTeamsSelected ? "All Teams" : appState.selectedTeam?.name ?? "Select Team")
-          Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.bold))
-        }
-        .font(HP.Font.callout.weight(.semibold))
-        .foregroundStyle(HP.Color.accent)
-        .frame(minHeight: 44)
+        selectorLabel(title: appState.selectedTeam?.name ?? "Select a team", interactive: true)
       }
-      .accessibilityLabel("Selected team")
+      .accessibilityLabel("Selected team. \(appState.selectedTeam?.name ?? "No team selected")")
     }
+  }
+
+  private func selectorLabel(title: String, interactive: Bool) -> some View {
+    HStack(spacing: HP.Space.xs) {
+      Image(systemName: "shield.lefthalf.filled")
+      VStack(alignment: .leading, spacing: 1) {
+        Text("Team").font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        Text(title).font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.accent)
+      }
+      if interactive {
+        Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.bold))
+      }
+    }
+    .frame(minHeight: 44)
+    .contentShape(Rectangle())
+  }
+
+  private func teamMenuTitle(_ team: SDTeamOperationsTeam) -> String {
+    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }
+    return details.isEmpty ? team.name : "\(team.name) — \(details.joined(separator: " • "))"
   }
 }
 
@@ -44,9 +86,7 @@ struct CoachTodayFoundationView: View {
   var body: some View {
     NavigationStack {
       HPWorkspaceScreenLayout {
-        HPWorkspaceHeader(screenTitle, orgLabel: organizationName, context: contextLabel) {
-          if !isOwnerOverview { CoachTeamSelector() }
-        }
+        HPWorkspaceHeader(screenTitle, orgLabel: organizationName, context: contextLabel)
       } attention: {
         topPriorityCard
       } metrics: {
@@ -81,7 +121,8 @@ struct CoachTodayFoundationView: View {
 
   private var contextLabel: String {
     if isOwnerOverview { return "Organization-wide • \(appState.selectedSeason?.name ?? "No active season")" }
-    return appState.isAllTeamsSelected ? "All authorized teams" : appState.selectedTeam?.name ?? "Team assignment required"
+    if appState.authorizedCoachTeams.count == 1 { return appState.authorizedCoachTeams[0].name }
+    return appState.authorizedCoachTeams.isEmpty ? "No assigned teams" : "All assigned teams"
   }
 
   private var organizationName: String {
@@ -141,7 +182,7 @@ struct CoachTodayFoundationView: View {
             .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
         } else if today?.service("scheduling").preservesAuthoritativeEmptyState == false {
           compactServiceState("scheduling", fallback: "Today’s schedule couldn’t be loaded.")
-        } else if !isOwnerOverview && appState.selectedTeam == nil {
+        } else if !isOwnerOverview && appState.authorizedCoachTeams.isEmpty {
           HPEmptyState(title: "No active team assignment", message: "An organization administrator can assign a team. No team data is shown without an authorized assignment.", systemImage: "person.crop.circle.badge.exclamationmark")
         } else if displayedMissions.isEmpty {
           HPEmptyState(title: "No event today", message: isOwnerOverview ? "No organization event is scheduled today. Business and setup attention remains available below." : "No team mission is scheduled today. Upcoming preparation and attention remain available below.", systemImage: "calendar")
@@ -278,13 +319,13 @@ struct CoachTodayFoundationView: View {
     loadToken = token
     loadError = nil
     do {
-      let response = try await service.today(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: isOwnerOverview ? nil : appState.selectedTeam?.id, contextToken: context)
+      let response = try await service.today(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: nil, contextToken: context)
       let start = Calendar.current.startOfDay(for: Date())
       let end = Calendar.current.date(byAdding: .day, value: 30, to: start) ?? start
-      let routeEvents = try? await service.listTeamEvents(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: isOwnerOverview ? nil : appState.selectedTeam?.id, rangeStart: start, rangeEnd: end)
+      let routeEvents = try? await service.listTeamEvents(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: nil, rangeStart: start, rangeEnd: end)
       guard acceptsToday(context: context, token: token) else { return }
       guard response.context.organization_id == orgId,
-            isOwnerOverview || response.context.team_id == appState.selectedTeam?.id else { return }
+            response.context.team_id == nil else { return }
       today = response
       events = routeEvents ?? []
       publishedContext = context
@@ -296,7 +337,7 @@ struct CoachTodayFoundationView: View {
   }
 
   private var todayContextIdentity: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.selectedSeason?.id.uuidString ?? "none"):\(isOwnerOverview ? "organization" : appState.selectedTeamId?.uuidString ?? "none"):\(DateUtils.toISODate(Date())):\(TimeZone.current.identifier)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.selectedSeason?.id.uuidString ?? "none"):all-assigned-teams:\(DateUtils.toISODate(Date())):\(TimeZone.current.identifier)"
   }
 
   private func acceptsToday(context: String, token: UUID) -> Bool {
@@ -318,7 +359,7 @@ struct CoachScheduleFoundationView: View {
 
 struct CoachTeamCommandCenterView: View {
   @EnvironmentObject private var appState: AppState
-  @State private var section: Section = .overview
+  @State private var section: Section
   @State private var teamEvents: [SDTeamEvent] = []
   @State private var operationSummaries: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
@@ -328,6 +369,7 @@ struct CoachTeamCommandCenterView: View {
   @State private var loadToken: UUID?
   @State private var loadedScheduleContext: String?
   @State private var isScheduleLoading = false
+  @State private var eventEditor: EventEditorPresentation?
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -339,6 +381,16 @@ struct CoachTeamCommandCenterView: View {
     case documents = "Documents"
     case settings = "Settings"
     var id: String { rawValue }
+
+    init(_ routeSection: HPTeamWorkspaceSection) {
+      self = Self.allCases.first {
+        $0.rawValue.lowercased() == routeSection.rawValue
+      } ?? .overview
+    }
+  }
+
+  init(initialSection: Section = .overview) {
+    _section = State(initialValue: initialSection)
   }
 
   var body: some View {
@@ -347,20 +399,31 @@ struct CoachTeamCommandCenterView: View {
         HPWorkspaceHeader(
           "Team",
           orgLabel: appState.selectedSeason?.name ?? "Season",
-          context: appState.isAllTeamsSelected ? "All authorized teams" : appState.selectedTeam?.name ?? "Team assignment required"
+          context: teamHeaderContext
         ) { CoachTeamSelector() }
       } controls: {
         if appState.selectedTeam != nil {
           HPCard {
             ScrollView(.horizontal, showsIndicators: false) {
               HStack(spacing: HP.Space.xs) {
-                ForEach(visibleSections) { item in
+                ForEach(primarySections) { item in
                   HPButton(
                     title: item.rawValue,
                     variant: section == item ? .primary : .secondary,
                     size: .sm,
                     action: { section = item }
                   )
+                }
+                if !overflowSections.isEmpty {
+                  Menu {
+                    ForEach(overflowSections) { item in
+                      Button(item.rawValue) { section = item }
+                    }
+                  } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                      .frame(minHeight: 44)
+                  }
+                  .accessibilityLabel("More team sections")
                 }
               }
             }
@@ -377,10 +440,25 @@ struct CoachTeamCommandCenterView: View {
         }
       }
       .onChange(of: appState.selectedTeamId) { _, _ in normalizeSection() }
-      .onChange(of: appState.isAllTeamsSelected) { _, _ in normalizeSection() }
+      .onChange(of: appState.requestedTeamWorkspaceSection) { _, requested in
+        guard let requested else { return }
+        section = Section(requested)
+        normalizeSection()
+        appState.clearRequestedTeamWorkspaceSection()
+      }
       .task(id: scheduleTaskIdentity) {
         guard section == .overview || section == .schedule else { return }
         await reloadTeamEvents()
+      }
+      .sheet(item: $eventEditor) { presentation in
+        TeamEventEditorView(
+          teams: presentation.teams,
+          seasonId: presentation.seasonId,
+          preselectedTeamId: presentation.preselectedTeamId
+        ) {
+          eventEditor = nil
+          Task { await reloadTeamEvents() }
+        }
       }
     }
   }
@@ -400,11 +478,23 @@ struct CoachTeamCommandCenterView: View {
     }
   }
 
+  private var primarySections: [Section] {
+    visibleSections.filter { ![.communication, .documents].contains($0) }
+  }
+
+  private var overflowSections: [Section] {
+    visibleSections.filter { [.communication, .documents].contains($0) }
+  }
+
+  private var teamHeaderContext: String {
+    guard let team = appState.selectedTeam else { return "Select a team to open its workspace" }
+    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }
+    return details.isEmpty ? team.name : "\(team.name) • \(details.joined(separator: " • "))"
+  }
+
   @ViewBuilder
   private var content: some View {
-    if appState.isAllTeamsSelected {
-      allTeamsOverview
-    } else if let team = appState.selectedTeam {
+    if let team = appState.selectedTeam {
       switch section {
       case .overview: overview(team)
       case .players:
@@ -442,31 +532,6 @@ struct CoachTeamCommandCenterView: View {
           message: "An organization administrator can assign this coach to a team.",
           systemImage: "person.crop.circle.badge.exclamationmark"
         )
-      }
-    }
-  }
-
-  private var allTeamsOverview: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("All Teams") {
-          HPStatusBadge(text: "\(appState.authorizedCoachTeams.count)", kind: .neutral)
-        }
-        ForEach(appState.authorizedCoachTeams) { team in
-          Button { appState.selectCoachTeam(team.id) } label: {
-            HStack {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(team.name).font(HP.Font.headline).foregroundStyle(HP.Color.text)
-                Text("\(team.roster_count) players • \(team.staff_count) staff")
-                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-              }
-              Spacer()
-              Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
-            }
-            .frame(minHeight: 44)
-          }
-          .buttonStyle(.plain)
-        }
       }
     }
   }
@@ -596,7 +661,20 @@ struct CoachTeamCommandCenterView: View {
   private func scheduleCard(_ team: SDTeamOperationsTeam) -> some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Upcoming Schedule") { HPStatusBadge(text: "\(displayedTeamEvents.count)", kind: .neutral) }
+        HPSectionHeader("Upcoming Schedule") {
+          HStack(spacing: HP.Space.xs) {
+            HPStatusBadge(text: "\(displayedTeamEvents.count)", kind: .neutral)
+            if team.capabilitySet.contains(.createTeamEvent) || appState.canAdminActiveOrg {
+              HPButton(title: "New Event", systemImage: "plus", variant: .primary, size: .sm) {
+                eventEditor = EventEditorPresentation(
+                  teams: [team],
+                  seasonId: team.season_id,
+                  preselectedTeamId: team.id
+                )
+              }
+            }
+          }
+        }
         if loadError != nil, displayedTeamEvents.isEmpty {
           HPErrorState(
             title: "Schedule unavailable",
@@ -715,7 +793,7 @@ struct CoachTeamCommandCenterView: View {
   }
 
   private var teamContextIdentity: String {
-    "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "none")"
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "none"):\(appState.teamContextToken.uuidString)"
   }
 
   private var scheduleTaskIdentity: String {

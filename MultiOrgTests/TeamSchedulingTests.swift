@@ -87,7 +87,8 @@ struct TeamSchedulingTests {
     let content = try #require(source.range(of: "private var content: some View"))
 
     #expect(header.lowerBound < content.lowerBound)
-    #expect(source.contains("context: appState.isAllTeamsSelected ? \"All authorized teams\" : appState.selectedTeam?.name"))
+    #expect(source.contains("context: teamHeaderContext"))
+    #expect(source.contains("CoachTeamSelector()"))
     #expect(source.contains("case .players:"))
     #expect(source.contains("title: displayedTeamEvents.isEmpty ? \"Schedule unavailable\" : \"Schedule may be out of date\""))
     #expect(source.contains("Previously loaded events remain visible."))

@@ -110,7 +110,7 @@ struct OrgTeamOperationsAdminView: View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
       if !embedded {
         HPWorkspaceHeader(
-          "Team Management",
+          "Teams",
           orgLabel: organizationName,
           context: organizationContext
         )
@@ -307,7 +307,7 @@ struct OrgTeamOperationsAdminView: View {
       CoachTeamCommandCenterView()
         .onAppear { appState.selectCoachTeam(team.id) }
     } label: {
-      Label("Open Current Team", systemImage: "arrow.up.right.square")
+      Label("Open Team", systemImage: "arrow.up.right.square")
         .frame(minHeight: 36)
     }
     .buttonStyle(.borderedProminent)
@@ -316,7 +316,7 @@ struct OrgTeamOperationsAdminView: View {
     Button("Manage Staff") { detailMode = .staff }
       .buttonStyle(.bordered)
     NavigationLink {
-      CoachTeamScheduleView()
+      CoachTeamCommandCenterView(initialSection: .schedule)
         .onAppear { appState.selectCoachTeam(team.id) }
     } label: {
       Label("View Schedule", systemImage: "calendar")

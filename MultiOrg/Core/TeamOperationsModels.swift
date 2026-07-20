@@ -623,6 +623,128 @@ struct SDTeamOperationsContext: Decodable, Equatable, Sendable {
   }
 }
 
+/// Declares the context a root workspace is allowed to consume. A selected
+/// team is deliberately not part of organization-scoped workspace identity.
+enum HPWorkspaceScope: String, CaseIterable, Codable, Equatable, Sendable {
+  case organization
+  case selectedTeam = "selected_team"
+  case allAssignedTeams = "all_assigned_teams"
+  case scheduleFilter = "schedule_filter"
+  case selectedPlayer = "selected_player"
+  case selectedChild = "selected_child"
+  case platform
+  case account
+}
+
+struct HPTeamContext: Equatable, Sendable {
+  let organizationId: UUID
+  let seasonId: UUID
+  let teamId: UUID
+  let teamName: String
+  let ageGroup: String?
+  let level: String?
+  let isActive: Bool
+  let selectionSource: SDTeamSelectionSource
+  let actorCapabilities: Set<SDTeamCapability>
+  let availableTeamCount: Int
+  let updatedAt: Date
+  let contextToken: UUID
+}
+
+enum HPWorkspaceCacheKey {
+  static let schemaVersion = 1
+
+  static func organization(
+    userId: UUID,
+    organizationId: UUID,
+    action: String
+  ) -> String {
+    ["organization", "v\(schemaVersion)", userId.uuidString, organizationId.uuidString, action]
+      .map { $0.lowercased() }
+      .joined(separator: ":")
+  }
+
+  static func selectedTeam(
+    userId: UUID,
+    organizationId: UUID,
+    seasonId: UUID,
+    teamId: UUID,
+    action: String
+  ) -> String {
+    [
+      "team", "v\(schemaVersion)", userId.uuidString, organizationId.uuidString,
+      seasonId.uuidString, teamId.uuidString, action,
+    ]
+    .map { $0.lowercased() }
+    .joined(separator: ":")
+  }
+
+  static func schedule(
+    userId: UUID,
+    organizationId: UUID,
+    seasonId: UUID?,
+    visibleTeamFilterId: UUID?,
+    action: String
+  ) -> String {
+    [
+      "schedule", "v\(schemaVersion)", userId.uuidString, organizationId.uuidString,
+      seasonId?.uuidString ?? "all-seasons", visibleTeamFilterId?.uuidString ?? "all-teams", action,
+    ]
+    .map { $0.lowercased() }
+    .joined(separator: ":")
+  }
+}
+
+enum HPTeamSelectionPersistence {
+  static let schemaVersion = 2
+
+  static func key(userId: UUID, organizationId: UUID) -> String {
+    "homePlate.selectedTeam.v\(schemaVersion).\(userId.uuidString.lowercased()).\(organizationId.uuidString.lowercased())"
+  }
+
+  static func legacyKey(userId: UUID, organizationId: UUID, seasonId: UUID) -> String {
+    "homePlate.selectedTeam.\(userId.uuidString.lowercased()).\(organizationId.uuidString.lowercased()).\(seasonId.uuidString.lowercased())"
+  }
+}
+
+enum HPTeamWorkspaceSection: String, CaseIterable, Codable, Equatable, Sendable {
+  case overview
+  case players
+  case schedule
+  case development
+  case staff
+  case settings
+  case communication
+  case documents
+}
+
+struct HPTeamWorkspaceRoute: Equatable, Sendable {
+  let organizationId: UUID
+  let teamId: UUID
+  let section: HPTeamWorkspaceSection
+
+  init?(url: URL) {
+    guard url.scheme?.lowercased() == "homeplate",
+          ["team", "currentteam", "current-team", "current_team"].contains(url.host?.lowercased() ?? "") else {
+      return nil
+    }
+    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    let values = Dictionary(
+      uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name.lowercased(), $0) }
+      }
+    )
+    let pathTeamId = url.pathComponents.dropFirst().first.flatMap(UUID.init(uuidString:))
+    guard let organizationId = values["organization_id"].flatMap(UUID.init(uuidString:)),
+          let teamId = values["team_id"].flatMap(UUID.init(uuidString:)) ?? pathTeamId else {
+      return nil
+    }
+    self.organizationId = organizationId
+    self.teamId = teamId
+    section = values["section"].flatMap(HPTeamWorkspaceSection.init(rawValue:)) ?? .overview
+  }
+}
+
 enum SDSelectedTeamResolver {
   struct Resolution: Equatable, Sendable {
     let teamId: UUID?
@@ -675,6 +797,8 @@ enum SDTeamSelectionSource: String, Equatable, Sendable {
   case persisted
   case primaryAssignment = "primary_assignment"
   case firstActiveTeam = "first_active_team"
+  case derivedPlayer = "derived_player"
+  case derivedChild = "derived_child"
   case none
 }
 

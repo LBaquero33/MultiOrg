@@ -31,6 +31,10 @@ struct CoachRootView: View {
       guard channelId != nil, feature("chat") else { return }
       selection = .chat
     }
+    .onChange(of: appState.requestedTeamWorkspaceSection) { _, section in
+      guard section != nil else { return }
+      selection = .coachTeam
+    }
     .task(id: appState.requestedChatChannelId) {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       selection = .chat
@@ -50,6 +54,10 @@ struct CoachRootView: View {
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
       guard channelId != nil, feature("chat") else { return }
       mobileSelection = .chat
+    }
+    .onChange(of: appState.requestedTeamWorkspaceSection) { _, section in
+      guard section != nil else { return }
+      mobileSelection = .coachTeam
     }
     .task(id: appState.requestedChatChannelId) {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }

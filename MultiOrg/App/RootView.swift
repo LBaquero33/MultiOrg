@@ -57,7 +57,7 @@ struct RootView: View {
       await appState.configurePushNotifications()
     }
     .onOpenURL { url in
-      Task { await appState.handleInvitationURL(url) }
+      Task { await appState.handleAppURL(url) }
     }
     .sheet(item: $appState.requestedNotification) { notification in
       NavigationStack {
