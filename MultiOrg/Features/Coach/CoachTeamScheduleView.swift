@@ -375,7 +375,7 @@ struct CoachTeamScheduleView: View {
       taskIsCancelled: Task.isCancelled
     ) else { return nil }
     switch presentation.category {
-    case .notDeployed, .serviceUnavailable:
+    case .notDeployed, .serviceUnavailable, .malformedResponse:
       return "Schedule service is not available in this environment. Retry after service access is restored."
     case .forbidden:
       return "You no longer have permission to view this team’s schedule. Choose another team or ask an organization administrator."

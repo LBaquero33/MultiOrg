@@ -49,6 +49,27 @@ export function requiredCapability(type: EventType): string | null {
   }
 }
 
+export type ScheduleReadAuthority = {
+  allowed: boolean;
+  code: "allowed" | "permission_denied";
+};
+
+export function resolveScheduleReadAuthority(
+  role: string,
+  capabilities: string[],
+): ScheduleReadAuthority {
+  const normalizedRole = role.trim().toLowerCase();
+  if (normalizedRole === "owner" || normalizedRole === "admin") {
+    return { allowed: true, code: "allowed" };
+  }
+  if (
+    normalizedRole === "coach" && capabilities.includes("view_team_schedule")
+  ) {
+    return { allowed: true, code: "allowed" };
+  }
+  return { allowed: false, code: "permission_denied" };
+}
+
 function utcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }

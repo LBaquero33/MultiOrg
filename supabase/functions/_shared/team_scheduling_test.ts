@@ -2,6 +2,7 @@ import {
   materializeOccurrences,
   notificationIntent,
   requiredCapability,
+  resolveScheduleReadAuthority,
   sanitizeEventForConsumer,
   validateRecurrence,
 } from "./team_scheduling.ts";
@@ -96,6 +97,27 @@ Deno.test("subtype authorization uses scheduling capabilities", () => {
     requiredCapability("custom") === null,
     "custom uses common create capability",
   );
+});
+
+Deno.test("schedule read authority keeps organization and coach paths separate", () => {
+  for (const role of ["owner", "admin"]) {
+    assert(
+      resolveScheduleReadAuthority(role, []).allowed,
+      `${role} does not require coach assignment`,
+    );
+  }
+  assert(
+    resolveScheduleReadAuthority("coach", ["view_team_schedule"]).allowed,
+    "assigned capable coach",
+  );
+  for (
+    const role of ["coach", "read_only", "player", "parent", "platform_admin"]
+  ) {
+    assert(
+      !resolveScheduleReadAuthority(role, []).allowed,
+      `${role} requires its explicit read path`,
+    );
+  }
 });
 
 Deno.test("notification intent changes are deterministic and never dispatch", () => {
@@ -193,6 +215,22 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
     source.includes('query.eq("season_id", requestedSeason)'),
     "admin season filtering",
   );
+  for (
+    const code of [
+      "season_missing",
+      "season_inactive",
+      "team_missing",
+      "team_archived",
+      "stale_team_context",
+      "permission_denied",
+      "service_unavailable",
+    ]
+  ) {
+    assert(source.includes(`"${code}"`), `controlled ${code}`);
+  }
+  assert(source.includes("schema_version: 1"), "versioned envelope");
+  assert(source.includes("request_id:"), "request correlation");
+  assert(!source.includes("error.message"), "no raw provider errors");
   assert(
     source.includes('action === "update_future"'),
     "future occurrence edit",

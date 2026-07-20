@@ -68,6 +68,79 @@ struct SDTeamEvent: Identifiable, Codable, Equatable, Sendable {
   var uniformOrDressCode: String? {
     sd_team_event_practices?.first?.dress_code ?? sd_team_event_games?.first?.uniform
   }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, organization_id, season_id, team_id, team_name, series_id, occurrence_index
+    case event_type, title, description, status, start_at, end_at, arrival_at
+    case original_start_at, timezone, all_day, location_name, address, facility_id
+    case visibility, notes, metadata, created_at, updated_at, cancelled_at
+    case cancellation_reason, sd_team_event_practices, sd_team_event_games
+    case sd_team_event_tournaments, sd_team_event_meetings, sd_team_event_travel
+    case sd_team_event_coaches
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(UUID.self, forKey: .id)
+    organization_id = try container.decode(UUID.self, forKey: .organization_id)
+    season_id = try container.decode(UUID.self, forKey: .season_id)
+    team_id = try container.decode(UUID.self, forKey: .team_id)
+    team_name = try? container.decodeIfPresent(String.self, forKey: .team_name)
+    series_id = try? container.decodeIfPresent(UUID.self, forKey: .series_id)
+    occurrence_index = try? container.decodeIfPresent(Int.self, forKey: .occurrence_index)
+    event_type = try container.decode(SDTeamEventType.self, forKey: .event_type)
+    title = (try? container.decode(String.self, forKey: .title)) ?? "Team Event"
+    description = try? container.decodeIfPresent(String.self, forKey: .description)
+    status = try container.decode(SDTeamEventStatus.self, forKey: .status)
+    start_at = try container.decode(String.self, forKey: .start_at)
+    end_at = try container.decode(String.self, forKey: .end_at)
+    guard SDTeamEventDateParser.date(start_at) != nil,
+          SDTeamEventDateParser.date(end_at) != nil else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .start_at,
+        in: container,
+        debugDescription: "Canonical event dates are invalid."
+      )
+    }
+    arrival_at = try? container.decodeIfPresent(String.self, forKey: .arrival_at)
+    original_start_at = (try? container.decode(String.self, forKey: .original_start_at)) ?? start_at
+    timezone = (try? container.decode(String.self, forKey: .timezone)) ?? "UTC"
+    all_day = (try? container.decode(Bool.self, forKey: .all_day)) ?? false
+    location_name = try? container.decodeIfPresent(String.self, forKey: .location_name)
+    address = try? container.decodeIfPresent(String.self, forKey: .address)
+    facility_id = try? container.decodeIfPresent(UUID.self, forKey: .facility_id)
+    visibility = try container.decode(SDTeamEventVisibility.self, forKey: .visibility)
+    notes = try? container.decodeIfPresent(String.self, forKey: .notes)
+    metadata = try? container.decodeIfPresent([String: SDJSONValue].self, forKey: .metadata)
+    created_at = try? container.decodeIfPresent(String.self, forKey: .created_at)
+    updated_at = try? container.decodeIfPresent(String.self, forKey: .updated_at)
+    cancelled_at = try? container.decodeIfPresent(String.self, forKey: .cancelled_at)
+    cancellation_reason = try? container.decodeIfPresent(String.self, forKey: .cancellation_reason)
+    sd_team_event_practices = Self.lossyArray(SDPracticeEventDetails.self, from: container, forKey: .sd_team_event_practices)
+    sd_team_event_games = Self.lossyArray(SDGameEventDetails.self, from: container, forKey: .sd_team_event_games)
+    sd_team_event_tournaments = Self.lossyArray(SDTournamentEventDetails.self, from: container, forKey: .sd_team_event_tournaments)
+    sd_team_event_meetings = Self.lossyArray(SDMeetingEventDetails.self, from: container, forKey: .sd_team_event_meetings)
+    sd_team_event_travel = Self.lossyArray(SDTravelEventDetails.self, from: container, forKey: .sd_team_event_travel)
+    sd_team_event_coaches = Self.lossyArray(SDTeamEventCoach.self, from: container, forKey: .sd_team_event_coaches)
+  }
+
+  private static func lossyArray<Value: Decodable>(
+    _ type: Value.Type,
+    from container: KeyedDecodingContainer<CodingKeys>,
+    forKey key: CodingKeys
+  ) -> [Value]? {
+    guard container.contains(key) else { return nil }
+    let rows = try? container.decode([SDTeamLossyRow<Value>].self, forKey: key)
+    return rows?.compactMap(\.value) ?? []
+  }
+}
+
+private struct SDTeamLossyRow<Value: Decodable>: Decodable {
+  let value: Value?
+
+  init(from decoder: Decoder) throws {
+    value = try? Value(from: decoder)
+  }
 }
 
 struct SDPracticeEventDetails: Codable, Equatable, Sendable {
@@ -119,9 +192,106 @@ struct SDTeamEventCoach: Codable, Equatable, Sendable {
   let assignment_role: String
 }
 
+struct SDTeamScheduleContext: Decodable, Equatable, Sendable {
+  let organization_id: UUID?
+  let season_id: UUID?
+  let team_id: UUID?
+  let as_of: String?
+}
+
+enum SDTeamScheduleContractError: Error, Equatable, Sendable {
+  case unsupportedSchema(Int)
+  case noDecodableEvents(Int)
+  case contextMismatch
+}
+
 struct SDTeamScheduleResponse: Decodable, Sendable {
+  static let currentSchemaVersion = 1
+
   let ok: Bool
+  let schema_version: Int
+  let request_id: String?
+  let context: SDTeamScheduleContext?
+  let warnings: [String]
   let events: [SDTeamEvent]
+  let discarded_event_count: Int
+
+  private struct Payload: Decodable {
+    let events: [SDTeamLossyRow<SDTeamEvent>]
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case ok, schema_version, request_id, context, warnings, events, data
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    ok = try container.decode(Bool.self, forKey: .ok)
+    schema_version = (try? container.decode(Int.self, forKey: .schema_version)) ?? 0
+    guard schema_version <= Self.currentSchemaVersion else {
+      throw SDTeamScheduleContractError.unsupportedSchema(schema_version)
+    }
+    request_id = try? container.decodeIfPresent(String.self, forKey: .request_id)
+    context = try? container.decodeIfPresent(SDTeamScheduleContext.self, forKey: .context)
+    warnings = (try? container.decode([String].self, forKey: .warnings)) ?? []
+    let rows = (try? container.decode([SDTeamLossyRow<SDTeamEvent>].self, forKey: .events))
+      ?? (try? container.decode(Payload.self, forKey: .data).events)
+      ?? []
+    events = rows.compactMap(\.value)
+    discarded_event_count = rows.count - events.count
+    if !rows.isEmpty, events.isEmpty {
+      throw SDTeamScheduleContractError.noDecodableEvents(rows.count)
+    }
+  }
+}
+
+enum SDTeamRuntimeDiagnostics {
+  static func record(
+    requestID: UUID,
+    screen: String,
+    action: String,
+    organizationPresent: Bool,
+    seasonPresent: Bool,
+    teamPresent: Bool,
+    actorRole: String?,
+    capabilityResolved: Bool?,
+    statusCode: Int?,
+    backendCode: String?,
+    backendStage: String?,
+    schemaVersion: Int?,
+    rowCount: Int?,
+    discardedRowCount: Int = 0,
+    decodeStage: String,
+    cacheFallbackUsed: Bool,
+    elapsedMilliseconds: Int,
+    cancelled: Bool,
+    superseded: Bool
+  ) {
+    #if DEBUG
+    let fields = [
+      "request=\(requestID.uuidString)",
+      "screen=\(screen)",
+      "action=\(action)",
+      "org=\(organizationPresent ? "present" : "missing")",
+      "season=\(seasonPresent ? "present" : "missing")",
+      "team=\(teamPresent ? "present" : "missing")",
+      "role=\(actorRole ?? "unknown")",
+      "capabilities=\(capabilityResolved.map { $0 ? "resolved" : "denied" } ?? "unknown")",
+      "http=\(statusCode.map(String.init) ?? "unknown")",
+      "code=\(backendCode ?? "none")",
+      "backend_stage=\(backendStage ?? "unknown")",
+      "schema=\(schemaVersion.map(String.init) ?? "unknown")",
+      "rows=\(rowCount.map(String.init) ?? "unknown")",
+      "discarded_rows=\(discardedRowCount)",
+      "decode_stage=\(decodeStage)",
+      "cache_fallback=\(cacheFallbackUsed)",
+      "elapsed_ms=\(elapsedMilliseconds)",
+      "cancelled=\(cancelled)",
+      "superseded=\(superseded)",
+    ]
+    print("team_runtime_diagnostic " + fields.joined(separator: " "))
+    #endif
+  }
 }
 
 struct SDTeamEventResponse: Decodable, Sendable {

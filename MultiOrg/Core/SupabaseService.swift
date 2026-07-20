@@ -10,6 +10,7 @@ enum SDApplicationErrorCategory: String, Equatable, Sendable {
   case staleData = "stale_data"
   case validation
   case unsupportedAction = "unsupported_action"
+  case malformedResponse = "malformed_response"
   case serverError = "server_error"
   case unknown
 }
@@ -46,6 +47,9 @@ enum SDApplicationErrorClassifier {
 
     if let controlled = error as? SDServiceError {
       return presentation(for: controlled.category)
+    }
+    if error is SDTeamScheduleContractError {
+      return presentation(for: .malformedResponse)
     }
     if let functionError = error as? FunctionsError {
       switch functionError {
@@ -136,6 +140,8 @@ enum SDApplicationErrorClassifier {
       SDUserFacingError(category: category, message: "Check the information and try again.", allowsRetry: false)
     case .unsupportedAction:
       SDUserFacingError(category: category, message: "This action is not available in this version.", allowsRetry: false)
+    case .malformedResponse:
+      SDUserFacingError(category: category, message: "This feature is temporarily unavailable.", allowsRetry: true)
     case .serverError:
       SDUserFacingError(category: category, message: "Home Plate couldn’t complete the request. Try again.", allowsRetry: true)
     case .unknown:
@@ -684,6 +690,7 @@ final class SupabaseService: ObservableObject {
 
   private struct TeamScheduleListRequest: Encodable, Sendable {
     let action = "list"
+    let request_id: UUID
     let organization_id: UUID
     let season_id: UUID?
     let team_id: UUID?
@@ -698,21 +705,86 @@ final class SupabaseService: ObservableObject {
     teamId: UUID?,
     playerId: UUID? = nil,
     rangeStart: Date,
-    rangeEnd: Date
+    rangeEnd: Date,
+    diagnosticScreen: String = "Schedule",
+    actorRole: String? = nil,
+    capabilityResolved: Bool? = nil,
+    cacheFallbackAvailable: Bool = false
   ) async throws -> [SDTeamEvent] {
     let formatter = ISO8601DateFormatter()
-    let response: SDTeamScheduleResponse = try await invokeAuthenticatedFunction(
-      "team-scheduling",
-      body: TeamScheduleListRequest(
-        organization_id: organizationId,
-        season_id: seasonId,
-        team_id: teamId,
-        player_id: playerId,
-        range_start: formatter.string(from: rangeStart),
-        range_end: formatter.string(from: rangeEnd)
+    let requestID = UUID()
+    let startedAt = Date()
+    do {
+      let response: SDTeamScheduleResponse = try await invokeAuthenticatedFunction(
+        "team-scheduling",
+        body: TeamScheduleListRequest(
+          request_id: requestID,
+          organization_id: organizationId,
+          season_id: seasonId,
+          team_id: teamId,
+          player_id: playerId,
+          range_start: formatter.string(from: rangeStart),
+          range_end: formatter.string(from: rangeEnd)
+        )
       )
-    )
-    return response.events
+      if response.schema_version == SDTeamScheduleResponse.currentSchemaVersion {
+        guard response.context?.organization_id == organizationId,
+              teamId == nil || response.context?.team_id == teamId,
+              seasonId == nil || response.context?.season_id == seasonId else {
+          throw SDTeamScheduleContractError.contextMismatch
+        }
+      }
+      SDTeamRuntimeDiagnostics.record(
+        requestID: requestID,
+        screen: diagnosticScreen,
+        action: "list",
+        organizationPresent: true,
+        seasonPresent: seasonId != nil,
+        teamPresent: teamId != nil,
+        actorRole: actorRole,
+        capabilityResolved: capabilityResolved,
+        statusCode: 200,
+        backendCode: nil,
+        backendStage: "build_response",
+        schemaVersion: response.schema_version,
+        rowCount: response.events.count,
+        discardedRowCount: response.discarded_event_count,
+        decodeStage: "publish_state",
+        cacheFallbackUsed: false,
+        elapsedMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
+        cancelled: false,
+        superseded: false
+      )
+      return response.events
+    } catch {
+      let cancelled = SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      )
+      let edge = error as? SDEdgeFunctionHTTPError
+      let service = error as? SDServiceError
+      SDTeamRuntimeDiagnostics.record(
+        requestID: requestID,
+        screen: diagnosticScreen,
+        action: "list",
+        organizationPresent: true,
+        seasonPresent: seasonId != nil,
+        teamPresent: teamId != nil,
+        actorRole: actorRole,
+        capabilityResolved: capabilityResolved,
+        statusCode: edge?.statusCode ?? service?.statusCode,
+        backendCode: edge?.code ?? service?.category.rawValue,
+        backendStage: edge == nil && service == nil ? "decode_payload" : "execute_query",
+        schemaVersion: nil,
+        rowCount: nil,
+        decodeStage: "decode_payload",
+        cacheFallbackUsed: cacheFallbackAvailable && !cancelled,
+        elapsedMilliseconds: Int(Date().timeIntervalSince(startedAt) * 1_000),
+        cancelled: cancelled,
+        superseded: Task.isCancelled
+      )
+      throw error
+    }
   }
 
   private struct TeamEventConflictPayload: Encodable, Sendable {

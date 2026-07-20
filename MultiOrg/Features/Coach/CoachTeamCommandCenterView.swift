@@ -326,6 +326,8 @@ struct CoachTeamCommandCenterView: View {
   @State private var loadError: String?
   @State private var supportingLoadError: String?
   @State private var loadToken: UUID?
+  @State private var loadedScheduleContext: String?
+  @State private var isScheduleLoading = false
 
   enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -368,10 +370,18 @@ struct CoachTeamCommandCenterView: View {
         content
       }
       .navigationTitle("Team")
-      .refreshable { await appState.refreshTeamOperationsContext() }
+      .refreshable {
+        await appState.refreshTeamOperationsContext()
+        if section == .overview || section == .schedule {
+          await reloadTeamEvents()
+        }
+      }
       .onChange(of: appState.selectedTeamId) { _, _ in normalizeSection() }
       .onChange(of: appState.isAllTeamsSelected) { _, _ in normalizeSection() }
-      .task(id: teamContextIdentity) { await reloadTeamEvents() }
+      .task(id: scheduleTaskIdentity) {
+        guard section == .overview || section == .schedule else { return }
+        await reloadTeamEvents()
+      }
     }
   }
 
@@ -392,21 +402,25 @@ struct CoachTeamCommandCenterView: View {
 
   @ViewBuilder
   private var content: some View {
-    if let loadError, teamEvents.isEmpty {
-      HPCard {
-        HPErrorState(
-          title: "Team unavailable",
-          message: loadError,
-          onRetry: { Task { await reloadTeamEvents() } }
-        )
-      }
-    } else if appState.isAllTeamsSelected {
+    if appState.isAllTeamsSelected {
       allTeamsOverview
     } else if let team = appState.selectedTeam {
       switch section {
       case .overview: overview(team)
-      case .players: peopleCard(title: "Players", people: appState.teamOperationsContext?.players(for: team.id) ?? [])
-      case .staff: peopleCard(title: "Assigned Staff", people: appState.teamOperationsContext?.staff(for: team.id) ?? [])
+      case .players:
+        peopleCard(
+          title: "Players",
+          people: appState.teamOperationsContext?.players(for: team.id) ?? [],
+          emptyTitle: "No players assigned",
+          emptyMessage: "Assign existing players, invite families, or import a roster."
+        )
+      case .staff:
+        peopleCard(
+          title: "Assigned Staff",
+          people: appState.teamOperationsContext?.staff(for: team.id) ?? [],
+          emptyTitle: "No assigned staff",
+          emptyMessage: "No active staff assignments are available."
+        )
       case .schedule: scheduleCard(team)
       case .development: placeholder("Development", "Player development tools are available through authorized player profiles.", "chart.line.uptrend.xyaxis")
       case .communication: placeholder("Communication", "Team-scoped communication will use this authorized roster.", "bubble.left.and.bubble.right")
@@ -459,11 +473,13 @@ struct CoachTeamCommandCenterView: View {
 
   private func overview(_ team: SDTeamOperationsTeam) -> some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
-      if let loadError, !teamEvents.isEmpty {
+      if loadError != nil {
         HPCard {
           HPErrorState(
-            title: "Schedule may be out of date",
-            message: loadError,
+            title: displayedTeamEvents.isEmpty ? "Schedule unavailable" : "Schedule may be out of date",
+            message: displayedTeamEvents.isEmpty
+              ? "Home Plate could not refresh this team’s schedule."
+              : "Home Plate could not refresh this team’s schedule. Previously loaded events remain visible.",
             onRetry: { Task { await reloadTeamEvents() } }
           )
         }
@@ -487,7 +503,7 @@ struct CoachTeamCommandCenterView: View {
         }
       }
       HPCard {
-        if let next = teamEvents.first(where: { $0.startDate >= Date() && $0.status != .draft && $0.status != .cancelled }) {
+        if let next = displayedTeamEvents.first(where: { $0.startDate >= Date() && $0.status != .draft && $0.status != .cancelled }) {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             HPSectionHeader("Next Event") { HPStatusBadge(text: next.event_type.label, kind: .info) }
             TeamEventRow(event: next, teamName: team.name)
@@ -506,7 +522,7 @@ struct CoachTeamCommandCenterView: View {
         }
       }
       HPCard {
-        if let today = teamEvents.first(where: { Calendar.current.isDateInToday($0.startDate) && $0.status != .draft && $0.status != .cancelled }) {
+        if let today = displayedTeamEvents.first(where: { Calendar.current.isDateInToday($0.startDate) && $0.status != .draft && $0.status != .cancelled }) {
           let operation = operationSummaries[today.id]
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             HPSectionHeader("Today’s Mission") {
@@ -537,7 +553,7 @@ struct CoachTeamCommandCenterView: View {
           HPEmptyState(title: "No mission today", message: "Day-of operations appear here when a canonical event is scheduled.", systemImage: "baseball.diamond.bases")
         }
       }
-      if let completed = teamEvents.last(where: { operationSummaries[$0.id]?.status == .completed }) {
+      if let completed = displayedTeamEvents.last(where: { operationSummaries[$0.id]?.status == .completed }) {
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             HPSectionHeader("Recently Completed") { HPStatusBadge(text: "Completed", kind: .success) }
@@ -548,12 +564,17 @@ struct CoachTeamCommandCenterView: View {
     }
   }
 
-  private func peopleCard(title: String, people: [Profile]) -> some View {
+  private func peopleCard(
+    title: String,
+    people: [Profile],
+    emptyTitle: String,
+    emptyMessage: String
+  ) -> some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader(title) { HPStatusBadge(text: "\(people.count)", kind: .neutral) }
         if people.isEmpty {
-          HPEmptyState(title: "No \(title.lowercased())", message: "No active assignments are available.", systemImage: "person.2")
+          HPEmptyState(title: emptyTitle, message: emptyMessage, systemImage: "person.2")
         } else {
           ForEach(people) { person in
             HStack(spacing: HP.Space.sm) {
@@ -575,32 +596,64 @@ struct CoachTeamCommandCenterView: View {
   private func scheduleCard(_ team: SDTeamOperationsTeam) -> some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Upcoming Schedule") { HPStatusBadge(text: "\(teamEvents.count)", kind: .neutral) }
-        if teamEvents.isEmpty {
+        HPSectionHeader("Upcoming Schedule") { HPStatusBadge(text: "\(displayedTeamEvents.count)", kind: .neutral) }
+        if loadError != nil, displayedTeamEvents.isEmpty {
+          HPErrorState(
+            title: "Schedule unavailable",
+            message: "Home Plate could not refresh this team’s schedule.",
+            onRetry: { Task { await reloadTeamEvents() } }
+          )
+        } else if displayedTeamEvents.isEmpty, !isScheduleLoading {
           HPEmptyState(title: "No upcoming events", message: "Create events from Schedule.", systemImage: "calendar")
         } else {
-          ForEach(teamEvents.prefix(5)) { TeamEventRow(event: $0, teamName: team.name) }
+          if loadError != nil {
+            Label(
+              "Previously loaded events remain visible while refresh is unavailable.",
+              systemImage: "exclamationmark.circle"
+            )
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.warning)
+          }
+          ForEach(displayedTeamEvents.prefix(5)) { TeamEventRow(event: $0, teamName: team.name) }
         }
       }
     }
   }
 
   private func reloadTeamEvents() async {
-    guard let service = appState.supabase, let orgId = appState.activeOrgId, let team = appState.selectedTeam else { teamEvents = []; return }
+    guard let service = appState.supabase, let orgId = appState.activeOrgId, let team = appState.selectedTeam else {
+      teamEvents = []
+      isScheduleLoading = false
+      return
+    }
     let context = teamContextIdentity
     let token = UUID()
     loadToken = token
+    if loadedScheduleContext != context {
+      teamEvents = []
+      operationSummaries = [:]
+      practicePlanSummaries = [:]
+      gamePlanSummaries = [:]
+      loadedScheduleContext = context
+    }
+    isScheduleLoading = true
     loadError = nil
     supportingLoadError = nil
     do {
       let loadedEvents = try await service.listTeamEvents(
         organizationId: orgId,
+        seasonId: team.season_id,
         teamId: team.id,
         rangeStart: Calendar.current.date(byAdding: .day, value: -7, to: Date())!,
-        rangeEnd: Calendar.current.date(byAdding: .day, value: 60, to: Date())!
+        rangeEnd: Calendar.current.date(byAdding: .day, value: 60, to: Date())!,
+        diagnosticScreen: section == .overview ? "Team Overview" : "Team Schedule",
+        actorRole: appState.activeOrgMembership?.normalizedRole,
+        capabilityResolved: team.capabilitySet.contains(.viewTeamSchedule),
+        cacheFallbackAvailable: !teamEvents.isEmpty
       ).filter { $0.status != .cancelled }
       guard acceptsTeam(context: context, token: token) else { return }
       teamEvents = loadedEvents
+      isScheduleLoading = false
 
       // Schedule is authoritative for this surface. Readiness providers are
       // additive and must not make an otherwise healthy team look unavailable.
@@ -639,6 +692,11 @@ struct CoachTeamCommandCenterView: View {
       }
     } catch {
       guard acceptsTeam(context: context, token: token) else { return }
+      isScheduleLoading = false
+      guard !SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ) else { return }
       SDApplicationErrorClassifier.log(error, functionName: "team-scheduling")
       loadError = SDApplicationErrorClassifier.alertMessage(for: error)
     }
@@ -658,6 +716,14 @@ struct CoachTeamCommandCenterView: View {
 
   private var teamContextIdentity: String {
     "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "none")"
+  }
+
+  private var scheduleTaskIdentity: String {
+    "\(teamContextIdentity):\(section.rawValue)"
+  }
+
+  private var displayedTeamEvents: [SDTeamEvent] {
+    loadedScheduleContext == teamContextIdentity ? teamEvents : []
   }
 
   private func acceptsTeam(context: String, token: UUID) -> Bool {

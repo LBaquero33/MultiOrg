@@ -6,10 +6,18 @@ import {
   notificationIntent,
   type RecurrenceRule,
   requiredCapability,
+  resolveScheduleReadAuthority,
   sanitizeEventForConsumer,
 } from "../_shared/team_scheduling.ts";
 
 type Json = Record<string, unknown>;
+type EnvelopeOptions = {
+  requestId?: string;
+  context?: Json;
+  warnings?: string[];
+  stage?: string;
+  details?: Json;
+};
 
 function response(status: number, body: Json) {
   return new Response(JSON.stringify(body), {
@@ -17,9 +25,32 @@ function response(status: number, body: Json) {
     headers: { "content-type": "application/json; charset=utf-8" },
   });
 }
-const ok = (data: Json) => response(200, { ok: true, ...data, error: null });
-const fail = (status: number, code: string, message?: string) =>
-  response(status, { ok: false, error: { code, message: message ?? code } });
+const ok = (data: Json, options: EnvelopeOptions = {}) =>
+  response(200, {
+    ok: true,
+    schema_version: 1,
+    request_id: options.requestId ?? crypto.randomUUID(),
+    context: options.context ?? null,
+    capabilities: data.capabilities ?? [],
+    data,
+    warnings: options.warnings ?? [],
+    ...data,
+    error: null,
+  });
+const fail = (
+  status: number,
+  code: string,
+  message?: string,
+  options: EnvelopeOptions = {},
+) =>
+  response(status, {
+    ok: false,
+    schema_version: 1,
+    request_id: options.requestId ?? crypto.randomUUID(),
+    context: options.context ?? null,
+    ...(options.details ?? {}),
+    error: { code, message: message ?? code, stage: options.stage ?? null },
+  });
 const env = (name: string) => (Deno.env.get(name) ?? "").trim();
 const text = (value: unknown) => String(value ?? "").trim();
 const uuidPattern =
@@ -180,79 +211,137 @@ Deno.serve(async (req) => {
   }
 
   if (action === "list") {
+    const envelopeRequestId = uuid(payload.request_id) ?? crypto.randomUUID();
+    const requestedSeason = uuid(payload.season_id);
+    const requestedTeam = uuid(payload.team_id);
+    const contractContext = {
+      organization_id: organizationId,
+      season_id: requestedSeason,
+      team_id: requestedTeam,
+      as_of: new Date().toISOString(),
+    };
+    const listFail = (status: number, code: string, stage: string) =>
+      fail(status, code, undefined, {
+        requestId: envelopeRequestId,
+        context: contractContext,
+        stage,
+      });
     const rangeStart = text(payload.range_start);
     const rangeEnd = text(payload.range_end);
     if (
       !rangeStart || !rangeEnd || new Date(rangeEnd) <= new Date(rangeStart)
     ) {
-      return fail(400, "invalid_range");
+      return listFail(400, "invalid_range", "validate_season");
+    }
+    if (requestedSeason) {
+      const { data: season, error: seasonError } = await admin.from(
+        "sd_seasons",
+      ).select("id,status").eq("id", requestedSeason).eq(
+        "organization_id",
+        organizationId,
+      ).maybeSingle();
+      if (seasonError) {
+        return listFail(500, "service_unavailable", "validate_season");
+      }
+      if (!season) return listFail(404, "season_missing", "validate_season");
+      if (["completed", "archived"].includes(text(season.status))) {
+        return listFail(409, "season_inactive", "validate_season");
+      }
     }
     let teamIds: string[] = [];
+    let listCapabilities: string[] = isAdmin ? ["view_team_schedule"] : [];
     let consumer = role === "player" || role === "parent";
     if (role === "player") {
       const requestedPlayer = uuid(payload.player_id) ?? callerId;
       if (requestedPlayer !== callerId) {
-        return fail(403, "player_scope_required");
+        return listFail(403, "permission_denied", "resolve_role");
       }
-      const { data } = await admin.from("sd_player_team_memberships").select(
-        "team_id",
-      )
+      const { data, error } = await admin.from("sd_player_team_memberships")
+        .select("team_id")
         .eq("organization_id", organizationId).eq("player_id", callerId)
         .eq("active", true).is("ended_at", null);
+      if (error) return listFail(500, "service_unavailable", "execute_query");
       teamIds = (data ?? []).map((row: Record<string, unknown>) =>
         text(row.team_id)
       );
     } else if (role === "parent") {
       const childId = uuid(payload.player_id);
-      if (!childId) return fail(400, "missing_player_id");
-      const { data: link } = await admin.from("sd_parent_child_links").select(
-        "child_id",
-      )
+      if (!childId) return listFail(400, "team_missing", "validate_team");
+      const { data: link, error: linkError } = await admin.from(
+        "sd_parent_child_links",
+      ).select("child_id")
         .eq("org_id", organizationId).eq("parent_id", callerId).eq(
           "child_id",
           childId,
         ).maybeSingle();
-      if (!link) return fail(403, "parent_link_required");
-      const { data } = await admin.from("sd_player_team_memberships").select(
-        "team_id",
-      )
+      if (linkError) {
+        return listFail(500, "service_unavailable", "resolve_role");
+      }
+      if (!link) return listFail(403, "permission_denied", "resolve_role");
+      const { data, error } = await admin.from("sd_player_team_memberships")
+        .select("team_id")
         .eq("organization_id", organizationId).eq("player_id", childId)
         .eq("active", true).is("ended_at", null);
+      if (error) return listFail(500, "service_unavailable", "execute_query");
       teamIds = (data ?? []).map((row: Record<string, unknown>) =>
         text(row.team_id)
       );
     } else {
-      const requestedTeam = uuid(payload.team_id);
       if (requestedTeam) {
-        if (isAdmin) {
-          // Organization administrators already passed membership authority.
-          // Validate tenant ownership directly instead of depending on a
-          // coach-assignment capability RPC for an owner-selected team.
-          const { data: ownedTeam, error: ownedTeamError } = await admin
-            .from("sd_teams").select("id").eq("id", requestedTeam)
-            .eq("org_id", organizationId).maybeSingle();
-          if (ownedTeamError) return fail(500, "team_lookup_failed");
-          if (!ownedTeam) return fail(404, "team_not_found");
-        } else {
-          const resolved = await capabilities(requestedTeam);
-          if (!resolved.includes("view_team_schedule")) {
-            return fail(403, "view_team_schedule_required");
+        // Validate context before authorization so a stale or missing team is
+        // never mislabeled as a capability denial.
+        const { data: ownedTeam, error: ownedTeamError } = await admin
+          .from("sd_teams").select("id,season_id,is_active")
+          .eq("id", requestedTeam).eq("org_id", organizationId).maybeSingle();
+        if (ownedTeamError) {
+          return listFail(500, "service_unavailable", "validate_team");
+        }
+        if (!ownedTeam) return listFail(404, "team_missing", "validate_team");
+        if (ownedTeam.is_active !== true) {
+          return listFail(409, "team_archived", "validate_team");
+        }
+        if (
+          requestedSeason && text(ownedTeam.season_id) !== requestedSeason
+        ) {
+          return listFail(409, "stale_team_context", "validate_team");
+        }
+        if (!isAdmin) {
+          let resolved: string[];
+          try {
+            resolved = await capabilities(requestedTeam);
+          } catch {
+            return listFail(
+              500,
+              "service_unavailable",
+              "resolve_capabilities",
+            );
           }
+          const authority = resolveScheduleReadAuthority(role, resolved);
+          if (!authority.allowed) {
+            return listFail(403, "permission_denied", "resolve_capabilities");
+          }
+          listCapabilities = resolved;
         }
         teamIds = [requestedTeam];
       } else if (isAdmin) {
-        const { data } = await admin.from("sd_teams").select("id").eq(
+        const { data, error } = await admin.from("sd_teams").select("id").eq(
           "org_id",
           organizationId,
         ).eq("is_active", true);
+        if (error) return listFail(500, "service_unavailable", "execute_query");
         teamIds = (data ?? []).map((row: Record<string, unknown>) =>
           text(row.id)
         );
       } else {
-        return fail(400, "missing_team_id");
+        return listFail(400, "team_not_selected", "validate_team");
       }
     }
-    if (!teamIds.length) return ok({ events: [] });
+    if (!teamIds.length) {
+      return ok({ events: [], capabilities: [] }, {
+        requestId: envelopeRequestId,
+        context: contractContext,
+      });
+    }
     let query = admin.from("sd_team_events").select(
       consumer
         ? publicSelect()
@@ -262,11 +351,10 @@ Deno.serve(async (req) => {
       .lt("start_at", rangeEnd).gt("end_at", rangeStart).order("start_at", {
         ascending: true,
       });
-    const requestedSeason = uuid(payload.season_id);
     if (requestedSeason) query = query.eq("season_id", requestedSeason);
     if (consumer) query = query.eq("visibility", "team").neq("status", "draft");
     const { data, error } = await query;
-    if (error) return fail(500, "event_list_failed", error.message);
+    if (error) return listFail(500, "service_unavailable", "execute_query");
     const normalizedEvents =
       ((data ?? []) as unknown as Record<string, unknown>[]).map((event) => {
         const normalized = { ...event };
@@ -288,10 +376,25 @@ Deno.serve(async (req) => {
         }
         return normalized;
       });
+    const warnings = normalizedEvents.some((event) =>
+        (event.event_type === "practice" &&
+          (event.sd_team_event_practices as unknown[]).length === 0) ||
+        (event.event_type === "game" &&
+          (event.sd_team_event_games as unknown[]).length === 0)
+      )
+      ? ["optional_event_details_unavailable"]
+      : [];
     return ok({
       events: consumer
-        ? normalizedEvents.map((event) => sanitizeEventForConsumer(event))
+        ? normalizedEvents.map((event) =>
+          sanitizeEventForConsumer(event)
+        )
         : normalizedEvents,
+      capabilities: listCapabilities,
+    }, {
+      requestId: envelopeRequestId,
+      context: contractContext,
+      warnings,
     });
   }
 
@@ -327,7 +430,7 @@ Deno.serve(async (req) => {
       p_coach_ids: conflictCoachIds,
       p_exclude_event_id: uuid(payload.event_id),
     });
-    if (error) return fail(400, "conflict_check_failed", error.message);
+    if (error) return fail(400, "conflict_check_failed");
     const { data: season } = await admin.from("sd_seasons").select(
       "start_date,end_date",
     )
@@ -390,7 +493,7 @@ Deno.serve(async (req) => {
       "id",
       eventId!,
     );
-    if (error) return fail(400, "draft_delete_failed", error.message);
+    if (error) return fail(400, "draft_delete_failed");
     await admin.from("sd_team_event_audit_logs").insert({
       organization_id: organizationId,
       season_id: seasonId,
@@ -418,7 +521,7 @@ Deno.serve(async (req) => {
         "occurrence_index",
         Number(before?.occurrence_index ?? 0),
       ).neq("status", "cancelled").select();
-    if (error) return fail(400, "series_cancel_failed", error.message);
+    if (error) return fail(400, "series_cancel_failed");
     await admin.from("sd_team_event_series").update({
       status: "cancelled",
       cancelled_at: cancelledAt,
@@ -527,7 +630,7 @@ Deno.serve(async (req) => {
     },
   );
   if (conflictError) {
-    return fail(400, "conflict_check_failed", conflictError.message);
+    return fail(400, "conflict_check_failed");
   }
   const conflictList = Array.isArray(conflicts) ? [...conflicts] : [];
   const { data: mutationSeason } = await admin.from("sd_seasons").select(
@@ -547,14 +650,12 @@ Deno.serve(async (req) => {
   }
   const overrideReason = text(payload.override_reason);
   if (conflictList.length && !overrideReason && action !== "update_future") {
-    return response(409, {
-      ok: false,
-      error: {
-        code: "conflict_override_required",
-        message: "Scheduling conflicts require an override reason.",
-      },
-      conflicts: conflictList,
-    });
+    return fail(
+      409,
+      "conflict_override_required",
+      "Scheduling conflicts require an override reason.",
+      { details: { conflicts: conflictList } },
+    );
   }
 
   if (action === "create" || action === "duplicate") {
@@ -578,8 +679,8 @@ Deno.serve(async (req) => {
           } satisfies RecurrenceRule
           : null,
       );
-    } catch (error) {
-      return fail(400, (error as Error).message);
+    } catch {
+      return fail(400, "invalid_recurrence");
     }
     for (const occurrence of occurrences.slice(1)) {
       const { data: occurrenceConflicts, error: occurrenceConflictError } =
@@ -596,7 +697,7 @@ Deno.serve(async (req) => {
         return fail(
           400,
           "conflict_check_failed",
-          occurrenceConflictError.message,
+          undefined,
         );
       }
       if (Array.isArray(occurrenceConflicts)) {
@@ -626,14 +727,12 @@ Deno.serve(async (req) => {
       });
     }
     if (conflictList.length && !overrideReason) {
-      return response(409, {
-        ok: false,
-        error: {
-          code: "conflict_override_required",
-          message: "Scheduling conflicts require an override reason.",
-        },
-        conflicts: conflictList,
-      });
+      return fail(
+        409,
+        "conflict_override_required",
+        "Scheduling conflicts require an override reason.",
+        { details: { conflicts: conflictList } },
+      );
     }
     let seriesId: string | null = null;
     if (recurrence) {
@@ -656,7 +755,7 @@ Deno.serve(async (req) => {
           created_by: callerId,
           updated_by: callerId,
         }).select("id").single();
-      if (error) return fail(400, "series_create_failed", error.message);
+      if (error) return fail(400, "series_create_failed");
       seriesId = series.id;
     }
     const rows = occurrences.map((occurrence) => ({
@@ -676,7 +775,7 @@ Deno.serve(async (req) => {
       if (seriesId) {
         await admin.from("sd_team_event_series").delete().eq("id", seriesId);
       }
-      return fail(400, "event_create_failed", error.message);
+      return fail(400, "event_create_failed");
     }
     const ids = (inserted ?? []).map((row: Record<string, unknown>) =>
       text(row.id)
@@ -802,7 +901,7 @@ Deno.serve(async (req) => {
         return fail(
           400,
           "conflict_check_failed",
-          projectedConflictError.message,
+          undefined,
         );
       }
       if (Array.isArray(projectedConflicts)) {
@@ -837,14 +936,12 @@ Deno.serve(async (req) => {
       });
     }
     if (conflictList.length && !overrideReason) {
-      return response(409, {
-        ok: false,
-        error: {
-          code: "conflict_override_required",
-          message: "Scheduling conflicts require an override reason.",
-        },
-        conflicts: conflictList,
-      });
+      return fail(
+        409,
+        "conflict_override_required",
+        "Scheduling conflicts require an override reason.",
+        { details: { conflicts: conflictList } },
+      );
     }
     const updatedRows: Record<string, unknown>[] = [];
     for (const projected of projectedRows) {
@@ -909,7 +1006,7 @@ Deno.serve(async (req) => {
   const { data: updated, error: updateError } = await admin.from(
     "sd_team_events",
   ).update(patch).eq("id", eventId!).select().single();
-  if (updateError) return fail(400, "event_update_failed", updateError.message);
+  if (updateError) return fail(400, "event_update_failed");
   const subtypeError = await persistSubtype([eventId!], eventType, source);
   if (subtypeError) return fail(400, subtypeError);
   await admin.from("sd_team_event_coaches").delete().eq("event_id", eventId!);
