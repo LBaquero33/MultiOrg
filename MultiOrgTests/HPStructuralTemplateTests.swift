@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import MultiOrg
+@testable import HomePlate
 
 @MainActor
 final class HPStructuralTemplateTests: XCTestCase {

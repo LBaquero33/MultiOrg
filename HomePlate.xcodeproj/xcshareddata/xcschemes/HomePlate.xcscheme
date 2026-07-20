@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "538B61A0C346E35126ABC6F5"
-               BuildableName = "MultiOrg.app"
-               BlueprintName = "MultiOrg"
-               ReferencedContainer = "container:MultiOrg.xcodeproj">
+               BlueprintIdentifier = "B1C174F287DD424BAEF97E06"
+               BuildableName = "Home Plate.app"
+               BlueprintName = "HomePlate"
+               ReferencedContainer = "container:HomePlate.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "538B61A0C346E35126ABC6F5"
-            BuildableName = "MultiOrg.app"
-            BlueprintName = "MultiOrg"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "B1C174F287DD424BAEF97E06"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlate"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,10 +44,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2DB33BA0DC5366C5193BE48D"
-               BuildableName = "MultiOrgTests.xctest"
-               BlueprintName = "MultiOrgTests"
-               ReferencedContainer = "container:MultiOrg.xcodeproj">
+               BlueprintIdentifier = "458BDD901415679C1D183FEE"
+               BuildableName = "HomePlateTests.xctest"
+               BlueprintName = "HomePlateTests"
+               ReferencedContainer = "container:HomePlate.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -68,10 +68,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "538B61A0C346E35126ABC6F5"
-            BuildableName = "MultiOrg.app"
-            BlueprintName = "MultiOrg"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "B1C174F287DD424BAEF97E06"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlate"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -87,10 +87,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "538B61A0C346E35126ABC6F5"
-            BuildableName = "MultiOrg.app"
-            BlueprintName = "MultiOrg"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "B1C174F287DD424BAEF97E06"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlate"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

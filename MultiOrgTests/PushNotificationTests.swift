@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import UserNotifications
-@testable import MultiOrg
+@testable import HomePlate
 
 @Suite("APNs push notification client")
 struct PushNotificationTests {

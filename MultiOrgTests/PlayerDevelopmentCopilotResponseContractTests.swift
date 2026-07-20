@@ -1,10 +1,6 @@
 import Foundation
 import Testing
-#if canImport(HomePlate)
 @testable import HomePlate
-#else
-@testable import MultiOrg
-#endif
 
 @Suite("Player Copilot response contract")
 struct PlayerDevelopmentCopilotResponseContractTests {

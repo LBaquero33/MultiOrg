@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MultiOrg
+@testable import HomePlate
 
 @Suite("Organization-scoped administration")
 struct OrganizationAuthorizationTests {

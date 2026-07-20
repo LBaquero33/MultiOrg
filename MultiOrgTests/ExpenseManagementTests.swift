@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MultiOrg
+@testable import HomePlate
 
 @Suite("Finance expense management")
 struct ExpenseManagementTests {

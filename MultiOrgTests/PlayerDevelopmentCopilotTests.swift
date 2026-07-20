@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MultiOrg
+@testable import HomePlate
 
 @Suite("Player Development Coach Copilot Phase 11C-11E")
 struct PlayerDevelopmentCopilotTests {

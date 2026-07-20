@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import MultiOrg
+@testable import HomePlate
 
 #if canImport(UIKit)
 import UIKit

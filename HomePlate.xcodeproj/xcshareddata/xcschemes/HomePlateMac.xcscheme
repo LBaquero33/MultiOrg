@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
-               BuildableName = "MultiOrgMac.app"
-               BlueprintName = "MultiOrgMac"
-               ReferencedContainer = "container:MultiOrg.xcodeproj">
+               BlueprintIdentifier = "4C9F3CD90E5FB4A21C69E30C"
+               BuildableName = "Home Plate.app"
+               BlueprintName = "HomePlateMac"
+               ReferencedContainer = "container:HomePlate.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
-            BuildableName = "MultiOrgMac.app"
-            BlueprintName = "MultiOrgMac"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "4C9F3CD90E5FB4A21C69E30C"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlateMac"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -57,10 +57,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
-            BuildableName = "MultiOrgMac.app"
-            BlueprintName = "MultiOrgMac"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "4C9F3CD90E5FB4A21C69E30C"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlateMac"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -76,10 +76,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EC084FF5D26C6CD38ACE48BC"
-            BuildableName = "MultiOrgMac.app"
-            BlueprintName = "MultiOrgMac"
-            ReferencedContainer = "container:MultiOrg.xcodeproj">
+            BlueprintIdentifier = "4C9F3CD90E5FB4A21C69E30C"
+            BuildableName = "Home Plate.app"
+            BlueprintName = "HomePlateMac"
+            ReferencedContainer = "container:HomePlate.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

@@ -113,6 +113,7 @@ struct MultiOrgApp: App {
   private let notificationDelegate: DHDNotificationDelegate
 
   init() {
+    HPBuildDiagnostics.logRuntimeIdentity()
     let state = AppState()
     _appState = StateObject(wrappedValue: state)
     notificationDelegate = DHDNotificationDelegate(appState: state)

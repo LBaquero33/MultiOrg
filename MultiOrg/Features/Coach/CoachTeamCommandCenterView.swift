@@ -104,7 +104,6 @@ struct CoachTodayFoundationView: View {
               organizationName: organizationName
             )
           }
-          ownerOperationalLinks
         }
       }
       .navigationTitle(screenTitle)
@@ -275,23 +274,6 @@ struct CoachTodayFoundationView: View {
     Label(today?.service(name).message ?? fallback, systemImage: "wifi.exclamationmark")
       .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
       .accessibilityLabel(today?.service(name).message ?? fallback)
-  }
-
-  @ViewBuilder private var ownerOperationalLinks: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Open authoritative workspace")
-        NavigationLink("Review Today’s Events") { OrgEventOperationsAdminView() }
-        if let organizationId = appState.activeOrgId {
-          NavigationLink("Review Receivables and Expenses") {
-            FinanceDashboardView(organizationId: organizationId, organizationName: organizationName, platformSupportMode: false)
-          }
-        }
-        NavigationLink("Open Communication") { ChatChannelListView() }
-        NavigationLink("Registration and Organization Administration") { OrgAdminConsoleView() }
-      }
-      .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.accent)
-    }
   }
 
   private var todayMissions: [SDTodayMission] {

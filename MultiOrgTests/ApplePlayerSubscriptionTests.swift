@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MultiOrg
+@testable import HomePlate
 
 private struct PurchaseContextFixture: Decodable {
   let organizationId: UUID

@@ -1,0 +1,1773 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		002CB77CF1831D8914CAC3E6 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8436280C57587A30260826D8 /* Profile.swift */; };
+		00E3945CBF332162B03519F3 /* HomePlatePlayerAccess.storekit in Resources */ = {isa = PBXBuildFile; fileRef = FE25C55907EBD8F5FF2B67A4 /* HomePlatePlayerAccess.storekit */; };
+		0216FC0DCEBCDE7DDF6026A4 /* HPTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC49524636B8951861304D0E /* HPTheme.swift */; };
+		02EB499B8C5C62233A5C95F5 /* ParentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E30A657DDFA6D021D8506D /* ParentHomeView.swift */; };
+		0313B8C0C078C01F6ADAA6A0 /* HPCalendarScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52401C36EFA3452D27B0D7CF /* HPCalendarScreenTemplate.swift */; };
+		03872DC622F1CAF56708B1C3 /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C9677E6DB59824112BB763 /* ParentChildCalendarView.swift */; };
+		0396EF0D529AB7A6EB06F9E2 /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471C00D5AF7B067FD0F69837 /* DHDMonthGridView.swift */; };
+		03E5CDAEAFE3182AB9EDEEEE /* CoachFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9B4AA0277B2584CCA44EC34 /* CoachFacilitiesView.swift */; };
+		048D3684F839287D9C4BE98E /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992D509DF401DFCF53893667 /* HPMetricCard.swift */; };
+		05EAB8B8EB87FB26FE227F8D /* HPTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A5E84449C08AA4CBDDF207C /* HPTable.swift */; };
+		07770B63FE072802B8AFC4EA /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF782E1BE25CD8B8DD4F4069 /* HPStatTile.swift */; };
+		0845B0BFCD156B73BF844DD3 /* CalendarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940EFFE12D0C39A61CFF4F34 /* CalendarComponents.swift */; };
+		094AC32E1649B8964A25231C /* ParentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D835C65F14F453BC279D44CD /* ParentModels.swift */; };
+		0A0F963949FEB4A29413FC92 /* ParentChildProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BBDECBBCBF91C6E1B6F447 /* ParentChildProfileView.swift */; };
+		0A4C104F3D210759C1CC4562 /* HPCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA32DCF92AFB811E82E82B6 /* HPCard.swift */; };
+		0A7CA163C9D281202BD6113A /* FinanceDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D269C02D29859379DA45D316 /* FinanceDashboardModels.swift */; };
+		0A87A84210C11B7D4A894DF3 /* HPTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC49524636B8951861304D0E /* HPTheme.swift */; };
+		0CA3680576D7400E27F33ADC /* HPChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4C1A1937DA253E31174C14 /* HPChart.swift */; };
+		0DC9B3516547B04373885C38 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2266E3750E2089F1B57487D7 /* PlayerDevelopmentAIView.swift */; };
+		0FB62A27121ED31178D0A56B /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E477D03DE7E56CA505083B /* HPWorkspaceScreenTemplate.swift */; };
+		10AECC0A828F2282D7F2206D /* PlayerDevelopmentCopilotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7A4A084482D5532B2914A1 /* PlayerDevelopmentCopilotTests.swift */; };
+		11733DAB11F95307336B857F /* HPProgramExecutionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48F11C19AACB51D5A36D82C /* HPProgramExecutionTemplate.swift */; };
+		11E5538DAC3A1ABBBCF27280 /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D993725B52552E7E4FDC4417 /* HPAnalyticsScreenTemplate.swift */; };
+		11EB0E3CBC5F940874D1D542 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856AC5C3F038D9907CEB8581 /* SupabaseConfig.swift */; };
+		13C183421787198A675103A9 /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001E4055B29191F1981CDB87 /* CoachRootView.swift */; };
+		1443922B72F0DE439750DE21 /* HPFormField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D41A0E453ED52AA13B7A541 /* HPFormField.swift */; };
+		1531FD0971B92698B5969BC4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F05DB99DAE63F3FFC83A3D0 /* AppState.swift */; };
+		1554CC028A523AB81C400655 /* AccessRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6166289D39452F7547C248 /* AccessRequiredView.swift */; };
+		160FB972715E3D7ECA4B3B10 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = DDD9F2C356F1A66B7B749546 /* Supabase */; };
+		16B3EB94D2A9278B3A1B0547 /* PlayerSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01EEB619C03ACA50DB00A0D /* PlayerSubscriptionStore.swift */; };
+		1913C0E3A3FFE9B3DA2FE630 /* HPLiveControlsRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C328EA3D4E4BD76B8D235665 /* HPLiveControlsRenderTests.swift */; };
+		19183B43914F903722380654 /* CoachEventOperationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011CDB4076719C5618F27C97 /* CoachEventOperationView.swift */; };
+		1971969F5BBEDD162705D9AB /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F480DADD126C8F20933A57 /* CSV.swift */; };
+		1AEA5EA30622CD8B056EFB03 /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E21B2C84FB56E81E0367F27 /* CoachProgramsView.swift */; };
+		1B4D89EAAA93EAE6FCD16D96 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B18AD0E98A74ECB51DA874 /* RootView.swift */; };
+		1C434AB9324275BF33B0FAAD /* HPFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3118F52EE83C6C0926012DD7 /* HPFont.swift */; };
+		1C7323C68A0721CF872A0D33 /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B691D4968DFD211478CCB49 /* DateUtils.swift */; };
+		1CB85B02D090EA3A8BD0961B /* OrgTeamOperationsAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD9338CF97E2539E2E1ADC15 /* OrgTeamOperationsAdminView.swift */; };
+		1DCDCB3D5C85A2DF35F7E082 /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9652D5B88C67181DFBFF81BA /* ParentRequestPanels.swift */; };
+		1E45EDA841845EFEF733AC9A /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3320E131C72E3DCD1E917814 /* ConfigErrorView.swift */; };
+		1E8ECEF7D982D93693E47364 /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753D7396890C98CE971C9023 /* FacilitiesDayTimelineView.swift */; };
+		20AF45FECC2D6C66D2A1EA61 /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8E69D321CDDE9722A29282 /* ApplePlayerPurchaseContext.swift */; };
+		21F6D6E02B4321725832C907 /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E000435C028BAB85968FEAD /* PlayerDevelopmentPlayerWorkspaceView.swift */; };
+		23D2BFEFF1BDC614B0A2CCF9 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25B0D92EEF64B700913B5781 /* AccountView.swift */; };
+		25668F5C263510A9DFBC5DC7 /* HPCommunicationScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A143410F1B115048EEA91375 /* HPCommunicationScreenTemplate.swift */; };
+		25733133C0CF46956E8285EC /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B18AD0E98A74ECB51DA874 /* RootView.swift */; };
+		266D4194FA3C8EF39D5B95D1 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8436280C57587A30260826D8 /* Profile.swift */; };
+		2762127DD346A44841423BF7 /* DHDTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85D36CF0DCCF2BD93083CB9B /* DHDTheme.swift */; };
+		278F52E1CCA7C22841870ACF /* NotificationCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA739A07B67991DC90813B06 /* NotificationCenterTests.swift */; };
+		284D6300887943FC560C05D5 /* DHDTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85D36CF0DCCF2BD93083CB9B /* DHDTheme.swift */; };
+		28C1EA08D9F2057B609EFC09 /* HPToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4031AF2AD21705AAD31759 /* HPToast.swift */; };
+		28F43AFFB21287DA5FD85E3E /* PaymentCheckoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E36BAA3FDDCAD28AF16073E /* PaymentCheckoutTests.swift */; };
+		2A7F51DE876128DDFA32BD3C /* DHDUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180B27E35B9B7EB904E373A8 /* DHDUIComponents.swift */; };
+		2C78119EA62807CDB74E919A /* HPFormField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D41A0E453ED52AA13B7A541 /* HPFormField.swift */; };
+		2C7AE2EF9FDE97E2F19CE08A /* UniversalNavigationShellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2C646383F04C8892D426AD /* UniversalNavigationShellTests.swift */; };
+		2C9C45F1BFEAF51EEB9833F4 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1F154040440086F4E9C38893 /* LaunchScreen.storyboard */; };
+		2D44B45ABB3F02840FF62996 /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19E24CCF24D01D15A36C753 /* PlayerDevelopmentImportView.swift */; };
+		2E235358B381E6D3EC8F49D6 /* AccessRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6166289D39452F7547C248 /* AccessRequiredView.swift */; };
+		2E3F9B82971C5EAD10F719B6 /* TeamOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB562878B0A782D8F14169D /* TeamOperationsModels.swift */; };
+		2E6606B0DAD280243AFF20A5 /* HPMoneyField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EE44629A4835C4F12712C1 /* HPMoneyField.swift */; };
+		303BB9CA2B7B911AD8A253A8 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 898A9AAF109CE20DB6A73CD7 /* PushNotificationManager.swift */; };
+		32B053087BAB53FA70B35549 /* FinanceRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F9ED7360E6825A64DCE290 /* FinanceRenderTests.swift */; };
+		336E767E4E7C92E48A4B9358 /* HPButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8110EB541F643A5CAF8FFBEC /* HPButton.swift */; };
+		33AC83BD46E09DF050AC12C4 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0124F0895F4BD291821F6FBD /* HPSampleData.swift */; };
+		33CCF59C39DDC3DB854AF140 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8834729BF6084267A098CE2 /* NotificationCenterView.swift */; };
+		35C2BA5FC885B23FD7A7C939 /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DA7DF7764D372136ADA38E /* FacilityDaySheet.swift */; };
+		36BF3D7D6F89A1AD756A8B7E /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83B23D0F856B7D8B526034B /* CoachPlayerDailyLogsView.swift */; };
+		3737AE373C591826A1F048A6 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D259BFEBE6447BB333691F7 /* SDParentFacilitiesView.swift */; };
+		37617CD9093A750F679835CA /* OrganizationAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E18A8BD8F4C84E81A75118 /* OrganizationAuthorizationTests.swift */; };
+		37DB5B9AF09DB84970FC26A2 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53594BBFD584EBA8C3632747 /* CoachPlayerOverviewView.swift */; };
+		381C942A1642E7642B7E3862 /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA846C96E0C72CB16E988DE1 /* AppleSignInButtonView.swift */; };
+		384BB49E7B9FBC2EE316A739 /* DHDUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180B27E35B9B7EB904E373A8 /* DHDUIComponents.swift */; };
+		38518C39D73983CF29F546D0 /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED09488FBCCEB72623398D6 /* BPAnalysisComponents.swift */; };
+		38D305463D78A902F11C00A6 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 898A9AAF109CE20DB6A73CD7 /* PushNotificationManager.swift */; };
+		3A0DECDC4B7D924C7E29EFCA /* SDParentBillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE2AC2AFE4130237C2BFB1F /* SDParentBillingView.swift */; };
+		3A1D280F2196BCBF6B169E45 /* ParentChildProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BBDECBBCBF91C6E1B6F447 /* ParentChildProfileView.swift */; };
+		3A6E71F69848006D305E2C7D /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D993725B52552E7E4FDC4417 /* HPAnalyticsScreenTemplate.swift */; };
+		3B5A0295D064E22E1053AFC4 /* HPCommunicationScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A143410F1B115048EEA91375 /* HPCommunicationScreenTemplate.swift */; };
+		3B6E5F9E2D432E960361DA7D /* EditFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B9D3F7A25D4A5CCDB883FA /* EditFacilityBookingSheet.swift */; };
+		3C624E53661473D124A791F8 /* HPSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C389F0DD498B9072905FDB /* HPSidebar.swift */; };
+		3D0C166E606F73E650D1B103 /* TeamSchedulingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CD7AA7E4AB16BB245A3938 /* TeamSchedulingModels.swift */; };
+		3D39BB79CD6C2B7180EB8F2B /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9652D5B88C67181DFBFF81BA /* ParentRequestPanels.swift */; };
+		3D639A8786DD0AC5F0884E4A /* HPStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40FD4C8A34224FA31C6FEBF3 /* HPStatusBadge.swift */; };
+		3DB200737F16DE3074F0E602 /* HPFormScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354EE34FC258953C632B750B /* HPFormScreenTemplate.swift */; };
+		3DE19C6AF4508CE3D2ABD197 /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626B85411EE8F45226880D4 /* CoachPlayerBPSessionsView.swift */; };
+		3E5B37D700CD1790A23FE352 /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 851DC67BAAD25E57E607BB50 /* OrgModels.swift */; };
+		3E62DDB897E739D561AE257B /* HPTemplateGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6AB3EF6288F2569101A571 /* HPTemplateGallery.swift */; };
+		3F838FA6B4DD70170975A554 /* HPStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40FD4C8A34224FA31C6FEBF3 /* HPStatusBadge.swift */; };
+		407AA763E93E98E67D7F09E6 /* SDPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A0CF762DA0FBA293B939B0 /* SDPlayerCalendarView.swift */; };
+		40E3AE64F25727260B5C1522 /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E619561726F05045DB5AC96 /* HPSegmentedControl.swift */; };
+		41BC5DF50F7A3C042C8B30E4 /* OrgEventOperationsAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0C69D96C0E9201B99AE3A5 /* OrgEventOperationsAdminView.swift */; };
+		4240A90F9212A87437B2685E /* HPCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA32DCF92AFB811E82E82B6 /* HPCard.swift */; };
+		424B2D7ECB16446B8407338F /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2B75B5D2CD31761968378F /* HPMetrics.swift */; };
+		429F66975158D03B8B769538 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FBB99F14EB4D0A179A1C62 /* HomeView.swift */; };
+		43BAEC047DFE5BC1A46BC46D /* CoachPlayerTestingCRUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B352B17384FF2A9BB0E85D96 /* CoachPlayerTestingCRUDView.swift */; };
+		46D2958D508D9D196AEBD6FF /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB90B455C526E4052512324 /* HPFilterBar.swift */; };
+		47A77D6D32F3261426792F8E /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FEBAD02CA0FBBEF46A7F42 /* HPScreenScaffold.swift */; };
+		485CA1AD4820A9309F018F8D /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9406C87C3D87B18D75B2DE /* CoachPlayerAnalysisView.swift */; };
+		493173B0E861E21A4D858415 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3526E60C36F4768126EFD1AD /* ChatThreadView.swift */; };
+		4AFD41D7E003ABE01C851E8E /* HomePlatePlayerAccess.storekit in Resources */ = {isa = PBXBuildFile; fileRef = FE25C55907EBD8F5FF2B67A4 /* HomePlatePlayerAccess.storekit */; };
+		4B660E3FA515965B22F3A1AF /* HPSettingsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1752184C305B99FDDD35BE06 /* HPSettingsScreenTemplate.swift */; };
+		4C51D8372895344A91D14C29 /* HPSettingsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1752184C305B99FDDD35BE06 /* HPSettingsScreenTemplate.swift */; };
+		4D53DE8C44A529B7DE1066E3 /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F49A4723666A2112FC590BD /* NotificationCenterViewModel.swift */; };
+		4E7A18A2CD6E9E438C6F5472 /* SDPlayerTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C83E3F63A13F1084A4692B2 /* SDPlayerTodayView.swift */; };
+		4F3D89BABF4F355F339DFA42 /* ChatChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C628870E40A6337050C51E4C /* ChatChannelListView.swift */; };
+		4FBFD08CA327DC7E979AEADD /* HPProgramExecutionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48F11C19AACB51D5A36D82C /* HPProgramExecutionTemplate.swift */; };
+		508317C93BA90EF67DF63D37 /* CoachFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9B4AA0277B2584CCA44EC34 /* CoachFacilitiesView.swift */; };
+		514AC1DC2DFB1CB37EB220FB /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960F95A7EE6379AA406B5838 /* PushNotificationModels.swift */; };
+		51BE10B44E0280D9D6CCC318 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F05DB99DAE63F3FFC83A3D0 /* AppState.swift */; };
+		5295E0512ACC5AA5218E4F00 /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 851DC67BAAD25E57E607BB50 /* OrgModels.swift */; };
+		52F122981A871420B2E6DA71 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451BE62139CD2107DEB0598 /* HPColor.swift */; };
+		549C51EC26871FEADA99F2B1 /* SDParentBillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE2AC2AFE4130237C2BFB1F /* SDParentBillingView.swift */; };
+		54B7E91883266805D9D172BD /* HomePlateNavigationShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C36858372432D40F7CC822A /* HomePlateNavigationShell.swift */; };
+		54E107368812179F6982FCE6 /* HPButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8110EB541F643A5CAF8FFBEC /* HPButton.swift */; };
+		58C772852B84C0819756B226 /* HPGalleryRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07468707876944C7FC047FFC /* HPGalleryRenderTests.swift */; };
+		58E0A1B0698191FCD89A72FB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FA5B2626697F3BC79007714 /* Assets.xcassets */; };
+		5A760E26CC11E3D0A44121ED /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29D373389279EE57323678D /* HPAvatar.swift */; };
+		5B6FC491C2252752B5344703 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53594BBFD584EBA8C3632747 /* CoachPlayerOverviewView.swift */; };
+		5D6F54814F7C2726C4A75662 /* EventAvailabilityEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38178D24563D35F6DFA7057A /* EventAvailabilityEditorSheet.swift */; };
+		5D9983D0A1D4E8B667D188AF /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1664C2E05AC7347D9E6B4478 /* PlotlyChartView.swift */; };
+		5EE0EF02FDB959979B1ABD18 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C384B01EE4D0EB018C80C27C /* PlayerDetailView.swift */; };
+		5FC6531BD77D260D8AD6DB90 /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7AFA2399EC5F6661ACB96CD /* FinanceDashboardView.swift */; };
+		6055926E17147E8516E11810 /* FinanceDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF8ABD50ADB8689DC2BB56C0 /* FinanceDashboardViewModel.swift */; };
+		6094EB060600E970B841B5D7 /* ApplePlayerSubscriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92F448734DDAA65C9F57A78 /* ApplePlayerSubscriptionTests.swift */; };
+		609EE423B55201CC6BC065DE /* PlayerDevelopmentCopilotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE349C7541ACE6F0C8D42149 /* PlayerDevelopmentCopilotModels.swift */; };
+		67175BB32E4DE4BA8EC1772B /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96048D68ECF77ABE675CDB8 /* HPWorkspaceHeader.swift */; };
+		67F97AE463E017F506ABE76B /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3320E131C72E3DCD1E917814 /* ConfigErrorView.swift */; };
+		695957B1E5F9D25772B61662 /* CoachEventOperationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011CDB4076719C5618F27C97 /* CoachEventOperationView.swift */; };
+		6BB0C7D6877C15727312934D /* EventOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C648519B44A0F326F6F5E5 /* EventOperationsModels.swift */; };
+		6C7D1EE990495B69E81B380A /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0A9DA8FBEE619E8AE5E7AE /* DHDAppConfig.swift */; };
+		6C81E26AC07054628FB6CEAF /* PlayerDevelopmentCopilotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE349C7541ACE6F0C8D42149 /* PlayerDevelopmentCopilotModels.swift */; };
+		6D2E750E0AD7C50D5967291E /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500AE592E2C9171CDDB8B4A0 /* CoachPlayerProfileView.swift */; };
+		6DC403D2478689DFACDDDE59 /* HPSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C389F0DD498B9072905FDB /* HPSidebar.swift */; };
+		6F4A78A0EA2BB8358245518A /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFED5E6B79FDFECC7A20276 /* PaymentCheckoutModels.swift */; };
+		706A4A19ABFBB91787342621 /* TwoAxisScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368855E71FACEDDBC36AFA93 /* TwoAxisScrollView.swift */; };
+		72E13C554317A55C4D60B83F /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39F5950D433A6385D1E449BD /* SupabaseService.swift */; };
+		73290E3958603273B820BF60 /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F49A4723666A2112FC590BD /* NotificationCenterViewModel.swift */; };
+		73BA91ECF07E417C2C526ECF /* HPModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EFBD6967032819B9F644CF /* HPModal.swift */; };
+		73EDB627F165B6B23BD7784B /* OrgAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA8BAA9862D4651086B3277 /* OrgAdminConsoleView.swift */; };
+		7436735379003E40D598362D /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0A9DA8FBEE619E8AE5E7AE /* DHDAppConfig.swift */; };
+		74BE43EE75AE8070B0C0F579 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600D54B23A037E053B0D457 /* PlayerSubscriptionPaywall.swift */; };
+		7649FBBC475D0380BD674104 /* SDPlayerTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA7B172644529E744A7F15F2 /* SDPlayerTrendsView.swift */; };
+		7660EFEE63DCC3BD230F3DD1 /* HPSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0124F0895F4BD291821F6FBD /* HPSampleData.swift */; };
+		770C0DE0CD18EC0B9419BC93 /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E555C8A8BDA42606BA44798 /* PlayerDevelopmentImportModels.swift */; };
+		788E978BD7AE55D29C1E1C5C /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7AFA2399EC5F6661ACB96CD /* FinanceDashboardView.swift */; };
+		79419648780C84286731814E /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B918CAE43639DDB8A153FD8 /* HPProgressIndicator.swift */; };
+		7AA7E3DD3A0456DD1C0E41C2 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C384B01EE4D0EB018C80C27C /* PlayerDetailView.swift */; };
+		7AD7301537FF71897FC38122 /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C99A6AD8467886FA193CF2 /* ParentRootView.swift */; };
+		7AE21ECB549B13A1B94274A0 /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471C00D5AF7B067FD0F69837 /* DHDMonthGridView.swift */; };
+		7BDFAA0F46D19030684E1EBB /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5CC93370F3643D18E5C264 /* PlayerDevelopmentAIModels.swift */; };
+		7D9CE59E53AB84EE0D806073 /* MultiOrgApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDCC64B838880074025E18F /* MultiOrgApp.swift */; };
+		7DC8D5870E7A0BA0889A6BFF /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5CC93370F3643D18E5C264 /* PlayerDevelopmentAIModels.swift */; };
+		7E44C61051BC9477F15E1A3F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FA5B2626697F3BC79007714 /* Assets.xcassets */; };
+		7E48E0F6BD73D3E4A441FA2B /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E008D8E02940F0ABB5A34AF /* HPSearchBar.swift */; };
+		7EDD49340B560952B9530680 /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2B75B5D2CD31761968378F /* HPMetrics.swift */; };
+		7F9D3FAD05FE6B750DA84B47 /* HPStructuralTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B120E92A13C9C14E3E795A /* HPStructuralTemplateTests.swift */; };
+		808ED3CD3D27194C0B363A31 /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4FC681B7C88886B22C60FA /* PlatformAdminDashboardView.swift */; };
+		811CF320A9DC84AECDAA5F4A /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2266E3750E2089F1B57487D7 /* PlayerDevelopmentAIView.swift */; };
+		8192DA4CCCA802F46F61487B /* CoachTeamScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5356C67F357BC5072D77730D /* CoachTeamScheduleView.swift */; };
+		82B0E2FDA33EA95712AB9F3F /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF782E1BE25CD8B8DD4F4069 /* HPStatTile.swift */; };
+		82CCD1020618514C67EFDC06 /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B691D4968DFD211478CCB49 /* DateUtils.swift */; };
+		8317CDDE2751EA90402647F3 /* SDPlayerTestingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93E344B38115C2EF16356BA1 /* SDPlayerTestingView.swift */; };
+		833221A4CBBA3FE7D5F8CDA0 /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C048F26CB4E11C61FD2A4B1D /* HPEmptyState.swift */; };
+		83DEA737C7255C4698A264BD /* OrganizationSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF662579B769382AED790A8D /* OrganizationSetupTests.swift */; };
+		84631F96626AE59AE0ECF71B /* ExpenseManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA2B013C487418B0DBF50F7B /* ExpenseManagementTests.swift */; };
+		865321C44F07E9B68177869F /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774FA1BC3498B72E4C3043F4 /* HPSectionHeader.swift */; };
+		868EAC0AA9901E8F27BD1D08 /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E555C8A8BDA42606BA44798 /* PlayerDevelopmentImportModels.swift */; };
+		86DB5ADC8724E6AF5F1A194B /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED09488FBCCEB72623398D6 /* BPAnalysisComponents.swift */; };
+		87C95F3EF23F0AA9D63F23B6 /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 767EBFE9B3DBBD3CE946ADE6 /* PaymentRequestCard.swift */; };
+		89EBD33CD2587AA099E7C9CC /* HPFormScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354EE34FC258953C632B750B /* HPFormScreenTemplate.swift */; };
+		8AB1B250A625B177C5ECABFD /* SDPlayerProgramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BCEEADF26C09B4E4484821 /* SDPlayerProgramView.swift */; };
+		8AC954C5A199312A1D7704BC /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFBD08C746BEF3E03044CB1 /* SDProgramSchedule.swift */; };
+		8ADE2DE4F76AD3B6D9ED5673 /* TeamSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2146B5F15928CBB175BC9778 /* TeamSchedulingTests.swift */; };
+		8B32DF4FDB5223912D81414F /* HPTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A5E84449C08AA4CBDDF207C /* HPTable.swift */; };
+		8C6060ABCFB93E5B10C7CF96 /* PlayerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518AE6BD67C023F04CA600B6 /* PlayerHomeView.swift */; };
+		8C9D4003C9BBE910D5FE2E21 /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3A935AE1BC916BEBCE59D0 /* HPComponentGallery.swift */; };
+		8E1CC40DF2CE3ECC833D3DDE /* TeamOperationsFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E89ED2BB00B3FC2F107B32 /* TeamOperationsFoundationTests.swift */; };
+		9004D56737D7E394A2AA545A /* PushNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F93E8A166E08903E5AF2E9 /* PushNotificationTests.swift */; };
+		91DBC321524272B8A756ED91 /* HPListScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C8132E1B547EC721B3F75F /* HPListScreenTemplate.swift */; };
+		9292B9AC8CE49A2DECBB92CF /* ChatChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C628870E40A6337050C51E4C /* ChatChannelListView.swift */; };
+		9313E9DA7C34858D9898C065 /* TeamSchedulingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CD7AA7E4AB16BB245A3938 /* TeamSchedulingModels.swift */; };
+		938C41DADB72071E283FB0C1 /* CalendarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940EFFE12D0C39A61CFF4F34 /* CalendarComponents.swift */; };
+		94204B827454A3AC84703279 /* PlayerDevelopmentAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD4F9BDFFC76DE2F908CD89 /* PlayerDevelopmentAITests.swift */; };
+		94F15D366A880C08FB960D3A /* ProgramTemplateEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B7C4B797B1F453E010E13F /* ProgramTemplateEditorView.swift */; };
+		9621F7BDDEA9AACC3BEBBD75 /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600D54B23A037E053B0D457 /* PlayerSubscriptionPaywall.swift */; };
+		9740F69B6FCDF0C66CB556E3 /* HPChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4C1A1937DA253E31174C14 /* HPChart.swift */; };
+		9888C291C776DBB9FF7F6EED /* OrganizationSetupModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4537CDBEC66FE0EDDC4193C /* OrganizationSetupModels.swift */; };
+		98ABBA91D67FB143C2EEDA7B /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753D7396890C98CE971C9023 /* FacilitiesDayTimelineView.swift */; };
+		9ABF2B4CEBA2E70CC7F5F4D2 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0848DABC1909F5711B6441 /* AppleSignIn.swift */; };
+		9AF1F984EE9A79E07DD25FB3 /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8699CF81E1A944024D238A /* PlayerDevelopmentCopilotView.swift */; };
+		9BE3400C8858437D1F86888A /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F957A460D31EFB0345C9B91F /* HPAdminScreenTemplate.swift */; };
+		9C121758179F0C1DB81C71ED /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FEBAD02CA0FBBEF46A7F42 /* HPScreenScaffold.swift */; };
+		9C6BE26FAD100FE044DF0300 /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DA7DF7764D372136ADA38E /* FacilityDaySheet.swift */; };
+		9C8A03F6F9C38B0EB824B5C7 /* Phase13BProjectRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F11DB6DF024F0E6BD7E8CE /* Phase13BProjectRuntimeTests.swift */; };
+		9CBEFD51E159E29B1EDEE041 /* FinanceDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D269C02D29859379DA45D316 /* FinanceDashboardModels.swift */; };
+		9E79927C5C214742E9F9EB7E /* PlayerSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01EEB619C03ACA50DB00A0D /* PlayerSubscriptionStore.swift */; };
+		9EF5B6ECEA604751159E03F6 /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96048D68ECF77ABE675CDB8 /* HPWorkspaceHeader.swift */; };
+		A0E5C612395FEC67D4CB517D /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60B9ECC279EC7AB4784DE2A /* SDModels.swift */; };
+		A2705A7D7B07236DE3E43E96 /* HPWorkspaceDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4F64B2F4EF6F3D2B2B980 /* HPWorkspaceDirectory.swift */; };
+		A5446D2D9DB87C80431BFE05 /* HomePlateNavigationShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C36858372432D40F7CC822A /* HomePlateNavigationShell.swift */; };
+		A6194EDDE5E5F9544E6081DE /* OrganizationSetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2BDDC86BA18F96C2C58BCB /* OrganizationSetupWizardView.swift */; };
+		A6B6360F1AEE7AE2A9F9F127 /* ExpenseManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A104FBB9BD46B745D93100B0 /* ExpenseManagementView.swift */; };
+		A6EC05DAA66D76C49C9185A8 /* OrganizationSetupModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4537CDBEC66FE0EDDC4193C /* OrganizationSetupModels.swift */; };
+		A74E2937ACF430B752D6D0A0 /* NewFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FBCD16F222C04D5BB2BFD7 /* NewFacilityBookingSheet.swift */; };
+		A7B4463425DABB981E8623FF /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29D373389279EE57323678D /* HPAvatar.swift */; };
+		A89D95B03B9C0DA0087D843D /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0848DABC1909F5711B6441 /* AppleSignIn.swift */; };
+		A93974F9503CDFA7E2B3CC98 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3526E60C36F4768126EFD1AD /* ChatThreadView.swift */; };
+		A985B2A4F0FFF5176C98F07A /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C9677E6DB59824112BB763 /* ParentChildCalendarView.swift */; };
+		AA9A09814E4A5E5D6E8CBB19 /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3A935AE1BC916BEBCE59D0 /* HPComponentGallery.swift */; };
+		AB3E6F301A7734D4FB71E030 /* CoachPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9406C87C3D87B18D75B2DE /* CoachPlayerAnalysisView.swift */; };
+		AC55623DF53ADE6FC930BEEB /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4451BE62139CD2107DEB0598 /* HPColor.swift */; };
+		ACA0D66936188361807AC95A /* HPDetailScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994BCDCA03CEE810684B3B01 /* HPDetailScreenTemplate.swift */; };
+		ACE24AE994D07B051B05AFC7 /* HPTemplateRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33C722275329CD404EB6AE8E /* HPTemplateRenderTests.swift */; };
+		AF4E897F79B195067C35A6DF /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1664C2E05AC7347D9E6B4478 /* PlotlyChartView.swift */; };
+		AF99A5F5ADC20EA2574CFDFE /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4FC681B7C88886B22C60FA /* PlatformAdminDashboardView.swift */; };
+		AFF778051733FC085D5E655D /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C048F26CB4E11C61FD2A4B1D /* HPEmptyState.swift */; };
+		B06ED3C9F9CCDAA8909768D0 /* NewFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FBCD16F222C04D5BB2BFD7 /* NewFacilityBookingSheet.swift */; };
+		B0CD9343815115FFA1A0A8FA /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8834729BF6084267A098CE2 /* NotificationCenterView.swift */; };
+		B3ADF03456BC7904D0157DE1 /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F480DADD126C8F20933A57 /* CSV.swift */; };
+		B590703DA4FAD6E86AB276AA /* HPWorkspaceDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4F64B2F4EF6F3D2B2B980 /* HPWorkspaceDirectory.swift */; };
+		B7C955CD6DAEC9B0A631C369 /* Phase13ATeamContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01650BCE115A64AE3B72B573 /* Phase13ATeamContextTests.swift */; };
+		B887259024094FF9008E7E15 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA47E1CA06AA6D5ACA8B960A /* LoginView.swift */; };
+		B8FB44D579F4B5A7C34DDA9E /* ParentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E30A657DDFA6D021D8506D /* ParentHomeView.swift */; };
+		BA8218CE545AF54FC2669A9A /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001E4055B29191F1981CDB87 /* CoachRootView.swift */; };
+		BB5870442806FD5F300635DA /* SDPlayerAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE8C8284913FE9E36BBC7FCF /* SDPlayerAnalysisView.swift */; };
+		BBD1C8C7A805E9CAE9E66E33 /* CoachPlayerTestingEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C6BD984D89BE250735792A /* CoachPlayerTestingEntriesView.swift */; };
+		BC1BEBE2404D38001DF53715 /* SDPlayerBPDaySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4AE6BE51B8C7E306B75E43 /* SDPlayerBPDaySection.swift */; };
+		BC2C9FE1DF246A9F7FBD86D7 /* HPErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97A39D75604AFAA123E3667 /* HPErrorState.swift */; };
+		BC6806261BF7D18BB3042929 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA47E1CA06AA6D5ACA8B960A /* LoginView.swift */; };
+		BD142F07DF0850F25904356F /* CoachTeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416726E4A19D5221BD758277 /* CoachTeamsView.swift */; };
+		BE03C6C00F3A655E684995FD /* HPTemplateGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6AB3EF6288F2569101A571 /* HPTemplateGallery.swift */; };
+		BF7CDECA9E9E417E98F462F1 /* TwoAxisScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368855E71FACEDDBC36AFA93 /* TwoAxisScrollView.swift */; };
+		BFB358F6F8D9C991E134E3EB /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60B9ECC279EC7AB4784DE2A /* SDModels.swift */; };
+		C07E84A168CFC2EBDD0E3E0E /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E21B2C84FB56E81E0367F27 /* CoachProgramsView.swift */; };
+		C07F0DAF45AB2B7733CC32C5 /* CoachPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E236BEE7031074F0314F7C5 /* CoachPlayerCalendarView.swift */; };
+		C1D6454E3382649FB17876CA /* HPDetailScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994BCDCA03CEE810684B3B01 /* HPDetailScreenTemplate.swift */; };
+		C21DB3B8F16FD2B617A5BAF0 /* OrgEventOperationsAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0C69D96C0E9201B99AE3A5 /* OrgEventOperationsAdminView.swift */; };
+		C237F1247F1BA3959A9886E7 /* ParentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D835C65F14F453BC279D44CD /* ParentModels.swift */; };
+		C2C612D085435376A8AB90E8 /* CoachTeamCommandCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5BAE6555E82C381958A723 /* CoachTeamCommandCenterView.swift */; };
+		C38B8FFA9BDBEF30E5178EFE /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945C01DBC97046CCAAE21419 /* ProgramDayEditorSheet.swift */; };
+		C41800EED1D2AB0FDF169846 /* CoachTeamCommandCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5BAE6555E82C381958A723 /* CoachTeamCommandCenterView.swift */; };
+		C5F623EC7B3E4783BC9FC335 /* PlayerTodayRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CEE2ADB9E88C0188294AAEE /* PlayerTodayRenderTests.swift */; };
+		C61EFE647E9D8539579E3C55 /* CoachPlayerTestingCRUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B352B17384FF2A9BB0E85D96 /* CoachPlayerTestingCRUDView.swift */; };
+		C627542AE9947C3D3B6F228B /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550CCA67E66F3FEB88BD0D34 /* HPStateScreenTemplate.swift */; };
+		C63F5C6D83F89D8F2127F791 /* HPBuildDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA189FBFEA24FA5315BC94DD /* HPBuildDiagnostics.swift */; };
+		C6D1BB59059D4084C2400016 /* HPToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4031AF2AD21705AAD31759 /* HPToast.swift */; };
+		C8857BDC6BD62755BCD4FA84 /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960F95A7EE6379AA406B5838 /* PushNotificationModels.swift */; };
+		C9D266279B138E6AE6C5EF55 /* ChatCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30BA5357733CE5E0176B6BD /* ChatCreateView.swift */; };
+		C9EB6F3444CC7159130C8378 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E477D03DE7E56CA505083B /* HPWorkspaceScreenTemplate.swift */; };
+		CA47C37503B05EE99329987D /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 767EBFE9B3DBBD3CE946ADE6 /* PaymentRequestCard.swift */; };
+		CAA85EFA0BF8186D683E4656 /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550CCA67E66F3FEB88BD0D34 /* HPStateScreenTemplate.swift */; };
+		CAD32AB6B879F1E2AD99BA0D /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25B0D92EEF64B700913B5781 /* AccountView.swift */; };
+		CB1CA99C81B53864F6DF9731 /* HPListScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C8132E1B547EC721B3F75F /* HPListScreenTemplate.swift */; };
+		CBA45EE5B176836E77D316EA /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFED5E6B79FDFECC7A20276 /* PaymentCheckoutModels.swift */; };
+		CCA5CC3A729AA4D0A1F642B4 /* SDPlayerFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAF2381A9AA9F448B668234 /* SDPlayerFacilitiesView.swift */; };
+		CD76BEFAD307B7D4B081BB76 /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992D509DF401DFCF53893667 /* HPMetricCard.swift */; };
+		CDB74608B7B946DC3A7FB217 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC111551E015CBE7C99E399 /* ChatModels.swift */; };
+		D20D2D04BF30D42FCA7411E4 /* OrgAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA8BAA9862D4651086B3277 /* OrgAdminConsoleView.swift */; };
+		D2580AC8766E3B390D1590AE /* OrganizationAdminSimplificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D94BF58F0CEE4F0589A5AE0F /* OrganizationAdminSimplificationTests.swift */; };
+		D30C5672F90AC6B5C624D4C3 /* CoachTeamsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416726E4A19D5221BD758277 /* CoachTeamsView.swift */; };
+		D4772EE3C56B601C2E64DEA6 /* OrgTeamOperationsAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD9338CF97E2539E2E1ADC15 /* OrgTeamOperationsAdminView.swift */; };
+		D5171C705199132913C49308 /* UniversalUIFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3369ED36E3847178BA30D5 /* UniversalUIFoundationTests.swift */; };
+		D521530C2E82B4485F57E09E /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC111551E015CBE7C99E399 /* ChatModels.swift */; };
+		D6AFFA1A6DEB387A78F4B13B /* EditFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B9D3F7A25D4A5CCDB883FA /* EditFacilityBookingSheet.swift */; };
+		D7A9A405DC8706FF486B29F0 /* CoachTeamScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5356C67F357BC5072D77730D /* CoachTeamScheduleView.swift */; };
+		D89290D9ACCB104BB8DD2A92 /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2561D1D072A8E599F1ECBF35 /* CoachHomeView.swift */; };
+		D962157C4197DFD187664605 /* ChatCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30BA5357733CE5E0176B6BD /* ChatCreateView.swift */; };
+		D9735467FFDDB1D9B1EEE4F5 /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B14663415D972C62CE3F871 /* HPLoadingState.swift */; };
+		D9DD419BFD67630F35714782 /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626B85411EE8F45226880D4 /* CoachPlayerBPSessionsView.swift */; };
+		DAD54280A1023F2CA5A7382F /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E008D8E02940F0ABB5A34AF /* HPSearchBar.swift */; };
+		DB608D7E32C4F63EDEDC5830 /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B14663415D972C62CE3F871 /* HPLoadingState.swift */; };
+		DBB3134DE45FEE4F1876D0FA /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E000435C028BAB85968FEAD /* PlayerDevelopmentPlayerWorkspaceView.swift */; };
+		DBE5B18A8D9A9DC131FC2C1D /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB90B455C526E4052512324 /* HPFilterBar.swift */; };
+		DC44F65AC90BE7A2419358B1 /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500AE592E2C9171CDDB8B4A0 /* CoachPlayerProfileView.swift */; };
+		DDE3159743ECDD0D1B95C46A /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FBB99F14EB4D0A179A1C62 /* HomeView.swift */; };
+		DE57A23195580668EB845CE1 /* FinanceDashboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A545B236D5DEF7DBA3576786 /* FinanceDashboardTests.swift */; };
+		DE9983E4222C988BEB739CF6 /* PlayerDevelopmentImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F966A48E544AAB88C8A2A14 /* PlayerDevelopmentImportTests.swift */; };
+		DEA83410529874F8F8C68195 /* FinanceDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF8ABD50ADB8689DC2BB56C0 /* FinanceDashboardViewModel.swift */; };
+		DF102AFC2F79A2F59996E3D4 /* HPFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3118F52EE83C6C0926012DD7 /* HPFont.swift */; };
+		DF5ED78D6D13A843CC98766B /* SDPlayerBPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7F1E605E174EBCC8DB5019 /* SDPlayerBPView.swift */; };
+		E1962E955E3BC9A52777DE6A /* EventAvailabilityEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38178D24563D35F6DFA7057A /* EventAvailabilityEditorSheet.swift */; };
+		E2345FF577AFD8BC0D3442D2 /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83B23D0F856B7D8B526034B /* CoachPlayerDailyLogsView.swift */; };
+		E2BBE38F8A0614B0FD4D77C3 /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945C01DBC97046CCAAE21419 /* ProgramDayEditorSheet.swift */; };
+		E3C253EF68E0C6A34FAEAC11 /* CoachPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E236BEE7031074F0314F7C5 /* CoachPlayerCalendarView.swift */; };
+		E403B44F626DFEF43E2FEF38 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D222980E79A26089CD038B /* NotificationCenterModels.swift */; };
+		E415D552F3021807AF1D24E3 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D520EC4D3CD5EB22DE0B20AB /* PlayerDevelopmentCopilotResponseContractTests.swift */; };
+		E4755A86BC4DA866D3F36368 /* ProgramTemplateEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B7C4B797B1F453E010E13F /* ProgramTemplateEditorView.swift */; };
+		E4F59559B08EF697A4BAA6F3 /* EventOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78205A87119EADF6671CB106 /* EventOperationsTests.swift */; };
+		E5022EFFC511D1F10DD407E6 /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C99A6AD8467886FA193CF2 /* ParentRootView.swift */; };
+		E751B2F4EAF56EE9DD49983D /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774FA1BC3498B72E4C3043F4 /* HPSectionHeader.swift */; };
+		E897DBE671FE8C57DBC0C05F /* HPCalendarScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52401C36EFA3452D27B0D7CF /* HPCalendarScreenTemplate.swift */; };
+		E8F7DE90CD2348E718FECFE7 /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA846C96E0C72CB16E988DE1 /* AppleSignInButtonView.swift */; };
+		E90DE6C349247174A3CEE42F /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F957A460D31EFB0345C9B91F /* HPAdminScreenTemplate.swift */; };
+		E981382405FF659ACB38F3D9 /* PlayerHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518AE6BD67C023F04CA600B6 /* PlayerHomeView.swift */; };
+		EA3043A13AE033A541523858 /* HPErrorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97A39D75604AFAA123E3667 /* HPErrorState.swift */; };
+		EA906F6BBB5FE1915F643C23 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFBD08C746BEF3E03044CB1 /* SDProgramSchedule.swift */; };
+		EAA054CB592E61867271FF6B /* apple_player_purchase_context_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = 111FB63C6C2C7AB454946A3D /* apple_player_purchase_context_vectors.json */; };
+		EAFA0D5774F047FA9359ED55 /* CoachPlayerTestingEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C6BD984D89BE250735792A /* CoachPlayerTestingEntriesView.swift */; };
+		EC40573886A399FAF9E1D79F /* HPBuildDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA189FBFEA24FA5315BC94DD /* HPBuildDiagnostics.swift */; };
+		EC65BBD1BD10092E14EB3419 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39F5950D433A6385D1E449BD /* SupabaseService.swift */; };
+		ED3BB6CEFE624C95714C1464 /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B918CAE43639DDB8A153FD8 /* HPProgressIndicator.swift */; };
+		ED94D9576E8C38E24F712A4D /* EventOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C648519B44A0F326F6F5E5 /* EventOperationsModels.swift */; };
+		EFCC604C6B02A276BC727823 /* HPMoneyField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EE44629A4835C4F12712C1 /* HPMoneyField.swift */; };
+		F1F45619E8F13E886E824D29 /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19E24CCF24D01D15A36C753 /* PlayerDevelopmentImportView.swift */; };
+		F379BD2E63266944AB868390 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D222980E79A26089CD038B /* NotificationCenterModels.swift */; };
+		F3BCE1A531C78C5C8A604D2F /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856AC5C3F038D9907CEB8581 /* SupabaseConfig.swift */; };
+		F436054CB76D4D9F3AC8B04C /* OrganizationSetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2BDDC86BA18F96C2C58BCB /* OrganizationSetupWizardView.swift */; };
+		F64BFDD0D315A0993B03DC1C /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2561D1D072A8E599F1ECBF35 /* CoachHomeView.swift */; };
+		F6ED4AF9BE61FB63843A5FC8 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = F1A18580B5872B9EB69AA88D /* Supabase */; };
+		F7573D7995B69C295EC9D04D /* ApplePlayerPurchaseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8E69D321CDDE9722A29282 /* ApplePlayerPurchaseContext.swift */; };
+		F88BED3E0FB920BF52A05B6F /* ExpenseManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A104FBB9BD46B745D93100B0 /* ExpenseManagementView.swift */; };
+		F905A009C831358BCE72A51D /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D259BFEBE6447BB333691F7 /* SDParentFacilitiesView.swift */; };
+		FD3A6FFDB5F72D3A0AD0E005 /* TeamOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB562878B0A782D8F14169D /* TeamOperationsModels.swift */; };
+		FF16602C892C48131594E242 /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E619561726F05045DB5AC96 /* HPSegmentedControl.swift */; };
+		FFB5BA60310FB480101339C9 /* MultiOrgApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDCC64B838880074025E18F /* MultiOrgApp.swift */; };
+		FFBBF7419F42773A95CC94B9 /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8699CF81E1A944024D238A /* PlayerDevelopmentCopilotView.swift */; };
+		FFD4266BF0D25152D740F075 /* HPModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EFBD6967032819B9F644CF /* HPModal.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2BA4F45D39EC8668CA559918 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 366C8E52FB8BEB0A7ED70FEE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B1C174F287DD424BAEF97E06;
+			remoteInfo = HomePlate;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		001E4055B29191F1981CDB87 /* CoachRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachRootView.swift; sourceTree = "<group>"; };
+		011CDB4076719C5618F27C97 /* CoachEventOperationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachEventOperationView.swift; sourceTree = "<group>"; };
+		0124F0895F4BD291821F6FBD /* HPSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSampleData.swift; sourceTree = "<group>"; };
+		01650BCE115A64AE3B72B573 /* Phase13ATeamContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase13ATeamContextTests.swift; sourceTree = "<group>"; };
+		07468707876944C7FC047FFC /* HPGalleryRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPGalleryRenderTests.swift; sourceTree = "<group>"; };
+		07BBDECBBCBF91C6E1B6F447 /* ParentChildProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildProfileView.swift; sourceTree = "<group>"; };
+		08C648519B44A0F326F6F5E5 /* EventOperationsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventOperationsModels.swift; sourceTree = "<group>"; };
+		0D259BFEBE6447BB333691F7 /* SDParentFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentFacilitiesView.swift; sourceTree = "<group>"; };
+		0E236BEE7031074F0314F7C5 /* CoachPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerCalendarView.swift; sourceTree = "<group>"; };
+		0E36BAA3FDDCAD28AF16073E /* PaymentCheckoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutTests.swift; sourceTree = "<group>"; };
+		0FA5B2626697F3BC79007714 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		111FB63C6C2C7AB454946A3D /* apple_player_purchase_context_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = apple_player_purchase_context_vectors.json; sourceTree = "<group>"; };
+		1664C2E05AC7347D9E6B4478 /* PlotlyChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotlyChartView.swift; sourceTree = "<group>"; };
+		1752184C305B99FDDD35BE06 /* HPSettingsScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSettingsScreenTemplate.swift; sourceTree = "<group>"; };
+		180B27E35B9B7EB904E373A8 /* DHDUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDUIComponents.swift; sourceTree = "<group>"; };
+		1A5E84449C08AA4CBDDF207C /* HPTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTable.swift; sourceTree = "<group>"; };
+		1B7A4A084482D5532B2914A1 /* PlayerDevelopmentCopilotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotTests.swift; sourceTree = "<group>"; };
+		1BD4F9BDFFC76DE2F908CD89 /* PlayerDevelopmentAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAITests.swift; sourceTree = "<group>"; };
+		1C3A935AE1BC916BEBCE59D0 /* HPComponentGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPComponentGallery.swift; sourceTree = "<group>"; };
+		1E008D8E02940F0ABB5A34AF /* HPSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSearchBar.swift; sourceTree = "<group>"; };
+		1E4C1A1937DA253E31174C14 /* HPChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPChart.swift; sourceTree = "<group>"; };
+		1F154040440086F4E9C38893 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		20C9677E6DB59824112BB763 /* ParentChildCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildCalendarView.swift; sourceTree = "<group>"; };
+		2146B5F15928CBB175BC9778 /* TeamSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSchedulingTests.swift; sourceTree = "<group>"; };
+		2266E3750E2089F1B57487D7 /* PlayerDevelopmentAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIView.swift; sourceTree = "<group>"; };
+		23C6BD984D89BE250735792A /* CoachPlayerTestingEntriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerTestingEntriesView.swift; sourceTree = "<group>"; };
+		2561D1D072A8E599F1ECBF35 /* CoachHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachHomeView.swift; sourceTree = "<group>"; };
+		25B0D92EEF64B700913B5781 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		2A2B75B5D2CD31761968378F /* HPMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetrics.swift; sourceTree = "<group>"; };
+		2A8699CF81E1A944024D238A /* PlayerDevelopmentCopilotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotView.swift; sourceTree = "<group>"; };
+		2BE2AC2AFE4130237C2BFB1F /* SDParentBillingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentBillingView.swift; sourceTree = "<group>"; };
+		2CB90B455C526E4052512324 /* HPFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFilterBar.swift; sourceTree = "<group>"; };
+		2CEE2ADB9E88C0188294AAEE /* PlayerTodayRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTodayRenderTests.swift; sourceTree = "<group>"; };
+		3118F52EE83C6C0926012DD7 /* HPFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFont.swift; sourceTree = "<group>"; };
+		3320E131C72E3DCD1E917814 /* ConfigErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigErrorView.swift; sourceTree = "<group>"; };
+		33C722275329CD404EB6AE8E /* HPTemplateRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateRenderTests.swift; sourceTree = "<group>"; };
+		3526E60C36F4768126EFD1AD /* ChatThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThreadView.swift; sourceTree = "<group>"; };
+		354EE34FC258953C632B750B /* HPFormScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormScreenTemplate.swift; sourceTree = "<group>"; };
+		35B120E92A13C9C14E3E795A /* HPStructuralTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStructuralTemplateTests.swift; sourceTree = "<group>"; };
+		368855E71FACEDDBC36AFA93 /* TwoAxisScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoAxisScrollView.swift; sourceTree = "<group>"; };
+		38178D24563D35F6DFA7057A /* EventAvailabilityEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventAvailabilityEditorSheet.swift; sourceTree = "<group>"; };
+		39F5950D433A6385D1E449BD /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		3A8E69D321CDDE9722A29282 /* ApplePlayerPurchaseContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerPurchaseContext.swift; sourceTree = "<group>"; };
+		3B0C69D96C0E9201B99AE3A5 /* OrgEventOperationsAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgEventOperationsAdminView.swift; sourceTree = "<group>"; };
+		3BC111551E015CBE7C99E399 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		3C36858372432D40F7CC822A /* HomePlateNavigationShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlateNavigationShell.swift; sourceTree = "<group>"; };
+		3E555C8A8BDA42606BA44798 /* PlayerDevelopmentImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportModels.swift; sourceTree = "<group>"; };
+		3F7F1E605E174EBCC8DB5019 /* SDPlayerBPView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerBPView.swift; sourceTree = "<group>"; };
+		3FDCC64B838880074025E18F /* MultiOrgApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiOrgApp.swift; sourceTree = "<group>"; };
+		40B7C4B797B1F453E010E13F /* ProgramTemplateEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramTemplateEditorView.swift; sourceTree = "<group>"; };
+		40FD4C8A34224FA31C6FEBF3 /* HPStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatusBadge.swift; sourceTree = "<group>"; };
+		416726E4A19D5221BD758277 /* CoachTeamsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamsView.swift; sourceTree = "<group>"; };
+		4339C13BE2DF59A4A45AC630 /* HomePlateTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HomePlateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4451BE62139CD2107DEB0598 /* HPColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPColor.swift; sourceTree = "<group>"; };
+		46FEBAD02CA0FBBEF46A7F42 /* HPScreenScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPScreenScaffold.swift; sourceTree = "<group>"; };
+		471C00D5AF7B067FD0F69837 /* DHDMonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDMonthGridView.swift; sourceTree = "<group>"; };
+		4B691D4968DFD211478CCB49 /* DateUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtils.swift; sourceTree = "<group>"; };
+		4E21B2C84FB56E81E0367F27 /* CoachProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachProgramsView.swift; sourceTree = "<group>"; };
+		4E3369ED36E3847178BA30D5 /* UniversalUIFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalUIFoundationTests.swift; sourceTree = "<group>"; };
+		500AE592E2C9171CDDB8B4A0 /* CoachPlayerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerProfileView.swift; sourceTree = "<group>"; };
+		518AE6BD67C023F04CA600B6 /* PlayerHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerHomeView.swift; sourceTree = "<group>"; };
+		52401C36EFA3452D27B0D7CF /* HPCalendarScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCalendarScreenTemplate.swift; sourceTree = "<group>"; };
+		5356C67F357BC5072D77730D /* CoachTeamScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamScheduleView.swift; sourceTree = "<group>"; };
+		53594BBFD584EBA8C3632747 /* CoachPlayerOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerOverviewView.swift; sourceTree = "<group>"; };
+		550CCA67E66F3FEB88BD0D34 /* HPStateScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStateScreenTemplate.swift; sourceTree = "<group>"; };
+		5D41A0E453ED52AA13B7A541 /* HPFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormField.swift; sourceTree = "<group>"; };
+		5D5BAE6555E82C381958A723 /* CoachTeamCommandCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamCommandCenterView.swift; sourceTree = "<group>"; };
+		5F49A4723666A2112FC590BD /* NotificationCenterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterViewModel.swift; sourceTree = "<group>"; };
+		66DA7DF7764D372136ADA38E /* FacilityDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilityDaySheet.swift; sourceTree = "<group>"; };
+		6B7A36531F68D37ED43BA3A4 /* Home Plate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Home Plate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C83E3F63A13F1084A4692B2 /* SDPlayerTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTodayView.swift; sourceTree = "<group>"; };
+		6F05DB99DAE63F3FFC83A3D0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		753D7396890C98CE971C9023 /* FacilitiesDayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilitiesDayTimelineView.swift; sourceTree = "<group>"; };
+		767EBFE9B3DBBD3CE946ADE6 /* PaymentRequestCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRequestCard.swift; sourceTree = "<group>"; };
+		774FA1BC3498B72E4C3043F4 /* HPSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSectionHeader.swift; sourceTree = "<group>"; };
+		77A0CF762DA0FBA293B939B0 /* SDPlayerCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerCalendarView.swift; sourceTree = "<group>"; };
+		78205A87119EADF6671CB106 /* EventOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventOperationsTests.swift; sourceTree = "<group>"; };
+		7E000435C028BAB85968FEAD /* PlayerDevelopmentPlayerWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentPlayerWorkspaceView.swift; sourceTree = "<group>"; };
+		7E619561726F05045DB5AC96 /* HPSegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSegmentedControl.swift; sourceTree = "<group>"; };
+		8110EB541F643A5CAF8FFBEC /* HPButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPButton.swift; sourceTree = "<group>"; };
+		81FC70E77EA6EA3C15481F55 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		83B18AD0E98A74ECB51DA874 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		8436280C57587A30260826D8 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		851DC67BAAD25E57E607BB50 /* OrgModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgModels.swift; sourceTree = "<group>"; };
+		856AC5C3F038D9907CEB8581 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		85D36CF0DCCF2BD93083CB9B /* DHDTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDTheme.swift; sourceTree = "<group>"; };
+		8626B85411EE8F45226880D4 /* CoachPlayerBPSessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerBPSessionsView.swift; sourceTree = "<group>"; };
+		86BCEEADF26C09B4E4484821 /* SDPlayerProgramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerProgramView.swift; sourceTree = "<group>"; };
+		87E89ED2BB00B3FC2F107B32 /* TeamOperationsFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamOperationsFoundationTests.swift; sourceTree = "<group>"; };
+		88D222980E79A26089CD038B /* NotificationCenterModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterModels.swift; sourceTree = "<group>"; };
+		898A9AAF109CE20DB6A73CD7 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
+		89CD7AA7E4AB16BB245A3938 /* TeamSchedulingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSchedulingModels.swift; sourceTree = "<group>"; };
+		89D6FDE98F2F86DF25389918 /* MultiOrg.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MultiOrg.entitlements; sourceTree = "<group>"; };
+		89F480DADD126C8F20933A57 /* CSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSV.swift; sourceTree = "<group>"; };
+		8B5CC93370F3643D18E5C264 /* PlayerDevelopmentAIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIModels.swift; sourceTree = "<group>"; };
+		8B918CAE43639DDB8A153FD8 /* HPProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgressIndicator.swift; sourceTree = "<group>"; };
+		93E344B38115C2EF16356BA1 /* SDPlayerTestingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTestingView.swift; sourceTree = "<group>"; };
+		940EFFE12D0C39A61CFF4F34 /* CalendarComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarComponents.swift; sourceTree = "<group>"; };
+		945C01DBC97046CCAAE21419 /* ProgramDayEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDayEditorSheet.swift; sourceTree = "<group>"; };
+		9600D54B23A037E053B0D457 /* PlayerSubscriptionPaywall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionPaywall.swift; sourceTree = "<group>"; };
+		960F95A7EE6379AA406B5838 /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
+		9652D5B88C67181DFBFF81BA /* ParentRequestPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRequestPanels.swift; sourceTree = "<group>"; };
+		96C99A6AD8467886FA193CF2 /* ParentRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRootView.swift; sourceTree = "<group>"; };
+		97B9D3F7A25D4A5CCDB883FA /* EditFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFacilityBookingSheet.swift; sourceTree = "<group>"; };
+		97FBCD16F222C04D5BB2BFD7 /* NewFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFacilityBookingSheet.swift; sourceTree = "<group>"; };
+		992D509DF401DFCF53893667 /* HPMetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetricCard.swift; sourceTree = "<group>"; };
+		994BCDCA03CEE810684B3B01 /* HPDetailScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPDetailScreenTemplate.swift; sourceTree = "<group>"; };
+		9A0A9DA8FBEE619E8AE5E7AE /* DHDAppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDAppConfig.swift; sourceTree = "<group>"; };
+		9B14663415D972C62CE3F871 /* HPLoadingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLoadingState.swift; sourceTree = "<group>"; };
+		9D2C646383F04C8892D426AD /* UniversalNavigationShellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalNavigationShellTests.swift; sourceTree = "<group>"; };
+		9DFBD08C746BEF3E03044CB1 /* SDProgramSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDProgramSchedule.swift; sourceTree = "<group>"; };
+		9E6166289D39452F7547C248 /* AccessRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessRequiredView.swift; sourceTree = "<group>"; };
+		9F966A48E544AAB88C8A2A14 /* PlayerDevelopmentImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportTests.swift; sourceTree = "<group>"; };
+		A104FBB9BD46B745D93100B0 /* ExpenseManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseManagementView.swift; sourceTree = "<group>"; };
+		A143410F1B115048EEA91375 /* HPCommunicationScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCommunicationScreenTemplate.swift; sourceTree = "<group>"; };
+		A3C8132E1B547EC721B3F75F /* HPListScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPListScreenTemplate.swift; sourceTree = "<group>"; };
+		A4537CDBEC66FE0EDDC4193C /* OrganizationSetupModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupModels.swift; sourceTree = "<group>"; };
+		A48F11C19AACB51D5A36D82C /* HPProgramExecutionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgramExecutionTemplate.swift; sourceTree = "<group>"; };
+		A545B236D5DEF7DBA3576786 /* FinanceDashboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardTests.swift; sourceTree = "<group>"; };
+		A96048D68ECF77ABE675CDB8 /* HPWorkspaceHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceHeader.swift; sourceTree = "<group>"; };
+		AA739A07B67991DC90813B06 /* NotificationCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterTests.swift; sourceTree = "<group>"; };
+		AB0848DABC1909F5711B6441 /* AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignIn.swift; sourceTree = "<group>"; };
+		AC49524636B8951861304D0E /* HPTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTheme.swift; sourceTree = "<group>"; };
+		ADA32DCF92AFB811E82E82B6 /* HPCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCard.swift; sourceTree = "<group>"; };
+		ADB562878B0A782D8F14169D /* TeamOperationsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamOperationsModels.swift; sourceTree = "<group>"; };
+		AF8ABD50ADB8689DC2BB56C0 /* FinanceDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardViewModel.swift; sourceTree = "<group>"; };
+		B1C389F0DD498B9072905FDB /* HPSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSidebar.swift; sourceTree = "<group>"; };
+		B352B17384FF2A9BB0E85D96 /* CoachPlayerTestingCRUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerTestingCRUDView.swift; sourceTree = "<group>"; };
+		B6F93E8A166E08903E5AF2E9 /* PushNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationTests.swift; sourceTree = "<group>"; };
+		B7AFA2399EC5F6661ACB96CD /* FinanceDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardView.swift; sourceTree = "<group>"; };
+		B8EE44629A4835C4F12712C1 /* HPMoneyField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMoneyField.swift; sourceTree = "<group>"; };
+		B97A39D75604AFAA123E3667 /* HPErrorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPErrorState.swift; sourceTree = "<group>"; };
+		B9EFBD6967032819B9F644CF /* HPModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPModal.swift; sourceTree = "<group>"; };
+		BA189FBFEA24FA5315BC94DD /* HPBuildDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPBuildDiagnostics.swift; sourceTree = "<group>"; };
+		BA7B172644529E744A7F15F2 /* SDPlayerTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTrendsView.swift; sourceTree = "<group>"; };
+		BA846C96E0C72CB16E988DE1 /* AppleSignInButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInButtonView.swift; sourceTree = "<group>"; };
+		BED09488FBCCEB72623398D6 /* BPAnalysisComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPAnalysisComponents.swift; sourceTree = "<group>"; };
+		BF662579B769382AED790A8D /* OrganizationSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupTests.swift; sourceTree = "<group>"; };
+		C048F26CB4E11C61FD2A4B1D /* HPEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPEmptyState.swift; sourceTree = "<group>"; };
+		C2E30A657DDFA6D021D8506D /* ParentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentHomeView.swift; sourceTree = "<group>"; };
+		C328EA3D4E4BD76B8D235665 /* HPLiveControlsRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLiveControlsRenderTests.swift; sourceTree = "<group>"; };
+		C384B01EE4D0EB018C80C27C /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
+		C4E477D03DE7E56CA505083B /* HPWorkspaceScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceScreenTemplate.swift; sourceTree = "<group>"; };
+		C60B9ECC279EC7AB4784DE2A /* SDModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDModels.swift; sourceTree = "<group>"; };
+		C628870E40A6337050C51E4C /* ChatChannelListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatChannelListView.swift; sourceTree = "<group>"; };
+		CA2B013C487418B0DBF50F7B /* ExpenseManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseManagementTests.swift; sourceTree = "<group>"; };
+		CA47E1CA06AA6D5ACA8B960A /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		CB6AB3EF6288F2569101A571 /* HPTemplateGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateGallery.swift; sourceTree = "<group>"; };
+		CE349C7541ACE6F0C8D42149 /* PlayerDevelopmentCopilotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotModels.swift; sourceTree = "<group>"; };
+		CF782E1BE25CD8B8DD4F4069 /* HPStatTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatTile.swift; sourceTree = "<group>"; };
+		D01EEB619C03ACA50DB00A0D /* PlayerSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSubscriptionStore.swift; sourceTree = "<group>"; };
+		D269C02D29859379DA45D316 /* FinanceDashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardModels.swift; sourceTree = "<group>"; };
+		D520EC4D3CD5EB22DE0B20AB /* PlayerDevelopmentCopilotResponseContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotResponseContractTests.swift; sourceTree = "<group>"; };
+		D835C65F14F453BC279D44CD /* ParentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentModels.swift; sourceTree = "<group>"; };
+		D92F448734DDAA65C9F57A78 /* ApplePlayerSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerSubscriptionTests.swift; sourceTree = "<group>"; };
+		D94BF58F0CEE4F0589A5AE0F /* OrganizationAdminSimplificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAdminSimplificationTests.swift; sourceTree = "<group>"; };
+		D993725B52552E7E4FDC4417 /* HPAnalyticsScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAnalyticsScreenTemplate.swift; sourceTree = "<group>"; };
+		D9C0490BB4F5F59EBF3653EA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DC9406C87C3D87B18D75B2DE /* CoachPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerAnalysisView.swift; sourceTree = "<group>"; };
+		DD9338CF97E2539E2E1ADC15 /* OrgTeamOperationsAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgTeamOperationsAdminView.swift; sourceTree = "<group>"; };
+		DE375D507C7FE639DCE4D7D1 /* MultiOrgMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MultiOrgMac.entitlements; sourceTree = "<group>"; };
+		DE8C8284913FE9E36BBC7FCF /* SDPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerAnalysisView.swift; sourceTree = "<group>"; };
+		DF2BDDC86BA18F96C2C58BCB /* OrganizationSetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupWizardView.swift; sourceTree = "<group>"; };
+		DF4031AF2AD21705AAD31759 /* HPToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPToast.swift; sourceTree = "<group>"; };
+		E19E24CCF24D01D15A36C753 /* PlayerDevelopmentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportView.swift; sourceTree = "<group>"; };
+		E1E18A8BD8F4C84E81A75118 /* OrganizationAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAuthorizationTests.swift; sourceTree = "<group>"; };
+		E3F11DB6DF024F0E6BD7E8CE /* Phase13BProjectRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase13BProjectRuntimeTests.swift; sourceTree = "<group>"; };
+		E6FBB99F14EB4D0A179A1C62 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		E8834729BF6084267A098CE2 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
+		EA4AE6BE51B8C7E306B75E43 /* SDPlayerBPDaySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerBPDaySection.swift; sourceTree = "<group>"; };
+		EAA8BAA9862D4651086B3277 /* OrgAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgAdminConsoleView.swift; sourceTree = "<group>"; };
+		EAB4F64B2F4EF6F3D2B2B980 /* HPWorkspaceDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceDirectory.swift; sourceTree = "<group>"; };
+		EEB1842724880FDB96DF9272 /* Home Plate.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Home Plate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F29D373389279EE57323678D /* HPAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAvatar.swift; sourceTree = "<group>"; };
+		F30BA5357733CE5E0176B6BD /* ChatCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCreateView.swift; sourceTree = "<group>"; };
+		F83B23D0F856B7D8B526034B /* CoachPlayerDailyLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerDailyLogsView.swift; sourceTree = "<group>"; };
+		F8F9ED7360E6825A64DCE290 /* FinanceRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceRenderTests.swift; sourceTree = "<group>"; };
+		F957A460D31EFB0345C9B91F /* HPAdminScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAdminScreenTemplate.swift; sourceTree = "<group>"; };
+		F9B4AA0277B2584CCA44EC34 /* CoachFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachFacilitiesView.swift; sourceTree = "<group>"; };
+		FBFED5E6B79FDFECC7A20276 /* PaymentCheckoutModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutModels.swift; sourceTree = "<group>"; };
+		FE25C55907EBD8F5FF2B67A4 /* HomePlatePlayerAccess.storekit */ = {isa = PBXFileReference; path = HomePlatePlayerAccess.storekit; sourceTree = "<group>"; };
+		FE4FC681B7C88886B22C60FA /* PlatformAdminDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAdminDashboardView.swift; sourceTree = "<group>"; };
+		FFAF2381A9AA9F448B668234 /* SDPlayerFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerFacilitiesView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		94E7099A6A9ED8E6C8847FAD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				160FB972715E3D7ECA4B3B10 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E4E4CB628C8FD9FF1192346C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F6ED4AF9BE61FB63843A5FC8 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		165B3F093E5EE6F6A222BE1D /* Templates */ = {
+			isa = PBXGroup;
+			children = (
+				F957A460D31EFB0345C9B91F /* HPAdminScreenTemplate.swift */,
+				D993725B52552E7E4FDC4417 /* HPAnalyticsScreenTemplate.swift */,
+				52401C36EFA3452D27B0D7CF /* HPCalendarScreenTemplate.swift */,
+				A143410F1B115048EEA91375 /* HPCommunicationScreenTemplate.swift */,
+				994BCDCA03CEE810684B3B01 /* HPDetailScreenTemplate.swift */,
+				354EE34FC258953C632B750B /* HPFormScreenTemplate.swift */,
+				A3C8132E1B547EC721B3F75F /* HPListScreenTemplate.swift */,
+				A48F11C19AACB51D5A36D82C /* HPProgramExecutionTemplate.swift */,
+				46FEBAD02CA0FBBEF46A7F42 /* HPScreenScaffold.swift */,
+				1752184C305B99FDDD35BE06 /* HPSettingsScreenTemplate.swift */,
+				550CCA67E66F3FEB88BD0D34 /* HPStateScreenTemplate.swift */,
+				C4E477D03DE7E56CA505083B /* HPWorkspaceScreenTemplate.swift */,
+			);
+			path = Templates;
+			sourceTree = "<group>";
+		};
+		19C37DBE726F9BA0BB5F7BDF /* Login */ = {
+			isa = PBXGroup;
+			children = (
+				BA846C96E0C72CB16E988DE1 /* AppleSignInButtonView.swift */,
+				CA47E1CA06AA6D5ACA8B960A /* LoginView.swift */,
+			);
+			path = Login;
+			sourceTree = "<group>";
+		};
+		2ED0E2D14DA4B818FE480E53 /* MultiOrg */ = {
+			isa = PBXGroup;
+			children = (
+				7094656EE88379999E74A1D3 /* App */,
+				986557E9C10A5930B84B5735 /* Core */,
+				3A677B12194A6ADFDDE1F46A /* DesignSystem */,
+				866CACC118955BA27BFB1291 /* Features */,
+				81F746AEF6D5A33546D347D0 /* Supporting */,
+			);
+			path = MultiOrg;
+			sourceTree = "<group>";
+		};
+		31BFCF3D78A9DF8626C0DCE6 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				BED09488FBCCEB72623398D6 /* BPAnalysisComponents.swift */,
+				940EFFE12D0C39A61CFF4F34 /* CalendarComponents.swift */,
+				471C00D5AF7B067FD0F69837 /* DHDMonthGridView.swift */,
+				9DFBD08C746BEF3E03044CB1 /* SDProgramSchedule.swift */,
+				368855E71FACEDDBC36AFA93 /* TwoAxisScrollView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		355D649BD6A29748A00C65C4 = {
+			isa = PBXGroup;
+			children = (
+				E4856109A2A24E84CB7DEBD4 /* Configs */,
+				2ED0E2D14DA4B818FE480E53 /* MultiOrg */,
+				402600CE2D645E2C33BFD0B1 /* MultiOrgTests */,
+				F6D5AC9DC7BE54BC757E08A5 /* SharedFixtures */,
+				850129C9876F193599F77DE6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3A677B12194A6ADFDDE1F46A /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				E4192B19BB51F3D6D2490BC7 /* Components */,
+				8B1CA8E998FCEC875CB25D96 /* Preview */,
+				165B3F093E5EE6F6A222BE1D /* Templates */,
+				56FD5A71E140672A89A36BFD /* Tokens */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		402600CE2D645E2C33BFD0B1 /* MultiOrgTests */ = {
+			isa = PBXGroup;
+			children = (
+				D92F448734DDAA65C9F57A78 /* ApplePlayerSubscriptionTests.swift */,
+				78205A87119EADF6671CB106 /* EventOperationsTests.swift */,
+				CA2B013C487418B0DBF50F7B /* ExpenseManagementTests.swift */,
+				A545B236D5DEF7DBA3576786 /* FinanceDashboardTests.swift */,
+				F8F9ED7360E6825A64DCE290 /* FinanceRenderTests.swift */,
+				07468707876944C7FC047FFC /* HPGalleryRenderTests.swift */,
+				C328EA3D4E4BD76B8D235665 /* HPLiveControlsRenderTests.swift */,
+				35B120E92A13C9C14E3E795A /* HPStructuralTemplateTests.swift */,
+				33C722275329CD404EB6AE8E /* HPTemplateRenderTests.swift */,
+				AA739A07B67991DC90813B06 /* NotificationCenterTests.swift */,
+				D94BF58F0CEE4F0589A5AE0F /* OrganizationAdminSimplificationTests.swift */,
+				E1E18A8BD8F4C84E81A75118 /* OrganizationAuthorizationTests.swift */,
+				BF662579B769382AED790A8D /* OrganizationSetupTests.swift */,
+				0E36BAA3FDDCAD28AF16073E /* PaymentCheckoutTests.swift */,
+				01650BCE115A64AE3B72B573 /* Phase13ATeamContextTests.swift */,
+				E3F11DB6DF024F0E6BD7E8CE /* Phase13BProjectRuntimeTests.swift */,
+				1BD4F9BDFFC76DE2F908CD89 /* PlayerDevelopmentAITests.swift */,
+				D520EC4D3CD5EB22DE0B20AB /* PlayerDevelopmentCopilotResponseContractTests.swift */,
+				1B7A4A084482D5532B2914A1 /* PlayerDevelopmentCopilotTests.swift */,
+				9F966A48E544AAB88C8A2A14 /* PlayerDevelopmentImportTests.swift */,
+				2CEE2ADB9E88C0188294AAEE /* PlayerTodayRenderTests.swift */,
+				B6F93E8A166E08903E5AF2E9 /* PushNotificationTests.swift */,
+				87E89ED2BB00B3FC2F107B32 /* TeamOperationsFoundationTests.swift */,
+				2146B5F15928CBB175BC9778 /* TeamSchedulingTests.swift */,
+				9D2C646383F04C8892D426AD /* UniversalNavigationShellTests.swift */,
+				4E3369ED36E3847178BA30D5 /* UniversalUIFoundationTests.swift */,
+			);
+			path = MultiOrgTests;
+			sourceTree = "<group>";
+		};
+		41C021D6B6FF98FD1F80E03E /* Account */ = {
+			isa = PBXGroup;
+			children = (
+				25B0D92EEF64B700913B5781 /* AccountView.swift */,
+				9652D5B88C67181DFBFF81BA /* ParentRequestPanels.swift */,
+			);
+			path = Account;
+			sourceTree = "<group>";
+		};
+		5299CBEB0CCAA8A69772F5A5 /* Payments */ = {
+			isa = PBXGroup;
+			children = (
+				767EBFE9B3DBBD3CE946ADE6 /* PaymentRequestCard.swift */,
+			);
+			path = Payments;
+			sourceTree = "<group>";
+		};
+		56FD5A71E140672A89A36BFD /* Tokens */ = {
+			isa = PBXGroup;
+			children = (
+				4451BE62139CD2107DEB0598 /* HPColor.swift */,
+				3118F52EE83C6C0926012DD7 /* HPFont.swift */,
+				2A2B75B5D2CD31761968378F /* HPMetrics.swift */,
+				AC49524636B8951861304D0E /* HPTheme.swift */,
+			);
+			path = Tokens;
+			sourceTree = "<group>";
+		};
+		66C21672BF4EACFFFB46F6F5 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				9E6166289D39452F7547C248 /* AccessRequiredView.swift */,
+				2561D1D072A8E599F1ECBF35 /* CoachHomeView.swift */,
+				001E4055B29191F1981CDB87 /* CoachRootView.swift */,
+				3320E131C72E3DCD1E917814 /* ConfigErrorView.swift */,
+				38178D24563D35F6DFA7057A /* EventAvailabilityEditorSheet.swift */,
+				3C36858372432D40F7CC822A /* HomePlateNavigationShell.swift */,
+				E6FBB99F14EB4D0A179A1C62 /* HomeView.swift */,
+				C2E30A657DDFA6D021D8506D /* ParentHomeView.swift */,
+				96C99A6AD8467886FA193CF2 /* ParentRootView.swift */,
+				C384B01EE4D0EB018C80C27C /* PlayerDetailView.swift */,
+				518AE6BD67C023F04CA600B6 /* PlayerHomeView.swift */,
+				9600D54B23A037E053B0D457 /* PlayerSubscriptionPaywall.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		698052EB6095F54D0F334EFB /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				C628870E40A6337050C51E4C /* ChatChannelListView.swift */,
+				F30BA5357733CE5E0176B6BD /* ChatCreateView.swift */,
+				3526E60C36F4768126EFD1AD /* ChatThreadView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		7094656EE88379999E74A1D3 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				3FDCC64B838880074025E18F /* MultiOrgApp.swift */,
+				83B18AD0E98A74ECB51DA874 /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		81F746AEF6D5A33546D347D0 /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				0FA5B2626697F3BC79007714 /* Assets.xcassets */,
+				FE25C55907EBD8F5FF2B67A4 /* HomePlatePlayerAccess.storekit */,
+				D9C0490BB4F5F59EBF3653EA /* Info.plist */,
+				1F154040440086F4E9C38893 /* LaunchScreen.storyboard */,
+				89D6FDE98F2F86DF25389918 /* MultiOrg.entitlements */,
+				DE375D507C7FE639DCE4D7D1 /* MultiOrgMac.entitlements */,
+			);
+			path = Supporting;
+			sourceTree = "<group>";
+		};
+		850129C9876F193599F77DE6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EEB1842724880FDB96DF9272 /* Home Plate.app */,
+				6B7A36531F68D37ED43BA3A4 /* Home Plate.app */,
+				4339C13BE2DF59A4A45AC630 /* HomePlateTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		866CACC118955BA27BFB1291 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				41C021D6B6FF98FD1F80E03E /* Account */,
+				B6CBE9697E7E1D6ECEAA6DBD /* Admin */,
+				698052EB6095F54D0F334EFB /* Chat */,
+				8C04C146CFA914DA19009A72 /* Coach */,
+				66C21672BF4EACFFFB46F6F5 /* Home */,
+				19C37DBE726F9BA0BB5F7BDF /* Login */,
+				B34897417326BC893BAA36E8 /* Notifications */,
+				C14AF72E3953111039DFDB63 /* Parent */,
+				5299CBEB0CCAA8A69772F5A5 /* Payments */,
+				C805B17D2E6586B3BC4D3084 /* Player */,
+				31BFCF3D78A9DF8626C0DCE6 /* Shared */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		8B1CA8E998FCEC875CB25D96 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				1C3A935AE1BC916BEBCE59D0 /* HPComponentGallery.swift */,
+				0124F0895F4BD291821F6FBD /* HPSampleData.swift */,
+				CB6AB3EF6288F2569101A571 /* HPTemplateGallery.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
+		8C04C146CFA914DA19009A72 /* Coach */ = {
+			isa = PBXGroup;
+			children = (
+				011CDB4076719C5618F27C97 /* CoachEventOperationView.swift */,
+				F9B4AA0277B2584CCA44EC34 /* CoachFacilitiesView.swift */,
+				DC9406C87C3D87B18D75B2DE /* CoachPlayerAnalysisView.swift */,
+				8626B85411EE8F45226880D4 /* CoachPlayerBPSessionsView.swift */,
+				0E236BEE7031074F0314F7C5 /* CoachPlayerCalendarView.swift */,
+				F83B23D0F856B7D8B526034B /* CoachPlayerDailyLogsView.swift */,
+				53594BBFD584EBA8C3632747 /* CoachPlayerOverviewView.swift */,
+				500AE592E2C9171CDDB8B4A0 /* CoachPlayerProfileView.swift */,
+				B352B17384FF2A9BB0E85D96 /* CoachPlayerTestingCRUDView.swift */,
+				23C6BD984D89BE250735792A /* CoachPlayerTestingEntriesView.swift */,
+				4E21B2C84FB56E81E0367F27 /* CoachProgramsView.swift */,
+				5D5BAE6555E82C381958A723 /* CoachTeamCommandCenterView.swift */,
+				5356C67F357BC5072D77730D /* CoachTeamScheduleView.swift */,
+				416726E4A19D5221BD758277 /* CoachTeamsView.swift */,
+				97B9D3F7A25D4A5CCDB883FA /* EditFacilityBookingSheet.swift */,
+				753D7396890C98CE971C9023 /* FacilitiesDayTimelineView.swift */,
+				66DA7DF7764D372136ADA38E /* FacilityDaySheet.swift */,
+				97FBCD16F222C04D5BB2BFD7 /* NewFacilityBookingSheet.swift */,
+				2266E3750E2089F1B57487D7 /* PlayerDevelopmentAIView.swift */,
+				2A8699CF81E1A944024D238A /* PlayerDevelopmentCopilotView.swift */,
+				E19E24CCF24D01D15A36C753 /* PlayerDevelopmentImportView.swift */,
+				945C01DBC97046CCAAE21419 /* ProgramDayEditorSheet.swift */,
+				40B7C4B797B1F453E010E13F /* ProgramTemplateEditorView.swift */,
+			);
+			path = Coach;
+			sourceTree = "<group>";
+		};
+		986557E9C10A5930B84B5735 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				3A8E69D321CDDE9722A29282 /* ApplePlayerPurchaseContext.swift */,
+				AB0848DABC1909F5711B6441 /* AppleSignIn.swift */,
+				6F05DB99DAE63F3FFC83A3D0 /* AppState.swift */,
+				3BC111551E015CBE7C99E399 /* ChatModels.swift */,
+				89F480DADD126C8F20933A57 /* CSV.swift */,
+				4B691D4968DFD211478CCB49 /* DateUtils.swift */,
+				9A0A9DA8FBEE619E8AE5E7AE /* DHDAppConfig.swift */,
+				85D36CF0DCCF2BD93083CB9B /* DHDTheme.swift */,
+				180B27E35B9B7EB904E373A8 /* DHDUIComponents.swift */,
+				08C648519B44A0F326F6F5E5 /* EventOperationsModels.swift */,
+				D269C02D29859379DA45D316 /* FinanceDashboardModels.swift */,
+				BA189FBFEA24FA5315BC94DD /* HPBuildDiagnostics.swift */,
+				88D222980E79A26089CD038B /* NotificationCenterModels.swift */,
+				A4537CDBEC66FE0EDDC4193C /* OrganizationSetupModels.swift */,
+				851DC67BAAD25E57E607BB50 /* OrgModels.swift */,
+				D835C65F14F453BC279D44CD /* ParentModels.swift */,
+				FBFED5E6B79FDFECC7A20276 /* PaymentCheckoutModels.swift */,
+				8B5CC93370F3643D18E5C264 /* PlayerDevelopmentAIModels.swift */,
+				CE349C7541ACE6F0C8D42149 /* PlayerDevelopmentCopilotModels.swift */,
+				3E555C8A8BDA42606BA44798 /* PlayerDevelopmentImportModels.swift */,
+				D01EEB619C03ACA50DB00A0D /* PlayerSubscriptionStore.swift */,
+				1664C2E05AC7347D9E6B4478 /* PlotlyChartView.swift */,
+				8436280C57587A30260826D8 /* Profile.swift */,
+				898A9AAF109CE20DB6A73CD7 /* PushNotificationManager.swift */,
+				960F95A7EE6379AA406B5838 /* PushNotificationModels.swift */,
+				C60B9ECC279EC7AB4784DE2A /* SDModels.swift */,
+				856AC5C3F038D9907CEB8581 /* SupabaseConfig.swift */,
+				39F5950D433A6385D1E449BD /* SupabaseService.swift */,
+				ADB562878B0A782D8F14169D /* TeamOperationsModels.swift */,
+				89CD7AA7E4AB16BB245A3938 /* TeamSchedulingModels.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		B34897417326BC893BAA36E8 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				E8834729BF6084267A098CE2 /* NotificationCenterView.swift */,
+				5F49A4723666A2112FC590BD /* NotificationCenterViewModel.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		B6CBE9697E7E1D6ECEAA6DBD /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				A104FBB9BD46B745D93100B0 /* ExpenseManagementView.swift */,
+				B7AFA2399EC5F6661ACB96CD /* FinanceDashboardView.swift */,
+				AF8ABD50ADB8689DC2BB56C0 /* FinanceDashboardViewModel.swift */,
+				EAA8BAA9862D4651086B3277 /* OrgAdminConsoleView.swift */,
+				DF2BDDC86BA18F96C2C58BCB /* OrganizationSetupWizardView.swift */,
+				3B0C69D96C0E9201B99AE3A5 /* OrgEventOperationsAdminView.swift */,
+				DD9338CF97E2539E2E1ADC15 /* OrgTeamOperationsAdminView.swift */,
+				FE4FC681B7C88886B22C60FA /* PlatformAdminDashboardView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
+		C14AF72E3953111039DFDB63 /* Parent */ = {
+			isa = PBXGroup;
+			children = (
+				20C9677E6DB59824112BB763 /* ParentChildCalendarView.swift */,
+				07BBDECBBCBF91C6E1B6F447 /* ParentChildProfileView.swift */,
+				2BE2AC2AFE4130237C2BFB1F /* SDParentBillingView.swift */,
+				0D259BFEBE6447BB333691F7 /* SDParentFacilitiesView.swift */,
+			);
+			path = Parent;
+			sourceTree = "<group>";
+		};
+		C805B17D2E6586B3BC4D3084 /* Player */ = {
+			isa = PBXGroup;
+			children = (
+				7E000435C028BAB85968FEAD /* PlayerDevelopmentPlayerWorkspaceView.swift */,
+				DE8C8284913FE9E36BBC7FCF /* SDPlayerAnalysisView.swift */,
+				EA4AE6BE51B8C7E306B75E43 /* SDPlayerBPDaySection.swift */,
+				3F7F1E605E174EBCC8DB5019 /* SDPlayerBPView.swift */,
+				77A0CF762DA0FBA293B939B0 /* SDPlayerCalendarView.swift */,
+				FFAF2381A9AA9F448B668234 /* SDPlayerFacilitiesView.swift */,
+				86BCEEADF26C09B4E4484821 /* SDPlayerProgramView.swift */,
+				93E344B38115C2EF16356BA1 /* SDPlayerTestingView.swift */,
+				6C83E3F63A13F1084A4692B2 /* SDPlayerTodayView.swift */,
+				BA7B172644529E744A7F15F2 /* SDPlayerTrendsView.swift */,
+			);
+			path = Player;
+			sourceTree = "<group>";
+		};
+		E4192B19BB51F3D6D2490BC7 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				F29D373389279EE57323678D /* HPAvatar.swift */,
+				8110EB541F643A5CAF8FFBEC /* HPButton.swift */,
+				ADA32DCF92AFB811E82E82B6 /* HPCard.swift */,
+				1E4C1A1937DA253E31174C14 /* HPChart.swift */,
+				C048F26CB4E11C61FD2A4B1D /* HPEmptyState.swift */,
+				B97A39D75604AFAA123E3667 /* HPErrorState.swift */,
+				2CB90B455C526E4052512324 /* HPFilterBar.swift */,
+				5D41A0E453ED52AA13B7A541 /* HPFormField.swift */,
+				9B14663415D972C62CE3F871 /* HPLoadingState.swift */,
+				992D509DF401DFCF53893667 /* HPMetricCard.swift */,
+				B9EFBD6967032819B9F644CF /* HPModal.swift */,
+				B8EE44629A4835C4F12712C1 /* HPMoneyField.swift */,
+				8B918CAE43639DDB8A153FD8 /* HPProgressIndicator.swift */,
+				1E008D8E02940F0ABB5A34AF /* HPSearchBar.swift */,
+				774FA1BC3498B72E4C3043F4 /* HPSectionHeader.swift */,
+				7E619561726F05045DB5AC96 /* HPSegmentedControl.swift */,
+				B1C389F0DD498B9072905FDB /* HPSidebar.swift */,
+				CF782E1BE25CD8B8DD4F4069 /* HPStatTile.swift */,
+				40FD4C8A34224FA31C6FEBF3 /* HPStatusBadge.swift */,
+				1A5E84449C08AA4CBDDF207C /* HPTable.swift */,
+				DF4031AF2AD21705AAD31759 /* HPToast.swift */,
+				EAB4F64B2F4EF6F3D2B2B980 /* HPWorkspaceDirectory.swift */,
+				A96048D68ECF77ABE675CDB8 /* HPWorkspaceHeader.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		E4856109A2A24E84CB7DEBD4 /* Configs */ = {
+			isa = PBXGroup;
+			children = (
+				81FC70E77EA6EA3C15481F55 /* Secrets.xcconfig */,
+			);
+			path = Configs;
+			sourceTree = "<group>";
+		};
+		F6D5AC9DC7BE54BC757E08A5 /* SharedFixtures */ = {
+			isa = PBXGroup;
+			children = (
+				111FB63C6C2C7AB454946A3D /* apple_player_purchase_context_vectors.json */,
+			);
+			path = SharedFixtures;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		458BDD901415679C1D183FEE /* HomePlateTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 62E7BBD5CB9FE59801829F4B /* Build configuration list for PBXNativeTarget "HomePlateTests" */;
+			buildPhases = (
+				4D27C4A00647DD0C527EB4B6 /* Sources */,
+				B7F734AF44607392E10B13D2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0EAF38636FC4063A480F1F43 /* PBXTargetDependency */,
+			);
+			name = HomePlateTests;
+			packageProductDependencies = (
+			);
+			productName = HomePlateTests;
+			productReference = 4339C13BE2DF59A4A45AC630 /* HomePlateTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4C9F3CD90E5FB4A21C69E30C /* HomePlateMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 250DB2FD0CC765F66F28D5DC /* Build configuration list for PBXNativeTarget "HomePlateMac" */;
+			buildPhases = (
+				67A372B70863160644F9B754 /* Sources */,
+				8DEB2A91A66119345F6235EB /* Resources */,
+				E4E4CB628C8FD9FF1192346C /* Frameworks */,
+				EF0832B9C23B99CED23DA75A /* Embed Home Plate runtime identity */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HomePlateMac;
+			packageProductDependencies = (
+				F1A18580B5872B9EB69AA88D /* Supabase */,
+			);
+			productName = HomePlateMac;
+			productReference = 6B7A36531F68D37ED43BA3A4 /* Home Plate.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B1C174F287DD424BAEF97E06 /* HomePlate */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F8408C268EC3197552851E2 /* Build configuration list for PBXNativeTarget "HomePlate" */;
+			buildPhases = (
+				694653D640CA2579F737C08C /* Sources */,
+				C6DF84C33D985786B5C6DB56 /* Resources */,
+				94E7099A6A9ED8E6C8847FAD /* Frameworks */,
+				CE3D312061C84D1BCAFF5E93 /* Embed Home Plate runtime identity */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HomePlate;
+			packageProductDependencies = (
+				DDD9F2C356F1A66B7B749546 /* Supabase */,
+			);
+			productName = HomePlate;
+			productReference = EEB1842724880FDB96DF9272 /* Home Plate.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		366C8E52FB8BEB0A7ED70FEE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					458BDD901415679C1D183FEE = {
+						DevelopmentTeam = "";
+					};
+					4C9F3CD90E5FB4A21C69E30C = {
+						DevelopmentTeam = "";
+					};
+					B1C174F287DD424BAEF97E06 = {
+						DevelopmentTeam = L9HQB8S3M3;
+					};
+				};
+			};
+			buildConfigurationList = 8DC6FD8E2C24CD270C39242D /* Build configuration list for PBXProject "HomePlate" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 355D649BD6A29748A00C65C4;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				81A8DC5E01E3F5C8D67E0B35 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B1C174F287DD424BAEF97E06 /* HomePlate */,
+				4C9F3CD90E5FB4A21C69E30C /* HomePlateMac */,
+				458BDD901415679C1D183FEE /* HomePlateTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8DEB2A91A66119345F6235EB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				58E0A1B0698191FCD89A72FB /* Assets.xcassets in Resources */,
+				4AFD41D7E003ABE01C851E8E /* HomePlatePlayerAccess.storekit in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B7F734AF44607392E10B13D2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EAA054CB592E61867271FF6B /* apple_player_purchase_context_vectors.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6DF84C33D985786B5C6DB56 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E44C61051BC9477F15E1A3F /* Assets.xcassets in Resources */,
+				00E3945CBF332162B03519F3 /* HomePlatePlayerAccess.storekit in Resources */,
+				2C9C45F1BFEAF51EEB9833F4 /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CE3D312061C84D1BCAFF5E93 /* Embed Home Plate runtime identity */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Home Plate runtime identity";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "identity_path=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/HomePlateBuildIdentity.plist\"\ncommit_sha=\"$(/usr/bin/git -C \"$SRCROOT\" rev-parse HEAD 2>/dev/null || /bin/echo unknown)\"\nbuild_timestamp=\"$(/bin/date -u +%Y-%m-%dT%H:%M:%SZ)\"\n/bin/mkdir -p \"$(/usr/bin/dirname \"$identity_path\")\"\n/usr/bin/plutil -create xml1 \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :CommitSHA string $commit_sha\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BuildTimestamp string $build_timestamp\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :TargetName string $TARGET_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :SchemeName string $DHD_RUNTIME_SCHEME_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :Configuration string $CONFIGURATION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BundleIdentifier string $PRODUCT_BUNDLE_IDENTIFIER\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :ProductName string $PRODUCT_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :MarketingVersion string $MARKETING_VERSION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BuildNumber string $CURRENT_PROJECT_VERSION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :RootShellIdentifier string homeplate.phase13a.root\" \"$identity_path\"\n";
+		};
+		EF0832B9C23B99CED23DA75A /* Embed Home Plate runtime identity */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Home Plate runtime identity";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "identity_path=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/HomePlateBuildIdentity.plist\"\ncommit_sha=\"$(/usr/bin/git -C \"$SRCROOT\" rev-parse HEAD 2>/dev/null || /bin/echo unknown)\"\nbuild_timestamp=\"$(/bin/date -u +%Y-%m-%dT%H:%M:%SZ)\"\n/bin/mkdir -p \"$(/usr/bin/dirname \"$identity_path\")\"\n/usr/bin/plutil -create xml1 \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :CommitSHA string $commit_sha\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BuildTimestamp string $build_timestamp\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :TargetName string $TARGET_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :SchemeName string $DHD_RUNTIME_SCHEME_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :Configuration string $CONFIGURATION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BundleIdentifier string $PRODUCT_BUNDLE_IDENTIFIER\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :ProductName string $PRODUCT_NAME\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :MarketingVersion string $MARKETING_VERSION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :BuildNumber string $CURRENT_PROJECT_VERSION\" \"$identity_path\"\n/usr/libexec/PlistBuddy -c \"Add :RootShellIdentifier string homeplate.phase13a.root\" \"$identity_path\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4D27C4A00647DD0C527EB4B6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6094EB060600E970B841B5D7 /* ApplePlayerSubscriptionTests.swift in Sources */,
+				E4F59559B08EF697A4BAA6F3 /* EventOperationsTests.swift in Sources */,
+				84631F96626AE59AE0ECF71B /* ExpenseManagementTests.swift in Sources */,
+				DE57A23195580668EB845CE1 /* FinanceDashboardTests.swift in Sources */,
+				32B053087BAB53FA70B35549 /* FinanceRenderTests.swift in Sources */,
+				58C772852B84C0819756B226 /* HPGalleryRenderTests.swift in Sources */,
+				1913C0E3A3FFE9B3DA2FE630 /* HPLiveControlsRenderTests.swift in Sources */,
+				7F9D3FAD05FE6B750DA84B47 /* HPStructuralTemplateTests.swift in Sources */,
+				ACE24AE994D07B051B05AFC7 /* HPTemplateRenderTests.swift in Sources */,
+				278F52E1CCA7C22841870ACF /* NotificationCenterTests.swift in Sources */,
+				D2580AC8766E3B390D1590AE /* OrganizationAdminSimplificationTests.swift in Sources */,
+				37617CD9093A750F679835CA /* OrganizationAuthorizationTests.swift in Sources */,
+				83DEA737C7255C4698A264BD /* OrganizationSetupTests.swift in Sources */,
+				28F43AFFB21287DA5FD85E3E /* PaymentCheckoutTests.swift in Sources */,
+				B7C955CD6DAEC9B0A631C369 /* Phase13ATeamContextTests.swift in Sources */,
+				9C8A03F6F9C38B0EB824B5C7 /* Phase13BProjectRuntimeTests.swift in Sources */,
+				94204B827454A3AC84703279 /* PlayerDevelopmentAITests.swift in Sources */,
+				E415D552F3021807AF1D24E3 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */,
+				10AECC0A828F2282D7F2206D /* PlayerDevelopmentCopilotTests.swift in Sources */,
+				DE9983E4222C988BEB739CF6 /* PlayerDevelopmentImportTests.swift in Sources */,
+				C5F623EC7B3E4783BC9FC335 /* PlayerTodayRenderTests.swift in Sources */,
+				9004D56737D7E394A2AA545A /* PushNotificationTests.swift in Sources */,
+				8E1CC40DF2CE3ECC833D3DDE /* TeamOperationsFoundationTests.swift in Sources */,
+				8ADE2DE4F76AD3B6D9ED5673 /* TeamSchedulingTests.swift in Sources */,
+				2C7AE2EF9FDE97E2F19CE08A /* UniversalNavigationShellTests.swift in Sources */,
+				D5171C705199132913C49308 /* UniversalUIFoundationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		67A372B70863160644F9B754 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E235358B381E6D3EC8F49D6 /* AccessRequiredView.swift in Sources */,
+				23D2BFEFF1BDC614B0A2CCF9 /* AccountView.swift in Sources */,
+				51BE10B44E0280D9D6CCC318 /* AppState.swift in Sources */,
+				20AF45FECC2D6C66D2A1EA61 /* ApplePlayerPurchaseContext.swift in Sources */,
+				A89D95B03B9C0DA0087D843D /* AppleSignIn.swift in Sources */,
+				E8F7DE90CD2348E718FECFE7 /* AppleSignInButtonView.swift in Sources */,
+				86DB5ADC8724E6AF5F1A194B /* BPAnalysisComponents.swift in Sources */,
+				1971969F5BBEDD162705D9AB /* CSV.swift in Sources */,
+				938C41DADB72071E283FB0C1 /* CalendarComponents.swift in Sources */,
+				4F3D89BABF4F355F339DFA42 /* ChatChannelListView.swift in Sources */,
+				D962157C4197DFD187664605 /* ChatCreateView.swift in Sources */,
+				D521530C2E82B4485F57E09E /* ChatModels.swift in Sources */,
+				A93974F9503CDFA7E2B3CC98 /* ChatThreadView.swift in Sources */,
+				19183B43914F903722380654 /* CoachEventOperationView.swift in Sources */,
+				03E5CDAEAFE3182AB9EDEEEE /* CoachFacilitiesView.swift in Sources */,
+				F64BFDD0D315A0993B03DC1C /* CoachHomeView.swift in Sources */,
+				485CA1AD4820A9309F018F8D /* CoachPlayerAnalysisView.swift in Sources */,
+				3DE19C6AF4508CE3D2ABD197 /* CoachPlayerBPSessionsView.swift in Sources */,
+				E3C253EF68E0C6A34FAEAC11 /* CoachPlayerCalendarView.swift in Sources */,
+				36BF3D7D6F89A1AD756A8B7E /* CoachPlayerDailyLogsView.swift in Sources */,
+				37DB5B9AF09DB84970FC26A2 /* CoachPlayerOverviewView.swift in Sources */,
+				DC44F65AC90BE7A2419358B1 /* CoachPlayerProfileView.swift in Sources */,
+				43BAEC047DFE5BC1A46BC46D /* CoachPlayerTestingCRUDView.swift in Sources */,
+				BBD1C8C7A805E9CAE9E66E33 /* CoachPlayerTestingEntriesView.swift in Sources */,
+				1AEA5EA30622CD8B056EFB03 /* CoachProgramsView.swift in Sources */,
+				13C183421787198A675103A9 /* CoachRootView.swift in Sources */,
+				C2C612D085435376A8AB90E8 /* CoachTeamCommandCenterView.swift in Sources */,
+				8192DA4CCCA802F46F61487B /* CoachTeamScheduleView.swift in Sources */,
+				BD142F07DF0850F25904356F /* CoachTeamsView.swift in Sources */,
+				1E45EDA841845EFEF733AC9A /* ConfigErrorView.swift in Sources */,
+				6C7D1EE990495B69E81B380A /* DHDAppConfig.swift in Sources */,
+				7AE21ECB549B13A1B94274A0 /* DHDMonthGridView.swift in Sources */,
+				284D6300887943FC560C05D5 /* DHDTheme.swift in Sources */,
+				384BB49E7B9FBC2EE316A739 /* DHDUIComponents.swift in Sources */,
+				1C7323C68A0721CF872A0D33 /* DateUtils.swift in Sources */,
+				D6AFFA1A6DEB387A78F4B13B /* EditFacilityBookingSheet.swift in Sources */,
+				E1962E955E3BC9A52777DE6A /* EventAvailabilityEditorSheet.swift in Sources */,
+				6BB0C7D6877C15727312934D /* EventOperationsModels.swift in Sources */,
+				A6B6360F1AEE7AE2A9F9F127 /* ExpenseManagementView.swift in Sources */,
+				98ABBA91D67FB143C2EEDA7B /* FacilitiesDayTimelineView.swift in Sources */,
+				35C2BA5FC885B23FD7A7C939 /* FacilityDaySheet.swift in Sources */,
+				9CBEFD51E159E29B1EDEE041 /* FinanceDashboardModels.swift in Sources */,
+				5FC6531BD77D260D8AD6DB90 /* FinanceDashboardView.swift in Sources */,
+				6055926E17147E8516E11810 /* FinanceDashboardViewModel.swift in Sources */,
+				E90DE6C349247174A3CEE42F /* HPAdminScreenTemplate.swift in Sources */,
+				3A6E71F69848006D305E2C7D /* HPAnalyticsScreenTemplate.swift in Sources */,
+				A7B4463425DABB981E8623FF /* HPAvatar.swift in Sources */,
+				EC40573886A399FAF9E1D79F /* HPBuildDiagnostics.swift in Sources */,
+				54E107368812179F6982FCE6 /* HPButton.swift in Sources */,
+				E897DBE671FE8C57DBC0C05F /* HPCalendarScreenTemplate.swift in Sources */,
+				4240A90F9212A87437B2685E /* HPCard.swift in Sources */,
+				0CA3680576D7400E27F33ADC /* HPChart.swift in Sources */,
+				AC55623DF53ADE6FC930BEEB /* HPColor.swift in Sources */,
+				25668F5C263510A9DFBC5DC7 /* HPCommunicationScreenTemplate.swift in Sources */,
+				8C9D4003C9BBE910D5FE2E21 /* HPComponentGallery.swift in Sources */,
+				ACA0D66936188361807AC95A /* HPDetailScreenTemplate.swift in Sources */,
+				833221A4CBBA3FE7D5F8CDA0 /* HPEmptyState.swift in Sources */,
+				EA3043A13AE033A541523858 /* HPErrorState.swift in Sources */,
+				DBE5B18A8D9A9DC131FC2C1D /* HPFilterBar.swift in Sources */,
+				1C434AB9324275BF33B0FAAD /* HPFont.swift in Sources */,
+				1443922B72F0DE439750DE21 /* HPFormField.swift in Sources */,
+				89EBD33CD2587AA099E7C9CC /* HPFormScreenTemplate.swift in Sources */,
+				91DBC321524272B8A756ED91 /* HPListScreenTemplate.swift in Sources */,
+				DB608D7E32C4F63EDEDC5830 /* HPLoadingState.swift in Sources */,
+				CD76BEFAD307B7D4B081BB76 /* HPMetricCard.swift in Sources */,
+				7EDD49340B560952B9530680 /* HPMetrics.swift in Sources */,
+				73BA91ECF07E417C2C526ECF /* HPModal.swift in Sources */,
+				EFCC604C6B02A276BC727823 /* HPMoneyField.swift in Sources */,
+				4FBFD08CA327DC7E979AEADD /* HPProgramExecutionTemplate.swift in Sources */,
+				79419648780C84286731814E /* HPProgressIndicator.swift in Sources */,
+				7660EFEE63DCC3BD230F3DD1 /* HPSampleData.swift in Sources */,
+				9C121758179F0C1DB81C71ED /* HPScreenScaffold.swift in Sources */,
+				DAD54280A1023F2CA5A7382F /* HPSearchBar.swift in Sources */,
+				865321C44F07E9B68177869F /* HPSectionHeader.swift in Sources */,
+				40E3AE64F25727260B5C1522 /* HPSegmentedControl.swift in Sources */,
+				4B660E3FA515965B22F3A1AF /* HPSettingsScreenTemplate.swift in Sources */,
+				3C624E53661473D124A791F8 /* HPSidebar.swift in Sources */,
+				82B0E2FDA33EA95712AB9F3F /* HPStatTile.swift in Sources */,
+				C627542AE9947C3D3B6F228B /* HPStateScreenTemplate.swift in Sources */,
+				3F838FA6B4DD70170975A554 /* HPStatusBadge.swift in Sources */,
+				8B32DF4FDB5223912D81414F /* HPTable.swift in Sources */,
+				3E62DDB897E739D561AE257B /* HPTemplateGallery.swift in Sources */,
+				0216FC0DCEBCDE7DDF6026A4 /* HPTheme.swift in Sources */,
+				C6D1BB59059D4084C2400016 /* HPToast.swift in Sources */,
+				B590703DA4FAD6E86AB276AA /* HPWorkspaceDirectory.swift in Sources */,
+				67175BB32E4DE4BA8EC1772B /* HPWorkspaceHeader.swift in Sources */,
+				C9EB6F3444CC7159130C8378 /* HPWorkspaceScreenTemplate.swift in Sources */,
+				54B7E91883266805D9D172BD /* HomePlateNavigationShell.swift in Sources */,
+				DDE3159743ECDD0D1B95C46A /* HomeView.swift in Sources */,
+				B887259024094FF9008E7E15 /* LoginView.swift in Sources */,
+				FFB5BA60310FB480101339C9 /* MultiOrgApp.swift in Sources */,
+				A74E2937ACF430B752D6D0A0 /* NewFacilityBookingSheet.swift in Sources */,
+				F379BD2E63266944AB868390 /* NotificationCenterModels.swift in Sources */,
+				33CCF59C39DDC3DB854AF140 /* NotificationCenterView.swift in Sources */,
+				4D53DE8C44A529B7DE1066E3 /* NotificationCenterViewModel.swift in Sources */,
+				73EDB627F165B6B23BD7784B /* OrgAdminConsoleView.swift in Sources */,
+				41BC5DF50F7A3C042C8B30E4 /* OrgEventOperationsAdminView.swift in Sources */,
+				3E5B37D700CD1790A23FE352 /* OrgModels.swift in Sources */,
+				D4772EE3C56B601C2E64DEA6 /* OrgTeamOperationsAdminView.swift in Sources */,
+				9888C291C776DBB9FF7F6EED /* OrganizationSetupModels.swift in Sources */,
+				A6194EDDE5E5F9544E6081DE /* OrganizationSetupWizardView.swift in Sources */,
+				03872DC622F1CAF56708B1C3 /* ParentChildCalendarView.swift in Sources */,
+				3A1D280F2196BCBF6B169E45 /* ParentChildProfileView.swift in Sources */,
+				02EB499B8C5C62233A5C95F5 /* ParentHomeView.swift in Sources */,
+				C237F1247F1BA3959A9886E7 /* ParentModels.swift in Sources */,
+				1DCDCB3D5C85A2DF35F7E082 /* ParentRequestPanels.swift in Sources */,
+				7AD7301537FF71897FC38122 /* ParentRootView.swift in Sources */,
+				CBA45EE5B176836E77D316EA /* PaymentCheckoutModels.swift in Sources */,
+				87C95F3EF23F0AA9D63F23B6 /* PaymentRequestCard.swift in Sources */,
+				AF99A5F5ADC20EA2574CFDFE /* PlatformAdminDashboardView.swift in Sources */,
+				7AA7E3DD3A0456DD1C0E41C2 /* PlayerDetailView.swift in Sources */,
+				7DC8D5870E7A0BA0889A6BFF /* PlayerDevelopmentAIModels.swift in Sources */,
+				0DC9B3516547B04373885C38 /* PlayerDevelopmentAIView.swift in Sources */,
+				609EE423B55201CC6BC065DE /* PlayerDevelopmentCopilotModels.swift in Sources */,
+				9AF1F984EE9A79E07DD25FB3 /* PlayerDevelopmentCopilotView.swift in Sources */,
+				770C0DE0CD18EC0B9419BC93 /* PlayerDevelopmentImportModels.swift in Sources */,
+				2D44B45ABB3F02840FF62996 /* PlayerDevelopmentImportView.swift in Sources */,
+				DBB3134DE45FEE4F1876D0FA /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */,
+				E981382405FF659ACB38F3D9 /* PlayerHomeView.swift in Sources */,
+				9621F7BDDEA9AACC3BEBBD75 /* PlayerSubscriptionPaywall.swift in Sources */,
+				16B3EB94D2A9278B3A1B0547 /* PlayerSubscriptionStore.swift in Sources */,
+				5D9983D0A1D4E8B667D188AF /* PlotlyChartView.swift in Sources */,
+				266D4194FA3C8EF39D5B95D1 /* Profile.swift in Sources */,
+				E2BBE38F8A0614B0FD4D77C3 /* ProgramDayEditorSheet.swift in Sources */,
+				E4755A86BC4DA866D3F36368 /* ProgramTemplateEditorView.swift in Sources */,
+				38D305463D78A902F11C00A6 /* PushNotificationManager.swift in Sources */,
+				C8857BDC6BD62755BCD4FA84 /* PushNotificationModels.swift in Sources */,
+				1B4D89EAAA93EAE6FCD16D96 /* RootView.swift in Sources */,
+				A0E5C612395FEC67D4CB517D /* SDModels.swift in Sources */,
+				3A0DECDC4B7D924C7E29EFCA /* SDParentBillingView.swift in Sources */,
+				3737AE373C591826A1F048A6 /* SDParentFacilitiesView.swift in Sources */,
+				EA906F6BBB5FE1915F643C23 /* SDProgramSchedule.swift in Sources */,
+				F3BCE1A531C78C5C8A604D2F /* SupabaseConfig.swift in Sources */,
+				EC65BBD1BD10092E14EB3419 /* SupabaseService.swift in Sources */,
+				FD3A6FFDB5F72D3A0AD0E005 /* TeamOperationsModels.swift in Sources */,
+				9313E9DA7C34858D9898C065 /* TeamSchedulingModels.swift in Sources */,
+				706A4A19ABFBB91787342621 /* TwoAxisScrollView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		694653D640CA2579F737C08C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1554CC028A523AB81C400655 /* AccessRequiredView.swift in Sources */,
+				CAD32AB6B879F1E2AD99BA0D /* AccountView.swift in Sources */,
+				1531FD0971B92698B5969BC4 /* AppState.swift in Sources */,
+				F7573D7995B69C295EC9D04D /* ApplePlayerPurchaseContext.swift in Sources */,
+				9ABF2B4CEBA2E70CC7F5F4D2 /* AppleSignIn.swift in Sources */,
+				381C942A1642E7642B7E3862 /* AppleSignInButtonView.swift in Sources */,
+				38518C39D73983CF29F546D0 /* BPAnalysisComponents.swift in Sources */,
+				B3ADF03456BC7904D0157DE1 /* CSV.swift in Sources */,
+				0845B0BFCD156B73BF844DD3 /* CalendarComponents.swift in Sources */,
+				9292B9AC8CE49A2DECBB92CF /* ChatChannelListView.swift in Sources */,
+				C9D266279B138E6AE6C5EF55 /* ChatCreateView.swift in Sources */,
+				CDB74608B7B946DC3A7FB217 /* ChatModels.swift in Sources */,
+				493173B0E861E21A4D858415 /* ChatThreadView.swift in Sources */,
+				695957B1E5F9D25772B61662 /* CoachEventOperationView.swift in Sources */,
+				508317C93BA90EF67DF63D37 /* CoachFacilitiesView.swift in Sources */,
+				D89290D9ACCB104BB8DD2A92 /* CoachHomeView.swift in Sources */,
+				AB3E6F301A7734D4FB71E030 /* CoachPlayerAnalysisView.swift in Sources */,
+				D9DD419BFD67630F35714782 /* CoachPlayerBPSessionsView.swift in Sources */,
+				C07F0DAF45AB2B7733CC32C5 /* CoachPlayerCalendarView.swift in Sources */,
+				E2345FF577AFD8BC0D3442D2 /* CoachPlayerDailyLogsView.swift in Sources */,
+				5B6FC491C2252752B5344703 /* CoachPlayerOverviewView.swift in Sources */,
+				6D2E750E0AD7C50D5967291E /* CoachPlayerProfileView.swift in Sources */,
+				C61EFE647E9D8539579E3C55 /* CoachPlayerTestingCRUDView.swift in Sources */,
+				EAFA0D5774F047FA9359ED55 /* CoachPlayerTestingEntriesView.swift in Sources */,
+				C07E84A168CFC2EBDD0E3E0E /* CoachProgramsView.swift in Sources */,
+				BA8218CE545AF54FC2669A9A /* CoachRootView.swift in Sources */,
+				C41800EED1D2AB0FDF169846 /* CoachTeamCommandCenterView.swift in Sources */,
+				D7A9A405DC8706FF486B29F0 /* CoachTeamScheduleView.swift in Sources */,
+				D30C5672F90AC6B5C624D4C3 /* CoachTeamsView.swift in Sources */,
+				67F97AE463E017F506ABE76B /* ConfigErrorView.swift in Sources */,
+				7436735379003E40D598362D /* DHDAppConfig.swift in Sources */,
+				0396EF0D529AB7A6EB06F9E2 /* DHDMonthGridView.swift in Sources */,
+				2762127DD346A44841423BF7 /* DHDTheme.swift in Sources */,
+				2A7F51DE876128DDFA32BD3C /* DHDUIComponents.swift in Sources */,
+				82CCD1020618514C67EFDC06 /* DateUtils.swift in Sources */,
+				3B6E5F9E2D432E960361DA7D /* EditFacilityBookingSheet.swift in Sources */,
+				5D6F54814F7C2726C4A75662 /* EventAvailabilityEditorSheet.swift in Sources */,
+				ED94D9576E8C38E24F712A4D /* EventOperationsModels.swift in Sources */,
+				F88BED3E0FB920BF52A05B6F /* ExpenseManagementView.swift in Sources */,
+				1E8ECEF7D982D93693E47364 /* FacilitiesDayTimelineView.swift in Sources */,
+				9C6BE26FAD100FE044DF0300 /* FacilityDaySheet.swift in Sources */,
+				0A7CA163C9D281202BD6113A /* FinanceDashboardModels.swift in Sources */,
+				788E978BD7AE55D29C1E1C5C /* FinanceDashboardView.swift in Sources */,
+				DEA83410529874F8F8C68195 /* FinanceDashboardViewModel.swift in Sources */,
+				9BE3400C8858437D1F86888A /* HPAdminScreenTemplate.swift in Sources */,
+				11E5538DAC3A1ABBBCF27280 /* HPAnalyticsScreenTemplate.swift in Sources */,
+				5A760E26CC11E3D0A44121ED /* HPAvatar.swift in Sources */,
+				C63F5C6D83F89D8F2127F791 /* HPBuildDiagnostics.swift in Sources */,
+				336E767E4E7C92E48A4B9358 /* HPButton.swift in Sources */,
+				0313B8C0C078C01F6ADAA6A0 /* HPCalendarScreenTemplate.swift in Sources */,
+				0A4C104F3D210759C1CC4562 /* HPCard.swift in Sources */,
+				9740F69B6FCDF0C66CB556E3 /* HPChart.swift in Sources */,
+				52F122981A871420B2E6DA71 /* HPColor.swift in Sources */,
+				3B5A0295D064E22E1053AFC4 /* HPCommunicationScreenTemplate.swift in Sources */,
+				AA9A09814E4A5E5D6E8CBB19 /* HPComponentGallery.swift in Sources */,
+				C1D6454E3382649FB17876CA /* HPDetailScreenTemplate.swift in Sources */,
+				AFF778051733FC085D5E655D /* HPEmptyState.swift in Sources */,
+				BC2C9FE1DF246A9F7FBD86D7 /* HPErrorState.swift in Sources */,
+				46D2958D508D9D196AEBD6FF /* HPFilterBar.swift in Sources */,
+				DF102AFC2F79A2F59996E3D4 /* HPFont.swift in Sources */,
+				2C78119EA62807CDB74E919A /* HPFormField.swift in Sources */,
+				3DB200737F16DE3074F0E602 /* HPFormScreenTemplate.swift in Sources */,
+				CB1CA99C81B53864F6DF9731 /* HPListScreenTemplate.swift in Sources */,
+				D9735467FFDDB1D9B1EEE4F5 /* HPLoadingState.swift in Sources */,
+				048D3684F839287D9C4BE98E /* HPMetricCard.swift in Sources */,
+				424B2D7ECB16446B8407338F /* HPMetrics.swift in Sources */,
+				FFD4266BF0D25152D740F075 /* HPModal.swift in Sources */,
+				2E6606B0DAD280243AFF20A5 /* HPMoneyField.swift in Sources */,
+				11733DAB11F95307336B857F /* HPProgramExecutionTemplate.swift in Sources */,
+				ED3BB6CEFE624C95714C1464 /* HPProgressIndicator.swift in Sources */,
+				33AC83BD46E09DF050AC12C4 /* HPSampleData.swift in Sources */,
+				47A77D6D32F3261426792F8E /* HPScreenScaffold.swift in Sources */,
+				7E48E0F6BD73D3E4A441FA2B /* HPSearchBar.swift in Sources */,
+				E751B2F4EAF56EE9DD49983D /* HPSectionHeader.swift in Sources */,
+				FF16602C892C48131594E242 /* HPSegmentedControl.swift in Sources */,
+				4C51D8372895344A91D14C29 /* HPSettingsScreenTemplate.swift in Sources */,
+				6DC403D2478689DFACDDDE59 /* HPSidebar.swift in Sources */,
+				07770B63FE072802B8AFC4EA /* HPStatTile.swift in Sources */,
+				CAA85EFA0BF8186D683E4656 /* HPStateScreenTemplate.swift in Sources */,
+				3D639A8786DD0AC5F0884E4A /* HPStatusBadge.swift in Sources */,
+				05EAB8B8EB87FB26FE227F8D /* HPTable.swift in Sources */,
+				BE03C6C00F3A655E684995FD /* HPTemplateGallery.swift in Sources */,
+				0A87A84210C11B7D4A894DF3 /* HPTheme.swift in Sources */,
+				28C1EA08D9F2057B609EFC09 /* HPToast.swift in Sources */,
+				A2705A7D7B07236DE3E43E96 /* HPWorkspaceDirectory.swift in Sources */,
+				9EF5B6ECEA604751159E03F6 /* HPWorkspaceHeader.swift in Sources */,
+				0FB62A27121ED31178D0A56B /* HPWorkspaceScreenTemplate.swift in Sources */,
+				A5446D2D9DB87C80431BFE05 /* HomePlateNavigationShell.swift in Sources */,
+				429F66975158D03B8B769538 /* HomeView.swift in Sources */,
+				BC6806261BF7D18BB3042929 /* LoginView.swift in Sources */,
+				7D9CE59E53AB84EE0D806073 /* MultiOrgApp.swift in Sources */,
+				B06ED3C9F9CCDAA8909768D0 /* NewFacilityBookingSheet.swift in Sources */,
+				E403B44F626DFEF43E2FEF38 /* NotificationCenterModels.swift in Sources */,
+				B0CD9343815115FFA1A0A8FA /* NotificationCenterView.swift in Sources */,
+				73290E3958603273B820BF60 /* NotificationCenterViewModel.swift in Sources */,
+				D20D2D04BF30D42FCA7411E4 /* OrgAdminConsoleView.swift in Sources */,
+				C21DB3B8F16FD2B617A5BAF0 /* OrgEventOperationsAdminView.swift in Sources */,
+				5295E0512ACC5AA5218E4F00 /* OrgModels.swift in Sources */,
+				1CB85B02D090EA3A8BD0961B /* OrgTeamOperationsAdminView.swift in Sources */,
+				A6EC05DAA66D76C49C9185A8 /* OrganizationSetupModels.swift in Sources */,
+				F436054CB76D4D9F3AC8B04C /* OrganizationSetupWizardView.swift in Sources */,
+				A985B2A4F0FFF5176C98F07A /* ParentChildCalendarView.swift in Sources */,
+				0A0F963949FEB4A29413FC92 /* ParentChildProfileView.swift in Sources */,
+				B8FB44D579F4B5A7C34DDA9E /* ParentHomeView.swift in Sources */,
+				094AC32E1649B8964A25231C /* ParentModels.swift in Sources */,
+				3D39BB79CD6C2B7180EB8F2B /* ParentRequestPanels.swift in Sources */,
+				E5022EFFC511D1F10DD407E6 /* ParentRootView.swift in Sources */,
+				6F4A78A0EA2BB8358245518A /* PaymentCheckoutModels.swift in Sources */,
+				CA47C37503B05EE99329987D /* PaymentRequestCard.swift in Sources */,
+				808ED3CD3D27194C0B363A31 /* PlatformAdminDashboardView.swift in Sources */,
+				5EE0EF02FDB959979B1ABD18 /* PlayerDetailView.swift in Sources */,
+				7BDFAA0F46D19030684E1EBB /* PlayerDevelopmentAIModels.swift in Sources */,
+				811CF320A9DC84AECDAA5F4A /* PlayerDevelopmentAIView.swift in Sources */,
+				6C81E26AC07054628FB6CEAF /* PlayerDevelopmentCopilotModels.swift in Sources */,
+				FFBBF7419F42773A95CC94B9 /* PlayerDevelopmentCopilotView.swift in Sources */,
+				868EAC0AA9901E8F27BD1D08 /* PlayerDevelopmentImportModels.swift in Sources */,
+				F1F45619E8F13E886E824D29 /* PlayerDevelopmentImportView.swift in Sources */,
+				21F6D6E02B4321725832C907 /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */,
+				8C6060ABCFB93E5B10C7CF96 /* PlayerHomeView.swift in Sources */,
+				74BE43EE75AE8070B0C0F579 /* PlayerSubscriptionPaywall.swift in Sources */,
+				9E79927C5C214742E9F9EB7E /* PlayerSubscriptionStore.swift in Sources */,
+				AF4E897F79B195067C35A6DF /* PlotlyChartView.swift in Sources */,
+				002CB77CF1831D8914CAC3E6 /* Profile.swift in Sources */,
+				C38B8FFA9BDBEF30E5178EFE /* ProgramDayEditorSheet.swift in Sources */,
+				94F15D366A880C08FB960D3A /* ProgramTemplateEditorView.swift in Sources */,
+				303BB9CA2B7B911AD8A253A8 /* PushNotificationManager.swift in Sources */,
+				514AC1DC2DFB1CB37EB220FB /* PushNotificationModels.swift in Sources */,
+				25733133C0CF46956E8285EC /* RootView.swift in Sources */,
+				BFB358F6F8D9C991E134E3EB /* SDModels.swift in Sources */,
+				549C51EC26871FEADA99F2B1 /* SDParentBillingView.swift in Sources */,
+				F905A009C831358BCE72A51D /* SDParentFacilitiesView.swift in Sources */,
+				BB5870442806FD5F300635DA /* SDPlayerAnalysisView.swift in Sources */,
+				BC1BEBE2404D38001DF53715 /* SDPlayerBPDaySection.swift in Sources */,
+				DF5ED78D6D13A843CC98766B /* SDPlayerBPView.swift in Sources */,
+				407AA763E93E98E67D7F09E6 /* SDPlayerCalendarView.swift in Sources */,
+				CCA5CC3A729AA4D0A1F642B4 /* SDPlayerFacilitiesView.swift in Sources */,
+				8AB1B250A625B177C5ECABFD /* SDPlayerProgramView.swift in Sources */,
+				8317CDDE2751EA90402647F3 /* SDPlayerTestingView.swift in Sources */,
+				4E7A18A2CD6E9E438C6F5472 /* SDPlayerTodayView.swift in Sources */,
+				7649FBBC475D0380BD674104 /* SDPlayerTrendsView.swift in Sources */,
+				8AC954C5A199312A1D7704BC /* SDProgramSchedule.swift in Sources */,
+				11EB0E3CBC5F940874D1D542 /* SupabaseConfig.swift in Sources */,
+				72E13C554317A55C4D60B83F /* SupabaseService.swift in Sources */,
+				2E3F9B82971C5EAD10F719B6 /* TeamOperationsModels.swift in Sources */,
+				3D0C166E606F73E650D1B103 /* TeamSchedulingModels.swift in Sources */,
+				BF7CDECA9E9E417E98F462F1 /* TwoAxisScrollView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0EAF38636FC4063A480F1F43 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B1C174F287DD424BAEF97E06 /* HomePlate */;
+			targetProxy = 2BA4F45D39EC8668CA559918 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		744016CBCB7A06D8843FFA3D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Home Plate.app/Home Plate";
+			};
+			name = Release;
+		};
+		788A6E8CAA7BC97BC17FA817 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APS_ENVIRONMENT = development;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MultiOrg/Supporting/MultiOrg.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = L9HQB8S3M3;
+				DHD_APNS_ENVIRONMENT = development;
+				DHD_RUNTIME_SCHEME_NAME = HomePlate;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = "Configs/MultiOrg-iOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app;
+				PRODUCT_MODULE_NAME = HomePlate;
+				PRODUCT_NAME = "Home Plate";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		837809161F62671DD85A2648 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 81FC70E77EA6EA3C15481F55 /* Secrets.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		86753AD62B02B18D47C0FC9A /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 81FC70E77EA6EA3C15481F55 /* Secrets.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		87CCB3B54190B937E2913DD7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APS_ENVIRONMENT = development;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconMac;
+				CODE_SIGN_ENTITLEMENTS = MultiOrg/Supporting/MultiOrgMac.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DHD_APNS_ENVIRONMENT = development;
+				DHD_RUNTIME_SCHEME_NAME = HomePlateMac;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = MultiOrg/Supporting/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.mac;
+				PRODUCT_MODULE_NAME = HomePlate;
+				PRODUCT_NAME = "Home Plate";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		B68980146D92A2255F35B1BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APS_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MultiOrg/Supporting/MultiOrg.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = L9HQB8S3M3;
+				DHD_APNS_ENVIRONMENT = production;
+				DHD_RUNTIME_SCHEME_NAME = HomePlate;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = "Configs/MultiOrg-iOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app;
+				PRODUCT_MODULE_NAME = HomePlate;
+				PRODUCT_NAME = "Home Plate";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E25BD1667D85C0CB02E3DE98 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Home Plate.app/Home Plate";
+			};
+			name = Debug;
+		};
+		F0BC22A645B6E33E685DC59F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APS_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconMac;
+				CODE_SIGN_ENTITLEMENTS = MultiOrg/Supporting/MultiOrgMac.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DHD_APNS_ENVIRONMENT = production;
+				DHD_RUNTIME_SCHEME_NAME = HomePlateMac;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = MultiOrg/Supporting/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.multiorg.app.mac;
+				PRODUCT_MODULE_NAME = HomePlate;
+				PRODUCT_NAME = "Home Plate";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		250DB2FD0CC765F66F28D5DC /* Build configuration list for PBXNativeTarget "HomePlateMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				87CCB3B54190B937E2913DD7 /* Debug */,
+				F0BC22A645B6E33E685DC59F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4F8408C268EC3197552851E2 /* Build configuration list for PBXNativeTarget "HomePlate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				788A6E8CAA7BC97BC17FA817 /* Debug */,
+				B68980146D92A2255F35B1BA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		62E7BBD5CB9FE59801829F4B /* Build configuration list for PBXNativeTarget "HomePlateTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E25BD1667D85C0CB02E3DE98 /* Debug */,
+				744016CBCB7A06D8843FFA3D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8DC6FD8E2C24CD270C39242D /* Build configuration list for PBXProject "HomePlate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				837809161F62671DD85A2648 /* Debug */,
+				86753AD62B02B18D47C0FC9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		81A8DC5E01E3F5C8D67E0B35 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DDD9F2C356F1A66B7B749546 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 81A8DC5E01E3F5C8D67E0B35 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		F1A18580B5872B9EB69AA88D /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 81A8DC5E01E3F5C8D67E0B35 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 366C8E52FB8BEB0A7ED70FEE /* Project object */;
+}
