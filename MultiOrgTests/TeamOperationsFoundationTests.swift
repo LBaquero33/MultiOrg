@@ -406,6 +406,7 @@ struct TeamOperationsFoundationTests {
     )
     #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
     #expect(owner.compactTabCountIncludingDirectory == 5)
+    #expect(owner.item(for: .coachToday)?.workspaceScope == .organization)
     #expect(owner.regularItems.contains(where: { $0.title == "Team" }))
     #expect(owner.regularItems.contains(where: { $0.title == "Teams" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))

@@ -33,6 +33,19 @@ struct Phase13ATeamContextTests {
     #expect(HPAppNavigationDestination.parentChildren.workspaceScope == .selectedChild)
     #expect(HPAppNavigationDestination.platformAdmin.workspaceScope == .platform)
     #expect(HPAppNavigationDestination.account.workspaceScope == .account)
+
+    let owner = HPAppNavigationInventory.owner(
+      facilitiesTitle: "Facilities", programsTitle: "Programs",
+      facilitiesEnabled: true, chatEnabled: true, programsEnabled: true,
+      isPlatformAdmin: false
+    )
+    let coach = HPAppNavigationInventory.staff(
+      playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs",
+      facilitiesEnabled: true, chatEnabled: true, programsEnabled: true,
+      canAdministerOrganization: false, isPlatformAdmin: false
+    )
+    #expect(owner.item(for: .coachToday)?.workspaceScope == .organization)
+    #expect(coach.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
   }
 
   @Test("team selection rejects archived and cross-organization teams")

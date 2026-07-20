@@ -72,6 +72,19 @@ struct HPAppNavigationItem: Identifiable, Equatable {
   let destination: HPAppNavigationDestination
   let title: String
   let systemImage: String
+  let workspaceScope: HPWorkspaceScope
+
+  init(
+    destination: HPAppNavigationDestination,
+    title: String,
+    systemImage: String,
+    workspaceScope: HPWorkspaceScope? = nil
+  ) {
+    self.destination = destination
+    self.title = title
+    self.systemImage = systemImage
+    self.workspaceScope = workspaceScope ?? destination.workspaceScope
+  }
 
   var id: HPAppNavigationDestination { destination }
 
@@ -342,7 +355,7 @@ struct HPAppNavigationInventory: Equatable {
     programsEnabled: Bool,
     isPlatformAdmin: Bool
   ) -> Self {
-    let overview = item(.coachToday, "Overview", "rectangle.3.group")
+    let overview = item(.coachToday, "Overview", "rectangle.3.group", workspaceScope: .organization)
     let finance = item(.finance, "Finance", "dollarsign.circle")
     let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
     let communication = item(.chat, "Communication", "bubble.left.and.bubble.right")
@@ -402,9 +415,15 @@ struct HPAppNavigationInventory: Equatable {
   private static func item(
     _ destination: HPAppNavigationDestination,
     _ title: String,
-    _ systemImage: String
+    _ systemImage: String,
+    workspaceScope: HPWorkspaceScope? = nil
   ) -> HPAppNavigationItem {
-    HPAppNavigationItem(destination: destination, title: title, systemImage: systemImage)
+    HPAppNavigationItem(
+      destination: destination,
+      title: title,
+      systemImage: systemImage,
+      workspaceScope: workspaceScope
+    )
   }
 }
 
