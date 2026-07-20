@@ -18,8 +18,12 @@ struct OrgAdminConsoleView: View {
   @State private var upcomingBookings: [SDFacilityBooking] = []
   @State private var templateCount = 0
   @State private var channelCount = 0
+  @State private var invitationLinks: [SDOrganizationInvitationLink] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var peopleErrorText: String?
+  @State private var invitationErrorText: String?
+  @State private var facilitiesErrorText: String?
   @State private var toastText: String?
   @State private var isApplyingSettings = false
   @State private var isSavingSettings = false
@@ -46,7 +50,16 @@ struct OrgAdminConsoleView: View {
   @State private var authorizationValidatedOrgId: UUID?
   @State private var isCheckingAuthorization = true
 
-  @State private var selectedTab: Tab = .dashboard
+  @State private var selectedTab: Tab = .overview
+  @State private var teamOperationsLaunchAction: OrgTeamOperationsAdminView.LaunchAction?
+  @State private var peopleSearch = ""
+  @State private var peopleSegment: PeopleSegment = .all
+  @State private var peopleRoleFilter = "All roles"
+  @State private var peopleStatusFilter = "All statuses"
+  @State private var businessSection: BusinessSection = .registration
+  @State private var settingsSection: SettingsSection = .general
+  @State private var settingsSaveState: SettingsSaveState = .idle
+  @State private var settingsSaveErrorText: String?
   @State private var editingFacility: FacilityDraft?
   @State private var facilityPendingDeletion: SDFacility?
   @State private var isShowingCreateMember = false
@@ -87,38 +100,50 @@ struct OrgAdminConsoleView: View {
   @State private var coachesCanManageTeams = false
 
   enum Tab: String, CaseIterable, Identifiable {
-    case dashboard = "Dashboard"
-    case setup = "Setup"
+    case overview = "Overview"
+    case people = "People"
+    case teamsAndSeasons = "Teams & Seasons"
+    case business = "Business"
     case settings = "Settings"
-    case branding = "Branding"
-    case features = "Features"
-    case billing = "Billing"
-    case finance = "Finance"
-    case communication = "Communication"
-    case registration = "Registration"
-    case analytics = "Analytics"
-    case facilities = "Facilities"
-    case members = "Members"
-    case teamOperations = "Team Operations"
     var id: String { rawValue }
 
     var systemImage: String {
       switch self {
-      case .dashboard: "rectangle.3.group"
-      case .setup: "checklist"
+      case .overview: "rectangle.3.group"
+      case .people: "person.3"
+      case .teamsAndSeasons: "person.3.sequence.fill"
+      case .business: "chart.line.uptrend.xyaxis"
       case .settings: "gearshape"
-      case .branding: "paintbrush"
-      case .features: "switch.2"
-      case .billing: "creditcard"
-      case .finance: "chart.line.uptrend.xyaxis"
-      case .communication: "bubble.left.and.bubble.right"
-      case .registration: "person.crop.circle.badge.plus"
-      case .analytics: "chart.bar.xaxis"
-      case .facilities: "building.2"
-      case .members: "person.2.badge.gearshape"
-      case .teamOperations: "person.3.sequence.fill"
       }
     }
+  }
+
+  private enum PeopleSegment: String, CaseIterable, Identifiable {
+    case all = "All"
+    case staff = "Staff"
+    case players = "Players"
+    case families = "Families"
+    case invitations = "Invitations"
+    var id: String { rawValue }
+  }
+
+  private enum BusinessSection: String, CaseIterable, Identifiable {
+    case registration = "Registration"
+    case billing = "Billing"
+    case analytics = "Analytics"
+    var id: String { rawValue }
+  }
+
+  private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general = "General"
+    case branding = "Branding"
+    case operations = "Operations"
+    case advanced = "Advanced"
+    var id: String { rawValue }
+  }
+
+  private enum SettingsSaveState: Equatable {
+    case idle, saving, saved, failed
   }
 
   private enum BillingAction {
@@ -327,16 +352,12 @@ struct OrgAdminConsoleView: View {
   private func adminSectionNavigation(_ context: HPScreenLayoutContext) -> some View {
     ViewThatFits(in: .horizontal) {
       adminNavigationRow(
-        [.dashboard, .setup, .members, .registration, .teamOperations, .billing, .analytics, .settings],
-        overflow: [.branding, .features, .facilities, .communication, .finance]
+        Tab.allCases,
+        overflow: []
       )
       adminNavigationRow(
-        [.dashboard, .setup, .members, .teamOperations, .billing, .settings],
-        overflow: [.registration, .analytics, .branding, .features, .facilities, .communication, .finance]
-      )
-      adminNavigationRow(
-        [.dashboard, .setup, .members, .teamOperations],
-        overflow: [.registration, .billing, .analytics, .settings, .branding, .features, .facilities, .communication, .finance]
+        [.overview, .people, .teamsAndSeasons],
+        overflow: [.business, .settings]
       )
     }
     .accessibilityLabel("Organization admin sections")
@@ -354,15 +375,17 @@ struct OrgAdminConsoleView: View {
       ForEach(tabs.filter { visibleTabs.contains($0) }) { tab in
         adminNavigationButton(tab)
       }
-      Menu {
-        adminMenuButtons(overflow)
-      } label: {
-        Label("More", systemImage: "ellipsis.circle")
-          .lineLimit(1)
-          .fixedSize(horizontal: true, vertical: false)
-          .frame(minHeight: 36)
+      if !overflow.isEmpty {
+        Menu {
+          adminMenuButtons(overflow)
+        } label: {
+          Label("More", systemImage: "ellipsis.circle")
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minHeight: 36)
+        }
+        .menuStyle(.borderlessButton)
       }
-      .menuStyle(.borderlessButton)
     }
     .fixedSize(horizontal: true, vertical: false)
   }
@@ -420,69 +443,25 @@ struct OrgAdminConsoleView: View {
   @ViewBuilder
   private func memberSectionContent(_ context: HPScreenLayoutContext) -> some View {
     switch selectedTab {
-    case .dashboard:
-      dashboardCard(context)
-    case .setup:
-      setupAndLaunchCard
+    case .overview:
+      organizationOverview(context)
+    case .people:
+      peopleWorkspace(context)
+    case .teamsAndSeasons:
+      OrgTeamOperationsAdminView(
+        embedded: true,
+        launchAction: teamOperationsLaunchAction,
+        onLaunchActionHandled: { teamOperationsLaunchAction = nil }
+      )
+    case .business:
+      businessWorkspace(context)
     case .settings:
-      settingsAndTestingCard
-    case .branding:
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        brandingCard
-        bookingPolicyCard
-      }
-    case .features:
-      featureFlagsCard
-    case .billing:
-      if appState.canAdminActiveOrg {
-        billingSection(context)
-      } else {
-        HPCard {
-          HPEmptyState(
-            title: "Billing access required",
-            message: "Billing controls are available to active organization owners and administrators only.",
-            systemImage: "lock.shield"
-          )
-        }
-      }
-    case .finance:
-      if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
-        FinanceDashboardView(
-          organizationId: organizationId,
-          organizationName: financeOrganizationName,
-          platformSupportMode: false,
-          embedded: true
-        )
-        .environmentObject(appState)
-      } else {
-        HPCard {
-          HPEmptyState(
-            title: "Finance access required",
-            message: "Finance data is available to active organization owners and administrators only.",
-            systemImage: "lock.shield"
-          )
-        }
-      }
-    case .communication:
-      organizationOperationsSection(.communication)
-    case .registration:
-      organizationOperationsSection(.registration)
-    case .analytics:
-      organizationOperationsSection(.analytics)
-    case .facilities:
-      facilitiesCard(context)
-    case .members:
-      membersCard(context)
-    case .teamOperations:
-      OrgTeamOperationsAdminView(embedded: true)
+      settingsWorkspace(context)
     }
   }
 
   private var visibleTabs: [Tab] {
-    [.dashboard, .setup, .settings, .branding, .members, .registration,
-     .teamOperations, .billing, .finance, .communication, .analytics, .facilities, .features].filter {
-      $0 != .billing || appState.canAdminActiveOrg
-    }
+    Tab.allCases
   }
 
   @ViewBuilder
@@ -611,29 +590,43 @@ struct OrgAdminConsoleView: View {
   }
 
   private var header: some View {
-    HPWorkspaceHeader(
-      "Organization Admin Console",
-      orgLabel: settings?.display_name ?? settings?.short_name ?? "Organization",
-      context: activeOrgSubtitle,
-      identity: organizationIdentity
-    ) {
-      HStack(spacing: HP.Space.xs) {
-        if isLoading {
-          ProgressView()
-            .tint(HP.Color.accent)
-            .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel("Loading organization data")
+    HStack(alignment: .center, spacing: HP.Space.md) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Organization")
+          .font(HP.Font.eyebrow)
+          .tracking(HP.Font.eyebrowTracking)
+          .foregroundStyle(HP.Color.textMuted)
+        Text(settings?.display_name ?? settings?.short_name ?? "Organization")
+          .font(HP.Font.title)
+          .foregroundStyle(HP.Color.text)
+        Text("Manage people, teams, business settings, and organization details.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(2)
+      }
+      Spacer(minLength: HP.Space.sm)
+      if isLoading {
+        ProgressView()
+          .tint(HP.Color.accent)
+          .frame(minWidth: 44, minHeight: 44)
+          .accessibilityLabel("Loading organization data")
+      }
+      if organizationNeedsSetup, let organizationId = appState.activeOrgId {
+        NavigationLink {
+          OrganizationSetupWizardView(
+            organizationId: organizationId,
+            organizationName: settings?.display_name ?? settings?.short_name
+          )
+        } label: {
+          Label("Continue Setup", systemImage: "checklist")
+            .font(HP.Font.callout.weight(.semibold))
+            .frame(minHeight: 44)
         }
-        if isSavingSettings {
-          ProgressView()
-            .tint(HP.Color.accent)
-            .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel("Saving organization settings")
-        } else {
-          HPStatusBadge(text: "Autosave on", kind: .success)
-        }
+        .buttonStyle(.borderedProminent)
       }
     }
+    .padding(.vertical, HP.Space.xs)
+    .accessibilityElement(children: .contain)
   }
 
   private var organizationIdentity: HPIdentity {
@@ -652,6 +645,463 @@ struct OrgAdminConsoleView: View {
       primary: HP.Color.primary,
       secondary: HP.Color.bg
     )
+  }
+
+  private var organizationNeedsSetup: Bool {
+    appState.teamOperationsContext?.activeSeason == nil
+      || appState.teamOperationsContext?.teams.filter(\.is_active).isEmpty != false
+  }
+
+  private var activeOrganizationTeams: [SDTeamOperationsTeam] {
+    appState.teamOperationsContext?.teams.filter(\.is_active) ?? []
+  }
+
+  private var activeInvitationLinks: [SDOrganizationInvitationLink] {
+    invitationLinks.filter(\.isActive)
+  }
+
+  private func organizationOverview(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Organization status") {
+            HPStatusBadge(
+              text: organizationNeedsSetup ? "Setup needs attention" : "Ready",
+              kind: organizationNeedsSetup ? .warning : .success
+            )
+          }
+          LazyVGrid(
+            columns: context.gridColumns(compact: 2, regular: 3, wide: 4),
+            spacing: HP.Space.sm
+          ) {
+            adminMetric("Active teams", value: activeOrganizationTeams.count, symbol: "person.3.fill", color: HP.Color.accent)
+            adminMetric("Members", value: adminMembers.count, symbol: "person.2.fill", color: HP.Color.info)
+            adminMetric("Players", value: playerCount, symbol: "figure.baseball", color: HP.Color.success)
+            adminMetric("Coaches", value: coachCount, symbol: "person.crop.rectangle.stack", color: HP.Color.info)
+            adminMetric("Invitations", value: activeInvitationLinks.count, symbol: "link.badge.plus", color: HP.Color.warning)
+          }
+          HStack(spacing: HP.Space.xs) {
+            Text("Current season")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+            Spacer()
+            Text(appState.teamOperationsContext?.activeSeason?.name ?? "No active season")
+              .font(HP.Font.callout.weight(.semibold))
+              .foregroundStyle(HP.Color.text)
+          }
+        }
+      }
+
+      if !organizationAttentionItems.isEmpty {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Needs attention") {
+              HPStatusBadge(text: "\(organizationAttentionItems.count)", kind: .warning)
+            }
+            ForEach(organizationAttentionItems, id: \.self) { item in
+              Label(item, systemImage: "exclamationmark.circle")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.text)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            }
+          }
+        }
+      }
+
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("Quick actions")
+          let actions = context.isExpanded
+            ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
+          actions {
+            HPButton(title: "Add Member", systemImage: "person.badge.plus", variant: .primary, fullWidth: !context.isExpanded) {
+              isShowingCreateMember = true
+            }
+            HPButton(title: "Create Team", systemImage: "plus", variant: .secondary, fullWidth: !context.isExpanded) {
+              teamOperationsLaunchAction = .createTeam
+              selectAdminTab(.teamsAndSeasons)
+            }
+            HPButton(title: "Create Season", systemImage: "calendar.badge.plus", variant: .secondary, fullWidth: !context.isExpanded) {
+              teamOperationsLaunchAction = .createSeason
+              selectAdminTab(.teamsAndSeasons)
+            }
+            HPButton(title: "Open Registration", systemImage: "person.crop.circle.badge.plus", variant: .secondary, fullWidth: !context.isExpanded) {
+              businessSection = .registration
+              selectAdminTab(.business)
+            }
+            HPButton(title: "Edit Organization", systemImage: "pencil", variant: .secondary, fullWidth: !context.isExpanded) {
+              settingsSection = .general
+              selectAdminTab(.settings)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var organizationAttentionItems: [String] {
+    var items: [String] = []
+    if appState.teamOperationsContext?.activeSeason == nil { items.append("Create or activate a season") }
+    if activeOrganizationTeams.isEmpty { items.append("Create the first team") }
+    let assignedPlayers = Set(appState.teamOperationsContext?.player_memberships.filter {
+      $0.active && $0.ended_at == nil
+    }.map(\.player_id) ?? [])
+    let unassignedPlayers = adminMembers.filter {
+      ($0.role.lowercased() == "player" || $0.profile_role?.lowercased() == "player")
+        && !assignedPlayers.contains($0.user_id)
+    }.count
+    if unassignedPlayers > 0 { items.append("Assign \(unassignedPlayers) player\(unassignedPlayers == 1 ? "" : "s") to teams") }
+    if activeInvitationLinks.isEmpty { items.append("Review invitation links") }
+    if organizationSubscription == nil { items.append("Review organization billing") }
+    return items
+  }
+
+  private func peopleWorkspace(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPSectionHeader("People") {
+            HPButton(title: "Add Member", systemImage: "person.badge.plus", variant: .primary, size: .sm) {
+              isShowingCreateMember = true
+            }
+          }
+          HPSearchBar(text: $peopleSearch, placeholder: "Search people")
+          Picker("People group", selection: $peopleSegment) {
+            ForEach(PeopleSegment.allCases) { segment in Text(segment.rawValue).tag(segment) }
+          }
+          .pickerStyle(.segmented)
+          .accessibilityLabel("People group")
+          if peopleSegment != .invitations {
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: HP.Space.sm) { peopleFilterControls }
+              VStack(alignment: .leading, spacing: HP.Space.xs) { peopleFilterControls }
+            }
+          }
+        }
+      }
+
+      if peopleSegment == .invitations {
+        invitationWorkspace
+      } else if let peopleErrorText {
+        HPCard {
+          HPErrorState(title: "People unavailable", message: peopleErrorText, onRetry: { Task { await reload() } })
+        }
+      } else {
+        peopleResults(context)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var peopleFilterControls: some View {
+    Picker("Role", selection: $peopleRoleFilter) {
+      ForEach(["All roles", "Owner", "Admin", "Coach", "Player", "Parent"], id: \.self) { Text($0).tag($0) }
+    }
+    Picker("Status", selection: $peopleStatusFilter) {
+      ForEach(["All statuses", "Active", "Inactive", "Pending"], id: \.self) { Text($0).tag($0) }
+    }
+  }
+
+  private func peopleResults(_ context: HPScreenLayoutContext) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        HPSectionHeader("\(filteredAdminMembers.count) people")
+        if filteredAdminMembers.isEmpty {
+          HPEmptyState(
+            title: "No matching people",
+            message: "Change the search or filters, or add a member.",
+            systemImage: "person.2"
+          )
+        } else {
+          ForEach(filteredAdminMembers) { member in
+            HStack(spacing: HP.Space.sm) {
+              HPAvatar(name: member.displayName, size: .sm)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(member.displayName).font(HP.Font.callout.weight(.semibold))
+                Text(memberContactSummary(member))
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                  .lineLimit(1)
+              }
+              Spacer(minLength: HP.Space.sm)
+              if let team = memberTeamName(member.user_id) {
+                Text(team).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              HPStatusBadge(text: member.role.capitalized, kind: member.isAdmin ? .success : .info)
+              HPStatusBadge(text: member.status.capitalized, kind: member.status.lowercased() == "active" ? .success : .warning)
+              Menu {
+                Button("View") { editingMember = MemberDraft(member: member) }
+                Button("Edit role") { editingMember = MemberDraft(member: member) }
+                Button("Assign team") { selectAdminTab(.teamsAndSeasons) }
+              } label: {
+                Image(systemName: "ellipsis.circle").frame(width: 36, height: 36)
+              }
+              .menuStyle(.borderlessButton)
+              .accessibilityLabel("Actions for \(member.displayName)")
+            }
+            .frame(minHeight: 52)
+            Divider().overlay(HP.Color.border.opacity(0.5))
+          }
+        }
+      }
+    }
+  }
+
+  private var filteredAdminMembers: [SDOrgAdminMember] {
+    let query = peopleSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+    return adminMembers.filter { member in
+      let role = member.role.lowercased()
+      let segmentMatches = switch peopleSegment {
+      case .all: true
+      case .staff: ["owner", "admin", "coach"].contains(role)
+      case .players: role == "player" || member.profile_role?.lowercased() == "player"
+      case .families: ["parent", "guardian"].contains(role)
+      case .invitations: false
+      }
+      let queryMatches = query.isEmpty
+        || member.displayName.localizedCaseInsensitiveContains(query)
+        || member.email?.localizedCaseInsensitiveContains(query) == true
+        || member.username?.localizedCaseInsensitiveContains(query) == true
+      let roleMatches = peopleRoleFilter == "All roles" || role == peopleRoleFilter.lowercased()
+      let statusMatches = peopleStatusFilter == "All statuses"
+        || member.status.lowercased() == peopleStatusFilter.lowercased()
+      return segmentMatches && queryMatches && roleMatches && statusMatches
+    }
+  }
+
+  private func memberContactSummary(_ member: SDOrgAdminMember) -> String {
+    if let email = member.email, !email.isEmpty { return email }
+    if let username = member.username, !username.isEmpty { return "@\(username)" }
+    return "Contact information not provided"
+  }
+
+  private func memberTeamName(_ userId: UUID) -> String? {
+    let teamId = appState.teamOperationsContext?.player_memberships.first {
+      $0.player_id == userId && $0.active && $0.ended_at == nil
+    }?.team_id ?? appState.teamOperationsContext?.coach_assignments.first {
+      $0.coach_id == userId && $0.active && $0.ended_at == nil
+    }?.team_id
+    guard let teamId else { return nil }
+    return appState.teamOperationsContext?.teams.first(where: { $0.id == teamId })?.name
+  }
+
+  private var invitationWorkspace: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Invitation links") {
+          if let organizationId = appState.activeOrgId {
+            NavigationLink {
+              OrganizationSetupWizardView(
+                organizationId: organizationId,
+                organizationName: settings?.display_name ?? settings?.short_name
+              )
+            } label: {
+              Label("Create Invite Link", systemImage: "link.badge.plus")
+            }
+            .buttonStyle(.borderedProminent)
+          }
+        }
+        if let invitationErrorText {
+          HPErrorState(title: "Invitations unavailable", message: invitationErrorText, onRetry: { Task { await reload() } })
+        } else if invitationLinks.isEmpty {
+          HPEmptyState(title: "No invitation links", message: "Create a link when you are ready to invite staff or families.", systemImage: "link")
+        } else {
+          ForEach(invitationLinks) { link in
+            HStack {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(link.invitation_context.title).font(HP.Font.callout.weight(.semibold))
+                Text(link.intended_role.capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              HPStatusBadge(text: link.isActive ? "Active" : "Inactive", kind: link.isActive ? .success : .neutral)
+            }
+            .frame(minHeight: 44)
+          }
+        }
+      }
+    }
+  }
+
+  private func businessWorkspace(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        Picker("Business area", selection: $businessSection) {
+          ForEach(BusinessSection.allCases) { section in Text(section.rawValue).tag(section) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Business area")
+      }
+      switch businessSection {
+      case .registration:
+        businessSummaryCard(
+          title: "Registration",
+          message: "Review offerings, registration status, and pending applications.",
+          systemImage: "person.crop.circle.badge.plus"
+        ) {
+          organizationOperationsSection(.registration)
+        }
+      case .billing:
+        billingSection(context)
+      case .analytics:
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          businessSummaryCard(
+            title: "Analytics",
+            message: "Review high-level organization and registration trends.",
+            systemImage: "chart.bar.xaxis"
+          ) {
+            organizationOperationsSection(.analytics)
+          }
+          if let organizationId = appState.activeOrgId {
+            NavigationLink {
+              FinanceDashboardView(
+                organizationId: organizationId,
+                organizationName: financeOrganizationName,
+                platformSupportMode: false
+              )
+              .environmentObject(appState)
+            } label: {
+              Label("Open detailed Finance", systemImage: "arrow.up.right.square")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func businessSummaryCard<Destination: View>(
+    title: String,
+    message: String,
+    systemImage: String,
+    @ViewBuilder destination: () -> Destination
+  ) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Label(title, systemImage: systemImage).font(HP.Font.headline)
+        Text(message).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        NavigationLink {
+          destination()
+        } label: {
+          Label("Open \(title)", systemImage: "arrow.right.circle")
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+      }
+    }
+  }
+
+  private func settingsWorkspace(_ context: HPScreenLayoutContext) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        HStack(spacing: HP.Space.sm) {
+          Picker("Settings category", selection: $settingsSection) {
+            ForEach(SettingsSection.allCases) { section in Text(section.rawValue).tag(section) }
+          }
+          .pickerStyle(.segmented)
+          .accessibilityLabel("Settings category")
+          Spacer(minLength: 0)
+          settingsSaveStatus
+        }
+      }
+      if let settingsSaveErrorText {
+        HPCard {
+          HPErrorState(title: "Couldn’t save", message: settingsSaveErrorText, onRetry: { Task { await saveSettings() } })
+        }
+      }
+      switch settingsSection {
+      case .general:
+        generalSettingsCard
+      case .branding:
+        brandingSettingsCard
+      case .operations:
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          featureFlagsCard
+          bookingPolicyCard
+          if let facilitiesErrorText {
+            HPCard { HPErrorState(title: "Facilities unavailable", message: facilitiesErrorText, onRetry: { Task { await reload() } }) }
+          } else {
+            facilitiesCard(context)
+          }
+        }
+      case .advanced:
+        advancedSettingsCard
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var settingsSaveStatus: some View {
+    switch settingsSaveState {
+    case .idle:
+      EmptyView()
+    case .saving:
+      Label("Saving…", systemImage: "arrow.triangle.2.circlepath")
+        .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+    case .saved:
+      Label("Saved", systemImage: "checkmark.circle.fill")
+        .font(HP.Font.caption).foregroundStyle(HP.Color.success)
+    case .failed:
+      Label("Couldn’t save", systemImage: "exclamationmark.circle.fill")
+        .font(HP.Font.caption).foregroundStyle(HP.Color.danger)
+    }
+  }
+
+  private var generalSettingsCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Organization details")
+        HPFormField(label: "Organization name", text: $displayName, placeholder: "Organization name")
+        HPFormField(label: "Short name", text: $shortName, placeholder: "Short name")
+        HPFormField(label: "Contact email", text: $supportEmail, placeholder: "contact@example.com")
+        HPFormField(label: "Website", text: $websiteHost, placeholder: "example.com")
+      }
+    }
+  }
+
+  private var brandingSettingsCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Branding")
+        PhotosPicker(selection: $logoPickerItem, matching: .images) {
+          Label("Choose Logo", systemImage: "photo.badge.plus")
+        }
+        .buttonStyle(HPButtonStyle(variant: .secondary, size: .md))
+        .onChange(of: logoPickerItem) { _, item in
+          guard let item else { return }
+          Task { await loadLogoPickerItem(item) }
+        }
+        hexField("Primary", text: $primaryHex)
+        hexField("Secondary", text: $secondaryHex)
+        hexField("Accent", text: $accentHex)
+      }
+    }
+  }
+
+  private var advancedSettingsCard: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      setupAndLaunchCard
+      if let organizationId = appState.activeOrgId,
+         SDOrganizationSetupTestConfiguration.current().allows(
+          organizationId: organizationId,
+          hasAuthority: appState.canAdminActiveOrg || appState.isPlatformAdmin
+         ) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader("Developer / Testing")
+            Text("Testing controls are available only in approved environments for this organization.")
+              .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            NavigationLink {
+              OrganizationSetupWizardView(
+                organizationId: organizationId,
+                organizationName: settings?.display_name ?? settings?.short_name
+              )
+            } label: {
+              Label("Test Organization Setup Wizard", systemImage: "wrench.and.screwdriver")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+          }
+        }
+      }
+    }
   }
 
   private func dashboardCard(_ context: HPScreenLayoutContext) -> some View {
@@ -748,7 +1198,7 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectAdminTab(.members)
+              selectAdminTab(.people)
             }
             HPButton(
               title: "Features",
@@ -756,7 +1206,8 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectAdminTab(.features)
+              settingsSection = .operations
+              selectAdminTab(.settings)
             }
             HPButton(
               title: "Facilities",
@@ -764,7 +1215,8 @@ struct OrgAdminConsoleView: View {
               variant: .secondary,
               fullWidth: context.isAccessibilitySize
             ) {
-              selectAdminTab(.facilities)
+              settingsSection = .operations
+              selectAdminTab(.settings)
             }
           }
         }
@@ -778,7 +1230,7 @@ struct OrgAdminConsoleView: View {
         HPSectionHeader("Organization setup") {
           HPStatusBadge(text: "Resumable", kind: .info)
         }
-        Text("Complete organization basics, season, teams, people, optional operations, and launch readiness using authoritative Home Plate records.")
+        Text("Review organization details, seasons, teams, people, and launch readiness in one guided flow.")
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
         if let organizationId = appState.activeOrgId {
@@ -813,10 +1265,12 @@ struct OrgAdminConsoleView: View {
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
           HPButton(title: "Branding", systemImage: "paintbrush", variant: .secondary) {
-            selectAdminTab(.branding)
+            settingsSection = .branding
+            selectAdminTab(.settings)
           }
           HPButton(title: "Feature Controls", systemImage: "switch.2", variant: .secondary) {
-            selectAdminTab(.features)
+            settingsSection = .operations
+            selectAdminTab(.settings)
           }
         }
       }
@@ -1629,15 +2083,8 @@ struct OrgAdminConsoleView: View {
     defer { isLoading = false }
     do {
       let loadedSettings = try await supabase.fetchOrgSettings(orgId: orgId)
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
       settings = loadedSettings
-      facilities = try await supabase.listFacilities(orgId: orgId, includeInactive: true)
-      adminMembers = try await supabase.adminListOrgMembers(orgId: orgId)
-      let now = Date()
-      let horizon = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
-      upcomingBookings = (try? await supabase.listFacilityBookings(rangeStart: now, rangeEnd: horizon, orgId: orgId)) ?? []
-      templateCount = (try? await supabase.listMyCoachTemplates().count) ?? 0
-      channelCount = (try? await supabase.listChatChannels(organizationId: orgId).count) ?? 0
-
       applySettingsToFields(loadedSettings)
     } catch {
       if SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) {
@@ -1645,7 +2092,42 @@ struct OrgAdminConsoleView: View {
       }
       guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
       errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+      return
     }
+
+    do {
+      facilities = try await supabase.listFacilities(orgId: orgId, includeInactive: true)
+      facilitiesErrorText = nil
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled),
+            appState.activeOrgId == orgId else { return }
+      facilitiesErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+
+    do {
+      adminMembers = try await supabase.adminListOrgMembers(orgId: orgId)
+      peopleErrorText = nil
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled),
+            appState.activeOrgId == orgId else { return }
+      peopleErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+
+    do {
+      invitationLinks = try await supabase.organizationInvitationLinks(organizationId: orgId)
+      invitationErrorText = nil
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled),
+            appState.activeOrgId == orgId else { return }
+      invitationErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+
+    let now = Date()
+    let horizon = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
+    upcomingBookings = (try? await supabase.listFacilityBookings(rangeStart: now, rangeEnd: horizon, orgId: orgId)) ?? upcomingBookings
+    templateCount = (try? await supabase.listMyCoachTemplates().count) ?? templateCount
+    channelCount = (try? await supabase.listChatChannels(organizationId: orgId).count) ?? channelCount
+    await appState.refreshTeamOperationsContext()
   }
 
   private func validateAuthorizationAndLoad(refreshAllData: Bool = true) async {
@@ -1741,6 +2223,12 @@ struct OrgAdminConsoleView: View {
     settings = nil
     facilities = []
     adminMembers = []
+    invitationLinks = []
+    peopleErrorText = nil
+    invitationErrorText = nil
+    facilitiesErrorText = nil
+    settingsSaveErrorText = nil
+    settingsSaveState = .idle
     if clearPaymentRequests {
       clearPaymentRequestData()
     }
@@ -2210,6 +2698,8 @@ struct OrgAdminConsoleView: View {
   private func scheduleSettingsAutosave() {
     guard !isApplyingSettings, settings != nil, appState.activeOrgId != nil else { return }
     settingsSaveTask?.cancel()
+    settingsSaveState = .saving
+    settingsSaveErrorText = nil
     settingsSaveTask = Task { @MainActor in
       try? await Task.sleep(for: .milliseconds(650))
       guard !Task.isCancelled else { return }
@@ -2224,6 +2714,8 @@ struct OrgAdminConsoleView: View {
       return
     }
     isSavingSettings = true
+    settingsSaveState = .saving
+    settingsSaveErrorText = nil
     defer { isSavingSettings = false }
     do {
       var logoPath = settings?.logo_path
@@ -2272,10 +2764,12 @@ struct OrgAdminConsoleView: View {
       pendingLogoJPEG = nil
       if let logoPath { logoURL = supabase.publicOrganizationLogoURL(path: logoPath) }
       await appState.refreshOrgContext()
+      settingsSaveState = .saved
       if !isAutomatic { toastText = "Organization settings saved." }
     } catch {
       guard appState.activeOrgId == orgId, !Task.isCancelled else { return }
-      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+      settingsSaveState = .failed
+      settingsSaveErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
@@ -2707,7 +3201,7 @@ private struct PaymentRequestCreateSheet: View {
             .strokeBorder(HP.Color.border, lineWidth: 1)
             .allowsHitTesting(false)
         )
-      Text("Entered as dollars and converted to authoritative integer cents when the request is prepared.")
+      Text("Enter the amount in dollars.")
         .font(HP.Font.caption)
         .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)
@@ -3487,7 +3981,7 @@ private struct OrganizationOperationsAdminView: View {
           HStack {
             VStack(alignment: .leading, spacing: HP.Space.xs) {
               Text("Report center").font(HP.Font.headline)
-              Text("Generate a permission-scoped CSV from authoritative organization data.")
+              Text("Create a CSV report using the organization data you can access.")
                 .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
             }
             Spacer()
@@ -3548,7 +4042,7 @@ private struct OrganizationOperationsAdminView: View {
         }
       }
     } else {
-      HPCard { HPEmptyState(title: "No analytics yet", message: "Metrics appear once authoritative organization activity exists.", systemImage: "chart.bar") }
+      HPCard { HPEmptyState(title: "No analytics yet", message: "Metrics appear once the organization has activity.", systemImage: "chart.bar") }
     }
   }
 

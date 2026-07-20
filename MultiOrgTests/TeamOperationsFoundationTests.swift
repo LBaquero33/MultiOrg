@@ -175,11 +175,13 @@ struct TeamOperationsFoundationTests {
     ).validationIssue == .missingOrganization)
   }
 
-  @Test("Team Operations uses local loading contextual errors and a context header")
+  @Test("Teams and Seasons uses focused workspaces and scoped errors")
   func teamOperationsUsabilityContracts() throws {
     let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
     #expect(source.contains("HPWorkspaceHeader("))
-    #expect(source.contains("Organization Administration"))
+    #expect(source.contains("teamsAndSeasonsWorkspace"))
+    #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)"))
+    #expect(source.contains(".sheet(isPresented: $isShowingTeamEditor)"))
     #expect(source.contains("activeMutations.contains(.season)"))
     #expect(source.contains("This action is not available in the current environment."))
     #expect(source.contains("DatePicker(\"Start date\""))
@@ -280,9 +282,14 @@ struct TeamOperationsFoundationTests {
     #expect(!shell.contains("case registration"))
     #expect(!shell.contains("case reports"))
     let admin = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
-    #expect(admin.contains("case communication = \"Communication\""))
-    #expect(admin.contains("case registration = \"Registration\""))
-    #expect(admin.contains("case analytics = \"Analytics\""))
+    #expect(admin.contains("case overview = \"Overview\""))
+    #expect(admin.contains("case people = \"People\""))
+    #expect(admin.contains("case teamsAndSeasons = \"Teams & Seasons\""))
+    #expect(admin.contains("case business = \"Business\""))
+    #expect(admin.contains("case settings = \"Settings\""))
+    #expect(admin.contains("organizationOperationsSection(.registration)"))
+    #expect(admin.contains("organizationOperationsSection(.analytics)"))
+    #expect(admin.contains("Open detailed Finance"))
     #expect(admin.contains("Report center"))
     #expect(admin.contains("Share CSV"))
   }

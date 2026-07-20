@@ -1,6 +1,11 @@
 import SwiftUI
 
 struct OrgTeamOperationsAdminView: View {
+  enum LaunchAction: Equatable {
+    case createTeam
+    case createSeason
+  }
+
   @EnvironmentObject private var appState: AppState
   @State private var context: SDTeamOperationsContext?
   @State private var seasonName = ""
@@ -35,14 +40,47 @@ struct OrgTeamOperationsAdminView: View {
   @State private var optimisticTeamByPlayer: [UUID: UUID] = [:]
   @State private var optimisticUnassignedPlayers: Set<UUID> = []
   @State private var rosterDropTarget: String?
+  @State private var selectedTeamId: UUID?
+  @State private var selectedSeasonId: UUID?
+  @State private var workspaceSection: WorkspaceSection = .teams
+  @State private var teamFilter: TeamFilter = .active
+  @State private var detailMode: DetailMode = .summary
+  @State private var isShowingSeasonEditor = false
+  @State private var isShowingTeamEditor = false
+  @State private var confirmationText: String?
   let embedded: Bool
+  let launchAction: LaunchAction?
+  let onLaunchActionHandled: () -> Void
 
-  init(embedded: Bool = false) {
+  init(
+    embedded: Bool = false,
+    launchAction: LaunchAction? = nil,
+    onLaunchActionHandled: @escaping () -> Void = {}
+  ) {
     self.embedded = embedded
+    self.launchAction = launchAction
+    self.onLaunchActionHandled = onLaunchActionHandled
   }
 
   private enum Mutation: Hashable {
     case season, team, teamSeason, player, coach
+  }
+
+  private enum WorkspaceSection: String, CaseIterable, Identifiable {
+    case teams = "Teams"
+    case seasons = "Seasons"
+    var id: String { rawValue }
+  }
+
+  private enum TeamFilter: String, CaseIterable, Identifiable {
+    case active = "Active"
+    case archived = "Archived"
+    case all = "All Seasons"
+    var id: String { rawValue }
+  }
+
+  private enum DetailMode: String {
+    case summary, roster, staff
   }
 
   var body: some View {
@@ -54,37 +92,46 @@ struct OrgTeamOperationsAdminView: View {
       }
     }
     .task(id: appState.activeOrgId) { await reload() }
+    .task(id: launchAction) {
+      guard let launchAction else { return }
+      switch launchAction {
+      case .createTeam: beginCreatingTeam()
+      case .createSeason: beginCreatingSeason()
+      }
+      onLaunchActionHandled()
+    }
+    .sheet(isPresented: $isShowingSeasonEditor) { seasonEditorSheet }
+    .sheet(isPresented: $isShowingTeamEditor) { teamEditorSheet }
+    .hpToast($confirmationText)
     .accessibilityElement(children: .contain)
   }
 
   private var pageContent: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPWorkspaceHeader(
-        "Team Management",
-        orgLabel: organizationName,
-        context: organizationContext
-      )
+      if !embedded {
+        HPWorkspaceHeader(
+          "Team Management",
+          orgLabel: organizationName,
+          context: organizationContext
+        )
+      }
       if isInitialLoading, context == nil {
-        HPCard { HPLoadingState(text: "Loading team operations…") }
+        HPCard { HPLoadingState(text: "Loading teams and seasons…") }
       }
       if let loadErrorText {
         HPCard {
           HPErrorState(
-            title: "Team operations couldn’t be loaded.",
+            title: "Teams and seasons couldn’t be loaded.",
             message: loadErrorText,
             onRetry: { Task { await reload() } }
           )
         }
       }
-      seasonCard
-      teamSeasonCard
-      schedulingCard
-      playerAssignmentsCard
-      coachAssignmentsCard
+      teamsAndSeasonsWorkspace
       if let operationErrorText {
         HPCard {
           HPErrorState(
-            title: "Team operations couldn’t be updated.",
+            title: "The update couldn’t be completed.",
             message: operationErrorText
           )
         }
@@ -101,14 +148,354 @@ struct OrgTeamOperationsAdminView: View {
 
   private var organizationContext: String {
     if let season = context?.activeSeason?.name {
-      return "Organization Administration · \(season) · Organization-wide"
+      return "Manage teams, rosters, and staff · \(season)"
     }
-    return "Organization Administration · Organization-wide"
+    return "Manage teams, rosters, and staff"
   }
 
   private var activeTeams: [SDTeamOperationsTeam] { context?.teams.filter(\.is_active) ?? [] }
   private var coaches: [Profile] { context?.people.filter(\.isCoach) ?? [] }
   private var players: [Profile] { context?.people.filter(\.isPlayer) ?? [] }
+
+  private var teamsAndSeasonsWorkspace: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        HStack(spacing: HP.Space.sm) {
+          Picker("Management area", selection: $workspaceSection) {
+            ForEach(WorkspaceSection.allCases) { section in Text(section.rawValue).tag(section) }
+          }
+          .pickerStyle(.segmented)
+          .accessibilityLabel("Teams and seasons area")
+          Spacer(minLength: HP.Space.sm)
+          if workspaceSection == .teams {
+            HPButton(title: "Create Team", systemImage: "plus", variant: .primary, size: .sm) {
+              beginCreatingTeam()
+            }
+          } else {
+            HPButton(title: "Create Season", systemImage: "plus", variant: .primary, size: .sm) {
+              beginCreatingSeason()
+            }
+          }
+        }
+      }
+
+      if workspaceSection == .teams {
+        teamsWorkspace
+        if detailMode == .roster { playerAssignmentsCard }
+        if detailMode == .staff { coachAssignmentsCard }
+      } else {
+        seasonsWorkspace
+      }
+    }
+  }
+
+  private var teamsWorkspace: some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HPCard {
+        Picker("Team filter", selection: $teamFilter) {
+          ForEach(TeamFilter.allCases) { filter in Text(filter.rawValue).tag(filter) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Team filter")
+      }
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .top, spacing: HP.Space.md) {
+          teamList
+            .frame(minWidth: 270, idealWidth: 320, maxWidth: 360, alignment: .topLeading)
+          teamDetail
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          teamList
+          teamDetail
+        }
+      }
+    }
+  }
+
+  private var teamList: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        HPSectionHeader("Teams") {
+          HPStatusBadge(text: "\(filteredTeams.count)", kind: .neutral)
+        }
+        if filteredTeams.isEmpty {
+          HPEmptyState(
+            title: teamFilter == .archived ? "No archived teams" : "No teams yet",
+            message: teamFilter == .archived
+              ? "Archived teams will appear here."
+              : "Create a team when you are ready to organize players and staff.",
+            systemImage: "person.3"
+          )
+        } else {
+          ForEach(filteredTeams) { team in
+            Button {
+              selectedTeamId = team.id
+              detailMode = .summary
+            } label: {
+              HStack(spacing: HP.Space.sm) {
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(team.name).font(HP.Font.callout.weight(.semibold))
+                  Text(teamListSubtitle(team))
+                    .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                    .lineLimit(1)
+                  Text("\(team.roster_count) players • \(team.staff_count) staff")
+                    .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                }
+                Spacer(minLength: HP.Space.xs)
+                if !team.is_active { HPStatusBadge(text: "Archived", kind: .neutral) }
+                Image(systemName: "chevron.right")
+                  .foregroundStyle(HP.Color.textMuted)
+                  .accessibilityHidden(true)
+              }
+              .padding(HP.Space.xs)
+              .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+              .background(
+                RoundedRectangle(cornerRadius: HP.Radius.sm)
+                  .fill(selectedTeamId == team.id ? HP.Color.accent.opacity(0.12) : .clear)
+              )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Select \(team.name)")
+          }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var teamDetail: some View {
+    if let team = selectedTeam {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HStack(alignment: .top, spacing: HP.Space.sm) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(team.name).font(HP.Font.title).foregroundStyle(HP.Color.text)
+              Text(team.is_active ? "Active team" : "Archived team")
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }
+            Spacer()
+            HPStatusBadge(text: team.is_active ? "Active" : "Archived", kind: team.is_active ? .success : .neutral)
+          }
+          teamDetailRow("Season", value: seasonName(for: team.season_id))
+          teamDetailRow("Age group", value: team.age_group ?? "Not set")
+          teamDetailRow("Level", value: team.competitive_level ?? "Not set")
+          teamDetailRow("Roster", value: "\(team.roster_count) players")
+          teamDetailRow("Staff", value: "\(team.staff_count) assigned")
+          teamDetailRow("Next event", value: "Open Schedule to review")
+          Divider().overlay(HP.Color.border)
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: HP.Space.xs) { teamDetailActions(team) }
+            VStack(alignment: .leading, spacing: HP.Space.xs) { teamDetailActions(team) }
+          }
+        }
+      }
+    } else {
+      HPCard {
+        HPEmptyState(
+          title: "Select a team",
+          message: "Choose a team to review its season, roster, staff, and shortcuts.",
+          systemImage: "person.3"
+        )
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func teamDetailActions(_ team: SDTeamOperationsTeam) -> some View {
+    NavigationLink {
+      CoachTeamCommandCenterView()
+        .onAppear { appState.selectCoachTeam(team.id) }
+    } label: {
+      Label("Open Current Team", systemImage: "arrow.up.right.square")
+        .frame(minHeight: 36)
+    }
+    .buttonStyle(.borderedProminent)
+    Button("Manage Roster") { detailMode = .roster }
+      .buttonStyle(.bordered)
+    Button("Manage Staff") { detailMode = .staff }
+      .buttonStyle(.bordered)
+    NavigationLink {
+      CoachTeamScheduleView()
+        .onAppear { appState.selectCoachTeam(team.id) }
+    } label: {
+      Label("View Schedule", systemImage: "calendar")
+        .frame(minHeight: 36)
+    }
+    .buttonStyle(.bordered)
+    Menu {
+      Button("Edit Team") { beginEditing(team) }
+      if team.is_active {
+        Button("Archive Team", role: .destructive) { Task { await archive(team) } }
+      }
+    } label: {
+      Label("More", systemImage: "ellipsis.circle")
+        .frame(minHeight: 36)
+    }
+  }
+
+  private func teamDetailRow(_ label: String, value: String) -> some View {
+    HStack(spacing: HP.Space.sm) {
+      Text(label).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+      Spacer()
+      Text(value).font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
+    }
+    .frame(minHeight: 32)
+  }
+
+  private var filteredTeams: [SDTeamOperationsTeam] {
+    let teams = context?.teams ?? []
+    switch teamFilter {
+    case .active: return teams.filter(\.is_active)
+    case .archived: return teams.filter { !$0.is_active }
+    case .all: return teams
+    }
+  }
+
+  private var selectedTeam: SDTeamOperationsTeam? {
+    if let selectedTeamId,
+       let team = context?.teams.first(where: { $0.id == selectedTeamId }) {
+      return team
+    }
+    return filteredTeams.first
+  }
+
+  private func teamListSubtitle(_ team: SDTeamOperationsTeam) -> String {
+    [seasonName(for: team.season_id), team.age_group, team.competitive_level]
+      .compactMap { $0 }
+      .filter { !$0.isEmpty }
+      .joined(separator: " • ")
+  }
+
+  private var seasonsWorkspace: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Seasons") {
+          HPStatusBadge(text: "\(context?.seasons.count ?? 0)", kind: .neutral)
+        }
+        Text("Create seasons to organize teams, schedules, and registration.")
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        if context?.seasons.isEmpty != false {
+          HPEmptyState(
+            title: "No seasons yet",
+            message: "Create a season before adding teams.",
+            systemImage: "calendar"
+          )
+        } else {
+          ForEach(context?.seasons ?? []) { season in
+            HStack(spacing: HP.Space.sm) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(season.name).font(HP.Font.callout.weight(.semibold))
+                Text(seasonDateSummary(season))
+                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              if season.is_default { HPStatusBadge(text: "Default", kind: .success) }
+              HPStatusBadge(text: season.status.label, kind: season.status == .archived ? .neutral : .info)
+              Menu {
+                Button("Edit") { beginEditing(season) }
+                if !season.is_default {
+                  Button("Set Default") { Task { await setDefault(season) } }
+                }
+                if season.status != .archived {
+                  Button("Archive", role: .destructive) { Task { await archive(season) } }
+                }
+              } label: {
+                Image(systemName: "ellipsis.circle").frame(width: 36, height: 36)
+              }
+              .menuStyle(.borderlessButton)
+              .accessibilityLabel("Actions for \(season.name)")
+            }
+            .frame(minHeight: 52)
+            Divider().overlay(HP.Color.border.opacity(0.5))
+          }
+        }
+      }
+    }
+  }
+
+  private func seasonDateSummary(_ season: SDSeason) -> String {
+    let dates = [season.start_date, season.end_date].compactMap { $0 }
+    return dates.isEmpty ? "Dates not set" : dates.joined(separator: " – ")
+  }
+
+  private var seasonEditorSheet: some View {
+    NavigationStack {
+      Form {
+        Section("Season details") {
+          TextField("Season name", text: $seasonName, prompt: Text("Example: 2027 Spring"))
+          Toggle("Add start date", isOn: $hasSeasonStart)
+          if hasSeasonStart { DatePicker("Start date", selection: $seasonStart, displayedComponents: .date) }
+          Toggle("Add end date", isOn: $hasSeasonEnd)
+          if hasSeasonEnd { DatePicker("End date", selection: $seasonEnd, displayedComponents: .date) }
+          Picker("Lifecycle", selection: $seasonStatus) {
+            ForEach(SDSeasonLifecycle.allCases) { status in Text(status.label).tag(status) }
+          }
+          Toggle("Make default season", isOn: $seasonIsDefault)
+          if let validation = seasonDraft.validationIssue {
+            Text(validation.message).foregroundStyle(HP.Color.warning)
+          }
+          if let seasonErrorText {
+            Text(seasonErrorText).foregroundStyle(HP.Color.danger)
+          }
+        }
+      }
+      .navigationTitle(editingSeasonId == nil ? "Create Season" : "Edit Season")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { isShowingSeasonEditor = false; resetSeasonDraft() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button(editingSeasonId == nil ? "Create Season" : "Save Season") {
+            Task { await createSeason() }
+          }
+          .disabled(!seasonDraft.isValid || activeMutations.contains(.season))
+        }
+      }
+    }
+    #if os(macOS)
+    .frame(minWidth: 480, minHeight: 460)
+    #endif
+  }
+
+  private var teamEditorSheet: some View {
+    NavigationStack {
+      Form {
+        Section("Team details") {
+          TextField("Team name", text: $newTeamName, prompt: Text("Example: 10u"))
+          Picker("Season", selection: $newTeamSeasonId) {
+            Text("Select season").tag(UUID?.none)
+            ForEach(context?.seasons ?? []) { season in Text(season.name).tag(Optional(season.id)) }
+          }
+          TextField("Age group", text: $teamAgeGroup, prompt: Text("Example: 10U"))
+          TextField("Level", text: $teamCompetitiveLevel, prompt: Text("Example: Club"))
+          TextField("Roster capacity (optional)", text: $teamRosterCapacity)
+          if let operationErrorText {
+            Text(operationErrorText).foregroundStyle(HP.Color.danger)
+          }
+        }
+      }
+      .navigationTitle(editingTeamId == nil ? "Create Team" : "Edit Team")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { isShowingTeamEditor = false; resetTeamDraft() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button(editingTeamId == nil ? "Create Team" : "Save Team") {
+            Task { await createTeam() }
+          }
+          .disabled(
+            newTeamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              || newTeamSeasonId == nil
+              || activeMutations.contains(.team)
+          )
+        }
+      }
+    }
+    #if os(macOS)
+    .frame(minWidth: 480, minHeight: 420)
+    #endif
+  }
 
   private var schedulingCard: some View {
     HPCard {
@@ -257,8 +644,8 @@ struct OrgTeamOperationsAdminView: View {
   private var playerAssignmentsCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Player Team Membership")
-        Text("Moving a player closes the current assignment and preserves team history.")
+        HPSectionHeader("Roster assignments")
+        Text("Move players between teams while keeping their history intact.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         #if os(macOS)
         rosterBoard
@@ -380,7 +767,7 @@ struct OrgTeamOperationsAdminView: View {
   private var coachAssignmentsCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Coach Team Responsibilities")
+        HPSectionHeader("Staff assignments")
         Picker("Coach", selection: $selectedCoachId) {
           Text("Select coach").tag(UUID?.none)
           ForEach(coaches) { coach in Text(coach.displayName).tag(Optional(coach.id)) }
@@ -400,7 +787,7 @@ struct OrgTeamOperationsAdminView: View {
           ))
         }
         Toggle("Primary team", isOn: $coachPrimary)
-        Toggle("Explicit All Teams access", isOn: $coachAllTeams)
+        Toggle("Access to all teams", isOn: $coachAllTeams)
         HPButton(
           title: "Save Assignment",
           systemImage: "person.badge.shield.checkmark",
@@ -418,7 +805,7 @@ struct OrgTeamOperationsAdminView: View {
   private var capabilityPreview: some View {
     if let assignment = selectedAssignment {
       Divider()
-      HPSectionHeader("Resolved Capabilities") {
+      HPSectionHeader("Team access") {
         HPStatusBadge(text: "\(assignment.capabilities.count)", kind: .info)
       }
       Text(assignment.capabilities.map(\.label).joined(separator: " • "))
@@ -470,6 +857,12 @@ struct OrgTeamOperationsAdminView: View {
       optimisticTeamByPlayer = [:]
       optimisticUnassignedPlayers = []
       newTeamSeasonId = loaded.activeSeason?.id
+      if selectedTeamId == nil || !loaded.teams.contains(where: { $0.id == selectedTeamId }) {
+        selectedTeamId = loaded.teams.first(where: \.is_active)?.id ?? loaded.teams.first?.id
+      }
+      if selectedSeasonId == nil || !loaded.seasons.contains(where: { $0.id == selectedSeasonId }) {
+        selectedSeasonId = loaded.activeSeason?.id ?? loaded.seasons.first?.id
+      }
       await appState.refreshTeamOperationsContext()
     } catch {
       guard SDAsyncRequestGuard.accepts(
@@ -503,15 +896,12 @@ struct OrgTeamOperationsAdminView: View {
       guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
       let loaded = try await supabase.fetchTeamOperationsContext(orgId: orgId)
       guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
-      seasonName = ""
-      hasSeasonStart = false
-      hasSeasonEnd = false
-      seasonStatus = .planning
-      seasonIsDefault = false
-      editingSeasonId = nil
-      seasonRequestId = UUID()
       context = loaded
+      selectedSeasonId = saved.id
       newTeamSeasonId = loaded.activeSeason?.id
+      isShowingSeasonEditor = false
+      confirmationText = editingSeasonId == nil ? "Season created." : "Season saved."
+      resetSeasonDraft()
       if !loaded.seasons.contains(where: { $0.id == saved.id }) {
         loadErrorText = "The season was saved, but the season list could not be refreshed."
       }
@@ -531,6 +921,60 @@ struct OrgTeamOperationsAdminView: View {
     seasonStatus = season.status
     seasonIsDefault = season.is_default
     seasonRequestId = UUID()
+    seasonErrorText = nil
+    isShowingSeasonEditor = true
+  }
+
+  private func beginCreatingSeason() {
+    resetSeasonDraft()
+    isShowingSeasonEditor = true
+  }
+
+  private func resetSeasonDraft() {
+    seasonName = ""
+    hasSeasonStart = false
+    hasSeasonEnd = false
+    seasonStatus = .planning
+    seasonIsDefault = false
+    editingSeasonId = nil
+    seasonErrorText = nil
+    seasonRequestId = UUID()
+  }
+
+  private func setDefault(_ season: SDSeason) async {
+    await update(season, status: season.status, isDefault: true, confirmation: "Default season updated.")
+  }
+
+  private func archive(_ season: SDSeason) async {
+    await update(season, status: .archived, isDefault: false, confirmation: "Season archived.")
+  }
+
+  private func update(
+    _ season: SDSeason,
+    status: SDSeasonLifecycle,
+    isDefault: Bool,
+    confirmation: String
+  ) async {
+    guard let orgId = appState.activeOrgId, let supabase = appState.supabase else { return }
+    guard activeMutations.insert(.season).inserted else { return }
+    defer { activeMutations.remove(.season) }
+    do {
+      _ = try await supabase.adminSaveSeason(
+        orgId: orgId,
+        seasonId: season.id,
+        name: season.name,
+        startDate: season.start_date,
+        endDate: season.end_date,
+        status: status,
+        isDefault: isDefault,
+        requestId: UUID()
+      )
+      guard !Task.isCancelled, appState.activeOrgId == orgId else { return }
+      await reload()
+      confirmationText = confirmation
+    } catch {
+      publishOperationError(error, organizationId: orgId)
+    }
   }
 
   private func assign(team: SDTeamOperationsTeam, to season: SDSeason) async {
@@ -548,6 +992,9 @@ struct OrgTeamOperationsAdminView: View {
           let seasonId = newTeamSeasonId,
           let supabase = appState.supabase else { return }
     guard activeMutations.insert(.team).inserted else { return }
+    let targetName = newTeamName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let targetSeasonId = seasonId
+    let wasEditing = editingTeamId != nil
     defer { activeMutations.remove(.team) }
     do {
       if let editingTeamId,
@@ -579,7 +1026,20 @@ struct OrgTeamOperationsAdminView: View {
       }
       resetTeamDraft()
       await reload()
+      selectedTeamId = context?.teams.first(where: {
+        $0.name.caseInsensitiveCompare(targetName) == .orderedSame && $0.season_id == targetSeasonId
+      })?.id ?? selectedTeamId
+      isShowingTeamEditor = false
+      detailMode = .summary
+      confirmationText = wasEditing ? "Team saved." : "Team created."
     } catch { publishOperationError(error, organizationId: orgId) }
+  }
+
+  private func beginCreatingTeam() {
+    resetTeamDraft()
+    newTeamSeasonId = context?.activeSeason?.id ?? context?.seasons.first?.id
+    operationErrorText = nil
+    isShowingTeamEditor = true
   }
 
   private func beginEditing(_ team: SDTeamOperationsTeam) {
@@ -590,6 +1050,8 @@ struct OrgTeamOperationsAdminView: View {
     teamCompetitiveLevel = team.competitive_level ?? ""
     teamRosterCapacity = team.roster_capacity.map(String.init) ?? ""
     teamDescription = team.description ?? ""
+    operationErrorText = nil
+    isShowingTeamEditor = true
   }
 
   private func resetTeamDraft() {
@@ -600,6 +1062,7 @@ struct OrgTeamOperationsAdminView: View {
     teamRosterCapacity = ""
     teamDescription = ""
     teamRequestId = UUID()
+    operationErrorText = nil
   }
 
   private func archive(_ team: SDTeamOperationsTeam) async {
