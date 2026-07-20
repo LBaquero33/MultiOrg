@@ -57,7 +57,7 @@ Deno.test("multi-team setup reuses existing teams and excludes color input", asy
   );
   const wizard = await Deno.readTextFile(
     new URL(
-      "../../../MultiOrg/Features/Admin/OrganizationSetupWizardView.swift",
+      "../../../HomePlate/Features/Admin/OrganizationSetupWizardView.swift",
       import.meta.url,
     ),
   );

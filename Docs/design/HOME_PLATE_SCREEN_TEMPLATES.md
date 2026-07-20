@@ -6,7 +6,7 @@
 
 Every Home Plate screen is one of these 16 templates. **Do not invent a 17th.** If nothing fits, stop and report.
 
-**Legend:** ✅ = buildable today (preview shell exists in `MultiOrg/DesignSystem/Templates/`, rendered in `HOME_PLATE_VISUAL_REFERENCE.md`). 🚧 = **spec-only** — the workspace is future and its components do **not** exist yet; building it requires a component stage first.
+**Legend:** ✅ = buildable today (preview shell exists in `HomePlate/DesignSystem/Templates/`, rendered in `HOME_PLATE_VISUAL_REFERENCE.md`). 🚧 = **spec-only** — the workspace is future and its components do **not** exist yet; building it requires a component stage first.
 
 | # | Template | id | Shell | Status |
 | --- | --- | --- | --- | --- |

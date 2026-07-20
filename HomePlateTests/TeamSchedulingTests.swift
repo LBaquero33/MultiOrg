@@ -45,7 +45,7 @@ struct TeamSchedulingTests {
 
   @Test("schedule UI is one destination with progressive filters and forms")
   func scheduleSource() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     #expect(source.contains("SDTeamScheduleMode.allCases"))
     #expect(source.contains("SDTeamScheduleFilter.allCases"))
     #expect(source.contains("switch draft.type"))
@@ -61,7 +61,7 @@ struct TeamSchedulingTests {
 
   @Test("Today and Team use real canonical schedule responses")
   func scheduleIntegration() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("listTeamEvents"))
     #expect(source.contains("teamEvents"))
     #expect(source.contains("Next Event"))
@@ -71,7 +71,7 @@ struct TeamSchedulingTests {
 
   @Test("Marist 10u Players remains available when Schedule fails")
   func maristTeamPlayersScheduleFailureRegression() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("case .players:"))
     #expect(source.contains("No players assigned"))
     #expect(source.contains("guard section == .overview || section == .schedule else { return }"))
@@ -82,7 +82,7 @@ struct TeamSchedulingTests {
 
   @Test("Team render contract keeps the selected-team shell while Schedule is unavailable")
   func scopedScheduleUnavailableRenderContract() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     let header = try #require(source.range(of: "HPWorkspaceHeader("))
     let content = try #require(source.range(of: "private var content: some View"))
 
@@ -179,7 +179,7 @@ struct TeamSchedulingTests {
 
   @Test("schedule keeps cached events and exposes progressive filters")
   func scheduleReliabilityContract() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     #expect(source.contains("Schedule may be out of date"))
     #expect(source.contains("Previously loaded events remain visible"))
     #expect(source.contains("teamFilterId"))
@@ -190,8 +190,8 @@ struct TeamSchedulingTests {
 
   @Test("player and parent calendars consume redacted team events")
   func consumerCalendars() throws {
-    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerCalendarView.swift")
-    let parent = try sourceFile("MultiOrg/Features/Parent/ParentChildCalendarView.swift")
+    let player = try sourceFile("HomePlate/Features/Player/SDPlayerCalendarView.swift")
+    let parent = try sourceFile("HomePlate/Features/Parent/ParentChildCalendarView.swift")
     #expect(player.contains("listTeamEvents"))
     #expect(parent.contains("listTeamEvents"))
     let edge = try sourceFile("supabase/functions/team-scheduling/index.ts")

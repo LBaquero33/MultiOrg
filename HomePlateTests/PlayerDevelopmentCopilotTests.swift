@@ -688,7 +688,7 @@ struct PlayerDevelopmentCopilotTests {
   @Test("Player report and alert UI renders evidence without staff or parent controls")
   func playerRecordUIWiring() throws {
     let projectRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-    let source = try String(contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift"), encoding: .utf8)
+    let source = try String(contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift"), encoding: .utf8)
     #expect(source.contains("Generate My Summary"))
     #expect(source.contains("PlayerDevelopmentPlayerReportDetailView"))
     #expect(source.contains("PlayerDevelopmentPlayerAlertDetailView"))
@@ -799,7 +799,7 @@ struct PlayerDevelopmentCopilotTests {
   @Test("Coach and player question UI exposes all bounded response states")
   func questionUIWiring() throws {
     let projectRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-    let source = try String(contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentCopilotView.swift"), encoding: .utf8)
+    let source = try String(contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/PlayerDevelopmentCopilotView.swift"), encoding: .utf8)
     #expect(source.contains("CopilotQuestionCard"))
     #expect(source.contains("ForEach(pending.choices.prefix(6)"))
     #expect(source.contains("Type your response in the composer below."))
@@ -816,7 +816,7 @@ struct PlayerDevelopmentCopilotTests {
   func conversationPresentationUIWiring() throws {
     let projectRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentCopilotView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/PlayerDevelopmentCopilotView.swift"),
       encoding: .utf8
     )
     #expect(source.contains("@Published private(set) var presentedConversation: SDCopilotConversationPresentation?"))
@@ -845,15 +845,15 @@ struct PlayerDevelopmentCopilotTests {
   func copilotEntryUIWiring() throws {
     let projectRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let playerSource = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift"),
       encoding: .utf8
     )
     let coachAISource = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentAIView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/PlayerDevelopmentAIView.swift"),
       encoding: .utf8
     )
     let coachProfileSource = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/CoachPlayerProfileView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/CoachPlayerProfileView.swift"),
       encoding: .utf8
     )
     #expect(playerSource.contains("audience: .player"))

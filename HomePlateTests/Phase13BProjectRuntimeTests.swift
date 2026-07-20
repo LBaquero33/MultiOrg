@@ -23,21 +23,21 @@ struct Phase13BProjectRuntimeTests {
         #expect(sources.contains("/* \(filename) in Sources */"), "\(filename) is missing from \(target)")
       }
       #expect(sources.contains("/* HPBuildDiagnostics.swift in Sources */"))
-      #expect(sources.contains("/* MultiOrgApp.swift in Sources */"))
+      #expect(sources.contains("/* HomePlateApp.swift in Sources */"))
     }
   }
 
   @Test("production source has one app entry and the current root chain")
   func oneProductionEntryAndCurrentRoot() throws {
-    let swiftFiles = try recursiveSwiftFiles(in: root.appendingPathComponent("MultiOrg"))
+    let swiftFiles = try recursiveSwiftFiles(in: root.appendingPathComponent("HomePlate"))
     let entryFiles = try swiftFiles.filter {
       try String(contentsOf: $0, encoding: .utf8).contains("@main")
     }
-    #expect(entryFiles.map(\.lastPathComponent) == ["MultiOrgApp.swift"])
+    #expect(entryFiles.map(\.lastPathComponent) == ["HomePlateApp.swift"])
 
-    let app = try sourceFile("MultiOrg/App/MultiOrgApp.swift")
-    let rootView = try sourceFile("MultiOrg/App/RootView.swift")
-    let homeView = try sourceFile("MultiOrg/Features/Home/HomeView.swift")
+    let app = try sourceFile("HomePlate/App/HomePlateApp.swift")
+    let rootView = try sourceFile("HomePlate/App/RootView.swift")
+    let homeView = try sourceFile("HomePlate/Features/Home/HomeView.swift")
     #expect(app.contains("RootView()"))
     #expect(rootView.contains("HomeView()"))
     #expect(homeView.contains("SDAuthenticatedWorkspace.resolve"))
@@ -46,7 +46,7 @@ struct Phase13BProjectRuntimeTests {
 
   @Test("legacy owner workspace block is not wired into production")
   func legacyOwnerBlockAbsent() throws {
-    let ownerOverview = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let ownerOverview = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(!ownerOverview.contains("Open authoritative workspace"))
     #expect(!ownerOverview.contains("Registration and Organization Administration"))
     #expect(!ownerOverview.contains("Review Receivables and Expenses"))
@@ -69,10 +69,10 @@ struct Phase13BProjectRuntimeTests {
     #expect(spec.contains("HomePlateMac:\n    type: application\n    platform: macOS\n    productName: Home Plate"))
     #expect(spec.contains("PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app\n"))
     #expect(spec.contains("PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.mac\n"))
-    #expect(spec.contains("path: Configs/MultiOrg-iOS-Info.plist"))
-    #expect(spec.contains("path: MultiOrg/Supporting/Info.plist"))
+    #expect(spec.contains("path: Configs/HomePlate-iOS-Info.plist"))
+    #expect(spec.contains("path: Configs/HomePlate-macOS-Info.plist"))
 
-    for path in ["Configs/MultiOrg-iOS-Info.plist", "MultiOrg/Supporting/Info.plist"] {
+    for path in ["Configs/HomePlate-iOS-Info.plist", "Configs/HomePlate-macOS-Info.plist"] {
       let info = try propertyList(path)
       #expect(info["CFBundleDisplayName"] as? String == "Home Plate")
       #expect(info["CFBundleName"] as? String == "Home Plate")
@@ -88,8 +88,8 @@ struct Phase13BProjectRuntimeTests {
   @Test("debug builds embed a complete runtime identity contract")
   func buildIdentityContract() throws {
     let spec = try sourceFile("project.yml")
-    let diagnostics = try sourceFile("MultiOrg/Core/HPBuildDiagnostics.swift")
-    let app = try sourceFile("MultiOrg/App/MultiOrgApp.swift")
+    let diagnostics = try sourceFile("HomePlate/Core/HPBuildDiagnostics.swift")
+    let app = try sourceFile("HomePlate/App/HomePlateApp.swift")
 
     for key in ["CommitSHA", "BuildTimestamp", "TargetName", "SchemeName", "Configuration", "BundleIdentifier", "MarketingVersion", "BuildNumber", "RootShellIdentifier"] {
       #expect(spec.contains("Add :\(key) string"), "Missing embedded build identity key \(key)")
@@ -103,10 +103,10 @@ struct Phase13BProjectRuntimeTests {
 
   @Test("owner navigation keeps Phase 13A scope boundaries")
   func ownerNavigationScope() throws {
-    let shell = try sourceFile("MultiOrg/Features/Home/HomePlateNavigationShell.swift")
-    let team = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
-    let schedule = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
-    let admin = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let shell = try sourceFile("HomePlate/Features/Home/HomePlateNavigationShell.swift")
+    let team = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
+    let schedule = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
+    let admin = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
 
     #expect(shell.contains("let team = item(.coachTeam, \"Team\""))
     #expect(shell.contains("let schedule = item(.coachSchedule, \"Schedule\""))

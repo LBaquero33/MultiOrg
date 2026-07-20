@@ -32,7 +32,7 @@ Swift reads these through `SupabaseService`: `listDailyLogs`, `listTestingEntrie
 
 ## Existing import paths
 
-- `MultiOrg/Core/CSV.swift` maps Rapsodo, HitTrax, and TrackMan CSV columns into BP session/event fields.
+- `HomePlate/Core/CSV.swift` maps Rapsodo, HitTrax, and TrackMan CSV columns into BP session/event fields.
 - `supabase/functions/coach_import_bp/index.ts` is a legacy importer. It checks a global profile coach role rather than current organization staff/player scope, does not accept authoritative `org_id`, and references a pre-multiorg conflict key. Phase 11A does not extend or invoke it.
 - Writable compatibility views bridge older Shiny names such as `dev_entries` and `bp_sessions` to current tables. They overlap the canonical source tables and must not be treated as independent evidence.
 

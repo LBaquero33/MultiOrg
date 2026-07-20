@@ -9,7 +9,7 @@
 
 ## 0. Method & scope
 
-Static read of every player‑facing SwiftUI file under `MultiOrg/Features/Player/`, `MultiOrg/Features/Home/` (player branch), and shared program pieces under `MultiOrg/Features/Shared/`, plus the program models (`SDModels`) and schedule logic (`SDProgramSchedule`). macOS excludes `Features/Player/**` (per `project.yml`), so this is an **iPhone/iPad** concern. No builds were run; nothing was changed.
+Static read of every player‑facing SwiftUI file under `HomePlate/Features/Player/`, `HomePlate/Features/Home/` (player branch), and shared program pieces under `HomePlate/Features/Shared/`, plus the program models (`SDModels`) and schedule logic (`SDProgramSchedule`). macOS excludes `Features/Player/**` (per `project.yml`), so this is an **iPhone/iPad** concern. No builds were run; nothing was changed.
 
 ---
 
@@ -167,10 +167,10 @@ Pure function: given today + assignment + template, returns `DayContext { isSche
 
 ## Proposed files for the first player pilot
 
-- **`MultiOrg/Features/Player/SDPlayerTodayView.swift`** — reskin the view builders (header, improvement, program, strength logger, self‑assessment, submit) to HP components; preserve every `@State` and async func.
-- **`MultiOrg/Features/Player/SDPlayerBPDaySection.swift`** — reskin the card/inputs/toast to HP; preserve CSV import + session logic.
-- Test‑only evidence harness (new): `MultiOrgTests/PlayerTodayRenderTests.swift` — mock‑data renders (no network/AppState), like the Finance harness.
+- **`HomePlate/Features/Player/SDPlayerTodayView.swift`** — reskin the view builders (header, improvement, program, strength logger, self‑assessment, submit) to HP components; preserve every `@State` and async func.
+- **`HomePlate/Features/Player/SDPlayerBPDaySection.swift`** — reskin the card/inputs/toast to HP; preserve CSV import + session logic.
+- Test‑only evidence harness (new): `HomePlateTests/PlayerTodayRenderTests.swift` — mock‑data renders (no network/AppState), like the Finance harness.
 
-**Read‑only (unchanged):** `SDModels.swift`, `SDProgramSchedule.swift`, `SupabaseService.swift`, `AppState.swift`, `PlayerHomeView.swift`, `SDPlayerProgramView.swift`, all other player screens, and `MultiOrg/DesignSystem/**` (used, not modified).
+**Read‑only (unchanged):** `SDModels.swift`, `SDProgramSchedule.swift`, `SupabaseService.swift`, `AppState.swift`, `PlayerHomeView.swift`, `SDPlayerProgramView.swift`, all other player screens, and `HomePlate/DesignSystem/**` (used, not modified).
 
 **Stop point:** awaiting approval of this pilot scope before any implementation.

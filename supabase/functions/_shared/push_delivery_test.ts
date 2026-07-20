@@ -702,11 +702,11 @@ Deno.test("interactive Phase 9B producers wake the worker only after their trans
 
 Deno.test("chat realtime no longer schedules a duplicate local alert beside APNs", async () => {
   const appState = await Deno.readTextFile(
-    new URL("../../../MultiOrg/Core/AppState.swift", import.meta.url),
+    new URL("../../../HomePlate/Core/AppState.swift", import.meta.url),
   );
   const notificationCenter = await Deno.readTextFile(
     new URL(
-      "../../../MultiOrg/Features/Notifications/NotificationCenterView.swift",
+      "../../../HomePlate/Features/Notifications/NotificationCenterView.swift",
       import.meta.url,
     ),
   );

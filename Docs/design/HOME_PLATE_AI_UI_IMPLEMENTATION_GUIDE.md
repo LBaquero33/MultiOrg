@@ -45,7 +45,7 @@ You may **not** add, remove, reorder, rename, or alter any of the following, in 
 | Validation & completion rules | Any computation that decides "is this logged/valid/complete". |
 | Offline behavior | What happens with no network. |
 
-**Never touch these files/systems:** Supabase & `SupabaseService`, models (`SDModels.swift`), ViewModels, networking, authorization/permissions, StoreKit & entitlements, notifications/APNs, finance reconciliation logic, player-program persistence, backend, `MultiOrg/DesignSystem/**` (unless the task explicitly authorizes a component change), and the Codex checkout at `/Users/lb33/Documents/HomePlate`.
+**Never touch these files/systems:** Supabase & `SupabaseService`, models (`SDModels.swift`), ViewModels, networking, authorization/permissions, StoreKit & entitlements, notifications/APNs, finance reconciliation logic, player-program persistence, backend, `HomePlate/DesignSystem/**` (unless the task explicitly authorizes a component change), and the Codex checkout at `/Users/lb33/Documents/HomePlate`.
 
 **Hard rules:**
 - **Do not extract a ViewModel.** Several screens interleave logic and presentation in one file (e.g. `SDPlayerTodayView`). That is intentional for now. Restyle the view builders in place.
@@ -142,7 +142,7 @@ Every screen must be able to render **all** of the states that apply to it. A sc
 | Be told why they can't proceed | `state_screen` |
 
 3. **Never invent a 17th layout.** If nothing fits, **stop and report** — propose the template rather than improvising.
-4. Open the matching shell in `MultiOrg/DesignSystem/Templates/` and the matching render in the visual reference. Match it.
+4. Open the matching shell in `HomePlate/DesignSystem/Templates/` and the matching render in the visual reference. Match it.
 
 ---
 
@@ -174,7 +174,7 @@ Every screen must be able to render **all** of the states that apply to it. A sc
 | Modal / confirm | `HPModalContainer` / `HPConfirmationDialog` | ad-hoc sheets |
 | Sidebar / directory | `HPSidebar` / `HPWorkspaceDirectory` | ad-hoc nav lists |
 
-**If an HP component cannot support the screen: STOP and report.** Do not modify `MultiOrg/DesignSystem/**` and do not fork a component locally.
+**If an HP component cannot support the screen: STOP and report.** Do not modify `HomePlate/DesignSystem/**` and do not fork a component locally.
 
 ### Tokens — never raw values
 
@@ -273,21 +273,21 @@ Nothing is "done" without all of this:
 /tmp/hp-xcodegen-build/release/xcodegen generate --spec project.yml --project .
 
 # 2. iOS build
-xcodebuild build-for-testing -project MultiOrg.xcodeproj -scheme MultiOrg \
+xcodebuild build-for-testing -project HomePlate.xcodeproj -scheme HomePlate \
   -destination "platform=iOS Simulator,id=<UDID>" \
   -derivedDataPath /tmp/hp-dd-ios CODE_SIGNING_ALLOWED=NO
 
 # 3. macOS build (unsigned)
-xcodebuild build -project MultiOrg.xcodeproj -scheme MultiOrgMac -destination "platform=macOS" \
+xcodebuild build -project HomePlate.xcodeproj -scheme HomePlateMac -destination "platform=macOS" \
   -derivedDataPath /tmp/hp-dd-mac \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
 # 4. Tests: 123 logic tests + your focused render tests
-xcodebuild test-without-building -project MultiOrg.xcodeproj -scheme MultiOrg \
+xcodebuild test-without-building -project HomePlate.xcodeproj -scheme HomePlate \
   -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /tmp/hp-dd-ios \
-  -skip-testing:MultiOrgTests/HPGalleryRenderTests \
-  -skip-testing:MultiOrgTests/HPLiveControlsRenderTests \
-  -skip-testing:MultiOrgTests/FinanceRenderTests
+  -skip-testing:HomePlateTests/HPGalleryRenderTests \
+  -skip-testing:HomePlateTests/HPLiveControlsRenderTests \
+  -skip-testing:HomePlateTests/FinanceRenderTests
 
 # 5. Hygiene
 git diff --check
@@ -371,7 +371,7 @@ Anything you could not do, and why. Never paper over a gap.
 ```text
 Redesign a Home Plate screen. Presentation only.
 
-SCREEN:        <e.g. MultiOrg/Features/Chat/ChatChannelListView.swift>
+SCREEN:        <e.g. HomePlate/Features/Chat/ChatChannelListView.swift>
 TEMPLATE:      <e.g. list_search_filter — from HOME_PLATE_SCREEN_MIGRATION_MAP.md>
 WORKSPACE:     <e.g. Communication>
 ROLE(S):       <e.g. all>
@@ -399,7 +399,7 @@ IMPLEMENT:
   completion calcs, offline behavior, and .task/.onChange/.onAppear/.refreshable/.fileImporter/.alert.
 - Do NOT: extract a ViewModel, add autosave/per-item saving, add next/prev nav, change persistence
   timing, reorder network calls, or alter models/services/DB/auth/StoreKit/notifications.
-- Do NOT modify MultiOrg/DesignSystem/** . If an HP component can't support the screen, STOP and report.
+- Do NOT modify HomePlate/DesignSystem/** . If an HP component can't support the screen, STOP and report.
 - Use HP tokens only — no raw colors, no stock controls, exactly ONE HPButton(.primary).
 - Handle loading / empty / error / offline / stale as designed states.
 - AX3 must change layout (stack/single-column), not scale text.

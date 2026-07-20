@@ -144,7 +144,7 @@ struct OrganizationAuthorizationTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
     let source = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Home/HomeView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Home/HomeView.swift"),
       encoding: .utf8
     )
 
@@ -161,7 +161,7 @@ struct OrganizationAuthorizationTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
     let source = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Account/ParentRequestPanels.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Account/ParentRequestPanels.swift"),
       encoding: .utf8
     )
 

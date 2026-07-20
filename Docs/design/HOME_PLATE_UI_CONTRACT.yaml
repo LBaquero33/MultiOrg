@@ -12,7 +12,7 @@
 #   HOME_PLATE_SCREEN_MIGRATION_MAP.md        (screen -> template)
 #
 # If this file and the Markdown ever disagree, the Markdown guide wins and this
-# file must be corrected. Values mirror MultiOrg/DesignSystem/Tokens/*.swift.
+# file must be corrected. Values mirror HomePlate/DesignSystem/Tokens/*.swift.
 
 meta:
   version: "1.0.0"
@@ -86,7 +86,7 @@ design_tokens:
 
 # ------------------------------------------------------------------- components
 components:
-  root_namespace: MultiOrg/DesignSystem
+  root_namespace: HomePlate/DesignSystem
   modification_policy: "read_only — if a component cannot support the screen, STOP and report"
   approved:
     - { name: HPWorkspaceHeader,    slots: [title, orgLabel, context, identity, trailing] }
@@ -136,53 +136,53 @@ components:
 
 # -------------------------------------------------------------- screen templates
 screen_templates:
-  - { id: workspace_dashboard, shell: MultiOrg/DesignSystem/Templates/HPWorkspaceScreenTemplate.swift, buildable: true,
+  - { id: workspace_dashboard, shell: HomePlate/DesignSystem/Templates/HPWorkspaceScreenTemplate.swift, buildable: true,
       required: [HPWorkspaceHeader, HPCard, HPMetricCard, HPSectionHeader, HPStatusBadge],
       primary_action: header_trailing, ax3: metric_grid_single_column }
-  - { id: list_search_filter, shell: MultiOrg/DesignSystem/Templates/HPListScreenTemplate.swift, buildable: true,
+  - { id: list_search_filter, shell: HomePlate/DesignSystem/Templates/HPListScreenTemplate.swift, buildable: true,
       required: [HPWorkspaceHeader, HPSearchBar, HPFilterBar, HPCard, HPTable, HPEmptyState],
       primary_action: header_trailing, ax3: table_stacked, must_show: result_count }
-  - { id: record_detail, shell: MultiOrg/DesignSystem/Templates/HPDetailScreenTemplate.swift, buildable: true,
+  - { id: record_detail, shell: HomePlate/DesignSystem/Templates/HPDetailScreenTemplate.swift, buildable: true,
       required: [HPCard, HPAvatar, HPStatusBadge, HPMetricCard, HPSectionHeader, HPStatTile, HPButton],
       primary_action: bottom_card, ax3: metrics_single_column_identity_stacks }
-  - { id: form_editor, shell: MultiOrg/DesignSystem/Templates/HPFormScreenTemplate.swift, buildable: true,
+  - { id: form_editor, shell: HomePlate/DesignSystem/Templates/HPFormScreenTemplate.swift, buildable: true,
       required: [HPFormField, HPCard, HPSectionHeader, HPButton],
       primary_action: action_row, ax3: actions_stack_full_width,
       rules: [single_column_at_every_width, money_is_HPMoneyField, inline_validation] }
-  - { id: program_execution, shell: MultiOrg/DesignSystem/Templates/HPProgramExecutionTemplate.swift, buildable: true,
-      canonical_production: MultiOrg/Features/Player/SDPlayerTodayView.swift,
+  - { id: program_execution, shell: HomePlate/DesignSystem/Templates/HPProgramExecutionTemplate.swift, buildable: true,
+      canonical_production: HomePlate/Features/Player/SDPlayerTodayView.swift,
       required: [HPWorkspaceHeader, HPStatusBadge, HPCard, HPMetricCard, HPProgressIndicator, HPFormField, HPButton, HPToast],
       primary_action: bottom_full_width_submit,
       rules: [persist_on_submit_only, no_autosave, no_per_item_save, coach_instructions_read_only] }
-  - { id: calendar_scheduling, shell: MultiOrg/DesignSystem/Templates/HPCalendarScreenTemplate.swift, buildable: true,
+  - { id: calendar_scheduling, shell: HomePlate/DesignSystem/Templates/HPCalendarScreenTemplate.swift, buildable: true,
       required: [HPWorkspaceHeader, HPCard, HPSegmentedControl, HPSectionHeader, HPStatusBadge],
       primary_action: header_trailing, ax3: replace_month_grid_with_agenda_list }
-  - { id: analytics, shell: MultiOrg/DesignSystem/Templates/HPAnalyticsScreenTemplate.swift, buildable: true,
+  - { id: analytics, shell: HomePlate/DesignSystem/Templates/HPAnalyticsScreenTemplate.swift, buildable: true,
       required: [HPWorkspaceHeader, HPSegmentedControl, HPMetricCard, HPChart, HPTable, HPCard],
       primary_action: none, ax3: fixed_chart_height_table_stacked,
       rules: [chart_must_have_table_equivalent, chart_must_label_range_and_units] }
-  - { id: communication_split, shell: MultiOrg/DesignSystem/Templates/HPCommunicationScreenTemplate.swift, buildable: true,
+  - { id: communication_split, shell: HomePlate/DesignSystem/Templates/HPCommunicationScreenTemplate.swift, buildable: true,
       required: [HPCard, HPAvatar, HPStatusBadge, HPFormField, HPButton],
       primary_action: send_in_thread, ax3: list_only,
       rules: [unread_is_badge_and_weight, do_not_rebuild_dm_transport] }
   - { id: finance, shell: "composition(workspace_dashboard + list_search_filter + analytics + form_editor)", buildable: true,
-      canonical_production: MultiOrg/Features/Admin/FinanceDashboardView.swift,
+      canonical_production: HomePlate/Features/Admin/FinanceDashboardView.swift,
       required: [HPWorkspaceHeader, HPMetricCard, HPCard, HPTable, HPFilterBar, HPStatusBadge, HPErrorState],
       primary_action: header_trailing,
       rules: [integer_cents, page_level_error_only, support_mode_banner_explicit] }
-  - { id: settings_account, shell: MultiOrg/DesignSystem/Templates/HPSettingsScreenTemplate.swift, buildable: true,
+  - { id: settings_account, shell: HomePlate/DesignSystem/Templates/HPSettingsScreenTemplate.swift, buildable: true,
       required: [HPCard, HPAvatar, HPSectionHeader, HPStatTile, HPButton],
       primary_action: none, ax3: buttons_full_width,
       rules: [single_column_at_every_width, destructive_last_and_isolated, storekit_presentation_only] }
-  - { id: billing_paywall, shell: "MultiOrg/DesignSystem/Templates/HPStateScreenTemplate.swift(kind: .paywall)", buildable: true,
+  - { id: billing_paywall, shell: "HomePlate/DesignSystem/Templates/HPStateScreenTemplate.swift(kind: .paywall)", buildable: true,
       required: [HPCard, HPButton, HPStatusBadge],
       primary_action: single_subscribe_button,
       rules: [storekit_presentation_only, never_imply_unverified_entitlement, restore_must_be_visible] }
-  - { id: admin_console, shell: MultiOrg/DesignSystem/Templates/HPAdminScreenTemplate.swift, buildable: true,
+  - { id: admin_console, shell: HomePlate/DesignSystem/Templates/HPAdminScreenTemplate.swift, buildable: true,
       required: [HPWorkspaceHeader, HPSegmentedControl, HPTable, HPCard, HPStatusBadge, HPButton],
       primary_action: header_trailing, ax3: section_nav_vertical_table_stacked,
       rules: [support_mode_banner_explicit, destructive_requires_confirmation, authorization_read_only] }
-  - { id: state_screen, shell: MultiOrg/DesignSystem/Templates/HPStateScreenTemplate.swift, buildable: true,
+  - { id: state_screen, shell: HomePlate/DesignSystem/Templates/HPStateScreenTemplate.swift, buildable: true,
       kinds: [locked, paywall, offline, stale, configError, signInRequired],
       required: [HPCard, HPEmptyState, HPErrorState, HPButton],
       primary_action: exactly_one, rules: [never_a_dead_end, state_must_be_honest] }
@@ -337,14 +337,14 @@ protected_boundaries:
     - player_program_persistence
     - backend
   read_only_files:
-    - MultiOrg/Core/AppState.swift
-    - MultiOrg/Core/SDModels.swift
-    - MultiOrg/Core/SupabaseService.swift
-    - MultiOrg/Features/Shared/SDProgramSchedule.swift
-    - MultiOrg/Features/Login/AppleSignInButtonView.swift   # Apple HIG mandates appearance
+    - HomePlate/Core/AppState.swift
+    - HomePlate/Core/SDModels.swift
+    - HomePlate/Core/SupabaseService.swift
+    - HomePlate/Features/Shared/SDProgramSchedule.swift
+    - HomePlate/Features/Login/AppleSignInButtonView.swift   # Apple HIG mandates appearance
   codex_owned:
-    - MultiOrg/Core/DHDTheme.swift
-    - MultiOrg/Core/DHDUIComponents.swift
+    - HomePlate/Core/DHDTheme.swift
+    - HomePlate/Core/DHDUIComponents.swift
 
 # -------------------------------------------------------- validation checklist
 validation_checklist:
@@ -365,8 +365,8 @@ validation_checklist:
     - ax3_relayouts_not_scaled
   build_and_test:
     - xcodegen_regenerate_if_files_added_or_removed
-    - "iOS build: xcodebuild build-for-testing -scheme MultiOrg -derivedDataPath /tmp/hp-dd-ios CODE_SIGNING_ALLOWED=NO"
-    - "macOS build: xcodebuild build -scheme MultiOrgMac -derivedDataPath /tmp/hp-dd-mac CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=\"\""
+    - "iOS build: xcodebuild build-for-testing -scheme HomePlate -derivedDataPath /tmp/hp-dd-ios CODE_SIGNING_ALLOWED=NO"
+    - "macOS build: xcodebuild build -scheme HomePlateMac -derivedDataPath /tmp/hp-dd-mac CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=\"\""
     - "logic tests: 123 Swift Testing tests must pass"
     - "focused render tests must pass"
     - "report any skipped harness"
@@ -374,7 +374,7 @@ validation_checklist:
   known_tooling_limits:
     oom_skips:
       reason: "all offscreen snapshot harnesses in one process exhaust the simulator's memory"
-      skip: [MultiOrgTests/HPGalleryRenderTests, MultiOrgTests/HPLiveControlsRenderTests, MultiOrgTests/FinanceRenderTests]
+      skip: [HomePlateTests/HPGalleryRenderTests, HomePlateTests/HPLiveControlsRenderTests, HomePlateTests/FinanceRenderTests]
       must_not_skip: [logic_tests_123, focused_render_tests]
     git_index_hang:
       symptom: "git status/diff hangs on this shared-worktree repo"
@@ -414,22 +414,22 @@ render_library:
     committed: false
     count: 44
     viewports: [iphone, iphone-ax3, ipad, macos]
-    regenerate_with: "xcodebuild test-without-building -only-testing:MultiOrgTests/HPTemplateRenderTests"
-    produced_by: MultiOrgTests/HPTemplateRenderTests.swift
+    regenerate_with: "xcodebuild test-without-building -only-testing:HomePlateTests/HPTemplateRenderTests"
+    produced_by: HomePlateTests/HPTemplateRenderTests.swift
   pilots:                          # approved production examples — regenerate on demand
     player_program_day:
       status: approved
-      produced_by: MultiOrgTests/PlayerTodayRenderTests.swift
+      produced_by: HomePlateTests/PlayerTodayRenderTests.swift
     finance_overview:
       status: approved
-      produced_by: MultiOrgTests/FinanceRenderTests.swift
+      produced_by: HomePlateTests/FinanceRenderTests.swift
 
 # ------------------------------------------------------------- rollout order
 rollout:
   layer_a_global_foundation:
     implemented: false
     blocked_on: codex_ownership_of_dhd_core_files
-    files: [MultiOrg/Core/DHDTheme.swift, MultiOrg/Core/DHDUIComponents.swift, MultiOrg/Features/Shared/CalendarComponents.swift]
+    files: [HomePlate/Core/DHDTheme.swift, HomePlate/Core/DHDUIComponents.swift, HomePlate/Features/Shared/CalendarComponents.swift]
     expected_reach_files: 36
     expected_reach_screens_pct: 71
   layer_b_waves:

@@ -13,7 +13,7 @@ This audit was completed before Phase 11B.1 schema, parser, or UI work. The late
 - `public.sd_org_usernames` provides exact organization-scoped usernames. `public.sd_org_memberships`, `public.sd_team_members`, and `public.profiles` provide active membership, team scope, and display names.
 - Phase 11A's metric-observation evidence adapter already exposes normalized observations without generating reports, alerts, notifications, or pushes. It preserves `source_system` and demo metadata.
 - Supabase Swift already supports authenticated Edge Function calls and Storage upload. Existing avatar and organization-asset uploads demonstrate the installed SDK API, but both return public URLs and are not suitable for import files.
-- `MultiOrg/Core/CSV.swift` handles quoted comma fields and contains a legacy provider mapper. It is useful only as historical input; its ISO-Latin-1 fallback, unbounded parsing, guessed aliases, and filename/provider behavior are unsafe for canonical imports.
+- `HomePlate/Core/CSV.swift` handles quoted comma fields and contains a legacy provider mapper. It is useful only as historical input; its ISO-Latin-1 fallback, unbounded parsing, guessed aliases, and filename/provider behavior are unsafe for canonical imports.
 
 ## Existing schema limitations
 

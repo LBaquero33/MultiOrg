@@ -7,7 +7,7 @@ import Testing
 struct OrganizationAdminSimplificationTests {
   @Test("Organization Admin has exactly five primary task-based sections")
   func fivePrimarySections() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     let tabStart = try #require(source.range(of: "enum Tab: String, CaseIterable, Identifiable"))
     let tabEnd = try #require(source.range(of: "var id: String { rawValue }", range: tabStart.upperBound..<source.endIndex))
     let tabSource = String(source[tabStart.lowerBound..<tabEnd.lowerBound])
@@ -22,7 +22,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("compact header removes console and persistent autosave chrome")
   func compactHeader() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     let headerStart = try #require(source.range(of: "private var header: some View"))
     let headerEnd = try #require(source.range(of: "private var organizationIdentity", range: headerStart.upperBound..<source.endIndex))
     let header = String(source[headerStart.lowerBound..<headerEnd.lowerBound])
@@ -36,7 +36,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("navigation switches immediately supports keyboard movement and narrows to More")
   func adaptiveNavigation() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(source.contains("ViewThatFits(in: .horizontal)"))
     #expect(source.contains("[.overview, .people, .teamsAndSeasons]"))
     #expect(source.contains("overflow: [.business, .settings]"))
@@ -59,8 +59,8 @@ struct OrganizationAdminSimplificationTests {
       dynamicTypeSize: .large,
       containerWidth: 1_200
     )
-    let adminSource = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
-    let teamsSource = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let adminSource = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
+    let teamsSource = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
 
     #expect(narrow.widthClass == .compact)
     #expect(wide.widthClass == .wide)
@@ -70,7 +70,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Overview contains readiness counts attention and required quick actions")
   func overviewContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     for copy in [
       "Organization status", "Active teams", "Members", "Players", "Coaches", "Invitations",
       "Needs attention", "Add Member", "Create Team", "Create Season", "Open Registration",
@@ -86,7 +86,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("People consolidates search filters members and invitations without raw IDs")
   func peopleContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(source.contains("HPSearchBar(text: $peopleSearch"))
     #expect(source.contains("case staff = \"Staff\""))
     #expect(source.contains("case players = \"Players\""))
@@ -102,7 +102,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Teams and Seasons initial page is list detail and create forms live in sheets")
   func teamsAndSeasonsLayout() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     let pageStart = try #require(source.range(of: "private var pageContent: some View"))
     let pageEnd = try #require(source.range(of: "private var organizationName", range: pageStart.upperBound..<source.endIndex))
     let page = String(source[pageStart.lowerBound..<pageEnd.lowerBound])
@@ -119,7 +119,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Create Season sheet validates labeled fields and closes after save")
   func createSeasonSheet() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     #expect(source.contains("private var seasonEditorSheet"))
     #expect(source.contains("TextField(\"Season name\""))
     #expect(source.contains("Example: 2027 Spring"))
@@ -134,7 +134,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Create Team sheet has the approved fields no color and idempotent retry")
   func createTeamSheet() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     let sheetStart = try #require(source.range(of: "private var teamEditorSheet"))
     let sheetEnd = try #require(source.range(of: "private var schedulingCard", range: sheetStart.upperBound..<source.endIndex))
     let sheet = String(source[sheetStart.lowerBound..<sheetEnd.lowerBound])
@@ -153,7 +153,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Team detail owns metadata and deep links operations")
   func teamDetailRouting() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     for copy in [
       "Open Team", "Manage Roster", "Manage Staff", "View Schedule", "Edit Team",
       "Archive Team", "Next event",
@@ -167,7 +167,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Business summarizes registration billing analytics and deep links Finance")
   func businessContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(source.contains("private enum BusinessSection"))
     #expect(source.contains("businessSummaryCard"))
     #expect(source.contains("Open detailed Finance"))
@@ -177,7 +177,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("Settings shows one selected group and contextual save status")
   func settingsContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(source.contains("private enum SettingsSection"))
     #expect(source.contains("case general = \"General\""))
     #expect(source.contains("case branding = \"Branding\""))
@@ -191,7 +191,7 @@ struct OrganizationAdminSimplificationTests {
 
   @Test("section failures preserve other authoritative content")
   func scopedFailures() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(source.contains("peopleErrorText"))
     #expect(source.contains("invitationErrorText"))
     #expect(source.contains("facilitiesErrorText"))

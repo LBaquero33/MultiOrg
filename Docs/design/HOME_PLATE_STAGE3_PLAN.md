@@ -31,15 +31,15 @@ git worktree add ../HomePlate-design -b design/home-plate-os main
 | Rule | How |
 | --- | --- |
 | Separate physical checkout | Worktree at `../HomePlate-design` (§1). |
-| **Do not edit files Codex is editing** | Stage 3 **adds new files only** under `MultiOrg/DesignSystem/`. It does **not** edit `DHDTheme.swift` or `DHDUIComponents.swift` (both currently modified by Codex). The `HP` namespace is new files; the later `DHDTheme→HP` alias/migration is deferred to an integration step and coordinated with Codex. |
+| **Do not edit files Codex is editing** | Stage 3 **adds new files only** under `HomePlate/DesignSystem/`. It does **not** edit `DHDTheme.swift` or `DHDUIComponents.swift` (both currently modified by Codex). The `HP` namespace is new files; the later `DHDTheme→HP` alias/migration is deferred to an integration step and coordinated with Codex. |
 | No backend/protected files | Nothing under `supabase/`, `Configs/`, Stripe/StoreKit/APNs/auth paths is touched (handoff §6, §25). |
-| No project‑wide git ops | No broad `git add`, `reset`, `clean`, restore‑all. Commit only the new `MultiOrg/DesignSystem/**` + `project.yml`/`.pbxproj` regen, and only when you ask. |
+| No project‑wide git ops | No broad `git add`, `reset`, `clean`, restore‑all. Commit only the new `HomePlate/DesignSystem/**` + `project.yml`/`.pbxproj` regen, and only when you ask. |
 | Rebase discipline | Before integration (Stage 4+), rebase `design/home-plate-os` onto the then‑current target branch; resolve `DHDTheme`/`DHDUIComponents` intentionally, once, with Codex's changes visible. |
 | Communication | Confirm with you (and Codex's owner) before the first edit that touches a shared file. |
 
 ## 3. XcodeGen installation & regeneration workflow
 
-**Facts:** `xcodegen` is **not** on PATH; `brew`/`mint` absent. But **XcodeGen source is vendored in‑repo** at `XcodeGen/` (`Package.swift`, `Makefile`). `project.yml` is the source of truth; the `MultiOrg`/`MultiOrgMac` targets use `sources: path: MultiOrg` globs, so **new `.swift` files under `MultiOrg/` are auto‑included — no `project.yml` edit needed** (only regeneration).
+**Facts:** `xcodegen` is **not** on PATH; `brew`/`mint` absent. But **XcodeGen source is vendored in‑repo** at `XcodeGen/` (`Package.swift`, `Makefile`). `project.yml` is the source of truth; the `HomePlate`/`HomePlateMac` targets use `sources: path: HomePlate` globs, so **new `.swift` files under `HomePlate/` are auto‑included — no `project.yml` edit needed** (only regeneration).
 
 **Install (from vendored source, no brew):**
 ```bash
@@ -56,14 +56,14 @@ swift run -c release --package-path XcodeGen xcodegen generate
 
 - Regeneration is needed so `project.pbxproj` references the new files for command‑line `xcodebuild`.
 - **Only edit `project.yml`** if we add a new target, a bundled **font resource** (Archivo/Instrument Sans → resource + `UIAppFonts`), or a resource file. Component `.swift` files need no manifest edit.
-- Preserve target membership (design files must build on **both** `MultiOrg` and `MultiOrgMac`; keep them out of `Features/Player/**`, which macOS excludes).
+- Preserve target membership (design files must build on **both** `HomePlate` and `HomePlateMac`; keep them out of `Features/Player/**`, which macOS excludes).
 
 ## 4. Proposed new file structure
 
 All additive, under a new group so it's isolated and obvious:
 
 ```
-MultiOrg/DesignSystem/
+HomePlate/DesignSystem/
   Tokens/
     HPColor.swift          # Display-P3 role tokens (§2 design system) + hp.identity org channel
     HPFont.swift           # type scale, custom→SF Pro fallback, Dynamic Type
@@ -81,7 +81,7 @@ MultiOrg/DesignSystem/
     HPComponentGallery.swift  # one #Preview per component, variant×state matrix
 ```
 
-- `MultiOrg/DesignSystem/` is picked up automatically by the `path: MultiOrg` glob on both targets.
+- `HomePlate/DesignSystem/` is picked up automatically by the `path: HomePlate` glob on both targets.
 - **Sample data is local mock only** — no `SupabaseService`, no live models mutated, no auth. Previews never hit the network.
 
 ## 5. Exact Stage 3 files that would be added
@@ -114,17 +114,17 @@ swift build -c release --package-path XcodeGen
 swift run -c release --package-path XcodeGen xcodegen generate
 
 # 1. iOS Simulator build (no signing)
-xcodebuild -project MultiOrg.xcodeproj -scheme MultiOrg \
+xcodebuild -project HomePlate.xcodeproj -scheme HomePlate \
   -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -derivedDataPath /tmp/hp-dd build
 
 # 2. Native macOS build
-xcodebuild -project MultiOrg.xcodeproj -scheme MultiOrgMac \
+xcodebuild -project HomePlate.xcodeproj -scheme HomePlateMac \
   -configuration Debug -destination 'platform=macOS' \
   -derivedDataPath /tmp/hp-dd-mac build
 
 # 3. Focused tests (design system has no logic, but keep the suite green)
-xcodebuild -project MultiOrg.xcodeproj -scheme MultiOrg \
+xcodebuild -project HomePlate.xcodeproj -scheme HomePlate \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 
 # 4. Preview evidence (gallery) — boot sim, install, screenshot
@@ -135,7 +135,7 @@ xcrun simctl io "iPhone 17 Pro" screenshot hp-gallery.png
 
 # 5. Hygiene
 git diff --check          # whitespace/conflict markers
-git status --porcelain    # confirm ONLY MultiOrg/DesignSystem/** (+ regen) changed
+git status --porcelain    # confirm ONLY HomePlate/DesignSystem/** (+ regen) changed
 ```
 
 **Evidence gate:** report BUILD SUCCEEDED for both targets, test result, `git diff --check` clean, the exact new‑file list, and gallery screenshots. **Never claim success without this** (handoff §25).

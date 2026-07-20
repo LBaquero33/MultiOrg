@@ -88,7 +88,7 @@ struct PlatformAdminDashboardView: View {
           HPWorkspaceHeader(
             "Platform Admin",
             orgLabel: "Home Plate Platform",
-            context: "Organizations, access, and billing health across MultiOrg."
+            context: "Organizations, access, and billing health across Home Plate."
           ) {
             HPButton(
               title: "New Organization",

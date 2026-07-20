@@ -11,11 +11,11 @@ This document is the coverage ledger for the Universal UI migration. It distingu
 
 | Measure | Definition | Count | Coverage at `a588cb7` |
 | --- | --- | ---: | ---: |
-| Historical source files | Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**` at `b97c1b4` | **62** | n/a |
+| Historical source files | Swift files under `HomePlate/App/**` and `HomePlate/Features/**` at `b97c1b4` | **62** | n/a |
 | Historical role-table rows | Rows actually present in the original role tables | **54** | n/a |
 | Original-map contract | 54 rows, excluding component-only `AppleSignInButtonView`, `ParentRequestPanels`, and `PaymentRequestCard`; `RootView` and `HomeView` were already rows and are not added again | **51** | **51/51** |
 | Live original subset | Original-map contract minus six now-unreachable source types | **45** | **45/45** |
-| Current source files | Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**` at `a588cb7` | **67** | n/a |
+| Current source files | Swift files under `HomePlate/App/**` and `HomePlate/Features/**` at `a588cb7` | **67** | n/a |
 | Strict live current | Independently routed production roots, screens, and sheets | **79** | **79/79** |
 | Map-compatible current | Strict live current plus three historically mapped embedded targets | **82** | **82/82** |
 
@@ -92,7 +92,7 @@ Component-only views are migrated or intentionally platform-native, but do not i
 - `PlayerParentRequestsPanel` and `CoachParentRequestsPanel` in `ParentRequestPanels.swift`: embedded account panels.
 - `PaymentRequestCard`: embedded payment row/card; `PaymentCheckoutConfirmationSheet` is the independently presented sheet and is counted.
 
-Shared calendar, chart, status, form, card, toast, navigation, notification-row, chat-row, and other leaf views are likewise components. Examples include `DHDMonthGridView`, the views in `CalendarComponents.swift` and `BPAnalysisComponents.swift`, `NotificationBellButton`, `NotificationRow`, `ChatChannelRowView`, and `MessageRow`. `MultiOrgApp` is the app entry point; ViewModels and helpers are non-presentation logic. None belongs in the 79 or 82 denominator.
+Shared calendar, chart, status, form, card, toast, navigation, notification-row, chat-row, and other leaf views are likewise components. Examples include `DHDMonthGridView`, the views in `CalendarComponents.swift` and `BPAnalysisComponents.swift`, `NotificationBellButton`, `NotificationRow`, `ChatChannelRowView`, and `MessageRow`. `HomePlateApp` is the app entry point; ViewModels and helpers are non-presentation logic. None belongs in the 79 or 82 denominator.
 
 ## Preserved dead source — 6
 

@@ -187,7 +187,7 @@ struct PlayerDevelopmentAITests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
     let source = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Core/DHDUIComponents.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Core/DHDUIComponents.swift"),
       encoding: .utf8
     )
     #expect(source.contains("DHDDiamondPattern(color: DHDTheme.identityText.opacity(0.06))"))
@@ -200,11 +200,11 @@ struct PlayerDevelopmentAITests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
     let source = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentAIView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/PlayerDevelopmentAIView.swift"),
       encoding: .utf8
     )
     let formFieldSource = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/DesignSystem/Components/HPFormField.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/DesignSystem/Components/HPFormField.swift"),
       encoding: .utf8
     )
     #expect(source.contains("@Environment(\\.dismiss) private var dismiss"))

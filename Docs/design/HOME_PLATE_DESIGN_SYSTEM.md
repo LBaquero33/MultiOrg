@@ -60,7 +60,7 @@ Source: website OKLCH tokens (see `HOME_PLATE_UI_AUDIT.md` §2). Hex values are 
 
 - **Org brand color drives identity chrome only:** `HPWorkspaceHeader`/sidebar header gradient, `HPAvatar`, org badges, and clearly org‑specific accents.
 - **HP system colors own all semantics:** CTAs, focus, finance signals, status, success/danger. An org's brand color (e.g. "Marist Red Foxes" blue) must **not** repaint gold CTAs, focus rings, or finance deltas.
-- **Fallback branding becomes Home Plate green/gold** — replacing today's navy `DHDOrgBranding.fallback` and the on‑screen "MultiOrg" string.
+- **Fallback branding becomes Home Plate green/gold** — replacing today's navy `DHDOrgBranding.fallback` and the on‑screen "HomePlate" string.
 - Implementation note: introduce a separate `hp.identity` channel so org color and HP semantic color never alias.
 
 ## 3. Typography — **provisional (decision 5)**

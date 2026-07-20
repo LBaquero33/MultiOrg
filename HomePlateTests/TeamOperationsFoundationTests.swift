@@ -83,7 +83,7 @@ struct TeamOperationsFoundationTests {
 
   @Test("team selector is a label for one team and a compact menu for multiple teams")
   func switcherWiring() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("appState.authorizedCoachTeams.count == 1"))
     #expect(source.contains("struct CoachTeamSelector"))
     #expect(source.contains("Menu {"))
@@ -95,7 +95,7 @@ struct TeamOperationsFoundationTests {
 
   @Test("Team opens the command-center overview")
   func commandCenterDefault() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("@State private var section: Section"))
     #expect(source.contains("init(initialSection: Section = .overview)"))
     #expect(source.contains("case overview = \"Overview\""))
@@ -181,7 +181,7 @@ struct TeamOperationsFoundationTests {
 
   @Test("Teams and Seasons uses focused workspaces and scoped errors")
   func teamOperationsUsabilityContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     #expect(source.contains("HPWorkspaceHeader("))
     #expect(source.contains("teamsAndSeasonsWorkspace"))
     #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)"))
@@ -227,7 +227,7 @@ struct TeamOperationsFoundationTests {
 
   @Test("Mac team roster board preserves history and offers accessible move alternatives")
   func macTeamManagementContract() throws {
-    let view = try sourceFile("MultiOrg/Features/Admin/OrgTeamOperationsAdminView.swift")
+    let view = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     let migration = try sourceFile("supabase/migrations/20260718153000_phase_12zb_team_unassignment.sql")
     #expect(view.contains(".dropDestination(for: String.self)"))
     #expect(view.contains("Drag player cards between columns"))
@@ -239,9 +239,9 @@ struct TeamOperationsFoundationTests {
 
   @Test("Mac destination shell owns notification chrome and one vertical screen scroll")
   func macShellContract() throws {
-    let root = try sourceFile("MultiOrg/App/RootView.swift")
-    let shell = try sourceFile("MultiOrg/Features/Home/HomePlateNavigationShell.swift")
-    let scaffold = try sourceFile("MultiOrg/DesignSystem/Templates/HPScreenScaffold.swift")
+    let root = try sourceFile("HomePlate/App/RootView.swift")
+    let shell = try sourceFile("HomePlate/Features/Home/HomePlateNavigationShell.swift")
+    let scaffold = try sourceFile("HomePlate/DesignSystem/Templates/HPScreenScaffold.swift")
     #expect(root.contains("#if os(iOS)\n    .safeAreaInset(edge: .top"))
     #expect(shell.contains("ToolbarItem(placement: .primaryAction)"))
     #expect(scaffold.contains(".contentMargins(.top, HP.Space.lg, for: .scrollContent)"))
@@ -249,8 +249,8 @@ struct TeamOperationsFoundationTests {
 
   @Test("Programs use a two-pane desktop workspace without a nested split or editor cap")
   func macProgramsContract() throws {
-    let programs = try sourceFile("MultiOrg/Features/Coach/CoachProgramsView.swift")
-    let editor = try sourceFile("MultiOrg/Features/Coach/ProgramTemplateEditorView.swift")
+    let programs = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
+    let editor = try sourceFile("HomePlate/Features/Coach/ProgramTemplateEditorView.swift")
     #expect(programs.contains("HSplitView"))
     #expect(programs.contains("idealWidth: 300"))
     #expect(!programs.contains("NavigationSplitView"))
@@ -282,10 +282,10 @@ struct TeamOperationsFoundationTests {
 
   @Test("organization operations stay contextual instead of becoming tabs")
   func organizationNavigationContract() throws {
-    let shell = try sourceFile("MultiOrg/Features/Home/HomePlateNavigationShell.swift")
+    let shell = try sourceFile("HomePlate/Features/Home/HomePlateNavigationShell.swift")
     #expect(!shell.contains("case registration"))
     #expect(!shell.contains("case reports"))
-    let admin = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
+    let admin = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(admin.contains("case overview = \"Overview\""))
     #expect(admin.contains("case people = \"People\""))
     #expect(admin.contains("case teamsAndSeasons = \"Teams & Seasons\""))

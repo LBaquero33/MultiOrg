@@ -103,7 +103,7 @@ extension Notification.Name {
 }
 
 @main
-struct MultiOrgApp: App {
+struct HomePlateApp: App {
   #if canImport(UIKit)
   @UIApplicationDelegateAdaptor(DHDApplicationDelegate.self) private var applicationDelegate
   #elseif canImport(AppKit)

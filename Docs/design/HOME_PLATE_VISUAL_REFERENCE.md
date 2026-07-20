@@ -4,7 +4,7 @@
 **Repository path:** `Docs/design/HOME_PLATE_VISUAL_REFERENCE.md`
 **Companions:** `Docs/design/HOME_PLATE_AI_UI_IMPLEMENTATION_GUIDE.md` (binding) · `Docs/design/HOME_PLATE_SCREEN_TEMPLATES.md` · `Docs/design/HOME_PLATE_SCREEN_MIGRATION_MAP.md` · `Docs/design/HOME_PLATE_UI_CONTRACT.yaml` · `Docs/design/HOME_PLATE_DESIGN_SYSTEM.md`.
 
-> **This document is backed by real renders, not mockups.** Every image below was produced by `MultiOrgTests/HPTemplateRenderTests.swift` from the actual approved components. **If your screen doesn't look like these, your screen is wrong.**
+> **This document is backed by real renders, not mockups.** Every image below was produced by `HomePlateTests/HPTemplateRenderTests.swift` from the actual approved components. **If your screen doesn't look like these, your screen is wrong.**
 >
 > All image paths are **repository-relative** and live in `Docs/design/visuals/` — they travel with the repo and depend on no external directory.
 
@@ -15,9 +15,9 @@
 `Docs/design/visuals/` holds a **curated 15-image contract set**, not the full sweep. The complete matrix (44 = 11 templates × 4 viewports) is **regeneratable at any time**:
 
 ```bash
-xcodebuild test-without-building -project MultiOrg.xcodeproj -scheme MultiOrg \
+xcodebuild test-without-building -project HomePlate.xcodeproj -scheme HomePlate \
   -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath <derived-data> \
-  -only-testing:MultiOrgTests/HPTemplateRenderTests
+  -only-testing:HomePlateTests/HPTemplateRenderTests
 ```
 
 Naming: `tmpl-<template_id>-<viewport>.png` · viewports: `iphone` (393 @ `.large`), `iphone-ax3` (393 @ `.accessibility3`), `ipad` (834), `macos` (1200).
@@ -54,21 +54,21 @@ These 11 images are the **baseline every screen must match at iPhone width**. Th
 | Template id | Why | Match instead |
 | --- | --- | --- |
 | `billing_paywall` | It **is** `HPStateScreenTemplate(kind: .paywall)` — the canonical `state_screen` example renders the paywall, so the image is shared. | `Docs/design/visuals/tmpl-state_screen-iphone.png` |
-| `finance` | A **composition**, not a new layout: `workspace_dashboard` + `list_search_filter` + `analytics` + `form_editor`. | Those four baselines, plus the approved Finance pilot (regenerate via `MultiOrgTests/FinanceRenderTests.swift`). |
+| `finance` | A **composition**, not a new layout: `workspace_dashboard` + `list_search_filter` + `analytics` + `form_editor`. | Those four baselines, plus the approved Finance pilot (regenerate via `HomePlateTests/FinanceRenderTests.swift`). |
 
 ### 0.4 Approved production pilots (canonical, regeneratable)
 
 | Pilot | Producing harness | Status |
 | --- | --- | --- |
-| Player Program Day (`SDPlayerTodayView`) | `MultiOrgTests/PlayerTodayRenderTests.swift` | **approved** — canonical `program_execution` production example (all states × iPhone/AX3/iPad + live editable controls). |
-| Finance Overview (`FinanceDashboardView`) | `MultiOrgTests/FinanceRenderTests.swift` | **approved** — canonical `finance` production example. |
-| Component gallery | `MultiOrgTests/HPGalleryRenderTests.swift` (source: `MultiOrg/DesignSystem/Preview/HPComponentGallery.swift`) | approved foundation. |
+| Player Program Day (`SDPlayerTodayView`) | `HomePlateTests/PlayerTodayRenderTests.swift` | **approved** — canonical `program_execution` production example (all states × iPhone/AX3/iPad + live editable controls). |
+| Finance Overview (`FinanceDashboardView`) | `HomePlateTests/FinanceRenderTests.swift` | **approved** — canonical `finance` production example. |
+| Component gallery | `HomePlateTests/HPGalleryRenderTests.swift` (source: `HomePlate/DesignSystem/Preview/HPComponentGallery.swift`) | approved foundation. |
 
 ---
 
 ## 1. Palette
 
-Dark-first. **No light mode in Phase 10.** Display-P3 approximations of the site's OKLCH tokens — source of truth: `MultiOrg/DesignSystem/Tokens/HPColor.swift`.
+Dark-first. **No light mode in Phase 10.** Display-P3 approximations of the site's OKLCH tokens — source of truth: `HomePlate/DesignSystem/Tokens/HPColor.swift`.
 
 ### Surfaces (the ladder)
 | Token | Hex | Use |
@@ -110,7 +110,7 @@ Dark-first. **No light mode in Phase 10.** Display-P3 approximations of the site
 
 ## 2. Typography hierarchy
 
-Source: `MultiOrg/DesignSystem/Tokens/HPFont.swift`. SF Pro today; `displayFamily`/`textFamily` hooks switch every call site to Archivo / Instrument Sans later **without any API change**. All tokens are Dynamic-Type relative.
+Source: `HomePlate/DesignSystem/Tokens/HPFont.swift`. SF Pro today; `displayFamily`/`textFamily` hooks switch every call site to Archivo / Instrument Sans later **without any API change**. All tokens are Dynamic-Type relative.
 
 | Token | Size / weight | Relative to | Use |
 | --- | --- | --- | --- |
@@ -228,7 +228,7 @@ Single column at every width; cap ~720pt centered on wide. Labels above fields (
 
 ## 13. Program execution (the canonical player surface)
 
-Reference: `Docs/design/visuals/tmpl-program_execution-iphone.png` (+ AX3: `Docs/design/visuals/tmpl-program_execution-iphone-ax3.png`). Approved production equivalent: regenerate via `MultiOrgTests/PlayerTodayRenderTests.swift`.
+Reference: `Docs/design/visuals/tmpl-program_execution-iphone.png` (+ AX3: `Docs/design/visuals/tmpl-program_execution-iphone-ax3.png`). Approved production equivalent: regenerate via `HomePlateTests/PlayerTodayRenderTests.swift`.
 
 Anatomy, top to bottom: header (Today + date + `Scheduled` + `Not logged`) → date card → improvement metrics (2-col) → program card + completion ring → per-exercise `HPCard(.flat)` loggers → BP section → self-assessment → **one gold "Submit day"**.
 
@@ -256,7 +256,7 @@ Ring: gold trim on `surfaceRaised`, inner `%` pinned to `.large` (chrome), `.acc
 | Locked / paywall | `HPStateScreenTemplate` — icon → title → reason → one primary → honest fine print. |
 | Success | `HPToast` via `.hpToast($text)` — `surfaceRaised` + border + modal shadow, top, ~1.3s, Reduce-Motion aware. |
 
-**Canonical:** `Docs/design/visuals/tmpl-state_screen-iphone.png`. Per-state production examples regenerate via `MultiOrgTests/PlayerTodayRenderTests.swift` (loading / error / no-program / submit-success).
+**Canonical:** `Docs/design/visuals/tmpl-state_screen-iphone.png`. Per-state production examples regenerate via `HomePlateTests/PlayerTodayRenderTests.swift` (loading / error / no-program / submit-success).
 
 ---
 

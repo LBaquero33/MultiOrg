@@ -99,7 +99,7 @@ final class UniversalNavigationShellTests: XCTestCase {
       .deletingLastPathComponent()
     let source = try String(
       contentsOf: projectRoot
-        .appendingPathComponent("MultiOrg/Features/Home/HomePlateNavigationShell.swift"),
+        .appendingPathComponent("HomePlate/Features/Home/HomePlateNavigationShell.swift"),
       encoding: .utf8
     )
 

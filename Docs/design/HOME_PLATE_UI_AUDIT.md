@@ -15,9 +15,9 @@ This document preserves what the original audit observed and records how the ded
 | Website | Live inspection of `homeplateapps.com`; computed CSS tokens, typography, cards, controls, and hero treatment were recorded. |
 | iOS | Static SwiftUI review, simulator build, and launched login-screen inspection. |
 | iPadOS | Source/target review of the shared iOS paths and size-class behavior. |
-| macOS | Native `MultiOrgMac` build and review of macOS-specific branches. |
+| macOS | Native `HomePlateMac` build and review of macOS-specific branches. |
 
-The source-of-truth project structure remains `project.yml`. The corrected `b97c1b4` baseline is **62**, not 64, Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**`. The Layer E tree at `a588cb7` contains **67** such files.
+The source-of-truth project structure remains `project.yml`. The corrected `b97c1b4` baseline is **62**, not 64, Swift files under `HomePlate/App/**` and `HomePlate/Features/**`. The Layer E tree at `a588cb7` contains **67** such files.
 
 The initial audit itself was read-only: it created design documentation and did not modify production source, backend files, secrets, or project configuration. That statement applies only to the historical audit session; subsequent commits intentionally implemented the migration.
 
@@ -50,7 +50,7 @@ Historical typography evidence was Archivo 700 for display/headings and Instrume
 | Historical finding at `b97c1b4` | Implemented disposition through Layer E |
 | --- | --- |
 | App identity was navy/blue rather than Home Plate green/gold/cream. | Layer A introduced the Home Plate semantic color foundation and compatibility mappings. |
-| Fallback UI exposed “MultiOrg” instead of “Home Plate.” | Application identity and auth/access presentation now use Home Plate naming and safe organization context. |
+| Fallback UI exposed “HomePlate” instead of “Home Plate.” | Application identity and auth/access presentation now use Home Plate naming and safe organization context. |
 | Type, spacing, radius, focus, and semantic roles were incomplete or ad hoc. | Layer A supplies the shared tokens; Layer C supplies production screen templates. |
 | Cards, metrics, progress, states, and toasts were duplicated. | Shared HP components/templates are used across migrated surfaces; compatibility wrappers remain only where preserving public API avoids behavior churn. |
 | Role roots used divergent navigation models. | Layer B supplies adaptive compact and regular-width application shells. |
@@ -100,7 +100,7 @@ The strict inventory deliberately excludes leaf components and six preserved but
 | Xcode project generation was unavailable/uncertain | Superseded. The Xcode project was regenerated during Layers A–C where new source/test membership and iPad settings required it; `project.yml` remains authoritative. Layers D–F required no additional project-membership change. |
 | Organization branding could override system semantics | HP system roles own CTA, focus, status, finance, and destructive semantics; organization color is constrained to identity context. |
 | Navigation changes could disturb authorization/routing | Screen migrations preserve role/feature/entitlement gates, destinations, service calls, and lifecycle triggers; navigation smoke tests remain mandatory. |
-| macOS scope could be overstated | QA must test the actual `MultiOrgMac` target source set and may not claim excluded feature files as native macOS coverage. |
+| macOS scope could be overstated | QA must test the actual `HomePlateMac` target source set and may not claim excluded feature files as native macOS coverage. |
 | Protected worktree state could be misreported | `/Users/lb33/Documents/HomePlate-design` was verified clean on `design/home-plate-os` at `0116ab1c2c3ff41e9fd7e7e09796f3c9f5a60dd2`. `/Users/lb33/Documents/HomePlate` was read-only but had externally changed to `docs/hpms` at `d109326e7b3e55be85db506c0a8ea9594f6ece9d`, with pre-existing untracked `.agents/`, `.aider-desk/`, `XcodeGen/`, `build/`, `skills-lock.json`, `spatial`, and tools artifacts. This integration did not alter either protected worktree. |
 | Visual completion could be mistaken for deployment readiness | Layer E consistency and Layer F full tests/renders/smoke/audit are complete. The result is ready for release preparation, but no UI coverage ratio or this audit authorizes deployment. |
 
@@ -126,7 +126,7 @@ Layer F validated the exact production/test tree in Layer E `a588cb77ddda2c88489
 | --- | --- |
 | Coverage/reachability | **51/51** historical contract, **79/79** strict live current roots/screens/sheets, and **82/82** map-compatible surfaces. The three embedded panes and six preserved unreachable source types remain separately classified. |
 | Swift validation | Non-render: **237** logical / **251** invocations passed. Render: **59/59** passed. Aggregate: **296** logical / **310** invocations, zero failures/skips/expected failures. |
-| Builds | Clean iOS simulator `build-for-testing` passed on iOS 26.5. Clean native arm64 `MultiOrgMac` build passed. |
+| Builds | Clean iOS simulator `build-for-testing` passed on iOS 26.5. Clean native arm64 `HomePlateMac` build passed. |
 | Render/visual QA | 28 render-producing methods emitted 164 exact PNGs across light/dark, compact/regular, iPhone/iPad/macOS-width, live controls, state variants, and Accessibility 3. 162 are content-bearing; two retained final gallery windows are proven background-only height-estimation artifacts after the preceding window completes the gallery. Inspected evidence has no unresolved blocker/high UI finding. |
 | Backend guardrail | Focused Phase 11 shared tests **148/148**; complete shared backend tests **373/373**; relevant 11-file Deno format/type checks passed. No backend file changed. Broad committed baseline findings—17/66 unformatted files and eight Stripe webhook type errors—are pre-existing and outside this presentation-only diff. |
 | Static/security/data integrity | `git diff --check` passed. No migration, Supabase function, `project.yml`, or Xcode project diff in Layer E; no staged/untracked file, ignored build secret/config, tracked secret path, secret symlink, debug marker, merge operation, or repository-history operation remained at its boundary. Authorization, organization scoping, money/data contracts, and lifecycle behavior are unchanged. |

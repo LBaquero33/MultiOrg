@@ -35,12 +35,11 @@ targets:
     productName: Home Plate
     sources:
       # Recursive source discovery includes modular Phase 11A-11E models and coach UI.
-      - path: MultiOrg
+      - path: HomePlate
         excludes:
           - "**/*.md"
-          - "Supporting/Info.plist"
     info:
-      path: Configs/MultiOrg-iOS-Info.plist
+      path: Configs/HomePlate-iOS-Info.plist
       properties:
         CFBundleDisplayName: Home Plate
         CFBundleName: Home Plate
@@ -75,7 +74,7 @@ targets:
         PRODUCT_MODULE_NAME: HomePlate
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_ENTITLEMENTS: MultiOrg/Supporting/MultiOrg.entitlements
+        CODE_SIGN_ENTITLEMENTS: HomePlate/Supporting/HomePlate.entitlements
         DEVELOPMENT_TEAM: L9HQB8S3M3
         TARGETED_DEVICE_FAMILY: "1,2"
         DHD_RUNTIME_SCHEME_NAME: HomePlate
@@ -116,7 +115,7 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: MultiOrgTests
+      - path: HomePlateTests
       - path: SharedFixtures/apple_player_purchase_context_vectors.json
         buildPhase: resources
     settings:
@@ -131,14 +130,14 @@ targets:
     platform: macOS
     productName: Home Plate
     sources:
-      - path: MultiOrg
+      - path: HomePlate
         excludes:
           - "**/*.md"
           - "Features/Player/**"
           - "Supporting/LaunchScreen.storyboard"
-      - path: MultiOrg/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift
+      - path: HomePlate/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift
     info:
-      path: MultiOrg/Supporting/Info.plist
+      path: Configs/HomePlate-macOS-Info.plist
       properties:
         CFBundleDisplayName: Home Plate
         CFBundleName: Home Plate
@@ -164,7 +163,7 @@ targets:
         PRODUCT_MODULE_NAME: HomePlate
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.mac
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconMac
-        CODE_SIGN_ENTITLEMENTS: MultiOrg/Supporting/MultiOrgMac.entitlements
+        CODE_SIGN_ENTITLEMENTS: HomePlate/Supporting/HomePlateMac.entitlements
         DHD_RUNTIME_SCHEME_NAME: HomePlateMac
         ENABLE_USER_SCRIPT_SANDBOXING: NO
       configs:

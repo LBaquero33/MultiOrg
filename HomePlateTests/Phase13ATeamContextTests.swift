@@ -149,7 +149,7 @@ struct Phase13ATeamContextTests {
 
   @Test("role-aware selector has label menu no-team and authorized admin actions")
   func selectorContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     let selector = try sourceSlice(source, from: "struct CoachTeamSelector", to: "struct CoachTodayFoundationView")
     #expect(selector.contains("authorizedCoachTeams.count == 1"))
     #expect(selector.contains("Menu {"))
@@ -164,7 +164,7 @@ struct Phase13ATeamContextTests {
 
   @Test("Team shell keeps selector visible across approved tabs and More")
   func teamWorkspaceContracts() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     let workspace = try sourceSuffix(source, from: "struct CoachTeamCommandCenterView")
     for tab in ["Overview", "Players", "Schedule", "Development", "Staff", "Settings"] {
       #expect(workspace.contains("\"\(tab)\""))
@@ -178,7 +178,7 @@ struct Phase13ATeamContextTests {
 
   @Test("Team requests carry explicit organization team and context token")
   func explicitTeamRequests() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("organizationId: orgId"))
     #expect(source.contains("teamId: team.id"))
     #expect(source.contains("appState.teamContextToken.uuidString"))
@@ -187,9 +187,9 @@ struct Phase13ATeamContextTests {
 
   @Test("organization People and Finance never consume selected Team state")
   func organizationWorkspaceProtection() throws {
-    let admin = try sourceFile("MultiOrg/Features/Admin/OrgAdminConsoleView.swift")
-    let finance = try sourceFile("MultiOrg/Features/Admin/FinanceDashboardView.swift")
-      + (try sourceFile("MultiOrg/Features/Admin/FinanceDashboardViewModel.swift"))
+    let admin = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
+    let finance = try sourceFile("HomePlate/Features/Admin/FinanceDashboardView.swift")
+      + (try sourceFile("HomePlate/Features/Admin/FinanceDashboardViewModel.swift"))
     #expect(!admin.contains("appState.selectedTeam"))
     #expect(!admin.contains("CoachTeamSelector"))
     #expect(admin.contains("peopleRoleFilter = \"All roles\""))
@@ -200,7 +200,7 @@ struct Phase13ATeamContextTests {
 
   @Test("Global Schedule owns a visible filter and does not inherit Team selection")
   func globalScheduleIsolation() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     #expect(source.contains("@State private var teamFilterId"))
     #expect(source.contains("All Teams"))
     #expect(source.contains("All My Teams"))
@@ -213,21 +213,21 @@ struct Phase13ATeamContextTests {
 
   @Test("one authoritative event editor requires exactly one explicit team")
   func universalEventEditor() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     let editor = try sourceSuffix(source, from: "struct TeamEventEditorView")
     #expect(editor.contains("Picker(\"Team\", selection: $selectedTeamId)"))
     #expect(editor.contains("let selectedTeamId"))
     #expect(editor.contains("teamId: selectedTeam.id"))
     #expect(editor.contains("saveTeamEvent("))
     #expect(!editor.contains("for team in teams"))
-    let teamWorkspace = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let teamWorkspace = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(teamWorkspace.contains("TeamEventEditorView("))
     #expect(teamWorkspace.contains("preselectedTeamId: team.id"))
   }
 
   @Test("Coach Today stays aggregated and independent from Team selector")
   func coachTodayScope() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     let today = try sourceSlice(source, from: "struct CoachTodayFoundationView", to: "struct CoachScheduleFoundationView")
     #expect(today.contains("All assigned teams"))
     #expect(today.contains("teamId: nil"))
@@ -238,8 +238,8 @@ struct Phase13ATeamContextTests {
 
   @Test("Player and Parent never receive the staff Team selector")
   func derivedPlayerAndChildContext() throws {
-    let player = try sourceFile("MultiOrg/Features/Home/PlayerHomeView.swift")
-    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    let player = try sourceFile("HomePlate/Features/Home/PlayerHomeView.swift")
+    let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
     #expect(!player.contains("CoachTeamSelector"))
     #expect(!parent.contains("CoachTeamSelector"))
     #expect(parent.contains("Select a child"))

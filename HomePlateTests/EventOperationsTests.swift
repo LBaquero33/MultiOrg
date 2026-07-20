@@ -47,13 +47,13 @@ struct EventOperationsTests {
 
   @Test("Coach Today handles zero one and multiple canonical missions")
   func coachTodaySource() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("No event today"))
     #expect(source.contains("SDTodayMissionOrdering.ordered"))
     #expect(source.contains("service.today"))
     #expect(source.contains("Today’s Operations"))
     #expect(source.contains("Retry unavailable sections"))
-    let model = try sourceFile("MultiOrg/Core/TeamOperationsModels.swift")
+    let model = try sourceFile("HomePlate/Core/TeamOperationsModels.swift")
     #expect(model.contains("Review Availability"))
     #expect(model.contains("Start Game Day"))
     #expect(model.contains("Start Practice"))
@@ -62,7 +62,7 @@ struct EventOperationsTests {
 
   @Test("day workspace covers practice game tournament and completion without scorekeeping")
   func workspaceSource() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
     for section in ["Mission readiness", "Participants", "Checklist", "Notes", "Event details", "Completion"] {
       #expect(source.contains(section))
     }
@@ -76,8 +76,8 @@ struct EventOperationsTests {
 
   @Test("consumer Today experiences expose missions and availability but not staff controls")
   func consumerTodaySource() throws {
-    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerTodayView.swift")
-    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
+    let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
     #expect(player.contains("Baseball mission"))
     #expect(player.contains("event.team_name"))
     #expect(player.contains("Update Availability"))
@@ -91,7 +91,7 @@ struct EventOperationsTests {
 
   @Test("availability editor explains the boundary and preserves timing state")
   func availabilityEditor() throws {
-    let source = try sourceFile("MultiOrg/Features/Home/EventAvailabilityEditorSheet.swift")
+    let source = try sourceFile("HomePlate/Features/Home/EventAvailabilityEditorSheet.swift")
     #expect(source.contains("Availability is a pre-event declaration"))
     #expect(source.contains("Coaches record official attendance separately"))
     #expect(source.contains("draft.expectedArrival = enabled"))
@@ -100,8 +100,8 @@ struct EventOperationsTests {
 
   @Test("client retries preserve request IDs and bulk versions")
   func retryAndConcurrency() throws {
-    let workspace = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
-    let service = try sourceFile("MultiOrg/Core/SupabaseService.swift")
+    let workspace = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
+    let service = try sourceFile("HomePlate/Core/SupabaseService.swift")
     #expect(workspace.contains("The pending change is preserved on this screen with its original retry identifier"))
     #expect(workspace.contains("retryMutation = mutation"))
     #expect(service.contains("expected_version: $0.version"))
@@ -125,7 +125,7 @@ struct EventOperationsTests {
 
   @Test("organization admin inspection is separate from live coaching")
   func adminControls() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgEventOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgEventOperationsAdminView.swift")
     #expect(source.contains("Administrative inspection and correction"))
     #expect(source.contains("Apply Audited Correction"))
     #expect(source.contains("Required correction reason"))
@@ -180,7 +180,7 @@ struct PracticePlanningTests {
 
   @Test("service uses one focused API and retry identifiers")
   func serviceContract() throws {
-    let source = try sourceFile("MultiOrg/Core/SupabaseService.swift")
+    let source = try sourceFile("HomePlate/Core/SupabaseService.swift")
     #expect(source.contains("practice-planning"))
     #expect(source.contains("func mutatePracticePlan"))
     #expect(source.contains("func practicePlanHistory"))
@@ -190,7 +190,7 @@ struct PracticePlanningTests {
 
   @Test("Practice Day contains complete planning and execution workflow")
   func coachWorkflow() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
     for label in ["Practice Plan", "Build from Template", "Duplicate Prior", "Plan Editor", "Block List and Parallel Stations", "Edit Block", "Edit Station", "Group Manager", "Edit Group", "Player and Coach Assignment", "Player block / station override", "Coach group", "Assign Group to Block", "Equipment Requirements", "Edit Equipment", "Save Current Plan as Template", "Readiness Validation", "Publish this practice plan?", "Active Practice Plan", "Adjust Active Block", "Add Emergency Block", "Completion Review", "Completed Plan History"] {
       #expect(source.contains(label))
     }
@@ -200,8 +200,8 @@ struct PracticePlanningTests {
 
   @Test("Today Team and Schedule expose contextual plan readiness without a tab")
   func productIntegration() throws {
-    let today = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
-    let schedule = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
+    let today = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
+    let schedule = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     let aggregate = try sourceFile("supabase/functions/today/index.ts")
     #expect(today.contains("service.today"))
     #expect(aggregate.contains("sd_practice_plans"))
@@ -214,8 +214,8 @@ struct PracticePlanningTests {
 
   @Test("player and parent receive redacted practice summaries")
   func consumerExperience() throws {
-    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerTodayView.swift")
-    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
+    let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
     #expect(player.contains("Your group:"))
     #expect(player.contains("Bring "))
     #expect(parent.contains("’s group:"))
@@ -225,7 +225,7 @@ struct PracticePlanningTests {
 
   @Test("organization admin inspects readiness and audited reopen")
   func adminExperience() throws {
-    let source = try sourceFile("MultiOrg/Features/Admin/OrgEventOperationsAdminView.swift")
+    let source = try sourceFile("HomePlate/Features/Admin/OrgEventOperationsAdminView.swift")
     #expect(source.contains("Practice plan inspection"))
     #expect(source.contains("Reopen Completed Practice Plan"))
     #expect(source.contains("Required practice reopen reason"))
@@ -244,8 +244,8 @@ struct PracticePlanningTests {
 
   @Test("capability UI consumes server values rather than responsibility mapping")
   func clientAuthorization() throws {
-    let model = try sourceFile("MultiOrg/Core/TeamOperationsModels.swift")
-    let workspace = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    let model = try sourceFile("HomePlate/Core/TeamOperationsModels.swift")
+    let workspace = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
     #expect(model.contains("viewPracticePlan"))
     #expect(model.contains("reopenPracticePlan"))
     #expect(workspace.contains("capabilitySet.contains"))
@@ -298,7 +298,7 @@ struct GameOperationsTests {
 
   @Test("one authenticated API exposes retry and version contracts")
   func serviceContract() throws {
-    let source = try sourceFile("MultiOrg/Core/SupabaseService.swift")
+    let source = try sourceFile("HomePlate/Core/SupabaseService.swift")
     #expect(source.contains("game-operations"))
     #expect(source.contains("func gamePlan("))
     #expect(source.contains("func gamePlanHistory"))
@@ -309,7 +309,7 @@ struct GameOperationsTests {
 
   @Test("Game Day workspace includes every primary planning and completion surface")
   func coachWorkflow() throws {
-    let source = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    let source = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
     for label in [
       "Game Plan", "Rule Profile", "Lineup Mode", "Batting Order", "Add Hitter",
       "Add Extra Hitter", "Add Multiple Extra Hitters", "Bat Entire Roster",
@@ -327,9 +327,9 @@ struct GameOperationsTests {
 
   @Test("Today Team Schedule and Admin expose contextual game readiness")
   func roleIntegration() throws {
-    let today = try sourceFile("MultiOrg/Features/Coach/CoachTeamCommandCenterView.swift")
-    let schedule = try sourceFile("MultiOrg/Features/Coach/CoachTeamScheduleView.swift")
-    let admin = try sourceFile("MultiOrg/Features/Admin/OrgEventOperationsAdminView.swift")
+    let today = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
+    let schedule = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
+    let admin = try sourceFile("HomePlate/Features/Admin/OrgEventOperationsAdminView.swift")
     let aggregate = try sourceFile("supabase/functions/today/index.ts")
     #expect(today.contains("service.today"))
     #expect(aggregate.contains("sd_game_plans"))
@@ -345,8 +345,8 @@ struct GameOperationsTests {
 
   @Test("players and parents see only their assignment summaries")
   func consumerExperience() throws {
-    let player = try sourceFile("MultiOrg/Features/Player/SDPlayerTodayView.swift")
-    let parent = try sourceFile("MultiOrg/Features/Home/ParentHomeView.swift")
+    let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
+    let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
     #expect(player.contains("Your batting assignment:"))
     #expect(player.contains("Starting defense"))
     #expect(parent.contains("Game plan:"))
@@ -372,9 +372,9 @@ struct GameOperationsTests {
 
   @Test("client consumes server capabilities and retains specialty scope")
   func authorization() throws {
-    let model = try sourceFile("MultiOrg/Core/TeamOperationsModels.swift")
+    let model = try sourceFile("HomePlate/Core/TeamOperationsModels.swift")
     let edge = try sourceFile("supabase/functions/game-operations/index.ts")
-    let workspace = try sourceFile("MultiOrg/Features/Coach/CoachEventOperationView.swift")
+    let workspace = try sourceFile("HomePlate/Features/Coach/CoachEventOperationView.swift")
     for capability in ["viewGamePlan", "manageBattingOrder", "manageDefensivePlan", "managePitcherCatcherPlan", "reopenGameOperation"] {
       #expect(model.contains(capability))
     }

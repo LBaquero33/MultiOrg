@@ -133,7 +133,7 @@ Breakpoint driver: SwiftUI size classes + `NavigationSplitView` on regular width
 
 ## 8. Naming rules
 
-- **Product name is "Home Plate"** everywhere user‑facing. The current on‑screen fallback **"MultiOrg"** (from `DHDOrgBranding.fallback`) is a bug‑level identity issue to correct — internal target names (`MultiOrg`, `MultiOrgMac`, bundle ids) can remain.
+- **Product name is "Home Plate"** everywhere user‑facing. The current on‑screen fallback **"HomePlate"** (from `DHDOrgBranding.fallback`) is a bug‑level identity issue to correct — internal target names (`HomePlate`, `HomePlateMac`, bundle ids) can remain.
 - Component names are prefixed **`HP`** (`HPButton`, `HPCard`, …) — see `HOME_PLATE_COMPONENT_LIBRARY.md` (to be authored in Stage 2/3).
 - Workspaces use the canonical names in §1; organization‑configurable terminology (`term()` — e.g. "Players" vs "Athletes", "Facilities") continues to override *labels* without changing workspace identity.
 - Feature/entitlement keys reuse the future set in handoff §16 (`finance_dashboard`, `game_day`, `command_iq`, …); the UI must render **polished locked/upgrade states** without hardcoding plan checks (handoff §15–16).

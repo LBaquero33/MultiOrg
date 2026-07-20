@@ -35,7 +35,7 @@ Output:
 - Regenerates the Xcode project using the bundled `tools/xcodegen`
 
 Then open:
-- `MultiOrg-acme/MultiOrg.xcodeproj`
+- `HomePlate-acme/HomePlate.xcodeproj`
 
 ## Notes
 - In `.xcconfig`, `https://...` is treated as a comment (`//`).  

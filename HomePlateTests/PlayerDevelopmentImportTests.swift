@@ -232,15 +232,15 @@ struct PlayerDevelopmentImportTests {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
     let components = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Core/DHDUIComponents.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Core/DHDUIComponents.swift"),
       encoding: .utf8
     )
     let view = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Features/Coach/PlayerDevelopmentImportView.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Features/Coach/PlayerDevelopmentImportView.swift"),
       encoding: .utf8
     )
     let service = try String(
-      contentsOf: projectRoot.appendingPathComponent("MultiOrg/Core/SupabaseService.swift"),
+      contentsOf: projectRoot.appendingPathComponent("HomePlate/Core/SupabaseService.swift"),
       encoding: .utf8
     )
     #expect(components.components(separatedBy: ".allowsHitTesting(false)").count - 1 >= 2)

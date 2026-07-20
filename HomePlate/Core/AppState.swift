@@ -650,7 +650,7 @@ final class AppState: ObservableObject {
   }
 
   func refreshOnboarding() async {
-    // MultiOrg no longer blocks accounts behind a questionnaire. Keep this
+    // Home Plate no longer blocks accounts behind a questionnaire. Keep this
     // compatibility entry point so older call sites remain harmless.
     myOnboarding = nil
     needsOnboarding = false

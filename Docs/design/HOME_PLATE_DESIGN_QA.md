@@ -13,7 +13,7 @@ A production destination is complete only when every applicable item passes. “
 - [ ] Green/gold/danger/success/focus are HP-controlled system semantics; organization branding is limited to identity context.
 - [ ] Typography uses the HP scale and platform-safe fallback; money and dense metrics use tabular figures where appropriate.
 - [ ] Spacing, radius, border, and elevation use HP tokens or an existing documented layout constant.
-- [ ] User-facing product identity reads “Home Plate”; no “MultiOrg” leakage.
+- [ ] User-facing product identity reads “Home Plate”; no “HomePlate” leakage.
 
 ## B. Layout and composition
 
@@ -56,7 +56,7 @@ A production destination is complete only when every applicable item passes. “
 - [ ] **iPhone:** no unbranded system “More” overflow; branded workspace directory and drill-in destinations work.
 - [ ] **iPadOS:** regular width uses the adaptive sidebar/detail shell and appropriate columns/splits rather than a stretched compact layout.
 - [ ] **macOS:** supported target surfaces use sidebar/detail, keyboard focus, hover/toolbar behavior where applicable, and Escape dismissal for modals.
-- [ ] The macOS claim matches the actual `MultiOrgMac` source set. Feature files excluded by `project.yml` are not reported as native macOS coverage merely because a test harness renders a macOS-width frame.
+- [ ] The macOS claim matches the actual `HomePlateMac` source set. Feature files excluded by `project.yml` are not reported as native macOS coverage merely because a test harness renders a macOS-width frame.
 - [ ] Platform-native controls are retained where Apple semantics, HIG, accessibility, StoreKit, authentication, alerts, or confirmation behavior require them.
 
 ## G. Data and correctness guardrails
@@ -70,7 +70,7 @@ A production destination is complete only when every applicable item passes. “
 ## H. Required build and test evidence
 
 - [x] Fresh iOS `build-for-testing` succeeds against the project’s controlled iPhone simulator runtime.
-- [x] Fresh native arm64 `MultiOrgMac` build succeeds.
+- [x] Fresh native arm64 `HomePlateMac` build succeeds.
 - [x] Focused tests for every touched feature pass before its layer commit.
 - [x] The complete non-render Swift test suite passes at the Layer E/F exit gate.
 - [x] Render-producing tests are run separately from the non-render suite so evidence-only work is visible and failures are attributable.
@@ -126,9 +126,9 @@ Layer F validated the exact Layer E production/test tree at `a588cb77ddda2c88489
 
 | Gate | Exact result |
 | --- | --- |
-| Coverage | **51/51** historical original-map contract; **79/79** strict live current roots/screens/sheets; **82/82** map-compatible current surfaces. Current application source inventory: **67** Swift files under `MultiOrg/App/**` and `MultiOrg/Features/**`. |
+| Coverage | **51/51** historical original-map contract; **79/79** strict live current roots/screens/sheets; **82/82** map-compatible current surfaces. Current application source inventory: **67** Swift files under `HomePlate/App/**` and `HomePlate/Features/**`. |
 | Clean iOS build-for-testing | Passed on `HP-iPhone17Pro`, iOS 26.5, with derived data at `/Volumes/HomePlateBuilds/DerivedData/LayerF-final-iOS`; log: `/Volumes/HomePlateBuilds/LayerF-final-iOS-build.log`. |
-| Clean native macOS build | `MultiOrgMac`, Debug, arm64 passed with derived data at `/Volumes/HomePlateBuilds/DerivedData/LayerF-final-macOS`; log: `/Volumes/HomePlateBuilds/LayerF-final-macOS-build.log`. |
+| Clean native macOS build | `HomePlateMac`, Debug, arm64 passed with derived data at `/Volumes/HomePlateBuilds/DerivedData/LayerF-final-macOS`; log: `/Volumes/HomePlateBuilds/LayerF-final-macOS-build.log`. |
 | Swift non-render suite | **237/237** logical tests and **251/251** invocations passed; 0 failures, skips, or expected failures. Result: `/Volumes/HomePlateBuilds/Results/LayerF-final-nonrender.xcresult`. |
 | Swift render suite | **59/59** tests passed; 0 failures, skips, or expected failures. The suite includes 28 render-producing methods plus 31 foundation/navigation assertions. Result: `/Volumes/HomePlateBuilds/Results/LayerF-final-render.xcresult`. |
 | Aggregate Swift evidence | **296/296** logical tests and **310/310** invocations passed. |
@@ -140,8 +140,8 @@ Layer F validated the exact Layer E production/test tree at `a588cb77ddda2c88489
 The exact build commands were:
 
 ```text
-xcodebuild -project MultiOrg.xcodeproj -scheme MultiOrg -configuration Debug -destination 'platform=iOS Simulator,id=B7059BC9-F55C-4B72-A52A-CEF6B4BF267F' -derivedDataPath /Volumes/HomePlateBuilds/DerivedData/LayerF-final-iOS CODE_SIGNING_ALLOWED=NO clean build-for-testing
-xcodebuild -project MultiOrg.xcodeproj -scheme MultiOrgMac -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /Volumes/HomePlateBuilds/DerivedData/LayerF-final-macOS ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= clean build
+xcodebuild -project HomePlate.xcodeproj -scheme HomePlate -configuration Debug -destination 'platform=iOS Simulator,id=B7059BC9-F55C-4B72-A52A-CEF6B4BF267F' -derivedDataPath /Volumes/HomePlateBuilds/DerivedData/LayerF-final-iOS CODE_SIGNING_ALLOWED=NO clean build-for-testing
+xcodebuild -project HomePlate.xcodeproj -scheme HomePlateMac -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /Volumes/HomePlateBuilds/DerivedData/LayerF-final-macOS ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= clean build
 ```
 
 ### Warning and exclusion classification
