@@ -75,6 +75,97 @@ private struct PushNotificationSettingsCard: View {
   }
 }
 
+private struct EventReminderPreferenceCard: View {
+  let organizationId: UUID
+  @EnvironmentObject private var appState: AppState
+  @State private var remindersEnabled = true
+  @State private var version: Int?
+  @State private var hasLoaded = false
+  @State private var isSaving = false
+  @State private var isApplyingPreference = false
+  @State private var errorText: String?
+
+  var body: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        Toggle("Event reminders", isOn: $remindersEnabled)
+          .font(HP.Font.callout.weight(.semibold))
+          .disabled(!hasLoaded || isSaving)
+          .accessibilityIdentifier("account.eventReminders24Hours")
+          .onChange(of: remindersEnabled) { oldValue, newValue in
+            guard hasLoaded, !isApplyingPreference, oldValue != newValue else { return }
+            Task { await save(enabled: newValue) }
+          }
+        Text("Receive a reminder approximately 24 hours before practices, games and other scheduled events.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        if let errorText {
+          Text(errorText)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.danger)
+        }
+      }
+    }
+    .task(id: organizationId) { await load() }
+  }
+
+  @MainActor private func load() async {
+    guard let service = appState.supabase else { return }
+    hasLoaded = false
+    errorText = nil
+    do {
+      let preference = try await service.notificationPreferences(
+        organizationId: organizationId
+      ).first(where: {
+        $0.category == "event_reminders" && $0.team_id == nil && $0.subject_player_id == nil
+      })
+      guard !Task.isCancelled, appState.activeOrgId == organizationId else { return }
+      isApplyingPreference = true
+      remindersEnabled = preference.map { $0.in_app_enabled || $0.push_enabled } ?? true
+      isApplyingPreference = false
+      version = preference?.version
+      hasLoaded = true
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ), appState.activeOrgId == organizationId else { return }
+      errorText = "The reminder preference could not be loaded."
+    }
+  }
+
+  @MainActor private func save(enabled: Bool) async {
+    guard let service = appState.supabase, appState.activeOrgId == organizationId else { return }
+    isSaving = true
+    errorText = nil
+    defer { isSaving = false }
+    do {
+      let preference = try await service.setNotificationPreference(
+        organizationId: organizationId,
+        category: "event_reminders",
+        inAppEnabled: enabled,
+        pushEnabled: enabled,
+        quietHoursStart: nil,
+        quietHoursEnd: nil,
+        timezone: TimeZone.current.identifier,
+        expectedVersion: version
+      )
+      guard !Task.isCancelled, appState.activeOrgId == organizationId else { return }
+      version = preference.version
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ), appState.activeOrgId == organizationId else { return }
+      isApplyingPreference = true
+      remindersEnabled.toggle()
+      isApplyingPreference = false
+      errorText = "The reminder preference could not be saved."
+    }
+  }
+}
+
 private struct AccountProfileAvatar: View {
   let url: URL?
   let name: String
@@ -224,6 +315,9 @@ struct AccountView: View {
         accessCard
         if isActiveOrganizationPlayer { paymentRequestsCard(context: context) }
         PushNotificationSettingsCard(manager: appState.pushNotifications)
+        if let organizationId = appState.activeOrgId {
+          EventReminderPreferenceCard(organizationId: organizationId)
+        }
         securityCard(context: context)
 
         if let toastText, !toastText.isEmpty {

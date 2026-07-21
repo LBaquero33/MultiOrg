@@ -63,7 +63,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {};
 
 function publicSelect() {
-  return "id,organization_id,season_id,team_id,series_id,occurrence_index,event_type,title,description,status,start_at,end_at,arrival_at,original_start_at,timezone,all_day,location_name,address,facility_id,visibility,created_at,updated_at,cancelled_at,cancellation_reason,sd_teams(name),sd_team_event_practices(event_id,objectives,dress_code,equipment_notes,practice_plan_status,facility_resource_label),sd_team_event_games(event_id,opponent,venue_side,game_status,uniform,home_score,away_score,field_details),sd_team_event_tournaments(event_id,tournament_name,host,tournament_start_date,tournament_end_date,parent_tournament_event_id),sd_team_event_meetings(event_id,meeting_type,virtual_link),sd_team_event_travel(event_id,departure_at,destination,transportation_notes,lodging_notes)";
+  return "id,organization_id,season_id,team_id,series_id,occurrence_index,event_type,title,description,status,start_at,end_at,arrival_at,original_start_at,timezone,all_day,location_name,address,facility_id,visibility,created_at,updated_at,cancelled_at,cancellation_reason,sd_teams!sd_team_events_team_id_fkey(name),sd_team_event_practices(event_id,objectives,dress_code,equipment_notes,practice_plan_status,facility_resource_label),sd_team_event_games(event_id,opponent,venue_side,game_status,uniform,home_score,away_score,field_details),sd_team_event_tournaments!sd_team_event_tournaments_event_id_fkey(event_id,tournament_name,host,tournament_start_date,tournament_end_date,parent_tournament_event_id),sd_team_event_meetings(event_id,meeting_type,virtual_link),sd_team_event_travel(event_id,departure_at,destination,transportation_notes,lodging_notes)";
 }
 
 Deno.serve(async (req) => {
@@ -125,15 +125,34 @@ Deno.serve(async (req) => {
     rows: Record<string, unknown>[],
   ): Promise<boolean> {
     try {
-      const { error } = await admin.from("sd_team_event_notification_intents")
-        .insert(rows);
+      const { data, error } = await admin.from(
+        "sd_team_event_notification_intents",
+      ).insert(rows).select("id");
       if (error) {
-        console.error("team_schedule_notification_intent_failed");
+        console.error(JSON.stringify({
+          event: "team_schedule_notification_intent_failed",
+          intent_count: rows.length,
+        }));
         return false;
+      }
+      for (const intent of data ?? []) {
+        const delivery = await admin.rpc(
+          "sd_deliver_team_event_notification_intent",
+          { p_intent_id: intent.id, p_dry_run: false },
+        );
+        if (delivery.error) {
+          console.error(JSON.stringify({
+            event: "team_schedule_notification_delivery_deferred",
+            intent_id: intent.id,
+          }));
+        }
       }
       return true;
     } catch {
-      console.error("team_schedule_notification_intent_failed");
+      console.error(JSON.stringify({
+        event: "team_schedule_notification_intent_failed",
+        intent_count: rows.length,
+      }));
       return false;
     }
   }
@@ -390,7 +409,7 @@ Deno.serve(async (req) => {
     let query = admin.from("sd_team_events").select(
       consumer
         ? publicSelect()
-        : "*,sd_teams(name),sd_team_event_practices(*),sd_team_event_games(*),sd_team_event_tournaments(*),sd_team_event_meetings(*),sd_team_event_travel(*),sd_team_event_coaches(*)",
+        : "*,sd_teams!sd_team_events_team_id_fkey(name),sd_team_event_practices(*),sd_team_event_games(*),sd_team_event_tournaments!sd_team_event_tournaments_event_id_fkey(*),sd_team_event_meetings(*),sd_team_event_travel(*),sd_team_event_coaches(*)",
     )
       .eq("organization_id", organizationId).in("team_id", teamIds)
       .lt("start_at", rangeEnd).gt("end_at", rangeStart).order("start_at", {
@@ -443,17 +462,88 @@ Deno.serve(async (req) => {
     });
   }
 
-  const teamId = uuid(payload.team_id);
-  const seasonId = uuid(payload.season_id);
-  if (!teamId || !seasonId) return fail(400, "missing_event_scope");
-  let resolved: string[];
-  try {
-    resolved = await capabilities(teamId);
-  } catch {
-    return fail(500, "capability_resolution_failed");
+  let seasonId = uuid(payload.season_id);
+  if (!seasonId) {
+    const { data: defaultSeason, error: seasonError } = await admin.from(
+      "sd_seasons",
+    ).select("id").eq("organization_id", organizationId).in(
+      "status",
+      ["active", "playoffs"],
+    ).order("is_default", { ascending: false }).order("start_date", {
+      ascending: false,
+    }).limit(1).maybeSingle();
+    if (seasonError) return fail(500, "season_lookup_failed");
+    seasonId = uuid(defaultSeason?.id);
   }
+  if (!seasonId) return fail(409, "active_season_required");
+
+  const neededCapability = action === "create" || action === "duplicate"
+    ? "create_team_event"
+    : action === "cancel" || action === "cancel_series"
+    ? "cancel_team_event"
+    : "edit_team_event";
+  let teamId = uuid(payload.team_id);
+  let resolved: string[] = [];
+  if (!teamId) {
+    const { data: candidates, error: candidateError } = await admin.from(
+      "sd_teams",
+    ).select("id").eq("org_id", organizationId).eq("season_id", seasonId).eq(
+      "is_active",
+      true,
+    ).order("sort_order").order("name");
+    if (candidateError) return fail(500, "team_lookup_failed");
+    for (const candidate of candidates ?? []) {
+      try {
+        const candidateCapabilities = await capabilities(text(candidate.id));
+        if (
+          candidateCapabilities.includes("view_team_schedule") &&
+          candidateCapabilities.includes(neededCapability)
+        ) {
+          teamId = text(candidate.id);
+          resolved = candidateCapabilities;
+          break;
+        }
+      } catch {
+        return fail(500, "capability_resolution_failed");
+      }
+    }
+  } else {
+    try {
+      resolved = await capabilities(teamId);
+    } catch {
+      return fail(500, "capability_resolution_failed");
+    }
+  }
+  if (!teamId) return fail(409, "authorized_team_required");
   if (!resolved.includes("view_team_schedule")) {
     return fail(403, "view_team_schedule_required");
+  }
+  const { data: scopedTeam, error: scopedTeamError } = await admin.from(
+    "sd_teams",
+  ).select("id,name,season_id,is_active").eq("id", teamId).eq(
+    "org_id",
+    organizationId,
+  ).maybeSingle();
+  if (scopedTeamError) return fail(500, "team_lookup_failed");
+  if (!scopedTeam || scopedTeam.is_active !== true) {
+    return fail(404, "team_not_found");
+  }
+  if (text(scopedTeam.season_id) !== seasonId) {
+    return fail(409, "team_season_mismatch");
+  }
+  const teamName = text(scopedTeam.name) || "your team";
+
+  function notificationPayload(
+    intentType: string,
+    event: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (intentType === "new_event") {
+      return {
+        title: "New Event",
+        body: `${text(event.title)} was added for ${teamName}.`,
+      };
+    }
+    return {};
   }
 
   if (action === "conflicts") {
@@ -509,12 +599,9 @@ Deno.serve(async (req) => {
   ) {
     return fail(400, "unsupported_action");
   }
-  const needed = action === "create" || action === "duplicate"
-    ? "create_team_event"
-    : action === "cancel" || action === "cancel_series"
-    ? "cancel_team_event"
-    : "edit_team_event";
-  if (!resolved.includes(needed)) return fail(403, `${needed}_required`);
+  if (!resolved.includes(neededCapability)) {
+    return fail(403, `${neededCapability}_required`);
+  }
   const requestId = uuid(payload.request_id);
   if (!requestId) return fail(400, "missing_request_id");
   const eventId = uuid(payload.event_id);
@@ -605,14 +692,19 @@ Deno.serve(async (req) => {
 
   const input = asRecord(payload.event);
   const source = input;
-  const eventType = source.event_type;
+  const eventType = text(source.event_type) || "custom";
   if (!isEventType(eventType)) return fail(400, "invalid_event_type");
   const typeCapability = requiredCapability(eventType);
   if (typeCapability && !resolved.includes(typeCapability)) {
     return fail(403, `${typeCapability}_required`);
   }
-  const startAt = text(source.start_at);
-  const endAt = text(source.end_at);
+  const now = Date.now();
+  const roundedStartMilliseconds = Math.floor(now / 1_800_000) * 1_800_000 +
+    1_800_000;
+  const startAt = text(source.start_at) ||
+    new Date(roundedStartMilliseconds).toISOString();
+  const endAt = text(source.end_at) ||
+    new Date(new Date(startAt).getTime() + 3_600_000).toISOString();
   const arrivalAt = text(source.arrival_at) || null;
   if (!startAt || !endAt || new Date(endAt) <= new Date(startAt)) {
     return fail(400, "invalid_event_times");
@@ -653,9 +745,6 @@ Deno.serve(async (req) => {
       : null,
   };
   if (!patch.title) return fail(400, "missing_title");
-  if (action !== "cancel" && !patch.location_name) {
-    return fail(400, "missing_location");
-  }
 
   const coachIds = Array.isArray(source.coach_ids)
     ? source.coach_ids.map(uuid).filter(Boolean) as string[]
@@ -851,7 +940,8 @@ Deno.serve(async (req) => {
           team_id: teamId,
           event_id: id,
           intent_type: intent,
-          deduplication_key: `${requestId}:${id}:${intent}`,
+          deduplication_key: `${id}:${intent}`,
+          payload: notificationPayload(intent, patch),
           created_by: callerId,
         })),
       );
@@ -1065,14 +1155,20 @@ Deno.serve(async (req) => {
   }
   const intent = notificationIntent(before, updated as Record<string, unknown>);
   if (intent) {
-    await admin.from("sd_team_event_notification_intents").insert({
+    await persistNotificationIntentsBestEffort([{
       organization_id: organizationId,
       team_id: teamId,
       event_id: eventId,
       intent_type: intent,
-      deduplication_key: `${requestId}:${eventId}:${intent}`,
+      deduplication_key: intent === "new_event"
+        ? `${eventId}:${intent}`
+        : `${eventId}:${intent}:${text(updated.start_at)}`,
+      payload: notificationPayload(
+        intent,
+        updated as Record<string, unknown>,
+      ),
       created_by: callerId,
-    });
+    }]);
   }
   if (
     (intent === "time_change" || intent === "location_change") &&

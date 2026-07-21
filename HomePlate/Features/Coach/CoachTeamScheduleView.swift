@@ -29,6 +29,12 @@ struct CoachTeamScheduleView: View {
         )
       } controls: {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
+          if canCreate, selectedSeasonId != nil {
+            HStack {
+              Spacer()
+              newEventMenu
+            }
+          }
           Picker("View", selection: $mode) {
             ForEach(SDTeamScheduleMode.allCases) { Text($0.rawValue).tag($0) }
           }
@@ -94,21 +100,6 @@ struct CoachTeamScheduleView: View {
         scheduleResults
       }
       .navigationTitle("Schedule")
-      .toolbar {
-        if canCreate, let scheduleSeasonId = selectedSeasonId, !creationTeams.isEmpty {
-          ToolbarItem(placement: .primaryAction) {
-            Button {
-              editor = EventEditorPresentation(
-                teams: creationTeams,
-                seasonId: scheduleSeasonId,
-                preselectedTeamId: editorPreselectedTeamId
-              )
-            } label: {
-              Label("New Event", systemImage: "plus")
-            }
-          }
-        }
-      }
       .task(id: reloadKey) { await reload() }
       .task(id: appState.activeOrgId) { await loadFacilities() }
       .refreshable { await reload() }
@@ -118,6 +109,7 @@ struct CoachTeamScheduleView: View {
           seasonId: presentation.seasonId,
           event: presentation.event,
           preselectedTeamId: presentation.preselectedTeamId,
+          defaultType: presentation.defaultType,
           isDuplicate: presentation.isDuplicate,
           editsFuture: presentation.editsFuture
         ) {
@@ -173,13 +165,13 @@ struct CoachTeamScheduleView: View {
       HPCard {
         VStack(spacing: HP.Space.sm) {
           HPEmptyState(
-            title: "No scheduled events",
-            message: "No \(filter.rawValue.lowercased()) match this \(mode.rawValue.lowercased()) view.",
+            title: "No events yet",
+            message: "Create your first practice, game, meeting or other event.",
             systemImage: "calendar"
           )
           if canCreate, let scheduleSeasonId = selectedSeasonId {
             HPButton(
-              title: "Create First Event",
+              title: "New Event",
               systemImage: "plus",
               variant: .primary,
               size: .md,
@@ -187,7 +179,8 @@ struct CoachTeamScheduleView: View {
                 editor = EventEditorPresentation(
                   teams: creationTeams,
                   seasonId: scheduleSeasonId,
-                  preselectedTeamId: editorPreselectedTeamId
+                  preselectedTeamId: editorPreselectedTeamId,
+                  defaultType: .practice
                 )
               }
             )
@@ -276,6 +269,34 @@ struct CoachTeamScheduleView: View {
     !creationTeams.isEmpty
   }
 
+  private var newEventMenu: some View {
+    Menu {
+      ForEach(SDTeamEventType.mvpCases) { eventType in
+        Button {
+          presentNewEvent(defaultType: eventType)
+        } label: {
+          Label(eventType.label, systemImage: eventType.systemImage)
+        }
+      }
+    } label: {
+      Label("New Event", systemImage: "plus")
+    }
+    .buttonStyle(HPButtonStyle(variant: .primary, size: .md))
+    .frame(minHeight: 44)
+    .accessibilityIdentifier("schedule.newEvent")
+    .accessibilityHint("Choose Practice, Game, Meeting or Other")
+  }
+
+  private func presentNewEvent(defaultType: SDTeamEventType) {
+    guard let scheduleSeasonId = selectedSeasonId else { return }
+    editor = EventEditorPresentation(
+      teams: creationTeams,
+      seasonId: scheduleSeasonId,
+      preselectedTeamId: editorPreselectedTeamId,
+      defaultType: defaultType
+    )
+  }
+
   private var creationTeams: [SDTeamOperationsTeam] {
     appState.canAdminActiveOrg
       ? seasonTeams
@@ -337,7 +358,7 @@ struct CoachTeamScheduleView: View {
   }
 
   private var editorPreselectedTeamId: UUID? {
-    teamFilterId ?? (creationTeams.count == 1 ? creationTeams[0].id : nil)
+    teamFilterId ?? creationTeams.first?.id
   }
 
   private var selectedFacilityName: String {
@@ -561,6 +582,7 @@ struct EventEditorPresentation: Identifiable {
   let teams: [SDTeamOperationsTeam]
   let seasonId: UUID
   let preselectedTeamId: UUID?
+  let defaultType: SDTeamEventType
   var event: SDTeamEvent?
   var isDuplicate: Bool
   var editsFuture: Bool
@@ -569,6 +591,7 @@ struct EventEditorPresentation: Identifiable {
     teams: [SDTeamOperationsTeam],
     seasonId: UUID,
     preselectedTeamId: UUID? = nil,
+    defaultType: SDTeamEventType = .practice,
     event: SDTeamEvent? = nil,
     isDuplicate: Bool = false,
     editsFuture: Bool = false
@@ -576,6 +599,7 @@ struct EventEditorPresentation: Identifiable {
     self.teams = teams
     self.seasonId = seasonId
     self.preselectedTeamId = preselectedTeamId ?? event?.team_id
+    self.defaultType = event?.event_type ?? defaultType
     self.event = event
     self.isDuplicate = isDuplicate
     self.editsFuture = editsFuture
@@ -661,6 +685,7 @@ struct TeamEventEditorView: View {
   let seasonId: UUID
   let event: SDTeamEvent?
   let preselectedTeamId: UUID?
+  let defaultType: SDTeamEventType
   let isDuplicate: Bool
   let editsFuture: Bool
   let onSaved: () -> Void
@@ -671,12 +696,14 @@ struct TeamEventEditorView: View {
   @State private var overrideReason = ""
   @State private var isSaving = false
   @State private var errorText: String?
+  @State private var showsMoreOptions = false
 
   init(
     teams: [SDTeamOperationsTeam],
     seasonId: UUID,
     event: SDTeamEvent? = nil,
     preselectedTeamId: UUID? = nil,
+    defaultType: SDTeamEventType = .practice,
     isDuplicate: Bool = false,
     editsFuture: Bool = false,
     onSaved: @escaping () -> Void
@@ -685,14 +712,18 @@ struct TeamEventEditorView: View {
     self.seasonId = seasonId
     self.event = event
     self.preselectedTeamId = preselectedTeamId
+    self.defaultType = defaultType
     self.isDuplicate = isDuplicate
     self.editsFuture = editsFuture
     self.onSaved = onSaved
-    _draft = State(initialValue: event.map(SDTeamEventDraft.init(event:)) ?? SDTeamEventDraft())
+    _draft = State(
+      initialValue: event.map(SDTeamEventDraft.init(event:))
+        ?? SDTeamEventDraft(type: defaultType)
+    )
     _selectedTeamId = State(
       initialValue: event?.team_id
         ?? preselectedTeamId
-        ?? (teams.count == 1 ? teams[0].id : nil)
+        ?? teams.first?.id
     )
   }
 
@@ -700,6 +731,8 @@ struct TeamEventEditorView: View {
     NavigationStack {
       Form {
         Section("Event details") {
+          TextField("Title", text: $draft.title)
+            .accessibilityIdentifier("schedule.eventTitle")
           Picker("Type", selection: $draft.type) {
             ForEach(SDTeamEventType.mvpCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
           }
@@ -708,9 +741,6 @@ struct TeamEventEditorView: View {
             ForEach(teams) { team in Text(team.name).tag(Optional(team.id)) }
           }
           .disabled(event != nil && !isDuplicate)
-          TextField("Title", text: $draft.title)
-          TextField("Description", text: $draft.description, axis: .vertical)
-          Toggle("All day", isOn: $draft.allDay)
           DatePicker("Starts", selection: $draft.startAt)
           DatePicker("Ends", selection: $draft.endAt)
           if let timingIssue {
@@ -719,50 +749,50 @@ struct TeamEventEditorView: View {
               .foregroundStyle(HP.Color.danger)
           }
         }
-        Section("Location") {
-          TextField("Location", text: $draft.locationName)
-          TextField("Address", text: $draft.address)
-          Picker("Facility resource", selection: $draft.facilityId) {
-            Text("None").tag(UUID?.none)
-            ForEach(facilities) { facility in Text(facility.name).tag(Optional(facility.id)) }
-          }
-        }
-        Section("Audience") {
-          Picker("Visibility", selection: $draft.visibility) {
-            Text("Players and parents").tag(SDTeamEventVisibility.team)
-            Text("Staff only").tag(SDTeamEventVisibility.staffOnly)
-          }
-          TextField("Coach-private notes", text: $draft.notes, axis: .vertical)
-        }
-        Section("Optional") {
-          Toggle("Set arrival time", isOn: Binding(
-            get: { draft.arrivalAt != nil },
-            set: { draft.arrivalAt = $0 ? draft.startAt.addingTimeInterval(-1800) : nil }
-          ))
-          if draft.arrivalAt != nil {
-            DatePicker("Arrival", selection: Binding(
-              get: { draft.arrivalAt ?? draft.startAt },
-              set: { draft.arrivalAt = $0 }
+        Section {
+          DisclosureGroup("More Options", isExpanded: $showsMoreOptions) {
+            TextField("Description", text: $draft.description, axis: .vertical)
+            Toggle("All day", isOn: $draft.allDay)
+            Toggle("Set arrival time", isOn: Binding(
+              get: { draft.arrivalAt != nil },
+              set: { draft.arrivalAt = $0 ? draft.startAt.addingTimeInterval(-1_800) : nil }
             ))
-          }
-          Toggle("Recurring event", isOn: $draft.repeats)
-          if draft.repeats {
-            Text("Repeats weekly")
-            Stepper("Every \(draft.recurrenceInterval) week(s)", value: $draft.recurrenceInterval, in: 1...12)
-            Picker("Ends", selection: $draft.recurrenceUsesEndDate) {
-              Text("After occurrences").tag(false)
-              Text("On date").tag(true)
+            if draft.arrivalAt != nil {
+              DatePicker("Arrival", selection: Binding(
+                get: { draft.arrivalAt ?? draft.startAt },
+                set: { draft.arrivalAt = $0 }
+              ))
             }
-            if draft.recurrenceUsesEndDate {
-              DatePicker("Recurrence end", selection: $draft.recurrenceEndDate, in: draft.startAt..., displayedComponents: .date)
-            } else {
-              Stepper("\(draft.occurrenceCount) occurrences", value: $draft.occurrenceCount, in: 1...52)
+            TextField("Location", text: $draft.locationName)
+            TextField("Address", text: $draft.address)
+            Picker("Facility resource", selection: $draft.facilityId) {
+              Text("None").tag(UUID?.none)
+              ForEach(facilities) { facility in Text(facility.name).tag(Optional(facility.id)) }
             }
-          }
-          if let saveDisabledReason, timingIssue == nil {
-            Text(saveDisabledReason)
-              .font(HP.Font.caption)
-              .foregroundStyle(HP.Color.textMuted)
+            Picker("Visibility", selection: $draft.visibility) {
+              Text("Players and parents").tag(SDTeamEventVisibility.team)
+              Text("Staff only").tag(SDTeamEventVisibility.staffOnly)
+            }
+            TextField("Coach-private notes", text: $draft.notes, axis: .vertical)
+            Toggle("Recurring event", isOn: $draft.repeats)
+            if draft.repeats {
+              Text("Repeats weekly")
+              Stepper("Every \(draft.recurrenceInterval) week(s)", value: $draft.recurrenceInterval, in: 1...12)
+              Picker("Ends", selection: $draft.recurrenceUsesEndDate) {
+                Text("After occurrences").tag(false)
+                Text("On date").tag(true)
+              }
+              if draft.recurrenceUsesEndDate {
+                DatePicker("Recurrence end", selection: $draft.recurrenceEndDate, in: draft.startAt..., displayedComponents: .date)
+              } else {
+                Stepper("\(draft.occurrenceCount) occurrences", value: $draft.occurrenceCount, in: 1...52)
+              }
+            }
+            if let saveDisabledReason, timingIssue == nil {
+              Text(saveDisabledReason)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+            }
           }
         }
         if !conflicts.isEmpty {
@@ -827,12 +857,7 @@ struct TeamEventEditorView: View {
   }
 
   private var canSave: Bool {
-    selectedTeamId != nil
-      && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && !draft.locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && timingIssue == nil
-      && (!draft.repeats || draft.recurrenceFrequency != "weekly" || !draft.recurrenceWeekdays.isEmpty)
-      && (!draft.repeats || !draft.recurrenceUsesEndDate || draft.recurrenceEndDate >= Calendar.current.startOfDay(for: draft.startAt))
+    draft.isReadyToSave(teamId: selectedTeamId)
   }
 
   private var timingIssue: SDTeamEventTimingIssue? {
@@ -842,7 +867,6 @@ struct TeamEventEditorView: View {
   private var saveDisabledReason: String? {
     if selectedTeamId == nil { return "Select a team to save this event." }
     if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter an event title." }
-    if draft.locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter an event location." }
     if draft.repeats && draft.recurrenceWeekdays.isEmpty { return "Select at least one weekday for the recurring event." }
     return nil
   }

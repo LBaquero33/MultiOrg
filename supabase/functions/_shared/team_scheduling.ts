@@ -196,7 +196,10 @@ export function notificationIntent(
   | "cancellation"
   | "postponement"
   | null {
-  if (!before && after.status !== "draft") return "new_event";
+  if (
+    (!before && after.status !== "draft") ||
+    (before?.status === "draft" && after.status !== "draft")
+  ) return "new_event";
   if (before?.status !== "cancelled" && after.status === "cancelled") {
     return "cancellation";
   }

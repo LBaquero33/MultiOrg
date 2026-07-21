@@ -66,6 +66,8 @@ const knownCategories = new Set([
   "message_received",
   "testing_result_added",
   "organization_announcement",
+  "schedule_change",
+  "event_reminder",
   "system",
 ]);
 const knownRoutes = new Set([
@@ -73,12 +75,15 @@ const knownRoutes = new Set([
   "payment",
   "finance",
   "organization_announcement",
+  "team_event",
   "notification_detail",
 ]);
 const safePayloadKeys = new Set([
   "payment_request_id",
   "payment_id",
   "announcement_id",
+  "event_id",
+  "team_id",
 ]);
 const permanentDeviceReasons = new Set([
   "BadDeviceToken",

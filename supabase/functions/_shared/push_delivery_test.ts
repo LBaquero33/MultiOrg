@@ -257,6 +257,29 @@ Deno.test("payload contains authoritative badge and only allowlisted routing met
   assert(!result.body.includes("Stripe"));
 });
 
+Deno.test("schedule and reminder pushes retain safe event copy and routing", () => {
+  for (const category of ["schedule_change", "event_reminder"]) {
+    const result = buildAPNSPayload({
+      ...facts.notification,
+      category,
+      title: category === "event_reminder" ? "Event Tomorrow" : "New Event",
+      body: "Practice was added for Marist 10U.",
+      action_route: "team_event",
+      action_payload: {
+        event_id: "77777777-7777-4777-8777-777777777777",
+        team_id: "88888888-8888-4888-8888-888888888888",
+        private_note: "do not include",
+      },
+    }, 1);
+    assert(result.body.includes("Practice was added for Marist 10U."));
+    assert(result.body.includes('"action_route":"team_event"'));
+    assert(
+      result.body.includes('"event_id":"77777777-7777-4777-8777-777777777777"'),
+    );
+    assert(!result.body.includes("private_note"));
+  }
+});
+
 Deno.test("oversized and unknown notification payloads are bounded and generic", () => {
   const oversized = buildAPNSPayload({
     ...facts.notification,

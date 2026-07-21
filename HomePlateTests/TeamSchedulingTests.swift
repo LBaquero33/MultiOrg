@@ -1,6 +1,11 @@
 import Foundation
 import Testing
+import SwiftUI
+import XCTest
 @testable import HomePlate
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Suite("Phase 12B unified team scheduling")
 struct TeamSchedulingTests {
@@ -83,6 +88,52 @@ struct TeamSchedulingTests {
     #expect(SDTeamEventTiming.validationIssue(start: start, end: start, arrival: nil) == .endNotAfterStart)
     #expect(SDTeamEventTiming.validationIssue(start: start, end: start.addingTimeInterval(3_600), arrival: start.addingTimeInterval(60)) == .arrivalAfterStart)
     #expect(SDTeamEventTimingIssue.endNotAfterStart.message == "End time must be after the start time.")
+  }
+
+  @Test("title is the only manually required event field")
+  func titleOnlyDefaults() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
+    let now = try #require(calendar.date(from: DateComponents(
+      year: 2026, month: 7, day: 21, hour: 10, minute: 7, second: 14
+    )))
+    let teamId = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+    var draft = SDTeamEventDraft(type: .game, now: now, calendar: calendar)
+    draft.title = "Title-only game"
+    #expect(calendar.component(.hour, from: draft.startAt) == 10)
+    #expect(calendar.component(.minute, from: draft.startAt) == 30)
+    #expect(draft.endAt.timeIntervalSince(draft.startAt) == 3_600)
+    #expect(draft.type == .game)
+    #expect(draft.locationName.isEmpty)
+    #expect(draft.isReadyToSave(teamId: teamId))
+    draft.title = "   "
+    #expect(!draft.isReadyToSave(teamId: teamId))
+  }
+
+  @Test("creation uses a labeled primary New Event menu and compact options")
+  func simpleCreationSource() throws {
+    let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
+    #expect(source.contains("Label(\"New Event\", systemImage: \"plus\")"))
+    #expect(source.contains("HPButtonStyle(variant: .primary"))
+    #expect(source.contains("accessibilityIdentifier(\"schedule.newEvent\")"))
+    #expect(source.contains("presentNewEvent(defaultType: eventType)"))
+    #expect(source.contains("DisclosureGroup(\"More Options\""))
+    #expect(!source.contains("ToolbarItem(placement: .primaryAction)"))
+    #expect(!source.contains("Enter an event location."))
+  }
+
+  @Test("event reminders are per-user, default on and independently saved")
+  func reminderPreferenceSource() throws {
+    let account = try sourceFile("HomePlate/Features/Account/AccountView.swift")
+    let migration = try sourceFile("supabase/migrations/20260721050000_schedule_event_notifications.sql")
+    #expect(account.contains("Event reminders"))
+    #expect(account.contains("category: \"event_reminders\""))
+    #expect(account.contains("@State private var remindersEnabled = true"))
+    #expect(migration.contains("sd_effective_notification_preference"))
+    #expect(migration.contains("event_reminder_24h"))
+    #expect(migration.contains("home-plate-event-reminders-24h"))
+    #expect(migration.contains("*/30 * * * *"))
+    #expect(!migration.contains("sd_financial"))
   }
 
   @Test("MVP create publish refresh authorization and notification boundaries remain explicit")
@@ -274,7 +325,7 @@ struct TeamSchedulingTests {
     #expect(source.contains("teamFilterId"))
     #expect(source.contains("facilityFilterId"))
     #expect(source.contains("moveAnchor(backward:"))
-    #expect(source.contains("Create First Event"))
+    #expect(source.contains("title: \"New Event\""))
   }
 
   @Test("player and parent calendars consume redacted team events")
@@ -413,3 +464,54 @@ struct TeamSchedulingTests {
     return try JSONSerialization.data(withJSONObject: payload)
   }
 }
+
+#if canImport(UIKit)
+@MainActor
+final class ScheduleCreationRenderTests: XCTestCase {
+  func testTitleOnlyCreationFormRenders() throws {
+    let organizationId = UUID(uuidString: "800e22ae-2a9d-4109-9e11-1360eeaa8ea7")!
+    let seasonId = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+    let teamId = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+    let team = SDTeamOperationsTeam(
+      id: teamId,
+      org_id: organizationId,
+      season_id: seasonId,
+      name: "Marist 10U",
+      color_hex: nil,
+      description: nil,
+      age_group: nil,
+      competitive_level: nil,
+      roster_capacity: nil,
+      is_active: true,
+      sort_order: 0,
+      created_by: nil,
+      created_at: nil,
+      updated_at: nil,
+      is_primary: true,
+      roster_count: 12,
+      staff_count: 2,
+      capabilities: [.viewTeamSchedule, .createTeamEvent]
+    )
+    let view = TeamEventEditorView(
+      teams: [team],
+      seasonId: seasonId,
+      preselectedTeamId: teamId,
+      defaultType: .practice,
+      isDuplicate: false,
+      editsFuture: false,
+      onSaved: {}
+    )
+    .environmentObject(AppState())
+    let host = UIHostingController(rootView: view)
+    host.view.frame = CGRect(x: 0, y: 0, width: 393, height: 844)
+    host.view.backgroundColor = .systemBackground
+    host.view.setNeedsLayout()
+    host.view.layoutIfNeeded()
+    let image = UIGraphicsImageRenderer(size: host.view.bounds.size).image {
+      host.view.layer.render(in: $0.cgContext)
+    }
+    XCTAssertNotNil(image.pngData())
+    XCTAssertGreaterThan(image.size.width, 0)
+  }
+}
+#endif

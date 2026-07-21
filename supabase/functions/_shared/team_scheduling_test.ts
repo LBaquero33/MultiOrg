@@ -15,6 +15,10 @@ const migrationURL = new URL(
   "../../migrations/20260717183000_unified_team_scheduling.sql",
   import.meta.url,
 );
+const phase14BMigrationURL = new URL(
+  "../../migrations/20260721050000_schedule_event_notifications.sql",
+  import.meta.url,
+);
 
 Deno.test("daily recurrence is deterministic and bounded", () => {
   const rows = materializeOccurrences(
@@ -120,10 +124,15 @@ Deno.test("schedule read authority keeps organization and coach paths separate",
   }
 });
 
-Deno.test("notification intent changes are deterministic and never dispatch", () => {
+Deno.test("notification intent changes are deterministic", () => {
   assert(
     notificationIntent(null, { status: "scheduled" }) === "new_event",
     "publish",
+  );
+  assert(
+    notificationIntent({ status: "draft" }, { status: "scheduled" }) ===
+      "new_event",
+    "draft publish",
   );
   assert(
     notificationIntent({ status: "scheduled" }, { status: "cancelled" }) ===
@@ -204,7 +213,7 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
   const mutation = source.indexOf('from("sd_team_events").insert');
   assert(resolver > 0 && mutation > resolver, "resolver before mutation");
   assert(
-    source.includes("return fail(403, `${needed}_required`)"),
+    source.includes("return fail(403, `${neededCapability}_required`)"),
     "view-only rejection",
   );
   assert(
@@ -235,7 +244,28 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
     assert(source.includes(`"${code}"`), `controlled ${code}`);
   }
   assert(source.includes("schema_version: 1"), "versioned envelope");
-  assert(source.includes("!patch.location_name"), "location required");
+  assert(
+    source.includes("sd_teams!sd_team_events_team_id_fkey(name)"),
+    "team relationship is unambiguous",
+  );
+  assert(!source.includes("sd_teams(name)"), "implicit team embed is absent");
+  assert(
+    source.includes(
+      "sd_team_event_tournaments!sd_team_event_tournaments_event_id_fkey",
+    ),
+    "tournament relationship is unambiguous",
+  );
+  assert(!source.includes("!patch.location_name"), "location is optional");
+  assert(
+    source.includes('text(source.event_type) || "custom"'),
+    "type default",
+  );
+  assert(source.includes("roundedStartMilliseconds"), "start default");
+  assert(
+    source.includes("authorized_team_required"),
+    "team default is authorized",
+  );
+  assert(source.includes("active_season_required"), "season default is active");
   assert(source.includes("request_id:"), "request correlation");
   assert(!source.includes("error.message"), "no raw provider errors");
   assert(
@@ -270,4 +300,38 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
     "notification failure cannot erase a persisted event",
   );
   assert(!source.includes("sd_notifications"), "no notification dispatch");
+});
+
+Deno.test("Phase 14B schedule notifications are idempotent and cron driven", async () => {
+  const sql = await Deno.readTextFile(phase14BMigrationURL);
+  assert(
+    sql.includes("sd_deliver_team_event_notification_intent"),
+    "delivery RPC",
+  );
+  assert(sql.includes("event_reminder_24h"), "reminder intent");
+  assert(
+    sql.includes("start_at >= p_now + interval '23 hours'"),
+    "window start",
+  );
+  assert(sql.includes("start_at < p_now + interval '25 hours'"), "window end");
+  assert(sql.includes("status in ('scheduled','confirmed')"), "published only");
+  assert(
+    sql.includes("event_no_longer_eligible"),
+    "changed or cancelled event suppression",
+  );
+  assert(sql.includes("preference_category"), "per-user preference resolution");
+  assert(
+    sql.includes("targets.user_id <> intent.created_by"),
+    "creator excluded",
+  );
+  assert(
+    sql.includes("on conflict(organization_id,deduplication_key) do nothing"),
+    "intent idempotency",
+  );
+  assert(
+    sql.includes("home-plate-event-reminders-24h"),
+    "existing cron pattern",
+  );
+  assert(sql.includes("*/30 * * * *"), "thirty minute cadence");
+  assert(!sql.includes("sd_financial"), "financial boundary");
 });

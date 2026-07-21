@@ -70,6 +70,25 @@ enum SDTeamEventTimingIssue: Equatable, Sendable {
 }
 
 enum SDTeamEventTiming {
+  static func nextRoundedStart(
+    after date: Date,
+    calendar: Calendar = .current
+  ) -> Date {
+    let minute = calendar.component(.minute, from: date)
+    let seconds = calendar.component(.second, from: date)
+    let nanoseconds = calendar.component(.nanosecond, from: date)
+    let elapsedInHalfHour = (minute % 30) * 60 + seconds
+      + (nanoseconds > 0 ? 1 : 0)
+    let secondsUntilBoundary = elapsedInHalfHour == 0 ? 1_800 : 1_800 - elapsedInHalfHour
+    let advanced = date.addingTimeInterval(TimeInterval(secondsUntilBoundary))
+    return calendar.date(
+      bySettingHour: calendar.component(.hour, from: advanced),
+      minute: calendar.component(.minute, from: advanced) < 30 ? 0 : 30,
+      second: 0,
+      of: advanced
+    ) ?? advanced
+  }
+
   static func validationIssue(start: Date, end: Date, arrival: Date?) -> SDTeamEventTimingIssue? {
     guard end > start else { return .endNotAfterStart }
     if let arrival, arrival > start { return .arrivalAfterStart }
@@ -390,7 +409,7 @@ struct SDTeamEventDraft: Equatable, Sendable {
   var description = ""
   var status: SDTeamEventStatus = .draft
   var startAt = Date()
-  var endAt = Date().addingTimeInterval(7_200)
+  var endAt = Date().addingTimeInterval(3_600)
   var arrivalAt: Date?
   var timezone = TimeZone.current.identifier
   var allDay = false
@@ -420,7 +439,25 @@ struct SDTeamEventDraft: Equatable, Sendable {
   var recurrenceEndDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
   var occurrenceCount = 4
 
-  init() {}
+  init(
+    type: SDTeamEventType = .practice,
+    now: Date = Date(),
+    calendar: Calendar = .current
+  ) {
+    self.type = type
+    startAt = SDTeamEventTiming.nextRoundedStart(after: now, calendar: calendar)
+    endAt = startAt.addingTimeInterval(3_600)
+    recurrenceWeekdays = [calendar.component(.weekday, from: startAt) - 1]
+    recurrenceEndDate = calendar.date(byAdding: .month, value: 1, to: startAt) ?? startAt
+  }
+
+  func isReadyToSave(teamId: UUID?) -> Bool {
+    teamId != nil
+      && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && SDTeamEventTiming.validationIssue(start: startAt, end: endAt, arrival: arrivalAt) == nil
+      && (!repeats || recurrenceFrequency != "weekly" || !recurrenceWeekdays.isEmpty)
+      && (!repeats || !recurrenceUsesEndDate || recurrenceEndDate >= Calendar.current.startOfDay(for: startAt))
+  }
 
   init(event: SDTeamEvent) {
     type = event.event_type
