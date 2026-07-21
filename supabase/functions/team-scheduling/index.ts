@@ -121,6 +121,23 @@ Deno.serve(async (req) => {
     return (data ?? []).map(String);
   }
 
+  async function persistNotificationIntentsBestEffort(
+    rows: Record<string, unknown>[],
+  ): Promise<boolean> {
+    try {
+      const { error } = await admin.from("sd_team_event_notification_intents")
+        .insert(rows);
+      if (error) {
+        console.error("team_schedule_notification_intent_failed");
+        return false;
+      }
+      return true;
+    } catch {
+      console.error("team_schedule_notification_intent_failed");
+      return false;
+    }
+  }
+
   async function persistSubtype(
     eventIds: string[],
     eventType: EventType,
@@ -333,7 +350,35 @@ Deno.serve(async (req) => {
           text(row.id)
         );
       } else {
-        return listFail(400, "team_not_selected", "validate_team");
+        let teamQuery = admin.from("sd_teams").select("id").eq(
+          "org_id",
+          organizationId,
+        ).eq("is_active", true);
+        if (requestedSeason) {
+          teamQuery = teamQuery.eq("season_id", requestedSeason);
+        }
+        const { data: candidateTeams, error: candidateError } = await teamQuery;
+        if (candidateError) {
+          return listFail(500, "service_unavailable", "execute_query");
+        }
+        const capabilityUnion = new Set<string>();
+        for (const candidate of candidateTeams ?? []) {
+          let candidateCapabilities: string[];
+          try {
+            candidateCapabilities = await capabilities(text(candidate.id));
+          } catch {
+            return listFail(500, "service_unavailable", "resolve_capabilities");
+          }
+          if (
+            resolveScheduleReadAuthority(role, candidateCapabilities).allowed
+          ) {
+            teamIds.push(text(candidate.id));
+            candidateCapabilities.forEach((capability) =>
+              capabilityUnion.add(capability)
+            );
+          }
+        }
+        listCapabilities = [...capabilityUnion];
       }
     }
     if (!teamIds.length) {
@@ -608,6 +653,9 @@ Deno.serve(async (req) => {
       : null,
   };
   if (!patch.title) return fail(400, "missing_title");
+  if (action !== "cancel" && !patch.location_name) {
+    return fail(400, "missing_location");
+  }
 
   const coachIds = Array.isArray(source.coach_ids)
     ? source.coach_ids.map(uuid).filter(Boolean) as string[]
@@ -797,7 +845,7 @@ Deno.serve(async (req) => {
     }
     const intent = notificationIntent(null, patch);
     if (intent) {
-      await admin.from("sd_team_event_notification_intents").insert(
+      await persistNotificationIntentsBestEffort(
         ids.map((id) => ({
           organization_id: organizationId,
           team_id: teamId,

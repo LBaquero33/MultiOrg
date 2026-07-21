@@ -3,7 +3,8 @@ import Foundation
 enum SDTeamEventType: String, CaseIterable, Codable, Identifiable, Sendable {
   case practice, game, tournament, meeting, travel, custom
   var id: String { rawValue }
-  var label: String { rawValue.capitalized }
+  static let mvpCases: [Self] = [.practice, .game, .meeting, .custom]
+  var label: String { self == .custom ? "Other" : rawValue.capitalized }
   var systemImage: String {
     switch self {
     case .practice: "figure.baseball"
@@ -18,7 +19,78 @@ enum SDTeamEventType: String, CaseIterable, Codable, Identifiable, Sendable {
 
 enum SDTeamEventStatus: String, CaseIterable, Codable, Sendable {
   case draft, scheduled, confirmed, cancelled, completed, postponed
-  var label: String { rawValue.capitalized }
+  var label: String { self == .scheduled ? "Published" : rawValue.capitalized }
+}
+
+struct SDTeamScheduleSelection: Equatable, Sendable {
+  let seasonId: UUID?
+  let teamId: UUID?
+  let repairedSeason: Bool
+  let repairedTeam: Bool
+  var hasActiveSeason: Bool { seasonId != nil }
+}
+
+enum SDTeamScheduleSelectionResolver {
+  static func resolve(
+    organizationId: UUID,
+    selectedSeasonId: UUID?,
+    selectedTeamId: UUID?,
+    seasons: [SDSeason],
+    teams: [SDTeamOperationsTeam]
+  ) -> SDTeamScheduleSelection {
+    let activeSeasons = seasons.filter {
+      $0.organization_id == organizationId && ($0.status == .active || $0.status == .playoffs)
+    }
+    let seasonId = activeSeasons.contains(where: { $0.id == selectedSeasonId })
+      ? selectedSeasonId
+      : activeSeasons.first(where: { $0.is_default })?.id ?? activeSeasons.first?.id
+    let eligibleTeams = teams.filter {
+      $0.org_id == organizationId && $0.is_active && $0.season_id == seasonId
+    }
+    let teamId = eligibleTeams.contains(where: { $0.id == selectedTeamId }) ? selectedTeamId : nil
+    return SDTeamScheduleSelection(
+      seasonId: seasonId,
+      teamId: teamId,
+      repairedSeason: selectedSeasonId != nil && selectedSeasonId != seasonId,
+      repairedTeam: selectedTeamId != nil && selectedTeamId != teamId
+    )
+  }
+}
+
+enum SDTeamEventTimingIssue: Equatable, Sendable {
+  case endNotAfterStart
+  case arrivalAfterStart
+
+  var message: String {
+    switch self {
+    case .endNotAfterStart: "End time must be after the start time."
+    case .arrivalAfterStart: "Arrival time must be at or before the start time."
+    }
+  }
+}
+
+enum SDTeamEventTiming {
+  static func validationIssue(start: Date, end: Date, arrival: Date?) -> SDTeamEventTimingIssue? {
+    guard end > start else { return .endNotAfterStart }
+    if let arrival, arrival > start { return .arrivalAfterStart }
+    return nil
+  }
+
+  static func endAfterSelecting(
+    _ proposedEnd: Date,
+    start: Date,
+    calendar: Calendar
+  ) -> Date {
+    guard proposedEnd <= start, calendar.isDate(proposedEnd, inSameDayAs: start) else {
+      return proposedEnd
+    }
+    return calendar.date(byAdding: .day, value: 1, to: proposedEnd) ?? proposedEnd
+  }
+
+  static func allDayRange(containing date: Date, calendar: Calendar) -> (start: Date, end: Date) {
+    let start = calendar.startOfDay(for: date)
+    return (start, calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400))
+  }
 }
 
 enum SDTeamEventVisibility: String, CaseIterable, Codable, Sendable {
@@ -406,7 +478,8 @@ enum SDTeamScheduleFilter: String, CaseIterable, Identifiable {
   case tournaments = "Tournaments"
   case meetings = "Meetings"
   case travel = "Travel"
-  case custom = "Custom"
+  case custom = "Other"
+  static let mvpCases: [Self] = [.all, .practices, .games, .meetings, .custom]
   var id: String { rawValue }
   func includes(_ type: SDTeamEventType) -> Bool {
     switch self {

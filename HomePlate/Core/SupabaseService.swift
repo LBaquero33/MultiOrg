@@ -896,7 +896,7 @@ final class SupabaseService: ObservableObject {
       ]
     case .game:
       subtype = [
-        "opponent": .string(draft.opponent),
+        "opponent": .string(draft.opponent.sdNilIfBlank ?? "Opponent TBD"),
         "venue_side": .string(draft.venueSide),
         "game_status": .string("scheduled"),
         "uniform": .string(draft.uniform)

@@ -10,18 +10,21 @@ struct CoachTeamScheduleView: View {
   @State private var seasonFilterId: UUID?
   @State private var facilityFilterId: UUID?
   @State private var teamFilterId: UUID?
+  @State private var selectionInitialized = false
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var filterRepairNotice: String?
   @State private var loadToken: UUID?
   @State private var editor: EventEditorPresentation?
   @State private var planningEvent: SDTeamEvent?
+  @State private var detailEvent: SDTeamEvent?
 
   var body: some View {
     NavigationStack {
       HPListScreenLayout {
         HPWorkspaceHeader(
           "Schedule",
-          orgLabel: appState.selectedSeason?.name ?? "Season",
+          orgLabel: selectedSeasonName,
           context: scheduleScopeLabel
         )
       } controls: {
@@ -34,7 +37,7 @@ struct CoachTeamScheduleView: View {
           HStack(spacing: HP.Space.sm) {
             if appState.canAdminActiveOrg {
               Menu {
-                ForEach(appState.teamOperationsContext?.seasons ?? []) { season in
+                ForEach(scheduleSeasons) { season in
                   Button(season.name) { seasonFilterId = season.id }
                 }
               } label: {
@@ -59,7 +62,7 @@ struct CoachTeamScheduleView: View {
             }
             Menu {
               Picker("Event type", selection: $filter) {
-                ForEach(SDTeamScheduleFilter.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(SDTeamScheduleFilter.mvpCases) { Text($0.rawValue).tag($0) }
               }
             } label: {
               Label(filter.rawValue, systemImage: "line.3.horizontal.decrease.circle")
@@ -92,13 +95,13 @@ struct CoachTeamScheduleView: View {
       }
       .navigationTitle("Schedule")
       .toolbar {
-        if canCreate, let scheduleSeasonId = selectedSeasonId, !seasonTeams.isEmpty {
+        if canCreate, let scheduleSeasonId = selectedSeasonId, !creationTeams.isEmpty {
           ToolbarItem(placement: .primaryAction) {
             Button {
               editor = EventEditorPresentation(
-                teams: seasonTeams,
+                teams: creationTeams,
                 seasonId: scheduleSeasonId,
-                preselectedTeamId: effectiveTeamFilterId
+                preselectedTeamId: editorPreselectedTeamId
               )
             } label: {
               Label("New Event", systemImage: "plus")
@@ -128,11 +131,25 @@ struct CoachTeamScheduleView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { self.planningEvent = nil } } }
         }
       }
+      .sheet(item: $detailEvent) { event in
+        NavigationStack {
+          TeamEventDetailView(event: event, teamName: teamName(event.team_id))
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { detailEvent = nil } } }
+        }
+      }
     }
   }
 
   @ViewBuilder private var scheduleResults: some View {
-    if seasonTeams.isEmpty {
+    if selectedSeasonId == nil {
+      HPCard {
+        HPEmptyState(
+          title: "No active season",
+          message: "Activate a season before creating or viewing its team schedule.",
+          systemImage: "calendar.badge.exclamationmark"
+        )
+      }
+    } else if seasonTeams.isEmpty {
       let issue = appState.teamOperationsIssue ?? .noAuthorizedTeams
       HPCard { HPEmptyState(title: issue.title, message: issue.message, systemImage: "calendar.badge.exclamationmark") }
     } else if isLoading && events.isEmpty {
@@ -140,12 +157,19 @@ struct CoachTeamScheduleView: View {
     } else if let errorText, events.isEmpty {
       HPCard {
         HPErrorState(
-          title: "Schedule unavailable",
+          title: scheduleErrorTitle,
           message: errorText,
           onRetry: { Task { await reload() } }
         )
       }
     } else if filteredEvents.isEmpty {
+      if let filterRepairNotice {
+        HPCard {
+          Label(filterRepairNotice, systemImage: "arrow.triangle.2.circlepath")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
+      }
       HPCard {
         VStack(spacing: HP.Space.sm) {
           HPEmptyState(
@@ -161,9 +185,9 @@ struct CoachTeamScheduleView: View {
               size: .md,
               action: {
                 editor = EventEditorPresentation(
-                  teams: seasonTeams,
+                  teams: creationTeams,
                   seasonId: scheduleSeasonId,
-                  preselectedTeamId: effectiveTeamFilterId
+                  preselectedTeamId: editorPreselectedTeamId
                 )
               }
             )
@@ -171,6 +195,13 @@ struct CoachTeamScheduleView: View {
         }
       }
     } else {
+      if let filterRepairNotice {
+        HPCard {
+          Label(filterRepairNotice, systemImage: "arrow.triangle.2.circlepath")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
+      }
       if let errorText {
         HPCard {
           HPErrorState(title: "Schedule may be out of date", message: errorText, onRetry: { Task { await reload() } })
@@ -182,7 +213,11 @@ struct CoachTeamScheduleView: View {
             HPSectionHeader(group.day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
             ForEach(group.events) { event in
               HStack(alignment: .top, spacing: HP.Space.xs) {
-                TeamEventRow(event: event, teamName: teamName(event.team_id))
+                Button { detailEvent = event } label: {
+                  TeamEventRow(event: event, teamName: teamName(event.team_id))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens event details")
                 if canMutate(event) || canOpenPlan(event) {
                   Menu {
                     if canOpenPlan(event) {
@@ -238,9 +273,13 @@ struct CoachTeamScheduleView: View {
   }
 
   private var canCreate: Bool {
-    appState.canAdminActiveOrg || seasonTeams.contains {
-      $0.capabilitySet.contains(.createTeamEvent)
-    }
+    !creationTeams.isEmpty
+  }
+
+  private var creationTeams: [SDTeamOperationsTeam] {
+    appState.canAdminActiveOrg
+      ? seasonTeams
+      : seasonTeams.filter { $0.capabilitySet.contains(.createTeamEvent) }
   }
 
   private func canMutate(_ event: SDTeamEvent) -> Bool {
@@ -294,7 +333,11 @@ struct CoachTeamScheduleView: View {
   }
 
   private var effectiveTeamFilterId: UUID? {
-    teamFilterId ?? (seasonTeams.count == 1 ? seasonTeams[0].id : nil)
+    teamFilterId
+  }
+
+  private var editorPreselectedTeamId: UUID? {
+    teamFilterId ?? (creationTeams.count == 1 ? creationTeams[0].id : nil)
   }
 
   private var selectedFacilityName: String {
@@ -303,7 +346,31 @@ struct CoachTeamScheduleView: View {
   }
 
   private var selectedSeasonId: UUID? {
-    seasonFilterId ?? appState.selectedSeason?.id
+    scheduleSelection.seasonId
+  }
+
+  private var scheduleSeasons: [SDSeason] {
+    (appState.teamOperationsContext?.seasons ?? []).filter {
+      $0.status == .active || $0.status == .playoffs
+    }
+  }
+
+  private var scheduleSelection: SDTeamScheduleSelection {
+    guard let organizationId = appState.activeOrgId else {
+      return SDTeamScheduleSelection(
+        seasonId: nil,
+        teamId: nil,
+        repairedSeason: seasonFilterId != nil,
+        repairedTeam: teamFilterId != nil
+      )
+    }
+    return SDTeamScheduleSelectionResolver.resolve(
+      organizationId: organizationId,
+      selectedSeasonId: selectionInitialized ? seasonFilterId : seasonFilterId ?? appState.selectedSeason?.id,
+      selectedTeamId: teamFilterId,
+      seasons: appState.teamOperationsContext?.seasons ?? [],
+      teams: appState.authorizedScheduleTeams
+    )
   }
 
   private var selectedSeasonName: String {
@@ -367,17 +434,24 @@ struct CoachTeamScheduleView: View {
 
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
-    if let selectedSeasonId, seasonTeams.isEmpty,
-       let validSeasonId = appState.authorizedScheduleTeams.first?.season_id,
-       validSeasonId != selectedSeasonId {
-      seasonFilterId = validSeasonId
+    let resolution = scheduleSelection
+    if resolution.repairedSeason || resolution.repairedTeam {
+      selectionInitialized = true
+      seasonFilterId = resolution.seasonId
+      teamFilterId = resolution.teamId
+      filterRepairNotice = "Schedule filters were updated to the current active season and available teams."
+      return
+    }
+    guard resolution.hasActiveSeason else {
+      selectionInitialized = true
+      events = []
+      errorText = nil
+      isLoading = false
+      seasonFilterId = nil
       teamFilterId = nil
       return
     }
-    if let teamFilterId, !seasonTeams.contains(where: { $0.id == teamFilterId }) {
-      self.teamFilterId = nil
-      return
-    }
+    selectionInitialized = true
     let context = scheduleContextIdentity
     let token = UUID()
     loadToken = token
@@ -422,6 +496,15 @@ struct CoachTeamScheduleView: View {
     default:
       return "The schedule could not be refreshed. Previously loaded events remain visible; try again."
     }
+  }
+
+  private var scheduleErrorTitle: String {
+    guard let errorText else { return "Schedule could not load" }
+    if errorText.contains("permission") { return "Schedule access denied" }
+    if errorText.contains("offline") { return "Schedule is offline" }
+    if errorText.contains("team or season") { return "Schedule filters changed" }
+    if errorText.contains("service") { return "Schedule service unavailable" }
+    return "Schedule could not load"
   }
 
   private var scheduleContextIdentity: String {
@@ -511,10 +594,10 @@ struct TeamEventRow: View {
       VStack(alignment: .leading, spacing: 3) {
         HStack {
           Text(event.title).font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
-          if event.status == .draft { HPStatusBadge(text: "Draft", kind: .neutral) }
-          if event.status == .cancelled { HPStatusBadge(text: "Cancelled", kind: .danger) }
-          if event.status == .postponed { HPStatusBadge(text: "Postponed", kind: .warning) }
+          HPStatusBadge(text: event.status.label, kind: statusKind)
         }
+        Label(event.event_type.label, systemImage: event.event_type.systemImage)
+          .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         Text("\(teamName) • \(event.startDate.formatted(date: .omitted, time: .shortened))–\(event.endDate.formatted(date: .omitted, time: .shortened))")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         if let arrival = event.arrivalDate {
@@ -535,6 +618,39 @@ struct TeamEventRow: View {
     }
     .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
     .accessibilityElement(children: .combine)
+  }
+
+  private var statusKind: HPStatusKind {
+    switch event.status {
+    case .cancelled: .danger
+    case .postponed: .warning
+    case .scheduled, .confirmed, .completed: .success
+    case .draft: .neutral
+    }
+  }
+}
+
+private struct TeamEventDetailView: View {
+  let event: SDTeamEvent
+  let teamName: String
+
+  var body: some View {
+    HPScreenScaffold { _ in
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPWorkspaceHeader(event.title, orgLabel: teamName, context: event.event_type.label)
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPStatusBadge(text: event.status.label, kind: event.status == .cancelled ? .danger : .neutral)
+          Label(event.startDate.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+          Label(event.endDate.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+          Label(event.location_name ?? "Location not set", systemImage: "mappin.and.ellipse")
+          if let address = event.address?.sdNilIfBlank { Text(address).foregroundStyle(HP.Color.textMuted) }
+          if let description = event.description?.sdNilIfBlank { Text(description) }
+        }
+      }
+      }
+    }
+    .navigationTitle("Event Details")
   }
 }
 
@@ -583,9 +699,9 @@ struct TeamEventEditorView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Event") {
+        Section("Event details") {
           Picker("Type", selection: $draft.type) {
-            ForEach(SDTeamEventType.allCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
+            ForEach(SDTeamEventType.mvpCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
           }
           Picker("Team", selection: $selectedTeamId) {
             Text("Select a team").tag(UUID?.none)
@@ -597,15 +713,10 @@ struct TeamEventEditorView: View {
           Toggle("All day", isOn: $draft.allDay)
           DatePicker("Starts", selection: $draft.startAt)
           DatePicker("Ends", selection: $draft.endAt)
-          Toggle("Set arrival time", isOn: Binding(
-            get: { draft.arrivalAt != nil },
-            set: { draft.arrivalAt = $0 ? draft.startAt.addingTimeInterval(-1800) : nil }
-          ))
-          if draft.arrivalAt != nil {
-            DatePicker("Arrival", selection: Binding(
-              get: { draft.arrivalAt ?? draft.startAt },
-              set: { draft.arrivalAt = $0 }
-            ))
+          if let timingIssue {
+            Label(timingIssue.message, systemImage: "exclamationmark.triangle.fill")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.danger)
           }
         }
         Section("Location") {
@@ -616,35 +727,28 @@ struct TeamEventEditorView: View {
             ForEach(facilities) { facility in Text(facility.name).tag(Optional(facility.id)) }
           }
         }
-        subtypeSection
-        Section("Team visibility") {
+        Section("Audience") {
           Picker("Visibility", selection: $draft.visibility) {
             Text("Players and parents").tag(SDTeamEventVisibility.team)
             Text("Staff only").tag(SDTeamEventVisibility.staffOnly)
           }
           TextField("Coach-private notes", text: $draft.notes, axis: .vertical)
         }
-        Section("Repeat") {
+        Section("Optional") {
+          Toggle("Set arrival time", isOn: Binding(
+            get: { draft.arrivalAt != nil },
+            set: { draft.arrivalAt = $0 ? draft.startAt.addingTimeInterval(-1800) : nil }
+          ))
+          if draft.arrivalAt != nil {
+            DatePicker("Arrival", selection: Binding(
+              get: { draft.arrivalAt ?? draft.startAt },
+              set: { draft.arrivalAt = $0 }
+            ))
+          }
           Toggle("Recurring event", isOn: $draft.repeats)
           if draft.repeats {
-            Picker("Frequency", selection: $draft.recurrenceFrequency) {
-              Text("Daily").tag("daily")
-              Text("Weekly").tag("weekly")
-            }
-            Stepper("Every \(draft.recurrenceInterval) \(draft.recurrenceFrequency == "daily" ? "day(s)" : "week(s)")", value: $draft.recurrenceInterval, in: 1...12)
-            if draft.recurrenceFrequency == "weekly" {
-              ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: HP.Space.xs) {
-                  ForEach(Array(Self.weekdayLabels.enumerated()), id: \.offset) { weekday, label in
-                    Button(label) { toggleWeekday(weekday) }
-                      .buttonStyle(.bordered)
-                      .tint(draft.recurrenceWeekdays.contains(weekday) ? HP.Color.accent : HP.Color.textMuted)
-                      .accessibilityLabel("Repeat on \(Self.fullWeekdayLabels[weekday])")
-                      .accessibilityValue(draft.recurrenceWeekdays.contains(weekday) ? "Selected" : "Not selected")
-                  }
-                }
-              }
-            }
+            Text("Repeats weekly")
+            Stepper("Every \(draft.recurrenceInterval) week(s)", value: $draft.recurrenceInterval, in: 1...12)
             Picker("Ends", selection: $draft.recurrenceUsesEndDate) {
               Text("After occurrences").tag(false)
               Text("On date").tag(true)
@@ -654,6 +758,11 @@ struct TeamEventEditorView: View {
             } else {
               Stepper("\(draft.occurrenceCount) occurrences", value: $draft.occurrenceCount, in: 1...52)
             }
+          }
+          if let saveDisabledReason, timingIssue == nil {
+            Text(saveDisabledReason)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
           }
         }
         if !conflicts.isEmpty {
@@ -671,13 +780,24 @@ struct TeamEventEditorView: View {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         ToolbarItemGroup(placement: .confirmationAction) {
           Button("Save Draft") { Task { await save(publish: false) } }.disabled(!canSave || isSaving)
-          Button("Schedule") { Task { await save(publish: true) } }.disabled(!canSave || isSaving)
+          Button("Publish") { Task { await save(publish: true) } }.disabled(!canSave || isSaving)
         }
       }
       .alert("Event Not Saved", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
         Button("OK", role: .cancel) {}
       } message: { Text(errorText ?? "") }
       .task { await loadFacilities() }
+      .onChange(of: draft.endAt) { oldValue, newValue in
+        let adjusted = SDTeamEventTiming.endAfterSelecting(newValue, start: draft.startAt, calendar: eventCalendar)
+        if adjusted != newValue { draft.endAt = adjusted }
+      }
+      .onChange(of: draft.allDay) { _, isAllDay in
+        guard isAllDay else { return }
+        let range = SDTeamEventTiming.allDayRange(containing: draft.startAt, calendar: eventCalendar)
+        draft.startAt = range.start
+        draft.endAt = range.end
+        draft.arrivalAt = nil
+      }
     }
   }
 
@@ -709,10 +829,28 @@ struct TeamEventEditorView: View {
   private var canSave: Bool {
     selectedTeamId != nil
       && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && draft.endAt > draft.startAt
-      && (draft.arrivalAt ?? draft.startAt) <= draft.startAt
+      && !draft.locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && timingIssue == nil
       && (!draft.repeats || draft.recurrenceFrequency != "weekly" || !draft.recurrenceWeekdays.isEmpty)
       && (!draft.repeats || !draft.recurrenceUsesEndDate || draft.recurrenceEndDate >= Calendar.current.startOfDay(for: draft.startAt))
+  }
+
+  private var timingIssue: SDTeamEventTimingIssue? {
+    SDTeamEventTiming.validationIssue(start: draft.startAt, end: draft.endAt, arrival: draft.arrivalAt)
+  }
+
+  private var saveDisabledReason: String? {
+    if selectedTeamId == nil { return "Select a team to save this event." }
+    if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter an event title." }
+    if draft.locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter an event location." }
+    if draft.repeats && draft.recurrenceWeekdays.isEmpty { return "Select at least one weekday for the recurring event." }
+    return nil
+  }
+
+  private var eventCalendar: Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: draft.timezone) ?? .current
+    return calendar
   }
 
   private static let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]

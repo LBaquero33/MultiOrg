@@ -215,6 +215,12 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
     source.includes('query.eq("season_id", requestedSeason)'),
     "admin season filtering",
   );
+  assert(
+    source.includes(
+      "resolveScheduleReadAuthority(role, candidateCapabilities).allowed",
+    ),
+    "coach All Teams scope resolves each assigned team",
+  );
   for (
     const code of [
       "season_missing",
@@ -229,6 +235,7 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
     assert(source.includes(`"${code}"`), `controlled ${code}`);
   }
   assert(source.includes("schema_version: 1"), "versioned envelope");
+  assert(source.includes("!patch.location_name"), "location required");
   assert(source.includes("request_id:"), "request correlation");
   assert(!source.includes("error.message"), "no raw provider errors");
   assert(
@@ -247,6 +254,20 @@ Deno.test("edge authorization precedes scheduling mutations", async () => {
   assert(
     source.includes("sd_team_event_notification_intents"),
     "intent persistence",
+  );
+  const createInsert = source.indexOf('from("sd_team_events").insert');
+  const bestEffortIntent = source.indexOf(
+    "persistNotificationIntentsBestEffort",
+    createInsert,
+  );
+  const successfulCreate = source.indexOf(
+    "return ok({ events: inserted ?? [], conflicts: conflictList })",
+    createInsert,
+  );
+  assert(
+    createInsert > 0 && bestEffortIntent > createInsert &&
+      successfulCreate > bestEffortIntent,
+    "notification failure cannot erase a persisted event",
   );
   assert(!source.includes("sd_notifications"), "no notification dispatch");
 });
