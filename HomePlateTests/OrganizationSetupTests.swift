@@ -262,7 +262,7 @@ struct OrganizationSetupTests {
     #expect(schedule.contains("Previously loaded events remain visible"))
   }
 
-  @Test("organization admin navigation is horizontal responsive and immediate")
+  @Test("organization admin navigation is horizontal responsive and setup remains under settings")
   func adminNavigationContract() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(contentsOf: root.appendingPathComponent("HomePlate/Features/Admin/OrgAdminConsoleView.swift"))
@@ -272,7 +272,12 @@ struct OrganizationSetupTests {
     #expect(source.contains(".onMoveCommand"))
     #expect(source.contains("withTransaction(transaction) { selectedTab = tab }"))
     #expect(source.contains("admin_navigation_stall"))
-    #expect(source.contains("case setup = \"Setup\""))
+    #expect(source.contains("case settings = \"Settings\""))
+    #expect(source.contains("case .settings:\n      settingsWorkspace(context)"))
+    #expect(source.contains("case .advanced:\n        advancedSettingsCard"))
+    #expect(source.contains("setupAndLaunchCard"))
+    #expect(source.contains("HPSectionHeader(\"Organization setup\")"))
+    #expect(!source.contains("case setup = \"Setup\""))
   }
 }
 
