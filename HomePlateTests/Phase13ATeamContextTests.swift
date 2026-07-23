@@ -44,7 +44,9 @@ struct Phase13ATeamContextTests {
       facilitiesEnabled: true, chatEnabled: true, programsEnabled: true,
       canAdministerOrganization: false, isPlatformAdmin: false
     )
-    #expect(owner.item(for: .coachToday)?.workspaceScope == .organization)
+    #expect(owner.item(for: .coachToday) == nil)
+    #expect(owner.item(for: .coachTeam)?.workspaceScope == .selectedTeam)
+    #expect(owner.defaultDestination == .coachTeam)
     #expect(coach.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
   }
 
@@ -258,7 +260,9 @@ struct Phase13ATeamContextTests {
     #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin && $0.title == "Organization" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
-    #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
+    #expect(owner.compactItems.map(\.title) == ["Team", "Schedule", "Chat", "Finances"])
+    #expect(owner.defaultDestination == .coachTeam)
+    #expect(owner.directoryItems.contains(where: { $0.destination == .organizationAdmin }))
   }
 
   @Test("superseded or cross-context team responses cannot publish")

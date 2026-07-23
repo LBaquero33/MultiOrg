@@ -571,14 +571,16 @@ struct CompleteTodayExperienceTests {
     #expect(!SDAsyncRequestGuard.accepts(responseContext: "org-a:team-a", responseToken: current, activeContext: "org-a:team-a", currentToken: current, taskIsCancelled: true))
   }
 
-  @Test("role navigation and owner Overview remain approved")
+  @Test("role navigation and owner Team landing remain approved")
   func roleNavigation() {
     let player = HPAppNavigationInventory.player(chatEnabled: true, facilitiesEnabled: true, testingEnabled: true, analysisEnabled: true, facilitiesTitle: "Facilities", testingTitle: "Testing")
     #expect(player.compactItems.map(\.title) == ["Today", "Calendar", "Trends", "Chat"])
     let coach = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: false, isPlatformAdmin: false)
     #expect(coach.compactItems.map(\.title) == ["Today", "Team", "Schedule"])
     let owner = HPAppNavigationInventory.owner(facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, isPlatformAdmin: false)
-    #expect(owner.compactItems.map(\.title) == ["Overview", "Finance", "Chat", "Organization"])
+    #expect(owner.compactItems.map(\.title) == ["Team", "Schedule", "Chat", "Finances"])
+    #expect(owner.defaultDestination == .coachTeam)
+    #expect(!owner.regularItems.contains(where: { $0.destination == .coachToday }))
   }
 
   @Test("test-only fixture catalog covers representative role and outage states")

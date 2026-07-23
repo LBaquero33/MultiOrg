@@ -61,16 +61,27 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertTrue(coach.directoryItems.contains { $0.destination == .account })
   }
 
-  func testOwnerInventoryPromotesFinanceAndOrganizationWithoutChangingGates() {
-    let owner = staffInventory(canAdminister: true, isPlatformAdmin: false)
+  func testOwnerInventoryPromotesTeamScheduleChatAndFinances() {
+    let owner = HPAppNavigationInventory.owner(
+      facilitiesTitle: "Facilities",
+      programsTitle: "Program Templates",
+      facilitiesEnabled: true,
+      chatEnabled: true,
+      programsEnabled: true,
+      isPlatformAdmin: false
+    )
 
     XCTAssertEqual(
       owner.compactItems.map(\.destination),
-      [.coachToday, .coachTeam, .coachSchedule]
+      [.coachTeam, .coachSchedule, .chat, .finance]
     )
-    XCTAssertEqual(owner.compactTabCountIncludingDirectory, 4)
+    XCTAssertEqual(owner.compactItems.map(\.title), ["Team", "Schedule", "Chat", "Finances"])
+    XCTAssertEqual(owner.compactTabCountIncludingDirectory, 5)
+    XCTAssertEqual(owner.defaultDestination, .coachTeam)
+    XCTAssertFalse(owner.regularItems.contains { $0.destination == .coachToday })
     XCTAssertFalse(owner.regularItems.contains { $0.destination == .platformAdmin })
     XCTAssertTrue(owner.regularItems.contains { $0.destination == .finance })
+    XCTAssertTrue(owner.directoryItems.contains { $0.destination == .organizationAdmin })
     XCTAssertTrue(owner.regularItems.contains { $0.destination == .account })
   }
 
