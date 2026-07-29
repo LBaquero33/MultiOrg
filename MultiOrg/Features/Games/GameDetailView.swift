@@ -111,7 +111,13 @@ struct GameDetailView: View {
         case .rules:
           detail("Scheduled innings", "\(item.game?.scheduled_innings ?? 0)")
           empty(item.game?.ruleset_id == nil ? "Default organization rules apply." : "A versioned game ruleset is attached.")
-        case .liveScore, .playByPlay, .boxScore, .playerStats, .postgameReview:
+        case .liveScore:
+          if let game = item.game {
+            LiveGameScoringView(game: game, participants: participants)
+          } else {
+            empty("This event does not have a game record.")
+          }
+        case .playByPlay, .boxScore, .playerStats, .postgameReview:
           empty("This section uses the canonical game state and becomes available as scoring data is committed.")
         case .gameNotes:
           empty("Game notes are visible only according to server authorization.")
