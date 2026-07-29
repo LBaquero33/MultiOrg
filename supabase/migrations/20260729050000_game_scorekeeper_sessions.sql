@@ -74,7 +74,7 @@ create or replace function public.sd_acquire_scorekeeping_control(
 declare
   v_game public.sd_games;
   v_session public.sd_game_scorekeeper_sessions;
-  v_token text := encode(gen_random_bytes(32), 'hex');
+  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
 begin
   select * into v_game from public.sd_games where id = p_game_id for update;
   if not found or not public.sd_can_score_game(p_game_id) then raise exception 'scorekeeping_not_authorized'; end if;
@@ -137,7 +137,7 @@ create or replace function public.sd_request_scorekeeping_control(
 declare
   v_game public.sd_games;
   v_request public.sd_game_control_requests;
-  v_token text := encode(gen_random_bytes(32), 'hex');
+  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
 begin
   select * into v_game from public.sd_games where id = p_game_id;
   if not found or not public.sd_can_score_game(p_game_id) then raise exception 'scorekeeping_not_authorized'; end if;

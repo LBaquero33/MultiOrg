@@ -147,7 +147,6 @@ as $$
       on member.org_id = scope.org_id
      and member.team_id = scope.team_id
      and member.player_id = link.child_id
-    where link.status = 'active'
   )
   select coalesce(array_agg(distinct user_id), array[]::uuid[])
   from recipients
