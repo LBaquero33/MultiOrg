@@ -117,7 +117,13 @@ struct GameDetailView: View {
           } else {
             empty("This event does not have a game record.")
           }
-        case .playByPlay, .boxScore, .playerStats, .postgameReview:
+        case .boxScore:
+          if let game = item.game { GameStatisticsView(game: game, mode: .boxScore) }
+        case .playerStats:
+          if let game = item.game { GameStatisticsView(game: game, mode: .players) }
+        case .postgameReview:
+          if let game = item.game { GameStatisticsView(game: game, mode: .decisions) }
+        case .playByPlay:
           empty("This section uses the canonical game state and becomes available as scoring data is committed.")
         case .gameNotes:
           empty("Game notes are visible only according to server authorization.")

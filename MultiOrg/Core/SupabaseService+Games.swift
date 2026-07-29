@@ -180,4 +180,46 @@ extension SupabaseService {
       p_game_id: gameId, p_device_id: deviceId, p_authenticated_session_id: sessionId
     )).single().execute().value
   }
+
+  func listGameScoringDecisions(gameId: UUID, organizationId: UUID) async throws -> [SDGameScoringDecision] {
+    try await client.from("sd_game_scoring_decisions").select()
+      .eq("game_id", value: gameId).eq("org_id", value: organizationId)
+      .order("created_at", ascending: true).execute().value
+  }
+
+  func appendGameScoringDecision(
+    gameId: UUID,
+    physicalEventId: UUID,
+    rootDecisionId: UUID,
+    supersedesDecisionId: UUID?,
+    type: String,
+    preliminaryValue: String?,
+    finalValue: String?,
+    status: String,
+    ruleReference: String?,
+    reasoningNote: String?,
+    reviewRequested: Bool
+  ) async throws -> SDGameScoringDecision {
+    struct P: Encodable {
+      let p_game_id: UUID
+      let p_physical_event_id: UUID
+      let p_root_decision_id: UUID
+      let p_supersedes_decision_id: UUID?
+      let p_decision_type: String
+      let p_preliminary_value: String?
+      let p_final_value: String?
+      let p_decision_status: String
+      let p_rule_reference: String?
+      let p_reasoning_note: String?
+      let p_review_requested: Bool
+    }
+    return try await client.rpc("sd_append_game_scoring_decision", params: P(
+      p_game_id: gameId, p_physical_event_id: physicalEventId,
+      p_root_decision_id: rootDecisionId, p_supersedes_decision_id: supersedesDecisionId,
+      p_decision_type: type, p_preliminary_value: preliminaryValue,
+      p_final_value: finalValue, p_decision_status: status,
+      p_rule_reference: ruleReference, p_reasoning_note: reasoningNote,
+      p_review_requested: reviewRequested
+    )).single().execute().value
+  }
 }
