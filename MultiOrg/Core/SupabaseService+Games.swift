@@ -83,4 +83,37 @@ extension SupabaseService {
       .execute()
       .value
   }
+
+  func listScoringEvents(gameId: UUID, organizationId: UUID) async throws -> [SDScoringEvent] {
+    try await client.from("sd_game_scoring_events").select()
+      .eq("game_id", value: gameId).eq("org_id", value: organizationId)
+      .order("sequence", ascending: true).execute().value
+  }
+
+  func appendScoringEvent(
+    game: SDGame,
+    scoringEventId: UUID,
+    expectedVersion: Int,
+    type: SDScoringEventType,
+    deviceId: UUID,
+    payload: [String: SDJSONValue],
+    idempotencyKey: String
+  ) async throws -> SDScoringEvent {
+    struct Parameters: Encodable {
+      let p_game_id: UUID
+      let p_canonical_event_id: UUID
+      let p_scoring_event_id: UUID
+      let p_expected_version: Int
+      let p_event_type: String
+      let p_actor_device_id: UUID
+      let p_payload: [String: SDJSONValue]
+      let p_idempotency_key: String
+    }
+    return try await client.rpc("sd_append_game_scoring_event", params: Parameters(
+      p_game_id: game.id, p_canonical_event_id: game.event_id,
+      p_scoring_event_id: scoringEventId, p_expected_version: expectedVersion,
+      p_event_type: type.rawValue, p_actor_device_id: deviceId,
+      p_payload: payload, p_idempotency_key: idempotencyKey
+    )).single().execute().value
+  }
 }
