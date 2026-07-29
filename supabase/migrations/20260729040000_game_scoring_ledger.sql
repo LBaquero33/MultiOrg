@@ -3,7 +3,7 @@
 
 create table if not exists public.sd_game_scoring_events (
   id uuid primary key,
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_id uuid not null references public.sd_games(id) on delete cascade,
   game_version bigint not null check (game_version > 0),
   sequence bigint not null check (sequence > 0),
@@ -25,7 +25,7 @@ create table if not exists public.sd_game_scoring_events (
 
 create table if not exists public.sd_game_state_snapshots (
   game_id uuid primary key references public.sd_games(id) on delete cascade,
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_version bigint not null default 0,
   state jsonb not null default '{}'::jsonb,
   last_event_id uuid references public.sd_game_scoring_events(id),

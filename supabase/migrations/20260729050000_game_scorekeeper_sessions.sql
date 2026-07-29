@@ -3,7 +3,7 @@
 
 create table if not exists public.sd_game_scorekeeper_sessions (
   game_id uuid primary key references public.sd_games(id) on delete cascade,
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   active_user_id uuid not null references auth.users(id),
   active_device_id uuid not null,
   control_token_hash text not null,
@@ -20,7 +20,7 @@ create table if not exists public.sd_game_scorekeeper_sessions (
 
 create table if not exists public.sd_game_control_requests (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_id uuid not null references public.sd_games(id) on delete cascade,
   requesting_user_id uuid not null references auth.users(id),
   requesting_device_id uuid not null,
@@ -36,7 +36,7 @@ create table if not exists public.sd_game_control_requests (
 
 create table if not exists public.sd_game_live_devices (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_id uuid not null references public.sd_games(id) on delete cascade,
   user_id uuid not null references auth.users(id),
   device_id uuid not null,

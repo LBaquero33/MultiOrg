@@ -3,7 +3,7 @@
 
 create table if not exists public.sd_game_scoring_decisions (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_id uuid not null references public.sd_games(id) on delete cascade,
   physical_event_id uuid not null references public.sd_game_scoring_events(id) on delete cascade,
   root_decision_id uuid not null,
@@ -22,7 +22,7 @@ create table if not exists public.sd_game_scoring_decisions (
 
 create table if not exists public.sd_game_stat_snapshots (
   game_id uuid primary key references public.sd_games(id) on delete cascade,
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   game_version bigint not null,
   decision_version bigint not null default 0,
   batting jsonb not null default '{}',

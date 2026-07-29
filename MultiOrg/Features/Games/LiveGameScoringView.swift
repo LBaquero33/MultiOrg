@@ -144,7 +144,7 @@ struct LiveGameScoringView: View {
       Text(baseName(base)).font(.caption.bold())
     }
     .frame(width: 78, height: 64)
-    .background(runner == nil ? DHDTheme.surface : DHDTheme.accent.opacity(0.25))
+    .background(runner == nil ? DHDTheme.cardSurface : DHDTheme.accent.opacity(0.25))
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(DHDTheme.separator))
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
@@ -188,6 +188,10 @@ struct LiveGameScoringView: View {
         Task { await commit(.halfInningEnded, payload: [:]) }
       }
       .disabled(!canMutate)
+      Button("End game", role: .destructive) {
+        Task { await commit(.gameEnded, payload: [:]) }
+      }
+      .disabled(!canMutate || state.status == .final)
       Button("Add home run") {
         Task { await commit(.runScored, payload: ["team": .string("home")]) }
       }
@@ -390,7 +394,7 @@ private struct Diamond: Shape {
   }
 }
 
-private enum SDGameDeviceIdentity {
+enum SDGameDeviceIdentity {
   static var current: UUID {
     let key = "homeplate.gameScoring.deviceId"
     if let raw = UserDefaults.standard.string(forKey: key), let id = UUID(uuidString: raw) {

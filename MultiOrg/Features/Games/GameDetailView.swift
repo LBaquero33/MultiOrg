@@ -77,7 +77,7 @@ struct GameDetailView: View {
     if [.live, .delayed, .suspended, .final, .forfeit].contains(status) {
       result += [.liveScore, .playByPlay]
     }
-    if [.final, .forfeit].contains(status) {
+    if [.live, .delayed, .suspended, .final, .forfeit].contains(status) {
       result += [.boxScore, .playerStats, .postgameReview]
     }
     result.append(.gameNotes)
@@ -122,14 +122,32 @@ struct GameDetailView: View {
         case .playerStats:
           if let game = item.game { GameStatisticsView(game: game, mode: .players) }
         case .postgameReview:
-          if let game = item.game { GameStatisticsView(game: game, mode: .decisions) }
+          if let game = item.game {
+            VStack(alignment: .leading, spacing: 16) {
+              GameStatisticsView(game: game, mode: .decisions)
+              Divider()
+              GameFinalizationView(game: game, permissions: permissions) {
+                await load()
+              }
+            }
+          }
         case .playByPlay:
-          empty("This section uses the canonical game state and becomes available as scoring data is committed.")
+          if let game = item.game { PlayByPlayView(game: game) }
         case .gameNotes:
           empty("Game notes are visible only according to server authorization.")
         }
       }
     }
+  }
+
+  private var permissions: SDGameWorkspacePermissions {
+    SDGameWorkspacePermissions.resolve(
+      game: item?.game,
+      activeOrganizationId: appState.activeOrgId,
+      userId: appState.myProfile?.id,
+      membership: appState.activeOrgMembership,
+      participants: participants
+    )
   }
 
   @ViewBuilder

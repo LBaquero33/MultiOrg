@@ -49,6 +49,7 @@ enum DHDTheme {
   static let cornerRadius: CGFloat = 16
   static let innerCornerRadius: CGFloat = 14
   static let gridSpacing: CGFloat = 10
+  static let sectionSpacing: CGFloat = 16
 
   // Calendar
   static let calendarDotSize: CGFloat = 6.5

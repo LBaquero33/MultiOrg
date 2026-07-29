@@ -71,15 +71,3 @@ struct SDResolvedBaseballRules: Equatable, Sendable {
     if case .object(let pitchingValue) = values["pitching"] { pitching = pitchingValue }
   }
 }
-
-private extension Dictionary where Key == String, Value == SDJSONValue {
-  func int(_ key: String) -> Int? {
-    guard case .int(let value) = self[key] else { return nil }; return value
-  }
-  func bool(_ key: String) -> Bool? {
-    guard case .bool(let value) = self[key] else { return nil }; return value
-  }
-  func string(_ key: String) -> String? {
-    guard case .string(let value) = self[key] else { return nil }; return value
-  }
-}

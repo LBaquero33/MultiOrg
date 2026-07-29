@@ -132,9 +132,12 @@ struct PlayerHomeView: View {
 }
 
 private struct PlayerUnifiedCalendarView: View {
+#if os(iOS)
   @State private var mode = 0
+#endif
 
   var body: some View {
+#if os(iOS)
     VStack(spacing: 0) {
       Picker("Calendar", selection: $mode) {
         Text("Schedule").tag(0)
@@ -146,5 +149,8 @@ private struct PlayerUnifiedCalendarView: View {
       if mode == 0 { GameCalendarView() } else { SDPlayerCalendarView() }
     }
     .background(DHDTheme.pageBackground)
+#else
+    GameCalendarView()
+#endif
   }
 }

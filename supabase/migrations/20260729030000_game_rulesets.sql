@@ -3,7 +3,7 @@
 
 create table if not exists public.sd_game_rulesets (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   name text not null,
   scope_type text not null default 'organization'
     check (scope_type in ('base','governing_body','league','season','division','tournament','game')),
@@ -20,7 +20,7 @@ create table if not exists public.sd_game_rulesets (
 
 create table if not exists public.sd_game_ruleset_versions (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.sd_organizations(id) on delete cascade,
+  org_id uuid not null references public.sd_orgs(id) on delete cascade,
   ruleset_id uuid not null references public.sd_game_rulesets(id) on delete cascade,
   version integer not null check (version > 0),
   configuration jsonb not null default '{}'::jsonb,

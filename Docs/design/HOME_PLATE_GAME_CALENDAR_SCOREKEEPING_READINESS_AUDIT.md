@@ -2,7 +2,17 @@
 
 ## 1. Executive summary
 
-**Audit verdict: NOT READY.**
+**Original audit verdict: NOT READY.**
+
+**Implementation update (2026-07-29): the blocking foundation described by this audit is
+implemented on `feature/game-calendar-live-scoring`.** The implementation adds canonical
+events and games, role-scoped calendar projections, game workspaces, versioned rulesets,
+an immutable event ledger, one active scorekeeper lease, deterministic replay, official
+scoring revisions, derived statistics, atomic finalization, append-only postgame
+corrections, notifications, and audit history. See
+`Docs/GAME_SCOREKEEPING_ARCHITECTURE.md` for the shipped domain boundaries and rollout
+requirements. This update does not claim production deployment; migrations and clients
+must be promoted together after staging validation.
 
 Home Plate has useful building blocks for a future game system: organization-scoped
 memberships, teams, facility reservations, per-player program calendars, notification

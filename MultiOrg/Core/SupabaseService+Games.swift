@@ -222,4 +222,62 @@ extension SupabaseService {
       p_review_requested: reviewRequested
     )).single().execute().value
   }
+
+  func finalizeGame(
+    gameId: UUID,
+    expectedVersion: Int,
+    deviceId: UUID,
+    controlToken: String,
+    idempotencyKey: String,
+    statistics: SDOfficialGameStatistics,
+    validation: SDGameValidationReport
+  ) async throws -> SDGameFinalization {
+    struct P: Encodable {
+      let p_game_id: UUID
+      let p_expected_version: Int
+      let p_actor_device_id: UUID
+      let p_control_token: String
+      let p_idempotency_key: String
+      let p_statistics: [String: SDJSONValue]
+      let p_validation: [String: SDJSONValue]
+    }
+    return try await client.rpc("sd_finalize_game", params: P(
+      p_game_id: gameId, p_expected_version: expectedVersion,
+      p_actor_device_id: deviceId, p_control_token: controlToken,
+      p_idempotency_key: idempotencyKey,
+      p_statistics: statistics.persistenceJSON, p_validation: validation.json
+    )).single().execute().value
+  }
+
+  func listGameAudit(gameId: UUID, organizationId: UUID) async throws -> [SDGameAuditEntry] {
+    try await client.from("sd_game_audit_log").select()
+      .eq("game_id", value: gameId).eq("org_id", value: organizationId)
+      .order("created_at", ascending: true).execute().value
+  }
+
+  func correctFinalGameDecision(
+    gameId: UUID,
+    supersededDecisionId: UUID,
+    replacementValue: String,
+    reason: String,
+    idempotencyKey: String,
+    statistics: SDOfficialGameStatistics,
+    validation: SDGameValidationReport
+  ) async throws -> SDGameCorrection {
+    struct P: Encodable {
+      let p_game_id: UUID
+      let p_superseded_decision_id: UUID
+      let p_replacement_value: String
+      let p_reason: String
+      let p_idempotency_key: String
+      let p_statistics: [String: SDJSONValue]
+      let p_validation: [String: SDJSONValue]
+    }
+    return try await client.rpc("sd_correct_final_game_decision", params: P(
+      p_game_id: gameId, p_superseded_decision_id: supersededDecisionId,
+      p_replacement_value: replacementValue, p_reason: reason,
+      p_idempotency_key: idempotencyKey,
+      p_statistics: statistics.persistenceJSON, p_validation: validation.json
+    )).single().execute().value
+  }
 }
