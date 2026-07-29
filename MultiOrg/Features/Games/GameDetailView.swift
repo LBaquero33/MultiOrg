@@ -9,6 +9,7 @@ struct GameDetailView: View {
   @State private var participants: [SDEventParticipant] = []
   @State private var attendance: [SDEventAttendance] = []
   @State private var errorText: String?
+  @State private var selectedSection: SDGameWorkspaceSection = .overview
 
   init(calendarItem: SDGameCalendarItem) {
     eventId = calendarItem.event.id
@@ -38,17 +39,8 @@ struct GameDetailView: View {
             }
             .foregroundStyle(.white)
           }
-          DHDCard {
-            VStack(alignment: .leading, spacing: 10) {
-              DHDSectionHeader("Overview") { EmptyView() }
-              detail("Status", item.event.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
-              if let game = item.game {
-                detail("Matchup", "\(game.away_team_name) at \(game.home_team_name)")
-                detail("Innings", "\(game.scheduled_innings)")
-                detail("Availability", "\(attendance.count) responses")
-              }
-            }
-          }
+          sectionPicker
+          workspaceSection(item)
         }
         .padding(DHDTheme.pagePadding)
       } else {
@@ -65,6 +57,81 @@ struct GameDetailView: View {
     )) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+  }
+
+  private var sectionPicker: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 8) {
+        ForEach(visibleSections) { section in
+          Button(section.rawValue) { selectedSection = section }
+            .buttonStyle(.bordered)
+            .tint(selectedSection == section ? DHDTheme.accent : DHDTheme.textSecondary)
+        }
+      }
+    }
+  }
+
+  private var visibleSections: [SDGameWorkspaceSection] {
+    guard let status = item?.event.status else { return [.overview] }
+    var result: [SDGameWorkspaceSection] = [.overview, .roster, .availability, .lineup, .rules]
+    if [.live, .delayed, .suspended, .final, .forfeit].contains(status) {
+      result += [.liveScore, .playByPlay]
+    }
+    if [.final, .forfeit].contains(status) {
+      result += [.boxScore, .playerStats, .postgameReview]
+    }
+    result.append(.gameNotes)
+    return result
+  }
+
+  @ViewBuilder
+  private func workspaceSection(_ item: SDGameCalendarItem) -> some View {
+    DHDCard {
+      VStack(alignment: .leading, spacing: 10) {
+        DHDSectionHeader(selectedSection.rawValue) { EmptyView() }
+        switch selectedSection {
+        case .overview:
+          detail("Status", item.event.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+          if let game = item.game {
+            detail("Matchup", "\(game.away_team_name) at \(game.home_team_name)")
+            detail("Innings", "\(game.scheduled_innings)")
+          }
+          if let arrival = item.event.arrival_time {
+            detail("Arrival", arrival.formatted(date: .omitted, time: .shortened))
+          }
+        case .roster:
+          participantList(role: nil)
+        case .availability:
+          if attendance.isEmpty { empty("No availability responses yet.") }
+          ForEach(attendance) { response in
+            detail(response.player_id.uuidString.prefix(8).description, response.availability.capitalized)
+          }
+        case .lineup:
+          empty(item.game?.lineup_ready == true ? "Lineup is ready." : "Lineup has not been submitted.")
+        case .rules:
+          detail("Scheduled innings", "\(item.game?.scheduled_innings ?? 0)")
+          empty(item.game?.ruleset_id == nil ? "Default organization rules apply." : "A versioned game ruleset is attached.")
+        case .liveScore, .playByPlay, .boxScore, .playerStats, .postgameReview:
+          empty("This section uses the canonical game state and becomes available as scoring data is committed.")
+        case .gameNotes:
+          empty("Game notes are visible only according to server authorization.")
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func participantList(role: String?) -> some View {
+    let visible = participants.filter { role == nil || $0.role == role }
+    if visible.isEmpty { empty("No participants are assigned.") }
+    ForEach(visible) { participant in
+      detail(participant.role?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Participant",
+             participant.user_id?.uuidString.prefix(8).description ?? "Team")
+    }
+  }
+
+  private func empty(_ text: String) -> some View {
+    Text(text).foregroundStyle(DHDTheme.textSecondary)
   }
 
   private func detail(_ label: String, _ value: String) -> some View {
