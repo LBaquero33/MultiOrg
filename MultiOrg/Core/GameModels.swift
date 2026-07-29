@@ -1,6 +1,6 @@
 import Foundation
 
-enum SDGameEventType: String, Codable, CaseIterable, Sendable {
+enum SDGameEventType: String, Codable, CaseIterable, Hashable, Sendable {
   case practice, game, training
   case facilityBooking = "facility_booking"
   case testing, meeting

@@ -7,7 +7,7 @@ struct ParentRootView: View {
   @State private var selection = Destination.children
 
   private enum Destination: Hashable {
-    case children, chat, account
+    case children, calendar, chat, account
   }
 #endif
 
@@ -17,6 +17,9 @@ struct ParentRootView: View {
       ParentHomeView()
         .tabItem { Label(term("players", fallback: "Children"), systemImage: "person.2") }
         .tag(Destination.children)
+      GameCalendarView()
+        .tabItem { Label("Calendar", systemImage: "calendar") }
+        .tag(Destination.calendar)
       if feature("chat") {
         ChatChannelListView()
           .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
@@ -36,7 +39,15 @@ struct ParentRootView: View {
       selection = .chat
     }
 #else
-    ParentHomeView()
+    NavigationSplitView {
+      List {
+        NavigationLink { ParentHomeView() } label: { Label("Children", systemImage: "person.2") }
+        NavigationLink { GameCalendarView() } label: { Label("Calendar", systemImage: "calendar") }
+        NavigationLink { AccountView() } label: { Label("Account", systemImage: "gearshape") }
+      }
+    } detail: {
+      GameCalendarView()
+    }
 #endif
   }
 

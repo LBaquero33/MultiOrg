@@ -12,6 +12,7 @@ struct CoachRootView: View {
   enum Destination: String, CaseIterable, Identifiable {
     case players = "Players"
     case facilities = "Facilities"
+    case calendar = "Calendar"
     case teams = "Teams"
     case programs = "Program Templates"
     case chat = "Chat"
@@ -38,6 +39,9 @@ struct CoachRootView: View {
         }
         NavigationLink(value: Destination.teams) {
           Label("Teams", systemImage: "person.3.sequence.fill")
+        }
+        NavigationLink(value: Destination.calendar) {
+          Label("Calendar", systemImage: "calendar")
         }
         if feature("programs") {
           NavigationLink(value: Destination.programs) {
@@ -71,6 +75,8 @@ struct CoachRootView: View {
         CoachHomeView()
       case .facilities:
         if feature("facilities") { CoachFacilitiesView() } else { disabledFeatureView("Facilities") }
+      case .calendar:
+        GameCalendarView()
       case .programs:
         if feature("programs") { CoachProgramsView() } else { disabledFeatureView("Programs") }
       case .chat:
@@ -125,7 +131,7 @@ struct CoachRootView: View {
   @State private var mobileSelection = MobileDestination.players
 
   private enum MobileDestination: Hashable {
-    case players, facilities, teams, programs, chat, admin, platform, account
+    case players, calendar, facilities, teams, programs, chat, admin, platform, account
   }
 
   var body: some View {
@@ -133,6 +139,9 @@ struct CoachRootView: View {
       CoachHomeView()
         .tabItem { Label(term("players", fallback: "Players"), systemImage: "person.3") }
         .tag(MobileDestination.players)
+      GameCalendarView()
+        .tabItem { Label("Calendar", systemImage: "calendar") }
+        .tag(MobileDestination.calendar)
       if feature("facilities") {
         CoachFacilitiesView()
           .tabItem { Label(term("facilities", fallback: "Facilities"), systemImage: "calendar.badge.clock") }

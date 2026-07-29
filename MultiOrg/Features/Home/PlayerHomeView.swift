@@ -68,7 +68,7 @@ struct PlayerHomeView: View {
       SDPlayerTodayView()
         .tabItem { Label("Today", systemImage: "sun.max") }
         .tag(Destination.today)
-      SDPlayerCalendarView()
+      PlayerUnifiedCalendarView()
         .tabItem { Label("Calendar", systemImage: "calendar") }
         .tag(Destination.calendar)
       if feature("chat") {
@@ -128,5 +128,23 @@ struct PlayerHomeView: View {
     } else {
       ProgressView("Loading player profile…")
     }
+  }
+}
+
+private struct PlayerUnifiedCalendarView: View {
+  @State private var mode = 0
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Picker("Calendar", selection: $mode) {
+        Text("Schedule").tag(0)
+        Text("Training").tag(1)
+      }
+      .pickerStyle(.segmented)
+      .padding(.horizontal)
+      .padding(.top, 8)
+      if mode == 0 { GameCalendarView() } else { SDPlayerCalendarView() }
+    }
+    .background(DHDTheme.pageBackground)
   }
 }
