@@ -409,3 +409,146 @@ The database retry, fresh partial-state backup, remote lint, and remote smoke-te
 are recorded in the deployment closure below after they execute.
 
 Deployment verdict: `DEPLOYMENT FAILED — REMEDIATION REQUIRED`.
+
+## Remediation deployment closure — 2026-07-31
+
+The failed migration was corrected, validated, committed, pushed, backed up, and
+redeployed without migration repair, a remote reset, or a Dashboard SQL patch.
+
+### Remediation source checkpoint
+
+- Commit: `ad7f224cd19b1502fe273ddd812b9be8275ea375`
+- Message: `fix: preserve legacy notification categories during game migration`
+- Remote branch: `origin/feature/game-calendar-live-scoring`
+- The remote branch resolved to the remediation commit before the database retry.
+- The focused commit contains only the corrected notification migrations, migration
+  contract test, database regression test, and this deployment validation document.
+
+### Partial-state backup checkpoint
+
+The original pre-deployment backups remain unchanged. A second backup was taken after
+remote migration `20260729010000` and before retrying `20260729020000`:
+
+```text
+/Users/lb33/HomePlateBackups/homeplate_partial_games_20260731_010057_schema.sql
+/Users/lb33/HomePlateBackups/homeplate_partial_games_20260731_010057_data.sql
+```
+
+Both backup commands completed successfully and produced nonempty files. The schema
+backup is 1,200,799 bytes and the data backup is 4,354,301 bytes.
+
+### Database retry
+
+Immediately before the push, the linked migration list and a second dry run were
+compared byte-for-byte with the approved set. The pending set was exactly:
+
+```text
+20260729020000
+20260729030000
+20260729040000
+20260729050000
+20260729060000
+20260729070000
+20260729080000
+20260729090000
+20260729100000
+20260729110000
+20260729120000
+20260729130000
+```
+
+One `supabase db push --yes` was executed. All twelve migrations applied successfully
+in timestamp order. The linked migration list now records every migration through
+`20260729130000` exactly once.
+
+### Post-deployment notification compatibility
+
+The post-deployment remote schema contains the complete canonical category constraint:
+
+```text
+payment_request_created, payment_received, booking_created, booking_updated,
+program_assigned, program_updated, message_received, testing_result_added,
+organization_announcement, team_announcement, event_announcement, schedule_change,
+event_reminder, attendance, availability, practice_plan, game_plan,
+lineup_assignment, registration, payment_notice, result_recap, event_created,
+event_updated, event_canceled, event_postponed, event_rescheduled,
+availability_requested, game_starting, game_live, game_final, game_update, system
+```
+
+The remote source constraint is:
+
+```text
+payment_request, payment_webhook, announcement, chat, schedule, event_operation,
+practice_plan, game_plan, registration, organization_finance, event, system
+```
+
+The eight pre-existing `schedule_change` rows still exist after deployment. A disposable
+remote smoke organization proved that a new `schedule_change` row and the
+`event_created`, `event_updated`, `game_starting`, `game_live`, `game_final`, and
+`game_update` categories can be inserted. An arbitrary category was rejected with
+SQLSTATE `23514`, recipient isolation held, and test cleanup restored the global
+`schedule_change` count to eight.
+
+### Remote authorization and lifecycle smoke tests
+
+A disposable live-project harness created isolated users, organizations, a team, a game,
+and a linked parent. It verified:
+
+- owner, assigned scorekeeper, team player, and linked parent access
+- unrelated-user and cross-organization denial
+- direct-ID RLS denial for unrelated and cross-organization users
+- rescheduling updates the canonical event while retaining one event and one game row
+- notification recipient isolation and category validation
+
+The remote Realtime/concurrency suite used a separate disposable organization and users.
+The first run timed out waiting for the initial CDC event while the Realtime publication
+was cold. An unchanged second run passed and exercised:
+
+- authorized WebSocket fan-out with unauthorized and cross-organization exclusion
+- disconnect/reconnect behavior without duplicate replay
+- 25 synchronized scorekeeper-lease races with one winner per race
+- losing-client mutation denial
+- controlled transfer and stale-token rejection
+- stale-version rejection and idempotent scoring-event replay
+- game ending, idempotent finalization, postgame correction, audit history, and
+  correction fan-out exactly once
+
+All disposable organizations and users were removed by the harnesses.
+
+The linked pgTAP command could not execute because the Supabase remote test login role
+does not have `USAGE` on the existing `extensions` schema that contains pgTAP. Both
+attempts stopped before test setup or data mutation. The same 47-assertion suite passed
+locally after two clean resets, while the remote-safe Deno harnesses covered the
+authorization, notification, Realtime, lease, stale-write, finalization, and correction
+paths against the deployed schema.
+
+### Remote lint
+
+`supabase db lint --linked --level error` reports one blocking error in the pre-existing
+`public.sd_generate_parent_code` function:
+
+```text
+SQLSTATE 42883
+function gen_random_bytes(integer) does not exist
+```
+
+The function uses unqualified `gen_random_bytes(size)` under a restricted search path.
+The same function body is present in both the original pre-games schema backup and the
+partial-state backup taken before the retry, proving the game migration batch did not
+introduce it. The local migration history already qualifies the function as
+`extensions.gen_random_bytes`; a separate additive remote correction is required to
+bring the historical live function body into alignment. No ad hoc remote patch was made
+during this deployment.
+
+Warning-level lint also reports pre-existing unused variables or parameters in
+`sd_sync_apple_player_subscription`, `sd_apply_event_operation_mutation`, and
+`sd_change_invoice_state`.
+
+### Final remediation verdict
+
+Deployment verdict: `DEPLOYED WITH REQUIRED FOLLOW-UP`.
+
+The game/calendar/live-scorekeeping schema is deployed and remotely exercised. The
+required follow-up is the pre-existing `sd_generate_parent_code` lint error and the
+remote pgTAP test-role permission limitation; neither is a regression from the deployed
+game migration.
