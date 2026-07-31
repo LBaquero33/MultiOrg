@@ -670,6 +670,12 @@ struct NotificationDestinationView: View {
       )
       .environmentObject(appState)
       .notificationDismissToolbar(dismiss: dismiss)
+    case .event(let eventId) where appState.activeOrgId == notification.organizationId:
+      GameDetailView(eventId: eventId)
+        .notificationDismissToolbar(dismiss: dismiss)
+    case .game(let gameId) where appState.activeOrgId == notification.organizationId:
+      GameDetailView(gameId: gameId)
+        .notificationDismissToolbar(dismiss: dismiss)
     default:
       detail
     }
@@ -747,6 +753,10 @@ struct NotificationDestinationView: View {
       return "Open Chat to view this conversation."
     case .announcement:
       return "Organization announcement"
+    case .event, .game:
+      return appState.activeOrgId == notification.organizationId
+        ? "Open Calendar to view this event."
+        : "Switch to \(notification.organizationName) to view this event."
     case .detail:
       return "No additional destination is available for this notification."
     }

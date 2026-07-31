@@ -1,21 +1,30 @@
 import SwiftUI
 
-/// Parent root: Children + Account.
+/// Parent root: Children, calendar, chat, and account.
 struct ParentRootView: View {
   @EnvironmentObject private var appState: AppState
-#if os(iOS)
   @State private var selection: HPAppNavigationDestination = .parentChildren
-#endif
 
   var body: some View {
+    Group {
 #if os(iOS)
-    HPAdaptiveApplicationShell(
-      role: .parent,
-      roleSubtitle: "Parent workspace",
-      inventory: navigationInventory,
-      selection: $selection
-    ) { destination in
-      destinationView(destination)
+      HPAdaptiveApplicationShell(
+        role: .parent,
+        roleSubtitle: "Parent workspace",
+        inventory: navigationInventory,
+        selection: $selection
+      ) { destination in
+        destinationView(destination)
+      }
+#else
+      HPRegularApplicationShell(
+        role: .parent,
+        inventory: navigationInventory,
+        selection: $selection
+      ) { destination in
+        destinationView(destination)
+      }
+#endif
     }
     .onChange(of: appState.requestedChatChannelId) { _, channelId in
       guard channelId != nil, feature("chat") else { return }
@@ -25,14 +34,8 @@ struct ParentRootView: View {
       guard appState.requestedChatChannelId != nil, feature("chat") else { return }
       selection = .chat
     }
-#else
-    HPApplicationIdentityShell(roleSubtitle: "Parent workspace") {
-      ParentHomeView()
-    }
-#endif
   }
 
-#if os(iOS)
   private var navigationInventory: HPAppNavigationInventory {
     .parent(
       childrenTitle: term("players", fallback: "Children"),
@@ -45,17 +48,22 @@ struct ParentRootView: View {
     switch destination {
     case .parentChildren:
       ParentHomeView()
+    case .parentCalendar:
+      GameCalendarView()
     case .chat:
       if feature("chat") {
         ChatChannelListView()
       }
     case .account:
+#if os(iOS)
       NavigationStack { AccountView() }
+#else
+      AccountView()
+#endif
     default:
       EmptyView()
     }
   }
-#endif
 
   private func term(_ key: String, fallback: String) -> String {
     appState.activeOrgSettings?.term(key, fallback: fallback) ?? fallback

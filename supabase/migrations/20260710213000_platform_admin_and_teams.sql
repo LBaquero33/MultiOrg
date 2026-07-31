@@ -77,5 +77,12 @@ create policy "sd_team_members_select_member" on public.sd_team_members for sele
 
 -- Initial platform administrator for the MultiOrg owner account.
 insert into public.sd_platform_admins (user_id, notes)
-values ('6e34ac24-0a94-4dbb-9941-3f0248493fbb', 'Initial MultiOrg platform administrator')
+select
+  '6e34ac24-0a94-4dbb-9941-3f0248493fbb'::uuid,
+  'Initial MultiOrg platform administrator'
+where exists (
+  select 1
+  from auth.users
+  where id = '6e34ac24-0a94-4dbb-9941-3f0248493fbb'::uuid
+)
 on conflict (user_id) do nothing;

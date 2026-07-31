@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare non-secret build configuration
+        run: cp Configs/Secrets.example.xcconfig Configs/Secrets.xcconfig
       - name: Build iOS simulator target
         run: xcodebuild -quiet -project MultiOrg.xcodeproj -scheme MultiOrg -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
 
@@ -17,5 +19,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare non-secret build configuration
+        run: cp Configs/Secrets.example.xcconfig Configs/Secrets.xcconfig
       - name: Build macOS target
         run: xcodebuild -quiet -project MultiOrg.xcodeproj -scheme MultiOrgMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build
