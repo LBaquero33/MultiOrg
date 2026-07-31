@@ -318,4 +318,94 @@ Because `20260729010000` is already remote, remediation must start from that exa
 remote state. Do not use migration repair; do not rerun the remaining batch until a new
 dry run and complete local validation prove the corrected order.
 
+## 2026-07-31 notification-category remediation
+
+This section preserves the failed-deployment record above and records the reviewed
+correction before the deployment retry.
+
+### Exact failure and remote evidence
+
+- Failure: SQLSTATE `23514` while applying
+  `20260729020000_game_calendar_integration.sql`.
+- Cause: the replacement `sd_notifications_category_check` omitted the established
+  `schedule_change` category.
+- Existing affected rows: eight, all preserved and not rewritten.
+- Other existing notification categories: `message_received` (10 rows) and
+  `payment_request_created` (5 rows).
+- Existing source values: `chat` (10 rows), `payment_request` (5 rows), and
+  `event_operation` (8 rows).
+- Remote migration state remained unchanged at `20260729010000`; no migration repair,
+  remote reset, or manual schema patch was used.
+
+### Corrected validation contract
+
+Migration `20260729020000` now installs the complete legacy-plus-game category and source
+constraints using `NOT VALID` followed by `VALIDATE CONSTRAINT`. Later migrations
+`20260729070000`, `20260729090000`, and the centralized validator in
+`20260729100000` retain every valid earlier category while adding `game_update` at the
+timestamp where it is introduced.
+
+The final category set is:
+
+```text
+payment_request_created, payment_received, booking_created, booking_updated,
+program_assigned, program_updated, message_received, testing_result_added,
+organization_announcement, team_announcement, event_announcement, schedule_change,
+event_reminder, attendance, availability, practice_plan, game_plan,
+lineup_assignment, registration, payment_notice, result_recap, event_created,
+event_updated, event_canceled, event_postponed, event_rescheduled,
+availability_requested, game_starting, game_live, game_update, game_final, system
+```
+
+The final source set is:
+
+```text
+payment_request, payment_webhook, announcement, chat, schedule, event_operation,
+practice_plan, game_plan, registration, organization_finance, event, system
+```
+
+### Regression and local validation
+
+- Upgrade regression: seeds a `schedule_change` / `event_operation` notification before
+  replacing the constraint, validates the replacement, and proves the row is unchanged.
+- Canonical-category regression: every final category is accepted and an arbitrary value
+  remains rejected with SQLSTATE `23514`.
+- Notification deduplication and recipient-isolation assertions remain in the game
+  integration suite.
+- Clean local reset 1: PASS through `20260729130000`.
+- Clean local reset 2: PASS through `20260729130000`.
+- Strict local database lint: PASS, zero errors.
+- Database pgTAP: PASS, 47/47.
+- Shared Deno/backend tests: PASS, 376/376.
+- Migration-contract Deno tests: PASS, 3/3.
+- Local Realtime/concurrency suite: PASS twice consecutively, including actual WebSocket
+  fan-out, cross-organization denial, 25 synchronized lease races, stale writes,
+  finalization, and correction replay.
+- MultiOrg iOS simulator test: PASS, 251 tests in 22 suites.
+- MultiOrgMac Debug compile validation: PASS with code signing disabled.
+
+### Reviewed retry delta
+
+The linked migration history still records `20260729010000` and no later July 29
+migration. The reviewed dry run proposes exactly these twelve migrations:
+
+```text
+20260729020000
+20260729030000
+20260729040000
+20260729050000
+20260729060000
+20260729070000
+20260729080000
+20260729090000
+20260729100000
+20260729110000
+20260729120000
+20260729130000
+```
+
+No recovered historical migration, `20260729010000`, or unrelated migration is included.
+The database retry, fresh partial-state backup, remote lint, and remote smoke-test results
+are recorded in the deployment closure below after they execute.
+
 Deployment verdict: `DEPLOYMENT FAILED — REMEDIATION REQUIRED`.

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(47);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -48,6 +48,110 @@ values
   ('10000000-0000-4000-9000-000000000001', '10000000-0000-4000-8000-000000000003', 'player', 'active'),
   ('10000000-0000-4000-9000-000000000001', '10000000-0000-4000-8000-000000000004', 'parent', 'active'),
   ('20000000-0000-4000-9000-000000000001', '20000000-0000-4000-8000-000000000001', 'owner', 'active');
+
+select lives_ok(
+  $$insert into public.sd_notifications (
+    id, org_id, recipient_user_id, category, title, body,
+    deduplication_key, created_by, source
+  ) values (
+    '10000000-0000-4000-9000-000000000099',
+    '10000000-0000-4000-9000-000000000001',
+    '10000000-0000-4000-8000-000000000003',
+    'schedule_change',
+    'Existing schedule',
+    'This row predates the game migration.',
+    'legacy-schedule-change',
+    '10000000-0000-4000-8000-000000000001',
+    'event_operation'
+  )$$,
+  'legacy schedule-change notification exists before the constraint upgrade'
+);
+
+create temporary table legacy_notification_snapshot as
+select to_jsonb(notification) as row_data
+from public.sd_notifications notification
+where id = '10000000-0000-4000-9000-000000000099';
+
+select lives_ok(
+  $$alter table public.sd_notifications
+      drop constraint if exists sd_notifications_category_check;
+    alter table public.sd_notifications
+      add constraint sd_notifications_category_check check (category in (
+        'payment_request_created', 'payment_received', 'booking_created',
+        'booking_updated', 'program_assigned', 'program_updated',
+        'message_received', 'testing_result_added', 'organization_announcement',
+        'team_announcement', 'event_announcement', 'schedule_change',
+        'event_reminder', 'attendance', 'availability', 'practice_plan',
+        'game_plan', 'lineup_assignment', 'registration', 'payment_notice',
+        'result_recap', 'event_created', 'event_updated', 'event_canceled',
+        'event_postponed', 'event_rescheduled', 'availability_requested',
+        'game_starting', 'game_live', 'game_final', 'game_update', 'system'
+      )) not valid;
+    alter table public.sd_notifications
+      validate constraint sd_notifications_category_check$$,
+  'canonical game constraint validates with an existing schedule-change row'
+);
+
+select is(
+  (
+    select to_jsonb(notification)
+    from public.sd_notifications notification
+    where id = '10000000-0000-4000-9000-000000000099'
+  ),
+  (select row_data from legacy_notification_snapshot),
+  'constraint upgrade leaves the existing notification row unchanged'
+);
+
+select lives_ok(
+  $$insert into public.sd_notifications (
+      org_id, recipient_user_id, category, title, body,
+      deduplication_key, created_by, source
+    )
+    select
+      '10000000-0000-4000-9000-000000000001',
+      '10000000-0000-4000-8000-000000000003',
+      category,
+      'Category contract',
+      'Canonical category remains accepted.',
+      'canonical-category-' || category,
+      '10000000-0000-4000-8000-000000000001',
+      'system'
+    from unnest(array[
+      'payment_request_created', 'payment_received', 'booking_created',
+      'booking_updated', 'program_assigned', 'program_updated',
+      'message_received', 'testing_result_added', 'organization_announcement',
+      'team_announcement', 'event_announcement', 'schedule_change',
+      'event_reminder', 'attendance', 'availability', 'practice_plan',
+      'game_plan', 'lineup_assignment', 'registration', 'payment_notice',
+      'result_recap', 'event_created', 'event_updated', 'event_canceled',
+      'event_postponed', 'event_rescheduled', 'availability_requested',
+      'game_starting', 'game_live', 'game_final', 'game_update', 'system'
+    ]) category$$,
+  'all canonical legacy and game notification categories are accepted'
+);
+
+select throws_ok(
+  $$insert into public.sd_notifications (
+      org_id, recipient_user_id, category, title, body,
+      deduplication_key, created_by, source
+    ) values (
+      '10000000-0000-4000-9000-000000000001',
+      '10000000-0000-4000-8000-000000000003',
+      'not_a_real_category',
+      'Invalid category',
+      'This insert must fail.',
+      'invalid-category',
+      '10000000-0000-4000-8000-000000000001',
+      'system'
+    )$$,
+  '23514',
+  null,
+  'unknown notification categories remain rejected'
+);
+
+delete from public.sd_notifications
+where deduplication_key = 'legacy-schedule-change'
+   or deduplication_key like 'canonical-category-%';
 
 insert into public.sd_teams (id, org_id, name, created_by)
 values (

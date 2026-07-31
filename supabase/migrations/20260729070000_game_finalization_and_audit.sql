@@ -7,8 +7,16 @@ alter table public.sd_notifications
   add constraint sd_notifications_category_check check (category in (
     'payment_request_created', 'payment_received', 'booking_created',
     'booking_updated', 'program_assigned', 'program_updated', 'message_received',
-    'testing_result_added', 'organization_announcement', 'game_update', 'system'
-  ));
+    'testing_result_added', 'organization_announcement', 'team_announcement',
+    'event_announcement', 'schedule_change', 'event_reminder', 'attendance',
+    'availability', 'practice_plan', 'game_plan', 'lineup_assignment',
+    'registration', 'payment_notice', 'result_recap', 'event_created',
+    'event_updated', 'event_canceled', 'event_postponed', 'event_rescheduled',
+    'availability_requested', 'game_starting', 'game_live', 'game_final',
+    'game_update', 'system'
+  )) not valid;
+alter table public.sd_notifications
+  validate constraint sd_notifications_category_check;
 
 create table if not exists public.sd_game_audit_log (
   id uuid primary key default gen_random_uuid(),

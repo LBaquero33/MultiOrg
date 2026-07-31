@@ -9,18 +9,28 @@ alter table public.sd_notifications
     'payment_request_created', 'payment_received', 'booking_created',
     'booking_updated', 'program_assigned', 'program_updated',
     'message_received', 'testing_result_added', 'organization_announcement',
+    'team_announcement', 'event_announcement', 'schedule_change',
+    'event_reminder', 'attendance', 'availability', 'practice_plan',
+    'game_plan', 'lineup_assignment', 'registration', 'payment_notice',
+    'result_recap',
     'event_created', 'event_updated', 'event_canceled', 'event_postponed',
     'event_rescheduled', 'availability_requested', 'game_starting',
     'game_live', 'game_final', 'system'
-  ));
+  )) not valid;
+alter table public.sd_notifications
+  validate constraint sd_notifications_category_check;
 
 alter table public.sd_notifications
   drop constraint if exists sd_notifications_source_check;
 alter table public.sd_notifications
   add constraint sd_notifications_source_check
   check (source in (
-    'payment_request', 'payment_webhook', 'announcement', 'chat', 'event', 'system'
-  ));
+    'payment_request', 'payment_webhook', 'announcement', 'chat', 'schedule',
+    'event_operation', 'practice_plan', 'game_plan', 'registration',
+    'organization_finance', 'event', 'system'
+  )) not valid;
+alter table public.sd_notifications
+  validate constraint sd_notifications_source_check;
 
 create or replace function public.sd_reconcile_event_facility_booking()
 returns trigger
