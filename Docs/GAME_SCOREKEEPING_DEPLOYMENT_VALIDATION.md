@@ -243,3 +243,79 @@ Realtime WebSocket subscriptions.
   snapshot suite was added.
 - The test suite is broad but does not exhaustively enumerate every possible baseball play.
 - Remote migration application and remote smoke testing remain intentionally unperformed.
+
+## 2026-07-31 deployment attempt
+
+Deployment began at `2026-07-31 00:26 EDT` against Supabase project
+`kbulbvngysflfhaqpvtv` (shared live Home Plate environment, West US/Oregon).
+
+### Recovery and source control
+
+- Pre-deployment schema dump:
+  `/Users/lb33/HomePlateBackups/homeplate_pre_games_20260731_001321_schema.sql`
+- Pre-deployment data dump:
+  `/Users/lb33/HomePlateBackups/homeplate_pre_games_20260731_001321_data.sql`
+- Feature branch push: PASS.
+- Remote branch:
+  `feature/game-calendar-live-scoring` at
+  `16058196dfb2ad8e803ded6c047df138f96c411e`.
+- No branch merge was performed.
+
+### Final deployment delta
+
+Two immediately-preceding linked migration checks and dry runs both proposed exactly:
+
+```text
+20260729010000
+20260729020000
+20260729030000
+20260729040000
+20260729050000
+20260729060000
+20260729070000
+20260729080000
+20260729090000
+20260729100000
+20260729110000
+20260729120000
+20260729130000
+```
+
+No recovered historical or unrelated migration was proposed.
+
+### Database push result
+
+The push stopped at the first failure, as required:
+
+- `20260729010000_game_events_foundation.sql`: APPLIED and recorded remotely.
+- `20260729020000_game_calendar_integration.sql`: ROLLED BACK and not recorded.
+- `20260729030000` through `20260729130000`: NOT ATTEMPTED.
+
+Postgres rejected the replacement `sd_notifications_category_check` constraint with
+SQLSTATE `23514` because existing rows violate the proposed category list. The
+pre-deployment data dump shows eight existing `sd_notifications` rows with category
+`schedule_change`; that established category is absent from the temporary constraint in
+`20260729020000`. A later migration restores legacy categories, but execution cannot reach
+it while migration `20260729020000` rejects the existing data.
+
+No retry, migration repair, remote reset, or already-applied migration edit was performed.
+
+### Verification intentionally stopped
+
+- Remote migration head: `20260729010000`.
+- Remote lint: not run against the incomplete deployment.
+- Remote authorization/RLS smoke tests: not run.
+- Remote Realtime/concurrency smoke tests: not run.
+- Remote lifecycle/finalization/correction tests: not run.
+- Edge Functions changed by the branch: none.
+- Edge Functions deployed: none.
+
+### Required remediation
+
+Create and locally validate a migration-safe correction that preserves existing
+`schedule_change` notifications while installing the calendar/game category constraint.
+Because `20260729010000` is already remote, remediation must start from that exact partial
+remote state. Do not use migration repair; do not rerun the remaining batch until a new
+dry run and complete local validation prove the corrected order.
+
+Deployment verdict: `DEPLOYMENT FAILED — REMEDIATION REQUIRED`.
