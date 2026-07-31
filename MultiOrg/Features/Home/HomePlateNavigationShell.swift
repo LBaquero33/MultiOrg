@@ -21,8 +21,10 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
   case playerDevelopment
 
   case parentChildren
+  case parentCalendar
 
   case coachPlayers
+  case coachCalendar
   case coachFacilities
   case coachTeams
   case coachPrograms
@@ -183,13 +185,17 @@ struct HPAppNavigationInventory: Equatable {
 
   static func parent(childrenTitle: String, chatEnabled: Bool) -> Self {
     let children = item(.parentChildren, childrenTitle, "person.2")
+    let calendar = item(.parentCalendar, "Calendar", "calendar")
     let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
     let account = item(.account, "Account", "gearshape")
-    let compact = [children] + (chatEnabled ? [chat] : [])
+    let compact = [children, calendar] + (chatEnabled ? [chat] : [])
     let directory = [HPAppNavigationSection(title: "Manage", items: [account])]
     let regular = [
       HPAppNavigationSection(title: nil, items: [children]),
-      HPAppNavigationSection(title: "Run", items: chatEnabled ? [chat] : []),
+      HPAppNavigationSection(
+        title: "Run",
+        items: [calendar] + (chatEnabled ? [chat] : [])
+      ),
       HPAppNavigationSection(title: "Manage", items: [account]),
     ].filter { !$0.items.isEmpty }
     return Self(
@@ -230,6 +236,7 @@ struct HPAppNavigationInventory: Equatable {
       "person.3"
     )
     let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
+    let calendar = item(.coachCalendar, "Calendar", "calendar")
     let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
     let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
     let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
@@ -240,12 +247,10 @@ struct HPAppNavigationInventory: Equatable {
 
     let compact: [HPAppNavigationItem]
     if canAdministerOrganization {
-      compact = [players, finance]
+      compact = [players, calendar, finance]
         + (chatEnabled ? [chat] : [])
-        + [organization]
     } else {
-      compact = [players]
-        + (facilitiesEnabled ? [facilities] : [])
+      compact = [players, calendar]
         + (chatEnabled ? [chat] : [])
         + (programsEnabled ? [programs] : [])
     }
@@ -287,7 +292,8 @@ struct HPAppNavigationInventory: Equatable {
       ),
       HPAppNavigationSection(
         title: "Run",
-        items: (facilitiesEnabled ? [facilities] : [])
+        items: [calendar]
+          + (facilitiesEnabled ? [facilities] : [])
           + (chatEnabled ? [chat] : [])
           + (canAdministerOrganization ? [finance] : [])
       ),

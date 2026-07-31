@@ -160,7 +160,7 @@ struct PlayerHomeView: View {
     case .playerToday:
       SDPlayerTodayView()
     case .playerCalendar:
-      SDPlayerCalendarView()
+      PlayerUnifiedCalendarView()
     case .chat:
       ChatChannelListView()
     case .playerFacilities:
@@ -196,5 +196,29 @@ struct PlayerHomeView: View {
     } else {
       ProgressView("Loading player profile…")
     }
+  }
+}
+
+private struct PlayerUnifiedCalendarView: View {
+#if os(iOS)
+  @State private var mode = 0
+#endif
+
+  var body: some View {
+#if os(iOS)
+    VStack(spacing: 0) {
+      Picker("Calendar", selection: $mode) {
+        Text("Schedule").tag(0)
+        Text("Training").tag(1)
+      }
+      .pickerStyle(.segmented)
+      .padding(.horizontal)
+      .padding(.top, 8)
+      if mode == 0 { GameCalendarView() } else { SDPlayerCalendarView() }
+    }
+    .background(DHDTheme.pageBackground)
+#else
+    GameCalendarView()
+#endif
   }
 }

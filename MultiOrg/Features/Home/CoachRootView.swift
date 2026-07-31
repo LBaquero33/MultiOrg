@@ -88,6 +88,8 @@ struct CoachRootView: View {
     switch destination {
     case .coachPlayers:
       CoachHomeView()
+    case .coachCalendar:
+      GameCalendarView()
     case .coachFacilities:
       if feature("facilities") {
         CoachFacilitiesView()
