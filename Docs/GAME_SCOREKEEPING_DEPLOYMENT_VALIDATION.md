@@ -552,3 +552,61 @@ The game/calendar/live-scorekeeping schema is deployed and remotely exercised. T
 required follow-up is the pre-existing `sd_generate_parent_code` lint error and the
 remote pgTAP test-role permission limitation; neither is a regression from the deployed
 game migration.
+
+## Final database lint remediation
+
+The pre-existing `public.sd_generate_parent_code(size integer default 8)` function
+resolved `gen_random_bytes(size)` through the session search path. Hosted Supabase
+installs pgcrypto in the `extensions` schema, so linked strict lint reported SQLSTATE
+`42883` even though the deployed game/calendar/live-scorekeeping migrations did not
+introduce or modify the function.
+
+Migration `20260729140000_qualify_parent_code_random_bytes.sql` replaced only that
+reference with `extensions.gen_random_bytes(size)`. The function remains a volatile,
+invoker-security PL/pgSQL function returning `text`; its signature, alphabet, length,
+random-byte algorithm, grants, callers, and authorization behavior are unchanged.
+
+### Final local validation
+
+- Clean local reset 1: PASS through `20260729140000`.
+- Clean local reset 2: PASS through `20260729140000`.
+- Strict local database lint: PASS, zero errors.
+- Database pgTAP: PASS, 58/58 assertions (47 game/calendar assertions and 11
+  parent-code regression assertions).
+- Shared Deno/backend tests: PASS, 376/376.
+- Realtime/concurrency suite: one documented cold-publication CDC timeout followed by
+  two consecutive unchanged PASS runs, including 25 synchronized scorekeeper-lease
+  races per run.
+- `git diff --check`: PASS.
+
+### Corrective deployment
+
+The reviewed linked dry run proposed exactly one migration:
+
+```text
+20260729140000_qualify_parent_code_random_bytes.sql
+```
+
+One database push applied that migration successfully. The linked migration list now
+records `20260729140000` as the remote head.
+
+### Final remote validation
+
+- Strict linked database lint: PASS, zero blocking errors.
+- Warning-level lint: no deployment blocker. It reports the generator's pre-existing
+  loop-variable shadow warning plus pre-existing unused variables in Apple
+  subscription, event-operation, and invoice-state functions.
+- Anonymous parent-code execution: PASS.
+- Twenty-four disposable calls returned the existing eight-character
+  `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` format, with bounded uniqueness observed.
+- Existing `anon`, `authenticated`, and `service_role` execution grants are preserved.
+- No game, calendar, live-scorekeeping, notification, Realtime, or authorization
+  behavior changed in the corrective migration.
+
+### Final merge-readiness verdict
+
+Deployment verdict: `DEPLOYED AND READY TO MERGE`.
+
+The deployed schema has zero blocking linked lint errors, the parent-code generator is
+working remotely through its existing authorization boundary, and all local regression,
+Realtime, and concurrency validation required for this cleanup passed.
