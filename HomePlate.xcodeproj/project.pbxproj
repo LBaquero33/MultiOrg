@@ -13,13 +13,19 @@
 		04A649D556092BFE3D87424E /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E6A7BD14B4C65E11D69BAA /* ConfigErrorView.swift */; };
 		05E87F2839566F2B34B398A4 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF7269B95D42FF277CF2B3F /* LoginView.swift */; };
 		07A170357607BF45BB06CAFA /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACCC0DD909B03AB20572EA /* CoachPlayerDailyLogsView.swift */; };
+		08E58DAC947444EDEA3578AB /* GameScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B47DF7C090C48F067956954 /* GameScoringEngine.swift */; };
 		096CA93B7091EA2D64BA67A8 /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4CF8590ADF158A32BE36B4 /* HPSearchBar.swift */; };
 		0BA285A343DBD70FBB52607D /* TeamSchedulingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747FEEACA6515450F4F4E546 /* TeamSchedulingModels.swift */; };
 		0BBCDA7DF7CDF3A5EA2C21D8 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CADA1BF82CA10DA4B6B3BBE /* SupabaseService.swift */; };
 		0EF8236169D9F4F9145C29B5 /* ParentRequestPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5569C41F3C624A33F92EC7E /* ParentRequestPanels.swift */; };
 		0F712377FE0369F07D179B5C /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13169768C063423AB974229 /* NotificationCenterView.swift */; };
+		116C9780C70DAB1556CAE559 /* LiveGameScoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */; };
+		12521250A5FB004A704406C3 /* GameScoringReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21C16132ED63F729991D2379 /* GameScoringReducerTests.swift */; };
+		1259DA777D7F78E848194AB3 /* GameOfficialScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */; };
 		12A7F014AFF60B40C9B4778C /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F39D996B26497B21CEDD6 /* HPMetricCard.swift */; };
+		14C4874BD8E2B89F8C82B52B /* GameScoringInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9CEA95B099629E8A5E82C0 /* GameScoringInteractionTests.swift */; };
 		14CABD42912C891BBF8F6D4D /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A7F7845301A36FFDF3D3E4 /* PlatformAdminDashboardView.swift */; };
+		155CCE81AF2E27B50A2FBA05 /* GameStatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D543DD89F540979729A4302 /* GameStatisticsView.swift */; };
 		160FB972715E3D7ECA4B3B10 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = DDD9F2C356F1A66B7B749546 /* Supabase */; };
 		1637132C6AF07AB0A4FA9181 /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4295E5CF8CD34E5511F641B2 /* HPSectionHeader.swift */; };
 		1B8E341F14B24D2C769794A7 /* HPDetailScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A1D9CA98F78A51C64B6232 /* HPDetailScreenTemplate.swift */; };
@@ -27,12 +33,17 @@
 		1BD15C3FF96C7BBE9D04AB1F /* OrgAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289D8E883A8E984D18CC2763 /* OrgAdminConsoleView.swift */; };
 		1BFB7BC6BED2EE0F6FDEC8CC /* HPAnalyticsScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F64A5FC14DB8E793876402 /* HPAnalyticsScreenTemplate.swift */; };
 		1C6D45D2DEEB879BA22ADDB0 /* OrganizationAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A67C601028D9AC848AD9C29 /* OrganizationAuthorizationTests.swift */; };
+		1C948BD4FBB2CF30597DF095 /* GameWorkspaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838605F6C0F128F4B3D98D1A /* GameWorkspaceTests.swift */; };
 		1D162E60B2FF692D30F83F03 /* SDPlayerProgramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA8CC1C766B990EDFFC2056 /* SDPlayerProgramView.swift */; };
 		1D4845D0FED3AB10C722505A /* HPMoneyField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55CBE77A93BD5E69B787A358 /* HPMoneyField.swift */; };
 		1E4B6AC9C67EBDF24373F120 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B5155B63F95D59145F79A8 /* HPWorkspaceScreenTemplate.swift */; };
 		1EC5FC770C492CBD62814995 /* ProgramTemplateEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE92DA7E0954F746CB177308 /* ProgramTemplateEditorView.swift */; };
+		1FD9651B940CD84F8351F06C /* PlayByPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F6D674186F61144CE47393 /* PlayByPlayView.swift */; };
 		21957463890CC114CFDA01DE /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073C4A19117B5C55E8B9F988 /* CoachPlayerBPSessionsView.swift */; };
+		24704CC9F946510F1641FC18 /* GameScoringInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E29EAC6A66E32B084521CE7 /* GameScoringInteraction.swift */; };
+		24998E4A8231FF4A4C8D764D /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8DCFDD15CFA7C52CC08ED7 /* GameDetailView.swift */; };
 		25A41944DE99306959EA4CF3 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDBBED15F3D664E3E21F9B /* PlayerDetailView.swift */; };
+		26EF47A5086160FDE0F9BB70 /* SupabaseService+Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E702760A12CF6AC06C54361 /* SupabaseService+Games.swift */; };
 		273D035B6AF8AF23181B318F /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66242B84B03C4782FD08EB83 /* PaymentRequestCard.swift */; };
 		27B5899059641EEB39F402F5 /* EditFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E917162230396AE988223A2 /* EditFacilityBookingSheet.swift */; };
 		289667BA4B65317848F0E676 /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9D2A11773CCB0DF3F6E87C /* PlayerDevelopmentAIModels.swift */; };
@@ -58,7 +69,9 @@
 		39511D44498E5EA92B56D328 /* ParentChildCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285D68944413F4B6FE19CB87 /* ParentChildCalendarView.swift */; };
 		3A8F2A37D81730F671728E34 /* SDPlayerFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11B541C84D9ED9961FF28CE /* SDPlayerFacilitiesView.swift */; };
 		3A9D5F398A415F953E06E68C /* PlayerDevelopmentCopilotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4C44F47A666149E461C2AE /* PlayerDevelopmentCopilotTests.swift */; };
+		3BF03B5CAD88A8DF7F4C9418 /* GameStatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D543DD89F540979729A4302 /* GameStatisticsView.swift */; };
 		3C2904340A0F9F72FE9F5889 /* CoachRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63916847779C38F8F466822 /* CoachRootView.swift */; };
+		3DFD2B80BF20F5CE822FABFB /* SupabaseService+Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E702760A12CF6AC06C54361 /* SupabaseService+Games.swift */; };
 		3F2FA1FE1FAA6C20C7FF4BF7 /* CoachPlayerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43C41FC27AE7FD4DE868AF3 /* CoachPlayerCalendarView.swift */; };
 		3F3C42ADF6C7B81C80A082B5 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A58FDAB5915390063A01B6 /* HomeView.swift */; };
 		3F3D9A3969E9B7EDD406CCA1 /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9B89E208789392F52544B /* DHDMonthGridView.swift */; };
@@ -80,6 +93,7 @@
 		4AA37E5F9ADDA639D58D2B69 /* CoachPlayerBPSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073C4A19117B5C55E8B9F988 /* CoachPlayerBPSessionsView.swift */; };
 		4ADB4FEE67D5E2843CA1C9B2 /* PaymentCheckoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA37F13A18755020300465B /* PaymentCheckoutModels.swift */; };
 		4B4FAA987C6B7A10CF67A1C3 /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667FDE39C5403A533B3BCBB5 /* HPWorkspaceHeader.swift */; };
+		4B5B9215F6C1954452F98A75 /* GameScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B47DF7C090C48F067956954 /* GameScoringEngine.swift */; };
 		4F6BBD1FA18A9E851788A8CF /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F39D996B26497B21CEDD6 /* HPMetricCard.swift */; };
 		53044233F4866F271008E597 /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AD094616EA08B56AFFD22D /* HPAvatar.swift */; };
 		5322495EDBB9D7A42BAF4432 /* HPSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99848583C5CD6DAABF49E833 /* HPSidebar.swift */; };
@@ -114,6 +128,7 @@
 		6192DEFC78CE041F2B3F0609 /* SDPlayerBPDaySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964D889D00EAAC74CA43B52D /* SDPlayerBPDaySection.swift */; };
 		62BF193C96D30F4C079B933D /* HPProgramExecutionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB0B716567E2B0E4C7F08F5 /* HPProgramExecutionTemplate.swift */; };
 		62CE4A366CABEB13DC5CB9F7 /* ChatCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB87F58C6214321606553D7 /* ChatCreateView.swift */; };
+		63DBA4BF67C6D8A258B095F7 /* GameWorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB87749C5138977A0A7A779 /* GameWorkspaceModels.swift */; };
 		63E09939ED7EE77A50335739 /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E315E38F774318A51B73179F /* OrgModels.swift */; };
 		63F69613C9F316D872862822 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B42AEB8B81204658C368266 /* HPColor.swift */; };
 		64E0775F0E2BC7D855345DA5 /* HPStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DF3F9AC8F9A15B677C73DB /* HPStatusBadge.swift */; };
@@ -125,10 +140,12 @@
 		687AD6ECBA9926A8060F956E /* ParentRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 246AB603383576431D3052AC /* ParentRootView.swift */; };
 		6901A53AA68748AA4DD0719D /* FinanceDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C5CA746E77B33BEAFE4577 /* FinanceDashboardViewModel.swift */; };
 		690EFDDB3B4EEF5D082AC013 /* HomePlateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B0D5621ADFEB4556F8A9A2 /* HomePlateApp.swift */; };
+		693A216CA08705C52EA2C6A0 /* GameDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8DCFDD15CFA7C52CC08ED7 /* GameDetailView.swift */; };
 		69D0214FD61F95E317CB17A3 /* PlayerDevelopmentCopilotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C8D30109602B6CF075D9CB /* PlayerDevelopmentCopilotView.swift */; };
 		6AB613A727E5F4F9E30BCE76 /* FacilitiesDayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEB277182B7DC89EAF2CAE6 /* FacilitiesDayTimelineView.swift */; };
 		6CE1467314D975996AFE9427 /* ExpenseManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A7F80088D0AE3A3DBB1286 /* ExpenseManagementView.swift */; };
 		6CEB6A6C3C9B29A44A7C587E /* SDParentBillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A993B5CB9AD716EB8C46ECB9 /* SDParentBillingView.swift */; };
+		6D08A7DBF35ECE5A3B561618 /* GameFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B38811E07AB59C6BFBA027 /* GameFoundationTests.swift */; };
 		6D2AF73F824336836B40DEE9 /* AccessRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166B162DECC8DA94309F2324 /* AccessRequiredView.swift */; };
 		6DFF1C1ADA0D31267E49CA85 /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FE3B69542B3F5E10B76444C /* CSV.swift */; };
 		701A440103E8319A25437615 /* HPSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4295E5CF8CD34E5511F641B2 /* HPSectionHeader.swift */; };
@@ -137,6 +154,8 @@
 		76E65B0C9C77E7D13A8B4679 /* CoachPlayerDailyLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACCC0DD909B03AB20572EA /* CoachPlayerDailyLogsView.swift */; };
 		774A9E1ED510B88C25D9C520 /* ProgramDayEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF49EFEC769F6B2497F2F6F /* ProgramDayEditorSheet.swift */; };
 		783DDE68A0B38817338D7112 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5212F9F09AA9A20C75FFE6D /* PlayerDevelopmentCopilotResponseContractTests.swift */; };
+		7886DE6330554AECD207FDEB /* GameScorekeeperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC674A4C27ACD411AB6DC56 /* GameScorekeeperSession.swift */; };
+		78BFDB2473DE18E3A59A3759 /* GameRuleset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AD734C083E3A1CDCFA4410 /* GameRuleset.swift */; };
 		78EF16B1FC5ABAC1B144E0BD /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB78C8B2E0AC9C6CC9EE5D98 /* HPComponentGallery.swift */; };
 		7A8E36CD901E5021A716E978 /* HomePlateNavigationShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3EE7C7ABA72D5482CFC3ECD /* HomePlateNavigationShell.swift */; };
 		7B7E8D499BFB80D9E6E0E992 /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A2607C0D72897EB28C780C /* HPStateScreenTemplate.swift */; };
@@ -162,6 +181,7 @@
 		8C679CFB9A2E7132BEDE9BA6 /* HPColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B42AEB8B81204658C368266 /* HPColor.swift */; };
 		8CC20D8A4F36A63530EAD1FD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0B5E0DEC8E4733755649D /* RootView.swift */; };
 		8CD015CAD6D4C0C25D7D8E58 /* SDParentBillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A993B5CB9AD716EB8C46ECB9 /* SDParentBillingView.swift */; };
+		8DB38937486FBDF91610C8DA /* LiveGameScoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */; };
 		8EF89B0A2B1DCE03BF2E3585 /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3284AF35458FF21A97A10F2F /* PlayerDevelopmentImportModels.swift */; };
 		9191F19673745C9DE7B07FC9 /* Phase13BProjectRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB12E7BC8414BF5D061A2577 /* Phase13BProjectRuntimeTests.swift */; };
 		93C6A618D101DC8E33859E28 /* SDPlayerTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3255CF5B1618E9E7E2CCBB16 /* SDPlayerTrendsView.swift */; };
@@ -177,13 +197,17 @@
 		99DD0548E404EB565F08E47A /* CoachEventOperationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D45C1F3AF855546DE301C2 /* CoachEventOperationView.swift */; };
 		9A75FB5771CA64ECF7CF9BA3 /* UniversalUIFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE85409E04900AAA23695DC /* UniversalUIFoundationTests.swift */; };
 		9B19566AC3FA4D8777D2F460 /* ChatThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAEA9974C7C0F2A09A05543 /* ChatThreadView.swift */; };
+		9CD0DDEF47E108D6675701BB /* GameCalendarIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B561DF08A64525CD37BBFC6F /* GameCalendarIntegrationTests.swift */; };
 		9D99E5DA7D76AF7698B10F5A /* BPAnalysisComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA91567231F37346D7445F4 /* BPAnalysisComponents.swift */; };
 		9E12B71DCDDC356687F4161B /* AppleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F052D0D2365EC552F74188E3 /* AppleSignInButtonView.swift */; };
+		9E3F6CFE9F110BC974CDE787 /* GameOfficialScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */; };
 		9F002B90DFB19725BAACC3C8 /* HPBuildDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF446CF26DD44622D949478 /* HPBuildDiagnostics.swift */; };
 		A02992CFCCC9FF8D0188D8AB /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B63A39D1A9247B5F3523408 /* HPFilterBar.swift */; };
 		A0E8A44F45C721D11F2DE845 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B088EE205A484298C9A509A /* PlayerDevelopmentAIView.swift */; };
 		A121EB197D816303AF4188A6 /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E315E38F774318A51B73179F /* OrgModels.swift */; };
+		A17234921CECFB20F97B46C4 /* GameRuleset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AD734C083E3A1CDCFA4410 /* GameRuleset.swift */; };
 		A2DA331F11F344C7BEB3898A /* CoachPlayerTestingCRUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E17A33976AE9B8B05E0E75 /* CoachPlayerTestingCRUDView.swift */; };
+		A2E2924B4A6025F8CF88678B /* GameScorekeeperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC674A4C27ACD411AB6DC56 /* GameScorekeeperSession.swift */; };
 		A402058EEAA06BE3FB0644EE /* HPFormField.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC833B4BBC478320E9EAB6C3 /* HPFormField.swift */; };
 		A4A19C5393D29208ECB841E3 /* EventOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED368DA3D424F237A39C041F /* EventOperationsModels.swift */; };
 		A69FF23C0B394C2320DF3AA5 /* HPCommunicationScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77614C91675962032A1B6898 /* HPCommunicationScreenTemplate.swift */; };
@@ -197,7 +221,9 @@
 		A9450A45185D6D64A8548661 /* DHDMonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9B89E208789392F52544B /* DHDMonthGridView.swift */; };
 		A96EEF2A5FFBD1B1CB4B453A /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AB48BB3186DEDA6BA64C47 /* CoachHomeView.swift */; };
 		AA555D005055D8EB4EDDB395 /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F17A7316D32D40922D230E /* HPProgressIndicator.swift */; };
+		AA967E2DE4E25B14589F78DB /* GameFinalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F36978465CBCBCE1ACD25F63 /* GameFinalization.swift */; };
 		AB9E2EFA32BB6D73A6F82C62 /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 577DDC07C2916FA90940C6C8 /* CoachPlayerProfileView.swift */; };
+		AC0AECFCF205934790C3CD36 /* PlayByPlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F6D674186F61144CE47393 /* PlayByPlayView.swift */; };
 		AC0C288CE069B1CA1FBEA799 /* HomePlateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B0D5621ADFEB4556F8A9A2 /* HomePlateApp.swift */; };
 		AEA3C80FAF54FA78EDB767A1 /* EventAvailabilityEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81EEA1E3EE95076DB4384615 /* EventAvailabilityEditorSheet.swift */; };
 		AECF247892173BE4B153B762 /* HPMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B952247EE6B7561D87532B64 /* HPMetrics.swift */; };
@@ -226,7 +252,10 @@
 		BAF8B7014AB67686EF268FD2 /* NotificationCenterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573A9DDB7E284AA50DBCFE6A /* NotificationCenterModels.swift */; };
 		BBB9C2D535912254934F2450 /* CoachProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 455723ADFFCD90F57F0AD788 /* CoachProgramsView.swift */; };
 		BBC661DA76FB35B3116022DA /* ConfigErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E6A7BD14B4C65E11D69BAA /* ConfigErrorView.swift */; };
+		BC741C98114BA7DEB1C53F87 /* GameScorekeeperSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36F5744830294A114C45E13 /* GameScorekeeperSessionTests.swift */; };
+		BC8D27B2B998FD0478BFC049 /* GameWorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB87749C5138977A0A7A779 /* GameWorkspaceModels.swift */; };
 		BCE188A477FDD2F340E383E2 /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EE94B5B5634A0D6EC1ED77 /* HPScreenScaffold.swift */; };
+		BD2EB8DB293A4D9177D852EC /* GameRulesetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F938139FF8E1937364490BBC /* GameRulesetTests.swift */; };
 		BD5D83B19A9C7C6A18B20B66 /* CoachPlayerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 577DDC07C2916FA90940C6C8 /* CoachPlayerProfileView.swift */; };
 		BE14C0306A59632AB7096F6A /* HPAdminScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E2FA8DE217E9AB3BF6225F /* HPAdminScreenTemplate.swift */; };
 		BF04C4449619F4F02B9428CA /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0B5E0DEC8E4733755649D /* RootView.swift */; };
@@ -234,15 +263,20 @@
 		BFBA21C07FFDAFCA76A81CFB /* PlayerSubscriptionPaywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = C25E1C675F91CA7819DE0760 /* PlayerSubscriptionPaywall.swift */; };
 		C0279B1C2D891A3ECD6F01B7 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB48300C372414559F172467 /* Profile.swift */; };
 		C0DA96725E5A8DFB704F6BED /* FacilityDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FBA4930F915399BD2B76A2 /* FacilityDaySheet.swift */; };
+		C2B78031AEEB7584AF185B09 /* GameCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69FB883BACB88FBFB3040E8 /* GameCalendarView.swift */; };
 		C330F147A51E25BFE3D86833 /* HPWorkspaceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667FDE39C5403A533B3BCBB5 /* HPWorkspaceHeader.swift */; };
 		C3DC4AB11A8AEAA7E492852A /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E73459D1C805FA585AFF73 /* PlayerDevelopmentPlayerWorkspaceView.swift */; };
 		C469E3A42241F9C684A12125 /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF002F9AB51004C21FFFB76 /* HPEmptyState.swift */; };
 		C483AEE6BE42EC55992EB226 /* HPEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF002F9AB51004C21FFFB76 /* HPEmptyState.swift */; };
+		C4C18BAC1F6DAFBB90BA9267 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7031F184E1F4CD02586B843A /* GameModels.swift */; };
+		C5D8F953D3B8B3508DB4898B /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7031F184E1F4CD02586B843A /* GameModels.swift */; };
 		C65EFDC3D3477C5325CF6CEE /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD55D8E76FD7B9301F263F2 /* PushNotificationModels.swift */; };
+		C8B500948255052A5406553B /* GameScoringInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E29EAC6A66E32B084521CE7 /* GameScoringInteraction.swift */; };
 		C94B51BB3DB20B3CD008ECCC /* PlayerDevelopmentImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C670D1C2435DF072A6C5D067 /* PlayerDevelopmentImportTests.swift */; };
 		CA9251C5DFED04C0D7090A03 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B088EE205A484298C9A509A /* PlayerDevelopmentAIView.swift */; };
 		CABC11E6A9DCDF8086F61680 /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576E2F23280E0E5BDF4A8A91 /* HPSegmentedControl.swift */; };
 		CB7B848B647B017260EF1D93 /* ParentChildProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BBD2BF2D213238BF404D0DD /* ParentChildProfileView.swift */; };
+		CBC27A10AD3662C39D1341A7 /* GameFinalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E053CE747D09107AF27709 /* GameFinalizationTests.swift */; };
 		CBE3B72566BFE3F64754DAC2 /* EventAvailabilityEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81EEA1E3EE95076DB4384615 /* EventAvailabilityEditorSheet.swift */; };
 		CD2FC91633B28070316D0C13 /* HPWorkspaceScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B5155B63F95D59145F79A8 /* HPWorkspaceScreenTemplate.swift */; };
 		CDCF56631BF550A02C744DA0 /* HPStateScreenTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A2607C0D72897EB28C780C /* HPStateScreenTemplate.swift */; };
@@ -259,8 +293,11 @@
 		D68A83A855CE4AE722666B65 /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B63A39D1A9247B5F3523408 /* HPFilterBar.swift */; };
 		D7BC5EA32CDE15886F488DD7 /* HPStatTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2025F5BEAADA4F5B99DD06DF /* HPStatTile.swift */; };
 		D7DB845C5F4A9A98CA1D7E23 /* ExpenseManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF05E1DAA4151B198774209C /* ExpenseManagementTests.swift */; };
+		D821C718B08AD45AD36EBEDD /* GameCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69FB883BACB88FBFB3040E8 /* GameCalendarView.swift */; };
 		D8DEE5984AA6043EB73D284F /* DateUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6240F7532EF0415572840B6F /* DateUtils.swift */; };
 		D958DE56D70AF0A41D8FC7D2 /* DHDUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8C87F9CB87E12DD08BBED2 /* DHDUIComponents.swift */; };
+		DB95263EED505BCCD64DA6F1 /* GameFinalizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5724A4DD53B3ED4D4F7B741 /* GameFinalizationView.swift */; };
+		DC261B93E0079B81F03D3DD7 /* GameFinalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F36978465CBCBCE1ACD25F63 /* GameFinalization.swift */; };
 		DCFABD288022D9D68929913E /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13169768C063423AB974229 /* NotificationCenterView.swift */; };
 		DD036E5846CCA5F34E607579 /* TwoAxisScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDCFDC2DF691472331ED081D /* TwoAxisScrollView.swift */; };
 		DE1694E76DA91BA774D89A61 /* HPTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECCBD3FDB69EC1B5CC2C294 /* HPTheme.swift */; };
@@ -305,6 +342,7 @@
 		F22909B76ED3D54DC49735D9 /* HPBuildDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF446CF26DD44622D949478 /* HPBuildDiagnostics.swift */; };
 		F3368C9E8F3657A0958DE347 /* HPSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4CF8590ADF158A32BE36B4 /* HPSearchBar.swift */; };
 		F35B2F31B9BAB23E8AB617BA /* HPChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905FD29AB36A53C79E2BF851 /* HPChart.swift */; };
+		F3824A12C3545FA3869C5457 /* GameOfficialScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA3AB27A1F62333146E8A1A /* GameOfficialScoringTests.swift */; };
 		F3E37FB05CDB2A9CAEE28B5C /* HPScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EE94B5B5634A0D6EC1ED77 /* HPScreenScaffold.swift */; };
 		F4FE385E4865E9C70D08AD41 /* HPAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AD094616EA08B56AFFD22D /* HPAvatar.swift */; };
 		F571D304889ADBD4261D359A /* FinanceDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8A18D390EEF671D1FBAA5B /* FinanceDashboardView.swift */; };
@@ -321,6 +359,7 @@
 		FCFB840D2AA45BE974722389 /* HPStructuralTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635A704482959DA04BD5CD59 /* HPStructuralTemplateTests.swift */; };
 		FD020369EA80CB9E8B40D604 /* HPComponentGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB78C8B2E0AC9C6CC9EE5D98 /* HPComponentGallery.swift */; };
 		FD867E304ACF39DC0BAB455B /* Phase13ATeamContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A1AB49168403C1C0BA04C0 /* Phase13ATeamContextTests.swift */; };
+		FE3D32349F70F6E64BDE8E3B /* GameFinalizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5724A4DD53B3ED4D4F7B741 /* GameFinalizationView.swift */; };
 		FF1C97F9A7B839B6FA59258F /* HPSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576E2F23280E0E5BDF4A8A91 /* HPSegmentedControl.swift */; };
 		FF22DB47E4F48EDBCBE462D5 /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AB48BB3186DEDA6BA64C47 /* CoachHomeView.swift */; };
 		FFC1F79B07109640478A73D2 /* DHDAppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D96CAF6402A2D1615A4A8CD /* DHDAppConfig.swift */; };
@@ -347,6 +386,8 @@
 		0A9FACD9A8B958CE8D6AD59F /* NotificationCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterTests.swift; sourceTree = "<group>"; };
 		0AA37F13A18755020300465B /* PaymentCheckoutModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutModels.swift; sourceTree = "<group>"; };
 		0B0D48F57C75BB2BF5215E7B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		0B8DCFDD15CFA7C52CC08ED7 /* GameDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetailView.swift; sourceTree = "<group>"; };
+		0BB87749C5138977A0A7A779 /* GameWorkspaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameWorkspaceModels.swift; sourceTree = "<group>"; };
 		0BBDBBED15F3D664E3E21F9B /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
 		0DA5FAB4B557B1F4CE094CA9 /* CoachPlayerOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerOverviewView.swift; sourceTree = "<group>"; };
 		0FFD5DC01FD3A1ACD16CC464 /* CoachPlayerAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerAnalysisView.swift; sourceTree = "<group>"; };
@@ -355,13 +396,16 @@
 		13E61D1D64950E03F1E30E71 /* OrganizationSetupModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupModels.swift; sourceTree = "<group>"; };
 		15EE94B5B5634A0D6EC1ED77 /* HPScreenScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPScreenScaffold.swift; sourceTree = "<group>"; };
 		166B162DECC8DA94309F2324 /* AccessRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessRequiredView.swift; sourceTree = "<group>"; };
+		18E053CE747D09107AF27709 /* GameFinalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFinalizationTests.swift; sourceTree = "<group>"; };
 		1BBD2BF2D213238BF404D0DD /* ParentChildProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentChildProfileView.swift; sourceTree = "<group>"; };
+		1BC674A4C27ACD411AB6DC56 /* GameScorekeeperSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScorekeeperSession.swift; sourceTree = "<group>"; };
 		1DD55D8E76FD7B9301F263F2 /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
 		1DEB277182B7DC89EAF2CAE6 /* FacilitiesDayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilitiesDayTimelineView.swift; sourceTree = "<group>"; };
 		1E0093979A11E223507584F9 /* CalendarComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarComponents.swift; sourceTree = "<group>"; };
 		2025F5BEAADA4F5B99DD06DF /* HPStatTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStatTile.swift; sourceTree = "<group>"; };
 		204A8A2208C385EF06B680D7 /* TeamOperationsFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamOperationsFoundationTests.swift; sourceTree = "<group>"; };
 		2179A12367614CAA356B67E2 /* PlayerDevelopmentAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAITests.swift; sourceTree = "<group>"; };
+		21C16132ED63F729991D2379 /* GameScoringReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScoringReducerTests.swift; sourceTree = "<group>"; };
 		246AB603383576431D3052AC /* ParentRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRootView.swift; sourceTree = "<group>"; };
 		24ACCC0DD909B03AB20572EA /* CoachPlayerDailyLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerDailyLogsView.swift; sourceTree = "<group>"; };
 		25277DA689B8022777193CD0 /* PlotlyChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlotlyChartView.swift; sourceTree = "<group>"; };
@@ -372,6 +416,8 @@
 		28FBA4930F915399BD2B76A2 /* FacilityDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacilityDaySheet.swift; sourceTree = "<group>"; };
 		2A4CF8590ADF158A32BE36B4 /* HPSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSearchBar.swift; sourceTree = "<group>"; };
 		2B088EE205A484298C9A509A /* PlayerDevelopmentAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIView.swift; sourceTree = "<group>"; };
+		2B47DF7C090C48F067956954 /* GameScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScoringEngine.swift; sourceTree = "<group>"; };
+		2BA3AB27A1F62333146E8A1A /* GameOfficialScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOfficialScoringTests.swift; sourceTree = "<group>"; };
 		2CADA1BF82CA10DA4B6B3BBE /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		2E1BD2C2424A7C4F96D688F7 /* HPWorkspaceDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceDirectory.swift; sourceTree = "<group>"; };
 		2E3DAF943F939E0E970D9097 /* CoachTeamScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamScheduleView.swift; sourceTree = "<group>"; };
@@ -398,6 +444,7 @@
 		455723ADFFCD90F57F0AD788 /* CoachProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachProgramsView.swift; sourceTree = "<group>"; };
 		4B42AEB8B81204658C368266 /* HPColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPColor.swift; sourceTree = "<group>"; };
 		4BA91567231F37346D7445F4 /* BPAnalysisComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPAnalysisComponents.swift; sourceTree = "<group>"; };
+		4E702760A12CF6AC06C54361 /* SupabaseService+Games.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+Games.swift"; sourceTree = "<group>"; };
 		4F5F39D996B26497B21CEDD6 /* HPMetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetricCard.swift; sourceTree = "<group>"; };
 		51E17A33976AE9B8B05E0E75 /* CoachPlayerTestingCRUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPlayerTestingCRUDView.swift; sourceTree = "<group>"; };
 		52A2607C0D72897EB28C780C /* HPStateScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStateScreenTemplate.swift; sourceTree = "<group>"; };
@@ -425,9 +472,11 @@
 		66F40313C3AE3AE87DE1F8B3 /* HPLoadingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLoadingState.swift; sourceTree = "<group>"; };
 		6B7A36531F68D37ED43BA3A4 /* Home Plate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Home Plate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6CEDFFF2001858BDE61515A9 /* SDParentFacilitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentFacilitiesView.swift; sourceTree = "<group>"; };
+		6D543DD89F540979729A4302 /* GameStatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStatisticsView.swift; sourceTree = "<group>"; };
 		6D85F2E81AA5A108CD3466DD /* FinanceRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceRenderTests.swift; sourceTree = "<group>"; };
 		6D96CAF6402A2D1615A4A8CD /* DHDAppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDAppConfig.swift; sourceTree = "<group>"; };
 		6ECCBD3FDB69EC1B5CC2C294 /* HPTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTheme.swift; sourceTree = "<group>"; };
+		7031F184E1F4CD02586B843A /* GameModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModels.swift; sourceTree = "<group>"; };
 		70398A3378C64DAA410FE583 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		72F45264DC1EC66F8982CFAF /* HPSettingsScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSettingsScreenTemplate.swift; sourceTree = "<group>"; };
 		73A7F80088D0AE3A3DBB1286 /* ExpenseManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseManagementView.swift; sourceTree = "<group>"; };
@@ -446,28 +495,37 @@
 		802DBBC77243A3185457BB70 /* ParentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentModels.swift; sourceTree = "<group>"; };
 		81EEA1E3EE95076DB4384615 /* EventAvailabilityEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventAvailabilityEditorSheet.swift; sourceTree = "<group>"; };
 		81FC70E77EA6EA3C15481F55 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		838605F6C0F128F4B3D98D1A /* GameWorkspaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameWorkspaceTests.swift; sourceTree = "<group>"; };
 		8400CAD49EB156FB2983524F /* UniversalNavigationShellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalNavigationShellTests.swift; sourceTree = "<group>"; };
+		84AD734C083E3A1CDCFA4410 /* GameRuleset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRuleset.swift; sourceTree = "<group>"; };
 		86F9B89E208789392F52544B /* DHDMonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDMonthGridView.swift; sourceTree = "<group>"; };
 		86FC5A5842F7B10F61642BF9 /* EventOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventOperationsTests.swift; sourceTree = "<group>"; };
 		872E7F0A0B47A8A64BF4A237 /* HPButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPButton.swift; sourceTree = "<group>"; };
 		87D58CD0322ECCBFC5C905CD /* HPTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTable.swift; sourceTree = "<group>"; };
 		88A1AB49168403C1C0BA04C0 /* Phase13ATeamContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase13ATeamContextTests.swift; sourceTree = "<group>"; };
 		8A332076872AD232EBC6F338 /* TeamOperationsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamOperationsModels.swift; sourceTree = "<group>"; };
+		8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveGameScoringView.swift; sourceTree = "<group>"; };
 		8C47A759D9459E3E65C7959D /* OrganizationSetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupWizardView.swift; sourceTree = "<group>"; };
+		8E29EAC6A66E32B084521CE7 /* GameScoringInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScoringInteraction.swift; sourceTree = "<group>"; };
 		8EB0B716567E2B0E4C7F08F5 /* HPProgramExecutionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgramExecutionTemplate.swift; sourceTree = "<group>"; };
 		8EBC2130D0DE799F5490F837 /* HPFormScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormScreenTemplate.swift; sourceTree = "<group>"; };
 		8F8C87F9CB87E12DD08BBED2 /* DHDUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDUIComponents.swift; sourceTree = "<group>"; };
 		905FD29AB36A53C79E2BF851 /* HPChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPChart.swift; sourceTree = "<group>"; };
+		90B38811E07AB59C6BFBA027 /* GameFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFoundationTests.swift; sourceTree = "<group>"; };
 		95E031B1CEE432975CEEE626 /* HPLiveControlsRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLiveControlsRenderTests.swift; sourceTree = "<group>"; };
 		964D889D00EAAC74CA43B52D /* SDPlayerBPDaySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerBPDaySection.swift; sourceTree = "<group>"; };
 		9742DBB26F38077DBBBD4168 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		98F6D674186F61144CE47393 /* PlayByPlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayByPlayView.swift; sourceTree = "<group>"; };
 		99848583C5CD6DAABF49E833 /* HPSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPSidebar.swift; sourceTree = "<group>"; };
 		9A67C601028D9AC848AD9C29 /* OrganizationAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAuthorizationTests.swift; sourceTree = "<group>"; };
 		9A9D2A11773CCB0DF3F6E87C /* PlayerDevelopmentAIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAIModels.swift; sourceTree = "<group>"; };
 		9B4C44F47A666149E461C2AE /* PlayerDevelopmentCopilotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotTests.swift; sourceTree = "<group>"; };
 		9BE85409E04900AAA23695DC /* UniversalUIFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalUIFoundationTests.swift; sourceTree = "<group>"; };
+		A36F5744830294A114C45E13 /* GameScorekeeperSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScorekeeperSessionTests.swift; sourceTree = "<group>"; };
 		A3EE7C7ABA72D5482CFC3ECD /* HomePlateNavigationShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlateNavigationShell.swift; sourceTree = "<group>"; };
+		A5724A4DD53B3ED4D4F7B741 /* GameFinalizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFinalizationView.swift; sourceTree = "<group>"; };
 		A61B50266847F2C6AB183FB5 /* HPTemplateGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateGallery.swift; sourceTree = "<group>"; };
+		A69FB883BACB88FBFB3040E8 /* GameCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCalendarView.swift; sourceTree = "<group>"; };
 		A6AD094616EA08B56AFFD22D /* HPAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPAvatar.swift; sourceTree = "<group>"; };
 		A993B5CB9AD716EB8C46ECB9 /* SDParentBillingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDParentBillingView.swift; sourceTree = "<group>"; };
 		AA4E4BB22F8B09A61EE10D23 /* OrganizationAdminSimplificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationAdminSimplificationTests.swift; sourceTree = "<group>"; };
@@ -477,6 +535,7 @@
 		B13169768C063423AB974229 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
 		B2F17A7316D32D40922D230E /* HPProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgressIndicator.swift; sourceTree = "<group>"; };
 		B3EAA8D4525DB5705E469EB9 /* HPListScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPListScreenTemplate.swift; sourceTree = "<group>"; };
+		B561DF08A64525CD37BBFC6F /* GameCalendarIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCalendarIntegrationTests.swift; sourceTree = "<group>"; };
 		B5C8D30109602B6CF075D9CB /* PlayerDevelopmentCopilotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotView.swift; sourceTree = "<group>"; };
 		B616330ED14566E8A968C1FC /* PushNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationTests.swift; sourceTree = "<group>"; };
 		B6A6BAA93B57A03AB5F0641F /* HPToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPToast.swift; sourceTree = "<group>"; };
@@ -498,6 +557,7 @@
 		C8E6A7BD14B4C65E11D69BAA /* ConfigErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigErrorView.swift; sourceTree = "<group>"; };
 		CB78C8B2E0AC9C6CC9EE5D98 /* HPComponentGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPComponentGallery.swift; sourceTree = "<group>"; };
 		CC833B4BBC478320E9EAB6C3 /* HPFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFormField.swift; sourceTree = "<group>"; };
+		CF9CEA95B099629E8A5E82C0 /* GameScoringInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScoringInteractionTests.swift; sourceTree = "<group>"; };
 		CFB040595FAED602F2446626 /* DHDTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DHDTheme.swift; sourceTree = "<group>"; };
 		D2D45C1F3AF855546DE301C2 /* CoachEventOperationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachEventOperationView.swift; sourceTree = "<group>"; };
 		D5AB48BB3186DEDA6BA64C47 /* CoachHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachHomeView.swift; sourceTree = "<group>"; };
@@ -517,8 +577,11 @@
 		EEB1842724880FDB96DF9272 /* Home Plate.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Home Plate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF973BD058E613D6740C345C /* PaymentCheckoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCheckoutTests.swift; sourceTree = "<group>"; };
 		F052D0D2365EC552F74188E3 /* AppleSignInButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInButtonView.swift; sourceTree = "<group>"; };
+		F36978465CBCBCE1ACD25F63 /* GameFinalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFinalization.swift; sourceTree = "<group>"; };
 		F5569C41F3C624A33F92EC7E /* ParentRequestPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentRequestPanels.swift; sourceTree = "<group>"; };
 		F8C45690A7DC94AD7E8B1A15 /* OrgTeamOperationsAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgTeamOperationsAdminView.swift; sourceTree = "<group>"; };
+		F938139FF8E1937364490BBC /* GameRulesetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRulesetTests.swift; sourceTree = "<group>"; };
+		FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOfficialScoring.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -660,6 +723,19 @@
 			path = Account;
 			sourceTree = "<group>";
 		};
+		4BBCA2F259CAE110C481FAAA /* Games */ = {
+			isa = PBXGroup;
+			children = (
+				A69FB883BACB88FBFB3040E8 /* GameCalendarView.swift */,
+				0B8DCFDD15CFA7C52CC08ED7 /* GameDetailView.swift */,
+				A5724A4DD53B3ED4D4F7B741 /* GameFinalizationView.swift */,
+				6D543DD89F540979729A4302 /* GameStatisticsView.swift */,
+				8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */,
+				98F6D674186F61144CE47393 /* PlayByPlayView.swift */,
+			);
+			path = Games;
+			sourceTree = "<group>";
+		};
 		692A34D1F69638159019438C /* Payments */ = {
 			isa = PBXGroup;
 			children = (
@@ -749,6 +825,15 @@
 				AF05E1DAA4151B198774209C /* ExpenseManagementTests.swift */,
 				41DCEE75F33C8C80F7F4BF24 /* FinanceDashboardTests.swift */,
 				6D85F2E81AA5A108CD3466DD /* FinanceRenderTests.swift */,
+				B561DF08A64525CD37BBFC6F /* GameCalendarIntegrationTests.swift */,
+				18E053CE747D09107AF27709 /* GameFinalizationTests.swift */,
+				90B38811E07AB59C6BFBA027 /* GameFoundationTests.swift */,
+				2BA3AB27A1F62333146E8A1A /* GameOfficialScoringTests.swift */,
+				F938139FF8E1937364490BBC /* GameRulesetTests.swift */,
+				A36F5744830294A114C45E13 /* GameScorekeeperSessionTests.swift */,
+				CF9CEA95B099629E8A5E82C0 /* GameScoringInteractionTests.swift */,
+				21C16132ED63F729991D2379 /* GameScoringReducerTests.swift */,
+				838605F6C0F128F4B3D98D1A /* GameWorkspaceTests.swift */,
 				1151121FC05E3AEE7A76D2D7 /* HPGalleryRenderTests.swift */,
 				95E031B1CEE432975CEEE626 /* HPLiveControlsRenderTests.swift */,
 				635A704482959DA04BD5CD59 /* HPStructuralTemplateTests.swift */,
@@ -843,6 +928,14 @@
 				8F8C87F9CB87E12DD08BBED2 /* DHDUIComponents.swift */,
 				ED368DA3D424F237A39C041F /* EventOperationsModels.swift */,
 				E8B70BAC4BA71F4E6A483C27 /* FinanceDashboardModels.swift */,
+				F36978465CBCBCE1ACD25F63 /* GameFinalization.swift */,
+				7031F184E1F4CD02586B843A /* GameModels.swift */,
+				FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */,
+				84AD734C083E3A1CDCFA4410 /* GameRuleset.swift */,
+				1BC674A4C27ACD411AB6DC56 /* GameScorekeeperSession.swift */,
+				2B47DF7C090C48F067956954 /* GameScoringEngine.swift */,
+				8E29EAC6A66E32B084521CE7 /* GameScoringInteraction.swift */,
+				0BB87749C5138977A0A7A779 /* GameWorkspaceModels.swift */,
 				3CF446CF26DD44622D949478 /* HPBuildDiagnostics.swift */,
 				573A9DDB7E284AA50DBCFE6A /* NotificationCenterModels.swift */,
 				13E61D1D64950E03F1E30E71 /* OrganizationSetupModels.swift */,
@@ -860,6 +953,7 @@
 				C69C7A6AB3DA612202E8B6A4 /* SDModels.swift */,
 				07CAA152C49990747FFF4B67 /* SupabaseConfig.swift */,
 				2CADA1BF82CA10DA4B6B3BBE /* SupabaseService.swift */,
+				4E702760A12CF6AC06C54361 /* SupabaseService+Games.swift */,
 				8A332076872AD232EBC6F338 /* TeamOperationsModels.swift */,
 				747FEEACA6515450F4F4E546 /* TeamSchedulingModels.swift */,
 			);
@@ -873,6 +967,7 @@
 				B1C71CB133F095CE5F5AD308 /* Admin */,
 				3B1FFE33584820002AC89B1D /* Chat */,
 				3867E1B5A4C5FAA1A2329787 /* Coach */,
+				4BBCA2F259CAE110C481FAAA /* Games */,
 				0A89255BCBAF8D10292CD919 /* Home */,
 				33D2ECFC4EB4D29790252488 /* Login */,
 				A7A981BB06DA49B8ACF5C01A /* Notifications */,
@@ -1026,6 +1121,7 @@
 				81A8DC5E01E3F5C8D67E0B35 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 850129C9876F193599F77DE6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -1117,6 +1213,15 @@
 				D7DB845C5F4A9A98CA1D7E23 /* ExpenseManagementTests.swift in Sources */,
 				8A1B36561B870E2F6B457350 /* FinanceDashboardTests.swift in Sources */,
 				B218E6BF8ACC45A3F662B7E1 /* FinanceRenderTests.swift in Sources */,
+				9CD0DDEF47E108D6675701BB /* GameCalendarIntegrationTests.swift in Sources */,
+				CBC27A10AD3662C39D1341A7 /* GameFinalizationTests.swift in Sources */,
+				6D08A7DBF35ECE5A3B561618 /* GameFoundationTests.swift in Sources */,
+				F3824A12C3545FA3869C5457 /* GameOfficialScoringTests.swift in Sources */,
+				BD2EB8DB293A4D9177D852EC /* GameRulesetTests.swift in Sources */,
+				BC741C98114BA7DEB1C53F87 /* GameScorekeeperSessionTests.swift in Sources */,
+				14C4874BD8E2B89F8C82B52B /* GameScoringInteractionTests.swift in Sources */,
+				12521250A5FB004A704406C3 /* GameScoringReducerTests.swift in Sources */,
+				1C948BD4FBB2CF30597DF095 /* GameWorkspaceTests.swift in Sources */,
 				F63E8F1C9B50A44790A7BBFF /* HPGalleryRenderTests.swift in Sources */,
 				2FC37FDCB40E837BC3CB2902 /* HPLiveControlsRenderTests.swift in Sources */,
 				FCFB840D2AA45BE974722389 /* HPStructuralTemplateTests.swift in Sources */,
@@ -1189,6 +1294,18 @@
 				55AD070DF7D5C6688388BC02 /* FinanceDashboardModels.swift in Sources */,
 				F571D304889ADBD4261D359A /* FinanceDashboardView.swift in Sources */,
 				42AF5F7EB084DA82B701A026 /* FinanceDashboardViewModel.swift in Sources */,
+				C2B78031AEEB7584AF185B09 /* GameCalendarView.swift in Sources */,
+				24998E4A8231FF4A4C8D764D /* GameDetailView.swift in Sources */,
+				AA967E2DE4E25B14589F78DB /* GameFinalization.swift in Sources */,
+				FE3D32349F70F6E64BDE8E3B /* GameFinalizationView.swift in Sources */,
+				C4C18BAC1F6DAFBB90BA9267 /* GameModels.swift in Sources */,
+				9E3F6CFE9F110BC974CDE787 /* GameOfficialScoring.swift in Sources */,
+				A17234921CECFB20F97B46C4 /* GameRuleset.swift in Sources */,
+				7886DE6330554AECD207FDEB /* GameScorekeeperSession.swift in Sources */,
+				4B5B9215F6C1954452F98A75 /* GameScoringEngine.swift in Sources */,
+				24704CC9F946510F1641FC18 /* GameScoringInteraction.swift in Sources */,
+				155CCE81AF2E27B50A2FBA05 /* GameStatisticsView.swift in Sources */,
+				BC8D27B2B998FD0478BFC049 /* GameWorkspaceModels.swift in Sources */,
 				FC947ED5C8C499D58A3EEBA6 /* HPAdminScreenTemplate.swift in Sources */,
 				E402D55466704CF66D036AAE /* HPAnalyticsScreenTemplate.swift in Sources */,
 				F4FE385E4865E9C70D08AD41 /* HPAvatar.swift in Sources */,
@@ -1235,6 +1352,7 @@
 				690EFDDB3B4EEF5D082AC013 /* HomePlateApp.swift in Sources */,
 				94E2990154ACA0204813536A /* HomePlateNavigationShell.swift in Sources */,
 				B0956780E81C064F51BAB0D3 /* HomeView.swift in Sources */,
+				8DB38937486FBDF91610C8DA /* LiveGameScoringView.swift in Sources */,
 				05E87F2839566F2B34B398A4 /* LoginView.swift in Sources */,
 				AF554A73DACCCF2AB62548B5 /* NewFacilityBookingSheet.swift in Sources */,
 				BAF8B7014AB67686EF268FD2 /* NotificationCenterModels.swift in Sources */,
@@ -1255,6 +1373,7 @@
 				40CEE6F98B5CE7B9AA4870E0 /* PaymentCheckoutModels.swift in Sources */,
 				B40DA3FE1D1C63914B8BCB13 /* PaymentRequestCard.swift in Sources */,
 				14CABD42912C891BBF8F6D4D /* PlatformAdminDashboardView.swift in Sources */,
+				AC0AECFCF205934790C3CD36 /* PlayByPlayView.swift in Sources */,
 				5652ED9003174211AC167A23 /* PlayerDetailView.swift in Sources */,
 				0089AAF30AD489DF97749593 /* PlayerDevelopmentAIModels.swift in Sources */,
 				A0E8A44F45C721D11F2DE845 /* PlayerDevelopmentAIView.swift in Sources */,
@@ -1278,6 +1397,7 @@
 				1B8F110043C6F210CDF7232C /* SDParentFacilitiesView.swift in Sources */,
 				EAD7C94D419875FC3BCDEB08 /* SDProgramSchedule.swift in Sources */,
 				533EEFD7BB73713DDEB06272 /* SupabaseConfig.swift in Sources */,
+				3DFD2B80BF20F5CE822FABFB /* SupabaseService+Games.swift in Sources */,
 				EEF43535CC8F1E54B9752F3C /* SupabaseService.swift in Sources */,
 				58DB6FB04CFC783C2B2E6F5B /* TeamOperationsModels.swift in Sources */,
 				0BA285A343DBD70FBB52607D /* TeamSchedulingModels.swift in Sources */,
@@ -1333,6 +1453,18 @@
 				A8E3746C03A44688114D6AF5 /* FinanceDashboardModels.swift in Sources */,
 				801CA15DD42C4D15F7D58A01 /* FinanceDashboardView.swift in Sources */,
 				6901A53AA68748AA4DD0719D /* FinanceDashboardViewModel.swift in Sources */,
+				D821C718B08AD45AD36EBEDD /* GameCalendarView.swift in Sources */,
+				693A216CA08705C52EA2C6A0 /* GameDetailView.swift in Sources */,
+				DC261B93E0079B81F03D3DD7 /* GameFinalization.swift in Sources */,
+				DB95263EED505BCCD64DA6F1 /* GameFinalizationView.swift in Sources */,
+				C5D8F953D3B8B3508DB4898B /* GameModels.swift in Sources */,
+				1259DA777D7F78E848194AB3 /* GameOfficialScoring.swift in Sources */,
+				78BFDB2473DE18E3A59A3759 /* GameRuleset.swift in Sources */,
+				A2E2924B4A6025F8CF88678B /* GameScorekeeperSession.swift in Sources */,
+				08E58DAC947444EDEA3578AB /* GameScoringEngine.swift in Sources */,
+				C8B500948255052A5406553B /* GameScoringInteraction.swift in Sources */,
+				3BF03B5CAD88A8DF7F4C9418 /* GameStatisticsView.swift in Sources */,
+				63DBA4BF67C6D8A258B095F7 /* GameWorkspaceModels.swift in Sources */,
 				BE14C0306A59632AB7096F6A /* HPAdminScreenTemplate.swift in Sources */,
 				1BFB7BC6BED2EE0F6FDEC8CC /* HPAnalyticsScreenTemplate.swift in Sources */,
 				53044233F4866F271008E597 /* HPAvatar.swift in Sources */,
@@ -1379,6 +1511,7 @@
 				AC0C288CE069B1CA1FBEA799 /* HomePlateApp.swift in Sources */,
 				7A8E36CD901E5021A716E978 /* HomePlateNavigationShell.swift in Sources */,
 				3F3C42ADF6C7B81C80A082B5 /* HomeView.swift in Sources */,
+				116C9780C70DAB1556CAE559 /* LiveGameScoringView.swift in Sources */,
 				5ECC16B1F0A7708868600504 /* LoginView.swift in Sources */,
 				7CD498FE54FCDAE9F53399A0 /* NewFacilityBookingSheet.swift in Sources */,
 				D574CB191FD477D3A4F17642 /* NotificationCenterModels.swift in Sources */,
@@ -1399,6 +1532,7 @@
 				4ADB4FEE67D5E2843CA1C9B2 /* PaymentCheckoutModels.swift in Sources */,
 				273D035B6AF8AF23181B318F /* PaymentRequestCard.swift in Sources */,
 				D231A54979D0DAC99258A160 /* PlatformAdminDashboardView.swift in Sources */,
+				1FD9651B940CD84F8351F06C /* PlayByPlayView.swift in Sources */,
 				25A41944DE99306959EA4CF3 /* PlayerDetailView.swift in Sources */,
 				289667BA4B65317848F0E676 /* PlayerDevelopmentAIModels.swift in Sources */,
 				CA9251C5DFED04C0D7090A03 /* PlayerDevelopmentAIView.swift in Sources */,
@@ -1431,6 +1565,7 @@
 				93C6A618D101DC8E33859E28 /* SDPlayerTrendsView.swift in Sources */,
 				58DCC55DE009421BCD26EC93 /* SDProgramSchedule.swift in Sources */,
 				93D83D918FA66A8E65142A01 /* SupabaseConfig.swift in Sources */,
+				26EF47A5086160FDE0F9BB70 /* SupabaseService+Games.swift in Sources */,
 				0BBCDA7DF7CDF3A5EA2C21D8 /* SupabaseService.swift in Sources */,
 				F15A482A05098DCEF451DCA2 /* TeamOperationsModels.swift in Sources */,
 				5B483215DD07D3A0BF2EA779 /* TeamSchedulingModels.swift in Sources */,

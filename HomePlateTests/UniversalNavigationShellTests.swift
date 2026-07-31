@@ -44,9 +44,12 @@ final class UniversalNavigationShellTests: XCTestCase {
   func testParentInventoryPreservesChildrenChatAndAccount() {
     let inventory = HPAppNavigationInventory.parent(childrenTitle: "Children", chatEnabled: true)
 
-    XCTAssertEqual(inventory.compactItems.map(\.destination), [.parentChildren, .chat])
+    XCTAssertEqual(
+      inventory.compactItems.map(\.destination),
+      [.parentChildren, .parentCalendar, .chat]
+    )
     XCTAssertEqual(inventory.directoryItems.map(\.destination), [.account])
-    XCTAssertEqual(inventory.compactTabCountIncludingDirectory, 3)
+    XCTAssertEqual(inventory.compactTabCountIncludingDirectory, 4)
   }
 
   func testCoachInventoryNeverExceedsFiveCompactTabs() {
@@ -57,6 +60,9 @@ final class UniversalNavigationShellTests: XCTestCase {
       [.coachToday, .coachTeam, .coachSchedule]
     )
     XCTAssertFalse(coach.directoryItems.contains { $0.destination == .coachPlayers })
+    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .coachCalendar })
+    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .coachFacilities })
+    XCTAssertFalse(coach.directoryItems.contains { $0.destination == .coachTeams })
     XCTAssertTrue(coach.directoryItems.contains { $0.destination == .platformAdmin })
     XCTAssertTrue(coach.directoryItems.contains { $0.destination == .account })
   }
@@ -79,6 +85,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertEqual(owner.compactTabCountIncludingDirectory, 5)
     XCTAssertEqual(owner.defaultDestination, .coachTeam)
     XCTAssertFalse(owner.regularItems.contains { $0.destination == .coachToday })
+    XCTAssertTrue(owner.directoryItems.contains { $0.destination == .coachCalendar })
     XCTAssertFalse(owner.regularItems.contains { $0.destination == .platformAdmin })
     XCTAssertTrue(owner.regularItems.contains { $0.destination == .finance })
     XCTAssertTrue(owner.directoryItems.contains { $0.destination == .organizationAdmin })

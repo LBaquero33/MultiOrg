@@ -110,6 +110,15 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
   case registration
   case paymentNotice
   case resultRecap
+  case eventCreated
+  case eventUpdated
+  case eventCanceled
+  case eventPostponed
+  case eventRescheduled
+  case availabilityRequested
+  case gameStarting
+  case gameLive
+  case gameFinal
   case system
   case unknown(String)
 
@@ -137,6 +146,15 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case "registration": .registration
     case "payment_notice": .paymentNotice
     case "result_recap": .resultRecap
+    case "event_created": .eventCreated
+    case "event_updated": .eventUpdated
+    case "event_canceled": .eventCanceled
+    case "event_postponed": .eventPostponed
+    case "event_rescheduled": .eventRescheduled
+    case "availability_requested": .availabilityRequested
+    case "game_starting": .gameStarting
+    case "game_live": .gameLive
+    case "game_final": .gameFinal
     case "system": .system
     default: .unknown(raw)
     }
@@ -170,6 +188,15 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case .registration: "registration"
     case .paymentNotice: "payment_notice"
     case .resultRecap: "result_recap"
+    case .eventCreated: "event_created"
+    case .eventUpdated: "event_updated"
+    case .eventCanceled: "event_canceled"
+    case .eventPostponed: "event_postponed"
+    case .eventRescheduled: "event_rescheduled"
+    case .availabilityRequested: "availability_requested"
+    case .gameStarting: "game_starting"
+    case .gameLive: "game_live"
+    case .gameFinal: "game_final"
     case .system: "system"
     case .unknown(let value): value
     }
@@ -192,6 +219,11 @@ enum AppNotificationCategory: Codable, Equatable, Hashable, Sendable {
     case .registration: "person.crop.circle.badge.plus"
     case .paymentNotice: "creditcard"
     case .resultRecap: "trophy"
+    case .eventCreated, .eventUpdated, .eventRescheduled, .availabilityRequested:
+      "calendar.badge.clock"
+    case .eventCanceled, .eventPostponed: "calendar.badge.exclamationmark"
+    case .gameStarting, .gameLive: "dot.radiowaves.left.and.right"
+    case .gameFinal: "checkered.flag"
     case .system, .unknown: "bell.fill"
     }
   }
@@ -206,6 +238,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
   case teamEvent
   case registration
   case notificationDetail
+  case eventDetail
+  case gameDetail
   case unknown(String)
 
   init(from decoder: Decoder) throws {
@@ -219,6 +253,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case "team_event": .teamEvent
     case "registration": .registration
     case "notification_detail": .notificationDetail
+    case "event_detail": .eventDetail
+    case "game_detail": .gameDetail
     default: .unknown(raw)
     }
   }
@@ -238,6 +274,8 @@ enum AppNotificationRoute: Codable, Equatable, Hashable, Sendable {
     case .teamEvent: "team_event"
     case .registration: "registration"
     case .notificationDetail: "notification_detail"
+    case .eventDetail: "event_detail"
+    case .gameDetail: "game_detail"
     case .unknown(let value): value
     }
   }
@@ -254,6 +292,7 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
   let eventId: UUID?
   let teamId: UUID?
   let applicationId: UUID?
+  let gameId: UUID?
 
   private enum CodingKeys: String, CodingKey {
     case paymentRequestId = "payment_request_id"
@@ -266,6 +305,7 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     case eventId = "event_id"
     case teamId = "team_id"
     case applicationId = "application_id"
+    case gameId = "game_id"
   }
 
   init(
@@ -278,7 +318,8 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     senderId: UUID? = nil,
     eventId: UUID? = nil,
     teamId: UUID? = nil,
-    applicationId: UUID? = nil
+    applicationId: UUID? = nil,
+    gameId: UUID? = nil
   ) {
     self.paymentRequestId = paymentRequestId
     self.paymentId = paymentId
@@ -290,6 +331,7 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     self.eventId = eventId
     self.teamId = teamId
     self.applicationId = applicationId
+    self.gameId = gameId
   }
 
   init(from decoder: Decoder) throws {
@@ -304,6 +346,7 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     eventId = Self.uuid(container: container, key: .eventId)
     teamId = Self.uuid(container: container, key: .teamId)
     applicationId = Self.uuid(container: container, key: .applicationId)
+    gameId = Self.uuid(container: container, key: .gameId)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -318,6 +361,7 @@ struct NotificationActionPayload: Codable, Equatable, Sendable {
     try container.encodeIfPresent(eventId, forKey: .eventId)
     try container.encodeIfPresent(teamId, forKey: .teamId)
     try container.encodeIfPresent(applicationId, forKey: .applicationId)
+    try container.encodeIfPresent(gameId, forKey: .gameId)
   }
 
   private static func uuid(
@@ -617,6 +661,8 @@ enum NotificationDestination: Equatable, Sendable {
   case announcement(UUID)
   case teamEvent(UUID)
   case registration(UUID?)
+  case event(UUID)
+  case game(UUID)
   case detail(UUID)
 }
 
@@ -662,6 +708,18 @@ enum NotificationRouter {
       return .teamEvent(id)
     case .registration:
       return .registration(notification.actionPayload.applicationId)
+    case .eventDetail:
+      guard let id = notification.actionPayload.eventId ??
+        notification.relatedEntityId.flatMap(UUID.init(uuidString:)) else {
+        return .detail(notification.id)
+      }
+      return .event(id)
+    case .gameDetail:
+      guard let id = notification.actionPayload.gameId ??
+        notification.relatedEntityId.flatMap(UUID.init(uuidString:)) else {
+        return .detail(notification.id)
+      }
+      return .game(id)
     case .notificationDetail, .unknown, .none:
       return .detail(notification.id)
     }

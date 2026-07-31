@@ -138,6 +138,7 @@ enum DHDTheme {
   static let cornerRadius: CGFloat = HP.Radius.lg
   static let innerCornerRadius: CGFloat = HP.Radius.md
   static let gridSpacing: CGFloat = HP.Space.sm
+  static let sectionSpacing: CGFloat = HP.Space.md
   static let minimumTouchTarget: CGFloat = 44
 
   static let calendarDotSize: CGFloat = 7

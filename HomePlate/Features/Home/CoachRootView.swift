@@ -118,6 +118,8 @@ struct CoachRootView: View {
       CoachScheduleFoundationView()
     case .coachPlayers:
       CoachHomeView()
+    case .coachCalendar:
+      GameCalendarView()
     case .coachFacilities:
       if feature("facilities") {
         CoachFacilitiesView()
