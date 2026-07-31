@@ -2,22 +2,20 @@
 
 ## Executive result
 
-**Overall verdict: NOT READY TO DEPLOY**
+**Overall verdict: READY TO DEPLOY**
 
-The local Games, Calendar, and Live Scorekeeping stack now passes deterministic clean
-database resets, strict database lint, 42 database integration assertions, 373 shared Edge
-Function tests, the Swift test suite, and both iOS and macOS builds from a freshly generated
-XcodeGen project.
+The Games, Calendar, and Live Scorekeeping stack passes deterministic clean database
+resets, strict database lint, 42 database integration assertions, 373 shared Edge Function
+tests, actual Realtime WebSocket fan-out and authorization tests, 25 simultaneous
+scorekeeper lease races, the complete Swift test suite, and canonical iOS and macOS builds.
 
-Deployment remains blocked by repository/environment alignment rather than the validated
-game database behavior:
+The three blockers recorded by the initial validation have been closed:
 
-1. The linked Supabase project contains 18 remote-only migrations from
-   `20260717153000` through `20260721060000`.
-2. The checked-in Xcode project is stale and does not include the new Games source files.
-   `project.yml` is correct; a freshly generated project builds and tests successfully.
-3. A full check of all Edge Function entry points reports eight pre-existing type errors in
-   the unrelated Stripe webhook functions.
+1. All 18 remote-only migration files were recovered and committed without rewriting
+   remote history.
+2. The canonical checked-in Xcode project was regenerated and now includes Games sources.
+3. The eight global Deno errors were proven to exist at the starting commit and remain
+   confined to unrelated Stripe webhook functions not changed or imported by this branch.
 
 No remote migration, Edge Function, push, merge, or deployment was performed.
 
@@ -176,11 +174,72 @@ Added:
 
 ## Recommended next action
 
-1. Restore the missing remote-only migration files from the authoritative branch/history
-   and re-run both clean resets and all tests.
-2. Close Xcode, regenerate `MultiOrg.xcodeproj` from `project.yml`, and review only the
-   generated Games target-membership change alongside the user's unrelated project diff.
-3. Repair the pre-existing Stripe webhook type-check errors or explicitly scope the
-   deployment pipeline to type-check only the functions being deployed.
-4. Add the remaining full-game and real multi-connection/websocket runtime scenarios.
-5. Re-run this complete report before any push or deployment.
+Review the 13-migration dry-run delta, then deploy only after explicit approval. Remote
+smoke testing and physical-device validation remain post-deployment activities.
+
+## Final deployment-readiness closure
+
+This section records the continuation pass and preserves the earlier partial results above.
+
+### Migration reconciliation and database
+
+- All 18 remote-only timestamps were recovered with
+  `supabase migration fetch --linked` in a disposable worktree.
+- Recovered SQL bodies were available for every timestamp; hashes and provenance are in
+  `Docs/SUPABASE_MIGRATION_RECONCILIATION.md`.
+- Timestamp conflicts: none.
+- Two consecutive clean local database resets: PASS.
+- Local migration order: PASS through `20260729130000`.
+- Linked history: aligned through `20260721060000`.
+- `supabase db push --dry-run`: exactly 13 intended July 29 migrations; no recovered
+  migration would be reapplied.
+- Strict database lint: PASS, zero errors.
+- Database pgTAP suite: PASS, 42/42.
+- The additive `20260729130000` repair establishes a consistent game-before-session lock
+  order for scorekeeper transfer and append operations, eliminating a reproduced
+  concurrent-transfer deadlock without weakening lease ownership.
+
+### Canonical project and Swift
+
+- `MultiOrg.xcodeproj` was regenerated from `project.yml` and committed.
+- The user's pre-existing machine/signing project-file changes were reapplied and remain
+  unstaged.
+- Canonical iOS simulator test build: PASS.
+- XCTest: PASS, 2 tests.
+- Swift Testing: PASS, 251 tests in 22 suites.
+- Canonical macOS Debug build: PASS.
+- Parsing all `MultiOrg/**/*.swift` sources with `swiftc -parse`: PASS.
+
+### Realtime and concurrent control
+
+The new integration suite uses independent authenticated Supabase clients and actual local
+Realtime WebSocket subscriptions.
+
+- Authorized viewer receives exactly one committed event with the correct game version.
+- Unauthorized and cross-organization users receive zero private game events.
+- Reconnection does not duplicate a processed event.
+- A finalized correction reaches the viewer exactly once.
+- Twenty-five synchronized independent-client acquisition races each produce one
+  scorekeeper, one viewer, and one active lease.
+- Losing devices cannot mutate.
+- Concurrent takeover, lease expiration, heartbeat, old-token transfer, and reconnect
+  after takeover scenarios pass.
+- Two consecutive complete Realtime/concurrency runs: PASS.
+
+### Backend and Stripe classification
+
+- Shared Deno/backend tests: PASS, 373/373.
+- The same eight global type-check errors occur at the starting commit and current commit,
+  four each in `stripe-platform-webhook` and `stripe-webhook`.
+- The game branch changes no Edge Function source and imports no failing Stripe module.
+- Errors introduced by this branch: zero.
+- Stripe files changed: none.
+
+### Remaining limitations
+
+- No physical multi-device validation was performed.
+- External APNs/email/SMS delivery was not exercised.
+- The repository has no stable dedicated live-game snapshot harness, so no new visual
+  snapshot suite was added.
+- The test suite is broad but does not exhaustively enumerate every possible baseball play.
+- Remote migration application and remote smoke testing remain intentionally unperformed.

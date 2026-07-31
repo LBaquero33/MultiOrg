@@ -52,6 +52,13 @@ left unchanged. Additive migration
 function with the local variable renamed to `v_deduplication_key`; behavior and
 permissions are otherwise preserved.
 
+Concurrent scorekeeping validation then reproduced a lock-order deadlock between
+scorekeeper-control transfer and scoring-event append. Historical SQL was again
+left unchanged. Additive migration
+`20260729130000_fix_scorekeeping_transfer_lock_order.sql` makes transfer lock the
+game before the scorekeeper session, matching the append path. Lease ownership,
+token checks, permissions, and result semantics are preserved.
+
 ## Local-Only Deployment Delta
 
 `supabase db push --dry-run` proposes exactly:
@@ -68,6 +75,7 @@ permissions are otherwise preserved.
 10. `20260729100000_align_game_notification_validation.sql`
 11. `20260729110000_allow_linked_parents_to_view_team_games.sql`
 12. `20260729120000_repair_event_reminder_deduplication_lint.sql`
+13. `20260729130000_fix_scorekeeping_transfer_lock_order.sql`
 
 None of the 18 recovered remote migrations would be reapplied.
 
@@ -77,6 +85,7 @@ None of the 18 recovered remote migrations would be reapplied.
 - Clean local reset 2: pass
 - `supabase db lint --local --level error --fail-on error`: pass
 - `supabase test db`: pass, 42 assertions
+- Realtime/concurrency integration: pass twice, including 25 simultaneous lease races
 - Linked migration list: all previously remote-only timestamps aligned
 - Timestamp collisions: none
 - Recovered SQL unavailable: none
