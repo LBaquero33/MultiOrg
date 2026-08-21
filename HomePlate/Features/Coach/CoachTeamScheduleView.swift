@@ -24,12 +24,12 @@ struct CoachTeamScheduleView: View {
       HPListScreenLayout {
         HPWorkspaceHeader(
           "Schedule",
-          orgLabel: selectedSeasonName,
+          orgLabel: organizationName,
           context: scheduleScopeLabel
         )
       } controls: {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
-          if canCreate, selectedSeasonId != nil {
+          if canCreate {
             HStack {
               Spacer()
               newEventMenu
@@ -41,16 +41,6 @@ struct CoachTeamScheduleView: View {
           .pickerStyle(.segmented)
           ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: HP.Space.sm) {
-            if appState.canAdminActiveOrg {
-              Menu {
-                ForEach(scheduleSeasons) { season in
-                  Button(season.name) { seasonFilterId = season.id }
-                }
-              } label: {
-                Label(selectedSeasonName, systemImage: "calendar.badge.clock")
-              }
-              .frame(minHeight: 44)
-            }
             if seasonTeams.count > 1 {
               Menu {
                 Button(allTeamsLabel) { teamFilterId = nil }
@@ -133,15 +123,7 @@ struct CoachTeamScheduleView: View {
   }
 
   @ViewBuilder private var scheduleResults: some View {
-    if selectedSeasonId == nil {
-      HPCard {
-        HPEmptyState(
-          title: "No active season",
-          message: "Activate a season before creating or viewing its team schedule.",
-          systemImage: "calendar.badge.exclamationmark"
-        )
-      }
-    } else if seasonTeams.isEmpty {
+    if seasonTeams.isEmpty {
       let issue = appState.teamOperationsIssue ?? .noAuthorizedTeams
       HPCard { HPEmptyState(title: issue.title, message: issue.message, systemImage: "calendar.badge.exclamationmark") }
     } else if isLoading && events.isEmpty {
@@ -169,7 +151,7 @@ struct CoachTeamScheduleView: View {
             message: "Create your first practice, game, meeting or other event.",
             systemImage: "calendar"
           )
-          if canCreate, let scheduleSeasonId = selectedSeasonId {
+          if canCreate, let team = creationTeams.first(where: { $0.id == editorPreselectedTeamId }) ?? creationTeams.first {
             HPButton(
               title: "New Event",
               systemImage: "plus",
@@ -178,7 +160,7 @@ struct CoachTeamScheduleView: View {
               action: {
                 editor = EventEditorPresentation(
                   teams: creationTeams,
-                  seasonId: scheduleSeasonId,
+                  seasonId: team.season_id,
                   preselectedTeamId: editorPreselectedTeamId,
                   defaultType: .practice
                 )
@@ -288,10 +270,10 @@ struct CoachTeamScheduleView: View {
   }
 
   private func presentNewEvent(defaultType: SDTeamEventType) {
-    guard let scheduleSeasonId = selectedSeasonId else { return }
+    guard let team = creationTeams.first(where: { $0.id == editorPreselectedTeamId }) ?? creationTeams.first else { return }
     editor = EventEditorPresentation(
       teams: creationTeams,
-      seasonId: scheduleSeasonId,
+      seasonId: team.season_id,
       preselectedTeamId: editorPreselectedTeamId,
       defaultType: defaultType
     )
@@ -299,8 +281,8 @@ struct CoachTeamScheduleView: View {
 
   private var creationTeams: [SDTeamOperationsTeam] {
     appState.canAdminActiveOrg
-      ? seasonTeams
-      : seasonTeams.filter { $0.capabilitySet.contains(.createTeamEvent) }
+      ? appState.authorizedScheduleTeams
+      : appState.authorizedScheduleTeams.filter { $0.capabilitySet.contains(.createTeamEvent) }
   }
 
   private func canMutate(_ event: SDTeamEvent) -> Bool {
@@ -370,12 +352,6 @@ struct CoachTeamScheduleView: View {
     scheduleSelection.seasonId
   }
 
-  private var scheduleSeasons: [SDSeason] {
-    (appState.teamOperationsContext?.seasons ?? []).filter {
-      $0.status == .active || $0.status == .playoffs
-    }
-  }
-
   private var scheduleSelection: SDTeamScheduleSelection {
     guard let organizationId = appState.activeOrgId else {
       return SDTeamScheduleSelection(
@@ -394,14 +370,15 @@ struct CoachTeamScheduleView: View {
     )
   }
 
-  private var selectedSeasonName: String {
-    guard let selectedSeasonId else { return "All Seasons" }
-    return appState.teamOperationsContext?.seasons.first(where: { $0.id == selectedSeasonId })?.name ?? "Season"
+  private var organizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.displayName
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Organization"
   }
 
   private var seasonTeams: [SDTeamOperationsTeam] {
-    guard let selectedSeasonId else { return appState.authorizedScheduleTeams }
-    return appState.authorizedScheduleTeams.filter { $0.season_id == selectedSeasonId }
+    appState.authorizedScheduleTeams
   }
 
   private var groupedDays: [(day: Date, events: [SDTeamEvent])] {
@@ -411,7 +388,7 @@ struct CoachTeamScheduleView: View {
   }
 
   private var reloadKey: String {
-    "\(teamFilterId?.uuidString ?? "all"):\(selectedSeasonId?.uuidString ?? "all-seasons"):\(mode.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(teamFilterId?.uuidString ?? "all"):\(mode.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
   }
 
   private func teamName(_ id: UUID) -> String {
@@ -455,21 +432,9 @@ struct CoachTeamScheduleView: View {
 
   private func reload() async {
     guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
-    let resolution = scheduleSelection
-    if resolution.repairedSeason || resolution.repairedTeam {
-      selectionInitialized = true
-      seasonFilterId = resolution.seasonId
-      teamFilterId = resolution.teamId
-      filterRepairNotice = "Schedule filters were updated to the current active season and available teams."
-      return
-    }
-    guard resolution.hasActiveSeason else {
-      selectionInitialized = true
-      events = []
-      errorText = nil
-      isLoading = false
-      seasonFilterId = nil
-      teamFilterId = nil
+    if let teamFilterId, !appState.authorizedScheduleTeams.contains(where: { $0.id == teamFilterId }) {
+      self.teamFilterId = nil
+      filterRepairNotice = "Schedule filters were updated to the available teams."
       return
     }
     selectionInitialized = true
@@ -482,7 +447,7 @@ struct CoachTeamScheduleView: View {
       let limits = range()
       let loadedEvents = try await service.listTeamEvents(
         organizationId: organizationId,
-        seasonId: selectedSeasonId,
+        seasonId: nil,
         teamId: effectiveTeamFilterId,
         rangeStart: limits.0,
         rangeEnd: limits.1
@@ -509,7 +474,7 @@ struct CoachTeamScheduleView: View {
     case .forbidden:
       return "You no longer have permission to view this team’s schedule. Choose another team or ask an organization administrator."
     case .validation, .staleData:
-      return "The selected team or season is no longer active. Choose an available schedule and try again."
+      return "The selected team is no longer active. Choose an available team and try again."
     case .offline:
       return "You’re offline. Previously loaded events remain visible; reconnect to refresh."
     case .unauthorized:
@@ -523,7 +488,7 @@ struct CoachTeamScheduleView: View {
     guard let errorText else { return "Schedule could not load" }
     if errorText.contains("permission") { return "Schedule access denied" }
     if errorText.contains("offline") { return "Schedule is offline" }
-    if errorText.contains("team or season") { return "Schedule filters changed" }
+    if errorText.contains("selected team") { return "Schedule filters changed" }
     if errorText.contains("service") { return "Schedule service unavailable" }
     return "Schedule could not load"
   }

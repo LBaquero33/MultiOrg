@@ -11,6 +11,7 @@ struct CoachProgramsView: View {
   @State private var showCreate = false
   @State private var query = ""
   @State private var selectedKind: SDProgramKind = .strength
+  @State private var selectedWorkspace: Workspace = .templates
 
 #if os(macOS)
   @State private var selectedTemplateId: UUID?
@@ -18,14 +19,11 @@ struct CoachProgramsView: View {
 
   var body: some View {
 #if os(macOS)
-    HSplitView {
-      templateListLayout
-        .frame(minWidth: 280, idealWidth: 300, maxWidth: 340)
-      Divider()
-      templateDetail
-        .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+    VStack(spacing: 0) {
+      workspacePicker
+      workspaceContent
     }
-    .navigationTitle(selectedTemplate?.name ?? "Program Templates")
+    .navigationTitle(selectedWorkspace == .templates ? (selectedTemplate?.name ?? "Program Templates") : "Player Program Tracker")
     .task { await reload() }
     .toolbar {
       ToolbarItem(placement: .automatic) {
@@ -48,7 +46,10 @@ struct CoachProgramsView: View {
     } message: { Text(errorText ?? "") }
 #else
     NavigationStack {
-      templateListLayout
+      VStack(spacing: 0) {
+        workspacePicker
+        workspaceContent
+      }
       .navigationTitle("Programs")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -71,6 +72,41 @@ struct CoachProgramsView: View {
       }
     }
 #endif
+  }
+
+  private enum Workspace: String, CaseIterable, Hashable {
+    case templates = "Templates"
+    case tracker = "Player Program Tracker"
+  }
+
+  private var workspacePicker: some View {
+    HPSegmentedControl(
+      options: Workspace.allCases.map { (value: $0, label: $0.rawValue) },
+      selection: $selectedWorkspace
+    )
+    .padding(.horizontal, HP.Space.md)
+    .padding(.vertical, HP.Space.sm)
+    .background(HP.Color.bg)
+  }
+
+  @ViewBuilder
+  private var workspaceContent: some View {
+    switch selectedWorkspace {
+    case .templates:
+      #if os(macOS)
+      HSplitView {
+        templateListLayout
+          .frame(minWidth: 280, idealWidth: 300, maxWidth: 340)
+        Divider()
+        templateDetail
+          .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+      }
+      #else
+      templateListLayout
+      #endif
+    case .tracker:
+      CoachProgramTrackerView()
+    }
   }
 
   private var activeOrganizationName: String {

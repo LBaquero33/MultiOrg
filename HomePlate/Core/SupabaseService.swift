@@ -596,8 +596,8 @@ final class SupabaseService: ObservableObject {
     competitiveLevel: String? = nil,
     rosterCapacity: Int? = nil,
     requestId: UUID = UUID()
-  ) async throws {
-    let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+  ) async throws -> SDTeam {
+    let response: TeamMutationResponse = try await invokeAuthenticatedFunction("org_admin", body: [
       "action": SDOrgAdminAction.createTeam.rawValue, "org_id": orgId.uuidString, "name": name,
       "color_hex": colorHex ?? "", "description": description ?? "",
       "season_id": seasonId?.uuidString ?? "",
@@ -605,6 +605,7 @@ final class SupabaseService: ObservableObject {
       "roster_capacity": rosterCapacity.map(String.init) ?? "",
       "request_id": requestId.uuidString,
     ])
+    return response.team
   }
 
   func adminUpdateTeam(
@@ -619,7 +620,7 @@ final class SupabaseService: ObservableObject {
     rosterCapacity: Int?,
     isActive: Bool
   ) async throws {
-    let _: OrgAdminOKResponse = try await invokeAuthenticatedFunction("org_admin", body: [
+    let _: TeamMutationResponse = try await invokeAuthenticatedFunction("org_admin", body: [
       "action": SDOrgAdminAction.updateTeam.rawValue,
       "org_id": orgId.uuidString,
       "team_id": teamId.uuidString,
@@ -2018,25 +2019,6 @@ final class SupabaseService: ObservableObject {
     return response.entries
   }
 
-  struct OrgLoginResponse: Decodable, Sendable {
-    let access_token: String
-    let refresh_token: String
-    let active_org_id: UUID
-  }
-
-  func orgLogin(orgSlug: String, identifier: String, password: String) async throws -> OrgLoginResponse {
-    try await client.functions.invoke(
-      "org_login",
-      options: FunctionInvokeOptions(
-        body: [
-          "org_slug": orgSlug,
-          "identifier": identifier,
-          "password": password,
-        ]
-      )
-    )
-  }
-
   /// Installs the session returned by the server-side organization login and
   /// immediately reads it back. This prevents the UI from entering its
   /// authenticated branch before Supabase has a usable local session.
@@ -2187,48 +2169,28 @@ final class SupabaseService: ObservableObject {
   }
 
   func createGroup(title: String?, memberIds: [UUID], orgId: UUID? = nil) async throws -> UUID {
-    let session = try await client.auth.session
-    let uid = session.user.id
-
-    struct Insert: Encodable {
-      let org_id: UUID?
-      let channel_type: String
-      let title: String?
-      let created_by: UUID
+    guard let orgId else {
+      throw NSError(
+        domain: "chat",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: "Choose an organization before creating a group."]
+      )
+    }
+    struct Params: Encodable {
+      let p_org_id: UUID
+      let p_title: String?
+      let p_member_ids: [UUID]
     }
     let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
     let finalTitle = (cleanedTitle?.isEmpty == false) ? cleanedTitle : nil
-
-    let channel: SDChatChannel = try await client
-      .from("sd_chat_channels")
-      .insert(Insert(org_id: orgId, channel_type: "group", title: finalTitle, created_by: uid))
-      .select("id,org_id,channel_type,title,audience,created_by,is_archived,pinned_rank,created_at,updated_at")
-      .single()
+    let channelId: UUID = try await client
+      .rpc(
+        "sd_create_group_chat",
+        params: Params(p_org_id: orgId, p_title: finalTitle, p_member_ids: memberIds)
+      )
       .execute()
       .value
-
-    struct M: Encodable {
-      let org_id: UUID?
-      let channel_id: UUID
-      let user_id: UUID
-      let member_role: String
-      let last_read_at: String?
-    }
-    let nowISO = ISO8601DateFormatter().string(from: Date())
-    var rows: [M] = []
-    rows.append(M(org_id: orgId, channel_id: channel.id, user_id: uid, member_role: "admin", last_read_at: nowISO))
-    for mid in memberIds where mid != uid {
-      rows.append(M(org_id: orgId, channel_id: channel.id, user_id: mid, member_role: "member", last_read_at: nil))
-    }
-
-    if !rows.isEmpty {
-      _ = try await client
-        .from("sd_chat_memberships")
-        .upsert(rows, onConflict: "channel_id,user_id")
-        .execute()
-    }
-
-    return channel.id
+    return channelId
   }
 
   func listChatMessages(
@@ -2300,11 +2262,19 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Chat user directory
 
-  /// Directory used for starting chats.
-  ///
-  /// - Coaches: can see all profiles (coach policy already allows it).
-  /// - Players/Parents: we intentionally scope to coaches only (via `role='coach'`)
-  ///   to avoid exposing all users to each other.
+  /// Active members of the selected organization who can be added to a chat.
+  /// The RPC validates the caller's active membership and never exposes users
+  /// from another organization.
+  func listChatDirectory(organizationId: UUID) async throws -> [Profile] {
+    struct Params: Encodable { let target_org_id: UUID }
+    let members: [SDChatDirectoryMember] = try await client
+      .rpc("sd_chat_directory", params: Params(target_org_id: organizationId))
+      .execute()
+      .value
+    return members.map(\.profile)
+  }
+
+  // Retained for non-chat callers that require the complete profile table.
   func listAllProfilesForDirectory() async throws -> [Profile] {
     try await client
       .from("profiles")
@@ -4684,6 +4654,16 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
+  func fetchProgramAssignments(playerId: UUID) async throws -> [SDProgramAssignment] {
+    try await client
+      .from("sd_program_assignments")
+      .select()
+      .eq("player_id", value: playerId.uuidString)
+      .order("start_date", ascending: false)
+      .execute()
+      .value
+  }
+
   func fetchTemplate(id: UUID) async throws -> SDProgramTemplate {
     try await client
       .from("sd_program_templates")
@@ -4862,6 +4842,17 @@ final class SupabaseService: ObservableObject {
       .eq("player_id", value: playerId.uuidString)
       .eq("log_date", value: dateISO)
       .order("created_at", ascending: true)
+      .execute()
+      .value
+  }
+
+  func listStrengthLogs(playerId: UUID, limit: Int = 500) async throws -> [SDStrengthLog] {
+    try await client
+      .from("sd_strength_logs")
+      .select()
+      .eq("player_id", value: playerId.uuidString)
+      .order("log_date", ascending: false)
+      .limit(limit)
       .execute()
       .value
   }

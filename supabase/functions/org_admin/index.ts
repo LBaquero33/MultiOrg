@@ -1184,6 +1184,9 @@ Deno.serve(async (req) => {
       created_by: callerId,
     };
     if (action === "create_team") {
+      if (payload.team_id !== undefined && payload.team_id !== null) {
+        return json(400, { error: "create_team_rejects_team_id" });
+      }
       const requestId = cleanText(payload.request_id);
       if (requestId) {
         const { data: prior } = await admin.from(

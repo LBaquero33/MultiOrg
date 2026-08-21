@@ -134,7 +134,7 @@ struct CoachRootView: View {
         NavigationStack { OrgTeamOperationsAdminView() }
 #endif
       } else {
-        disabledFeatureView("Team Administration")
+        CoachTeamsView()
       }
     case .coachPrograms:
       if feature("programs") {
@@ -148,6 +148,18 @@ struct CoachRootView: View {
       } else {
         disabledFeatureView("Chat")
       }
+    case .games:
+      GameCalendarView()
+    case .payments:
+      if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
+#if os(macOS)
+        financeView(organizationId: organizationId)
+#else
+        NavigationStack { financeView(organizationId: organizationId) }
+#endif
+      } else {
+        accessDeniedView("Payments")
+      }
     case .finance:
       if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
 #if os(macOS)
@@ -159,17 +171,25 @@ struct CoachRootView: View {
         disabledFeatureView("Finance")
       }
     case .organizationAdmin:
+      if !appState.canAdminActiveOrg {
+        accessDeniedView("Organization Administration")
+      } else {
 #if os(macOS)
-      OrgAdminConsoleView()
+        OrgAdminConsoleView()
 #else
-      NavigationStack { OrgAdminConsoleView() }
+        NavigationStack { OrgAdminConsoleView() }
 #endif
+      }
     case .platformAdmin:
+      if !appState.isPlatformAdmin {
+        accessDeniedView("Platform Administration")
+      } else {
 #if os(macOS)
-      PlatformAdminDashboardView()
+        PlatformAdminDashboardView()
 #else
-      NavigationStack { PlatformAdminDashboardView() }
+        NavigationStack { PlatformAdminDashboardView() }
 #endif
+      }
     case .account:
 #if os(macOS)
       AccountView()
@@ -211,6 +231,18 @@ struct CoachRootView: View {
           title: "\(name) is disabled",
           message: "Turn it back on in Org Admin → Features.",
           systemImage: "switch.2"
+        )
+      }
+    }
+  }
+
+  private func accessDeniedView(_ name: String) -> some View {
+    HPStateScreenLayout { _ in
+      HPCard {
+        HPEmptyState(
+          title: "Access denied",
+          message: "Your active organization membership does not allow access to \(name.lowercased()).",
+          systemImage: "lock.shield"
         )
       }
     }

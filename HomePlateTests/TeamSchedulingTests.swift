@@ -54,7 +54,7 @@ struct TeamSchedulingTests {
     #expect(result.repairedSeason)
   }
 
-  @Test("no active season produces the precise empty schedule state")
+  @Test("no active legacy season stays hidden from the schedule experience")
   func noActiveSeason() throws {
     let ids = ContractIDs()
     let result = SDTeamScheduleSelectionResolver.resolve(
@@ -67,7 +67,8 @@ struct TeamSchedulingTests {
     #expect(result.seasonId == nil)
     #expect(result.teamId == nil)
     let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
-    #expect(source.contains("title: \"No active season\""))
+    #expect(!source.contains("Schedule setup unavailable"))
+    #expect(!source.contains("No active season"))
   }
 
   @Test("an end time crossing midnight advances to the following day")
@@ -167,7 +168,7 @@ struct TeamSchedulingTests {
     #expect(SDTeamCapability.manageTournamentEvent.rawValue == "manage_tournament_event")
   }
 
-  @Test("coach navigation remains Today Team Schedule More")
+  @Test("coach navigation uses the website menu")
   func noNewTopLevelTabs() {
     let inventory = HPAppNavigationInventory.staff(
       playersTitle: "Players",
@@ -179,8 +180,8 @@ struct TeamSchedulingTests {
       canAdministerOrganization: true,
       isPlatformAdmin: false
     )
-    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
-    #expect(inventory.compactTabCountIncludingDirectory == 4)
+    #expect(inventory.compactItems.isEmpty)
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
   }
 
   @Test("schedule UI is one destination with progressive filters and forms")
@@ -195,7 +196,7 @@ struct TeamSchedulingTests {
     #expect(source.contains("All Teams"))
     #expect(source.contains("Repeats weekly"))
     #expect(source.contains("Recurrence end"))
-    #expect(source.contains("selectedSeasonName"))
+    #expect(source.contains("organizationName"))
     #expect(source.contains("Postpone"))
   }
 

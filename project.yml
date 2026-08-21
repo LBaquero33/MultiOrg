@@ -38,6 +38,7 @@ targets:
       - path: HomePlate
         excludes:
           - "**/*.md"
+          - "Supporting/Fonts/*-OFL.txt"
     info:
       path: Configs/HomePlate-iOS-Info.plist
       properties:
@@ -59,7 +60,10 @@ targets:
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
         DHD_STRIPE_SUBSCRIBE_URL: $(DHD_STRIPE_SUBSCRIBE_URL)
         DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
-        UIRequiresFullScreen: false
+        UIAppFonts:
+          - Archivo-Variable.ttf
+          - InstrumentSans-Variable.ttf
+        UIRequiresFullScreen: true
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -135,6 +139,7 @@ targets:
           - "**/*.md"
           - "Features/Player/**"
           - "Supporting/LaunchScreen.storyboard"
+          - "Supporting/Fonts/*-OFL.txt"
       - path: HomePlate/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift
     info:
       path: Configs/HomePlate-macOS-Info.plist

@@ -8,6 +8,9 @@ struct GameDetailView: View {
   @State private var item: SDGameCalendarItem?
   @State private var participants: [SDEventParticipant] = []
   @State private var attendance: [SDEventAttendance] = []
+  @State private var attendanceRoster: [SDGameAttendanceRosterRow] = []
+  @State private var isSavingAttendance = false
+  @State private var attendanceMessage: String?
   @State private var errorText: String?
   @State private var selectedSection: SDGameWorkspaceSection = .overview
 
@@ -48,7 +51,7 @@ struct GameDetailView: View {
       }
     }
     .background(DHDTheme.pageBackground)
-    .navigationTitle("Game")
+    .navigationTitle("Event")
     .task(id: "\(appState.activeOrgId?.uuidString ?? ""):\(eventId?.uuidString ?? gameId?.uuidString ?? "")") {
       await load()
     }
@@ -72,7 +75,11 @@ struct GameDetailView: View {
   }
 
   private var visibleSections: [SDGameWorkspaceSection] {
-    guard let status = item?.event.status else { return [.overview] }
+    guard let item else { return [.overview] }
+    if item.event.event_type != .game {
+      return [.overview, .availability]
+    }
+    let status = item.event.status
     var result: [SDGameWorkspaceSection] = [.overview, .roster, .availability, .lineup, .rules]
     if [.live, .delayed, .suspended, .final, .forfeit].contains(status) {
       result += [.liveScore, .playByPlay]
@@ -91,6 +98,10 @@ struct GameDetailView: View {
         DHDSectionHeader(selectedSection.rawValue) { EmptyView() }
         switch selectedSection {
         case .overview:
+          if canRespondToAttendance(for: item.event) {
+            playerAttendanceControl(for: item.event)
+            Divider()
+          }
           detail("Status", item.event.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
           if let game = item.game {
             detail("Matchup", "\(game.away_team_name) at \(game.home_team_name)")
@@ -102,9 +113,15 @@ struct GameDetailView: View {
         case .roster:
           participantList(role: nil)
         case .availability:
-          if attendance.isEmpty { empty("No availability responses yet.") }
-          ForEach(attendance) { response in
-            detail(response.player_id.uuidString.prefix(8).description, response.availability.capitalized)
+          if appState.activeOrgMembership?.isStaff == true {
+            staffAttendanceRoster
+          } else if let response = myAttendance {
+            detail(
+              "Your response",
+              response.expected_attendance == true ? "Coming" : "Not Coming"
+            )
+          } else {
+            empty("You have not responded yet.")
           }
         case .lineup:
           empty(item.game?.lineup_ready == true ? "Lineup is ready." : "Lineup has not been submitted.")
@@ -150,6 +167,164 @@ struct GameDetailView: View {
     )
   }
 
+  private var myAttendance: SDEventAttendance? {
+    guard let playerId = appState.myProfile?.id else { return nil }
+    return attendance.first { $0.player_id == playerId }
+  }
+
+  private func canRespondToAttendance(for event: SDCanonicalEvent) -> Bool {
+    SDGameAttendanceAuthorization.canRespond(
+      event: event,
+      userId: appState.myProfile?.id,
+      membership: appState.activeOrgMembership
+    )
+  }
+
+  private func playerAttendanceControl(for event: SDCanonicalEvent) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Are you coming?")
+        .font(.headline)
+      Text("You can change your response at any time before the event.")
+        .font(.footnote)
+        .foregroundStyle(DHDTheme.textSecondary)
+      HStack(spacing: 10) {
+        attendanceButton(
+          "Coming",
+          symbol: "checkmark.circle.fill",
+          attending: true,
+          selected: myAttendance?.expected_attendance == true,
+          color: .green,
+          event: event
+        )
+        attendanceButton(
+          "Not Coming",
+          symbol: "xmark.circle.fill",
+          attending: false,
+          selected: myAttendance?.expected_attendance == false,
+          color: .red,
+          event: event
+        )
+      }
+      if let attendanceMessage {
+        Text(attendanceMessage)
+          .font(.footnote)
+          .foregroundStyle(attendanceMessage == "Response saved." ? .green : .red)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var staffAttendanceRoster: some View {
+    if attendanceRoster.isEmpty {
+      empty("No players are assigned to this game.")
+    } else {
+      ForEach(SDGameAttendanceResponseGroup.allCases) { group in
+        let players = attendanceRoster.filter(group.contains)
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Text(group.rawValue)
+              .font(.headline)
+              .foregroundStyle(attendanceColor(group))
+            Spacer()
+            Text("\(players.count)")
+              .font(.caption.bold())
+              .foregroundStyle(attendanceColor(group))
+              .padding(.horizontal, 8)
+              .padding(.vertical, 4)
+              .background(attendanceColor(group).opacity(0.12))
+              .clipShape(Capsule())
+          }
+          if players.isEmpty {
+            Text("None")
+              .font(.subheadline)
+              .foregroundStyle(DHDTheme.textSecondary)
+          } else {
+            ForEach(players) { player in
+              HStack(spacing: 8) {
+                Image(systemName: attendanceSymbol(group))
+                  .foregroundStyle(attendanceColor(group))
+                Text(player.display_name)
+                  .font(.subheadline.weight(.medium))
+                Spacer()
+              }
+            }
+          }
+        }
+        if group != .noResponse {
+          Divider()
+        }
+      }
+    }
+  }
+
+  private func attendanceColor(_ group: SDGameAttendanceResponseGroup) -> Color {
+    switch group {
+    case .coming: return .green
+    case .notComing: return .red
+    case .noResponse: return DHDTheme.textSecondary
+    }
+  }
+
+  private func attendanceSymbol(_ group: SDGameAttendanceResponseGroup) -> String {
+    switch group {
+    case .coming: return "checkmark.circle.fill"
+    case .notComing: return "xmark.circle.fill"
+    case .noResponse: return "questionmark.circle"
+    }
+  }
+
+  private func attendanceButton(
+    _ title: String,
+    symbol: String,
+    attending: Bool,
+    selected: Bool,
+    color: Color,
+    event: SDCanonicalEvent
+  ) -> some View {
+    Button {
+      Task { await saveAttendance(attending, for: event) }
+    } label: {
+      Label(title, systemImage: symbol)
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity)
+        .frame(height: 42)
+        .foregroundStyle(selected ? .white : color)
+        .background(selected ? color : color.opacity(0.10))
+        .overlay(
+          RoundedRectangle(cornerRadius: 7)
+            .stroke(color.opacity(selected ? 1 : 0.55), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+    .buttonStyle(.plain)
+    .disabled(isSavingAttendance)
+    .accessibilityValue(selected ? "Selected" : "Not selected")
+  }
+
+  private func saveAttendance(_ attending: Bool, for event: SDCanonicalEvent) async {
+    guard !isSavingAttendance,
+          canRespondToAttendance(for: event),
+          let service = appState.supabase,
+          let orgId = appState.activeOrgId,
+          let playerId = appState.myProfile?.id else { return }
+    isSavingAttendance = true
+    attendanceMessage = nil
+    defer { isSavingAttendance = false }
+    do {
+      let saved = try await service.setExpectedGameAttendance(
+        eventId: event.id,
+        organizationId: orgId,
+        playerId: playerId,
+        attending: attending
+      )
+      attendance.removeAll { $0.player_id == playerId }
+      attendance.append(saved)
+      attendanceMessage = "Response saved."
+    } catch {
+      attendanceMessage = "Your response could not be saved. Please try again."
+    }
+  }
+
   @ViewBuilder
   private func participantList(role: String?) -> some View {
     let visible = participants.filter { role == nil || $0.role == role }
@@ -186,6 +361,14 @@ struct GameDetailView: View {
       async let attendanceLoad = service.listEventAttendance(eventId: event.id, organizationId: orgId)
       participants = try await participantLoad
       attendance = try await attendanceLoad
+      if appState.activeOrgMembership?.isStaff == true {
+        attendanceRoster = try await service.listGameAttendanceRoster(
+          eventIds: [event.id],
+          organizationId: orgId
+        )
+      } else {
+        attendanceRoster = []
+      }
     } catch {
       item = nil
       errorText = error.localizedDescription

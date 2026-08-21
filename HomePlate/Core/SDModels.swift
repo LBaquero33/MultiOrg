@@ -174,6 +174,7 @@ struct SDStrengthLog: Identifiable, Decodable, Equatable {
   let exercise_name: String
   let no_weight: Bool
   let set_weights_json: [String]?
+  let result_values: [String: SDJSONValue]?
   let sets_completed: Int?
   let notes: String?
   let created_at: Date?

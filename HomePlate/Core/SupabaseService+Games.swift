@@ -3,6 +3,20 @@ import Supabase
 
 @MainActor
 extension SupabaseService {
+  struct SDCanonicalEventDraft: Sendable {
+    var title: String
+    var eventType: SDGameEventType
+    var description: String
+    var start: Date
+    var end: Date
+    var arrival: Date?
+    var locationName: String
+    var venueAddress: String
+    var facilityId: UUID?
+    var teamId: UUID?
+    var visibility: SDEventVisibility
+  }
+
   func listCanonicalEvents(
     organizationId: UUID,
     from start: Date,
@@ -28,6 +42,104 @@ extension SupabaseService {
       .single()
       .execute()
       .value
+  }
+
+  func createCanonicalEvent(
+    organizationId: UUID,
+    draft: SDCanonicalEventDraft
+  ) async throws -> SDCanonicalEvent {
+    struct Insert: Encodable {
+      let org_id: UUID
+      let title: String
+      let event_type: String
+      let description: String?
+      let scheduled_start: Date
+      let scheduled_end: Date
+      let arrival_time: Date?
+      let timezone: String
+      let location_name: String?
+      let venue_address: String?
+      let facility_id: UUID?
+      let team_id: UUID?
+      let visibility: String
+      let status: String
+      let recurrence: [String: SDJSONValue]
+      let created_by: UUID
+      let updated_by: UUID
+    }
+    let userId = try await client.auth.session.user.id
+    return try await client.from("sd_events").insert(Insert(
+      org_id: organizationId,
+      title: draft.title,
+      event_type: draft.eventType.rawValue,
+      description: draft.description.sdNilIfBlank,
+      scheduled_start: draft.start,
+      scheduled_end: draft.end,
+      arrival_time: draft.arrival,
+      timezone: TimeZone.current.identifier,
+      location_name: draft.locationName.sdNilIfBlank,
+      venue_address: draft.venueAddress.sdNilIfBlank,
+      facility_id: draft.facilityId,
+      team_id: draft.teamId,
+      visibility: draft.teamId == nil ? SDEventVisibility.organization.rawValue : draft.visibility.rawValue,
+      status: SDGameLifecycle.scheduled.rawValue,
+      recurrence: [:],
+      created_by: userId,
+      updated_by: userId
+    )).select().single().execute().value
+  }
+
+  func updateCanonicalEvent(
+    id: UUID,
+    organizationId: UUID,
+    draft: SDCanonicalEventDraft
+  ) async throws -> SDCanonicalEvent {
+    struct Patch: Encodable {
+      let title: String
+      let event_type: String
+      let description: String?
+      let scheduled_start: Date
+      let scheduled_end: Date
+      let arrival_time: Date?
+      let timezone: String
+      let location_name: String?
+      let venue_address: String?
+      let facility_id: UUID?
+      let team_id: UUID?
+      let visibility: String
+      let updated_by: UUID
+    }
+    let userId = try await client.auth.session.user.id
+    return try await client.from("sd_events").update(Patch(
+      title: draft.title,
+      event_type: draft.eventType.rawValue,
+      description: draft.description.sdNilIfBlank,
+      scheduled_start: draft.start,
+      scheduled_end: draft.end,
+      arrival_time: draft.arrival,
+      timezone: TimeZone.current.identifier,
+      location_name: draft.locationName.sdNilIfBlank,
+      venue_address: draft.venueAddress.sdNilIfBlank,
+      facility_id: draft.facilityId,
+      team_id: draft.teamId,
+      visibility: draft.teamId == nil ? SDEventVisibility.organization.rawValue : draft.visibility.rawValue,
+      updated_by: userId
+    )).eq("id", value: id).eq("org_id", value: organizationId)
+      .select().single().execute().value
+  }
+
+  func cancelCanonicalEvent(id: UUID, organizationId: UUID) async throws {
+    struct Patch: Encodable {
+      let status: String
+      let canceled_at: Date
+      let updated_by: UUID
+    }
+    let userId = try await client.auth.session.user.id
+    _ = try await client.from("sd_events").update(Patch(
+      status: SDGameLifecycle.canceled.rawValue,
+      canceled_at: Date(),
+      updated_by: userId
+    )).eq("id", value: id).eq("org_id", value: organizationId).execute()
   }
 
   func listGames(organizationId: UUID, eventIds: [UUID]? = nil) async throws -> [SDGame] {
@@ -80,6 +192,60 @@ extension SupabaseService {
       .select()
       .eq("event_id", value: eventId)
       .eq("org_id", value: organizationId)
+      .execute()
+      .value
+  }
+
+  func listGameAttendanceRoster(
+    eventIds: [UUID],
+    organizationId: UUID
+  ) async throws -> [SDGameAttendanceRosterRow] {
+    guard !eventIds.isEmpty else { return [] }
+    struct Params: Encodable {
+      let p_org_id: UUID
+      let p_event_ids: [UUID]
+    }
+    return try await client
+      .rpc(
+        "sd_game_attendance_roster",
+        params: Params(p_org_id: organizationId, p_event_ids: eventIds)
+      )
+      .execute()
+      .value
+  }
+
+  func setExpectedGameAttendance(
+    eventId: UUID,
+    organizationId: UUID,
+    playerId: UUID,
+    attending: Bool
+  ) async throws -> SDEventAttendance {
+    struct Upsert: Encodable {
+      let org_id: UUID
+      let event_id: UUID
+      let player_id: UUID
+      let availability: String
+      let expected_attendance: Bool
+      let response_author_id: UUID
+      let responded_at: Date
+    }
+
+    return try await client
+      .from("sd_event_attendance")
+      .upsert(
+        Upsert(
+          org_id: organizationId,
+          event_id: eventId,
+          player_id: playerId,
+          availability: attending ? "available" : "unavailable",
+          expected_attendance: attending,
+          response_author_id: playerId,
+          responded_at: Date()
+        ),
+        onConflict: "event_id,player_id"
+      )
+      .select()
+      .single()
       .execute()
       .value
   }

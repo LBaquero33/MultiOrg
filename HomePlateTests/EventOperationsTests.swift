@@ -9,6 +9,16 @@ import UIKit
 
 @Suite("Phase 12C baseball day operations")
 struct EventOperationsTests {
+  @Test("Coach calendar opens the canonical writable calendar")
+  func coachCalendarUsesCanonicalCalendar() throws {
+    let source = try sourceFile("HomePlate/Features/Home/CoachRootView.swift")
+    let routeStart = try #require(source.range(of: "case .coachCalendar:"))
+    let routeEnd = try #require(source.range(of: "case .coachFacilities:", range: routeStart.upperBound..<source.endIndex))
+    let route = String(source[routeStart.lowerBound..<routeEnd.lowerBound])
+
+    #expect(route.contains("GameCalendarView()"))
+    #expect(route.contains("CoachTeamScheduleView()") == false)
+  }
   @Test("operation modes statuses and state-aware actions are stable")
   func stateModel() {
     #expect(SDEventOperationType.allCases.map(\.rawValue) == [
@@ -133,7 +143,7 @@ struct EventOperationsTests {
     #expect(source.contains("Audit history"))
   }
 
-  @Test("Phase 12C adds no permanent navigation tab")
+  @Test("Phase 12C preserves the website navigation inventory")
   func noNewTopLevelTab() {
     let inventory = HPAppNavigationInventory.staff(
       playersTitle: "Players",
@@ -145,8 +155,9 @@ struct EventOperationsTests {
       canAdministerOrganization: true,
       isPlatformAdmin: false
     )
-    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
-    #expect(inventory.compactTabCountIncludingDirectory == 4)
+    #expect(inventory.compactItems.isEmpty)
+    #expect(inventory.directoryItems.isEmpty)
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
   }
 
   private func sourceFile(_ path: String) throws -> String {
@@ -209,7 +220,8 @@ struct PracticePlanningTests {
     #expect(today.contains("Plan readiness:"))
     #expect(schedule.contains("Open Practice Plan"))
     let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
-    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
+    #expect(inventory.regularItems.contains(where: { $0.destination == .coachCalendar }))
+    #expect(!inventory.regularItems.contains(where: { $0.destination == .coachSchedule }))
   }
 
   @Test("player and parent receive redacted practice summaries")
@@ -340,7 +352,7 @@ struct GameOperationsTests {
     #expect(admin.contains("Game plan inspection"))
     #expect(admin.contains("Reopen Completed Game Plan"))
     let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
-    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
   }
 
   @Test("players and parents see only their assignment summaries")
@@ -571,16 +583,15 @@ struct CompleteTodayExperienceTests {
     #expect(!SDAsyncRequestGuard.accepts(responseContext: "org-a:team-a", responseToken: current, activeContext: "org-a:team-a", currentToken: current, taskIsCancelled: true))
   }
 
-  @Test("role navigation and owner Team landing remain approved")
+  @Test("role navigation matches the website menus")
   func roleNavigation() {
     let player = HPAppNavigationInventory.player(chatEnabled: true, facilitiesEnabled: true, testingEnabled: true, analysisEnabled: true, facilitiesTitle: "Facilities", testingTitle: "Testing")
-    #expect(player.compactItems.map(\.title) == ["Today", "Calendar", "Trends", "Chat"])
+    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
     let coach = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: false, isPlatformAdmin: false)
-    #expect(coach.compactItems.map(\.title) == ["Today", "Team", "Schedule"])
+    #expect(coach.regularItems.map(\.title) == ["Home", "Teams", "Calendar", "Facilities", "Payments", "Programs", "Player Development", "Games", "Messages", "Account"])
     let owner = HPAppNavigationInventory.owner(facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, isPlatformAdmin: false)
-    #expect(owner.compactItems.map(\.title) == ["Team", "Schedule", "Chat", "Finances"])
-    #expect(owner.defaultDestination == .coachTeam)
-    #expect(!owner.regularItems.contains(where: { $0.destination == .coachToday }))
+    #expect(owner.regularItems.map(\.title) == ["Home", "Teams", "Calendar", "Facilities", "Payments", "Programs", "Player Development", "Games", "Messages", "Organization Settings", "Account"])
+    #expect(owner.defaultDestination == .coachToday)
   }
 
   @Test("test-only fixture catalog covers representative role and outage states")
