@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   ApiFailure,
+  corsPreflight,
   fail,
   ok,
   organizationContext,
@@ -135,6 +136,8 @@ async function authenticatedUser(req: Request) {
 }
 
 Deno.serve(async (req) => {
+  const preflight = corsPreflight(req);
+  if (preflight) return preflight;
   try {
     if (req.method !== "POST") throw new ApiFailure(405, "method_not_allowed");
     const payload = record(await req.json());

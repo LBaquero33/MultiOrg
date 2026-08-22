@@ -15,10 +15,23 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const uuid = (value: unknown) =>
   uuidPattern.test(text(value)) ? text(value) : null;
+const corsHeaders = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers":
+    "authorization, x-client-info, apikey, content-type",
+  "access-control-allow-methods": "POST, OPTIONS",
+};
+export const corsPreflight = (request: Request) =>
+  request.method === "OPTIONS"
+    ? new Response(null, { status: 204, headers: corsHeaders })
+    : null;
 export const json = (status: number, body: Row) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" },
+    headers: {
+      ...corsHeaders,
+      "content-type": "application/json; charset=utf-8",
+    },
   });
 export const ok = (body: Row) => json(200, { ok: true, ...body, error: null });
 export const fail = (status: number, code: string, message = code) =>

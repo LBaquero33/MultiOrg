@@ -10,6 +10,7 @@ struct CoachPlayerCalendarView: View {
   @State private var assignment: SDProgramAssignment?
   @State private var template: SDProgramTemplate?
   @State private var bpSessions: [SDBPSession] = []
+  @State private var importJobs: [SDDevelopmentImportJob] = []
   @State private var isLoading = false
   @State private var errorText: String?
 
@@ -108,7 +109,7 @@ struct CoachPlayerCalendarView: View {
         onSelect: openDay
       )
 
-      Text("Green = scheduled lift day. Blue = BP/practice. Red = game reps.")
+      Text("Green = scheduled lift day. Blue = completed BP, bullpen, or imported data. Red = game reps.")
         .font(HP.Font.caption)
         .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)
@@ -220,6 +221,13 @@ struct CoachPlayerCalendarView: View {
         template = nil
       }
       bpSessions = try await supabase.listBPSessions(playerId: player.id, limit: 365)
+      if let orgId = appState.activeOrgId {
+        importJobs = try await supabase.listDevelopmentImportJobs(organizationId: orgId).filter {
+          $0.playerId == player.id && [.completed, .completedWithErrors].contains($0.status)
+        }
+      } else {
+        importJobs = []
+      }
       rebuildMonthGrid()
     } catch {
       errorText = SDApplicationErrorClassifier.alertMessage(
@@ -231,7 +239,8 @@ struct CoachPlayerCalendarView: View {
 
   private func rebuildMonthGrid() {
     scheduledLiftISOs = scheduledLiftSet(for: visibleMonth)
-    practiceISOs = Set(bpSessions.filter { $0.reps_type == "practice" }.map(\.session_date))
+    let importedDates = importJobs.map { String(($0.completedAt ?? $0.createdAt).prefix(10)) }
+    practiceISOs = Set(bpSessions.filter { $0.reps_type == "practice" }.map(\.session_date)).union(importedDates)
     gameISOs = Set(bpSessions.filter { $0.reps_type == "game" }.map(\.session_date))
   }
 
@@ -274,6 +283,8 @@ private struct CoachPlayerDailyLogDetailView: View {
   @State private var sessions: [SDBPSession] = []
   @State private var bpEvents: [SDBPEvent] = []
   @State private var videoURLs: [UUID: URL] = [:]
+  @State private var importJobs: [SDDevelopmentImportJob] = []
+  @State private var importURLs: [UUID: URL] = [:]
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var toastText: String?
@@ -323,6 +334,7 @@ private struct CoachPlayerDailyLogDetailView: View {
         }
 
         strengthLogsCard
+        importedFilesCard
       }
     } related: { context in
       bpSessionsCard(context)
@@ -417,6 +429,41 @@ private struct CoachPlayerDailyLogDetailView: View {
               }
             }
             .padding(.vertical, 4)
+          }
+        }
+      }
+    }
+  }
+
+  private var importedFilesCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Imported performance files") {
+          HPStatusBadge(text: "\(importJobs.count)", kind: .neutral)
+        }
+        if importJobs.isEmpty {
+          Text("No TrackMan, Rapsodo, HitTrax, or testing file was submitted for this day.")
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+        } else {
+          ForEach(importJobs) { job in
+            HStack(alignment: .center, spacing: HP.Space.sm) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(job.fileName ?? "Performance data")
+                  .font(HP.Font.headline)
+                  .foregroundStyle(HP.Color.text)
+                Text("\((job.provider ?? "Imported").replacingOccurrences(of: "_", with: " ").capitalized) • \(job.acceptedRows) accepted rows")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer(minLength: HP.Space.sm)
+              if let url = importURLs[job.id] {
+                Link(destination: url) {
+                  Label("Open", systemImage: "doc.text.magnifyingglass")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
           }
         }
       }
@@ -526,12 +573,29 @@ private struct CoachPlayerDailyLogDetailView: View {
       sessions = all.filter { $0.session_date == dateISO }
       bpEvents = []
       videoURLs = [:]
+      importJobs = []
+      importURLs = [:]
       for s in sessions {
         let ev = try await supabase.fetchBPEvents(sessionId: s.id)
         bpEvents.append(contentsOf: ev)
         if let path = s.video_path,
            let url = try? await supabase.signedPlayerSessionVideoURL(path: path) {
           videoURLs[s.id] = url
+        }
+      }
+      if let orgId = appState.activeOrgId {
+        let jobs = try await supabase.listDevelopmentImportJobs(organizationId: orgId)
+        importJobs = jobs.filter {
+          $0.playerId == player.id
+            && [.completed, .completedWithErrors].contains($0.status)
+            && String(($0.completedAt ?? $0.createdAt).prefix(10)) == dateISO
+        }
+        for job in importJobs {
+          if let bucket = job.storageBucket,
+             let path = job.storagePath,
+             let url = try? await supabase.signedDevelopmentImportURL(bucket: bucket, path: path) {
+            importURLs[job.id] = url
+          }
         }
       }
     } catch {

@@ -1,5 +1,6 @@
 import {
   ApiFailure,
+  corsPreflight,
   fail,
   ok,
   organizationContext,
@@ -12,6 +13,8 @@ import {
 import { rowsToCSV } from "../_shared/organization_operations.ts";
 
 Deno.serve(async (req) => {
+  const preflight = corsPreflight(req);
+  if (preflight) return preflight;
   try {
     const payload = record(await req.json());
     const ctx = await organizationContext(req, payload);

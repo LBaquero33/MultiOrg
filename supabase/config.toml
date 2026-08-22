@@ -9,6 +9,12 @@ project_id = "DHD-Self-Development-iOS-multiorg"
 [functions.create_account]
 verify_jwt = false
 
+[functions.create-organization-account]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true
+
 # Stripe calls this endpoint directly, so it validates Stripe's signed payload
 # itself instead of requiring a Supabase user JWT.
 [functions.stripe-platform-webhook]

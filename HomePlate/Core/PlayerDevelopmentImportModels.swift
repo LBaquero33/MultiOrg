@@ -99,6 +99,8 @@ struct SDDevelopmentImportJob: Identifiable, Codable, Equatable, Sendable {
   let warningCount: Int
   let safeErrorCode: String?
   let safeErrorSummary: String?
+  let storageBucket: String?
+  let storagePath: String?
   let createdAt: String
   let completedAt: String?
   let archivedAt: String?
@@ -126,6 +128,8 @@ struct SDDevelopmentImportJob: Identifiable, Codable, Equatable, Sendable {
     case warningCount = "warning_count"
     case safeErrorCode = "safe_error_code"
     case safeErrorSummary = "safe_error_summary"
+    case storageBucket = "storage_bucket"
+    case storagePath = "storage_path"
     case createdAt = "created_at"
     case completedAt = "completed_at"
     case archivedAt = "archived_at"

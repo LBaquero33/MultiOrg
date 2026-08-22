@@ -229,6 +229,8 @@ struct AccountView: View {
   @State private var isApplyingProfile = false
   @State private var isSavingProfile = false
   @State private var profileSaveTask: Task<Void, Never>?
+  @State private var isShowingDeleteAccount = false
+  @State private var isDeletingAccount = false
 
   @State private var myParentCode: String?
   @State private var paymentRequestState = SDPaymentRequestListState()
@@ -253,6 +255,8 @@ struct AccountView: View {
   @State private var professionalBio: String = ""
   @State private var specialties: String = ""
   @State private var website: String = ""
+  @State private var instagramURL: String = ""
+  @State private var perfectGameURL: String = ""
   @State private var yearsExperience: String = ""
 
   // Avatar
@@ -289,7 +293,7 @@ struct AccountView: View {
     [
       fullName, phone, gradYear, primaryPosition, bats, throwsHand, school, team,
       heightIn, weightLb, notes, professionalTitle, professionalBio, specialties,
-      website, yearsExperience,
+      website, instagramURL, perfectGameURL, yearsExperience,
     ].joined(separator: "\u{1F}")
   }
 
@@ -333,6 +337,11 @@ struct AccountView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+    .sheet(isPresented: $isShowingDeleteAccount) {
+      DeleteAccountConfirmationSheet(isDeleting: isDeletingAccount) {
+        Task { await deleteAccount() }
+      }
+    }
   }
 
   private var title: String {
@@ -596,6 +605,10 @@ struct AccountView: View {
       HPFormField(label: "Height (in)", text: $heightIn, placeholder: "Height in inches")
       HPFormField(label: "Weight (lb)", text: $weightLb, placeholder: "Weight in pounds")
       HPFormField(label: "Notes", text: $notes, kind: .multiline, placeholder: "Notes")
+      HPFormField(label: "Bio", text: $professionalBio, kind: .multiline, placeholder: "Tell coaches and teammates about yourself")
+      HPFormField(label: "Website", text: $website, placeholder: "Website")
+      HPFormField(label: "Instagram", text: $instagramURL, placeholder: "Instagram profile link")
+      HPFormField(label: "Perfect Game", text: $perfectGameURL, placeholder: "Perfect Game profile link")
     }
     .font(HP.Font.body)
     .foregroundStyle(HP.Color.text)
@@ -611,6 +624,8 @@ struct AccountView: View {
       HPFormField(label: "Specialties", text: $specialties, placeholder: "Specialties")
       HPFormField(label: "Years coaching", text: $yearsExperience, placeholder: "Years coaching")
       HPFormField(label: "Website or profile link", text: $website, placeholder: "Website or profile link")
+      HPFormField(label: "Instagram", text: $instagramURL, placeholder: "Instagram profile link")
+      HPFormField(label: "Perfect Game", text: $perfectGameURL, placeholder: "Perfect Game profile link")
       HPFormField(label: "Professional bio", text: $professionalBio, kind: .multiline, placeholder: "Professional bio")
     }
   }
@@ -858,6 +873,19 @@ struct AccountView: View {
           fullWidth: context.isAccessibilitySize,
           action: { Task { await sendPasswordResetToMe() } }
         )
+        Divider().overlay(HP.Color.border)
+        Text("Deleting your account permanently removes your Home Plate login and profile.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        HPButton(
+          title: "Delete account",
+          systemImage: "trash",
+          variant: .destructive,
+          size: .md,
+          fullWidth: context.isAccessibilitySize,
+          action: { isShowingDeleteAccount = true }
+        )
       }
     }
   }
@@ -914,6 +942,8 @@ struct AccountView: View {
       professionalBio = d.bio ?? ""
       specialties = d.specialties ?? ""
       website = d.website ?? ""
+      instagramURL = d.instagram_url ?? ""
+      perfectGameURL = d.perfect_game_url ?? ""
       yearsExperience = d.years_experience.map(String.init) ?? ""
 
       pendingAvatarJPEG = nil
@@ -987,6 +1017,8 @@ struct AccountView: View {
       bio: cleanOrNil(professionalBio),
       specialties: cleanOrNil(specialties),
       website: cleanOrNil(website),
+      instagram_url: cleanOrNil(instagramURL),
+      perfect_game_url: cleanOrNil(perfectGameURL),
       years_experience: Int(cleanDigits(yearsExperience) ?? "")
     )
     do {
@@ -1016,6 +1048,20 @@ struct AccountView: View {
       toast(appState.authError ?? "Password reset email sent.")
     } catch {
       errorText = error.localizedDescription
+    }
+  }
+
+  private func deleteAccount() async {
+    guard let supabase = appState.supabase else { return }
+    isDeletingAccount = true
+    defer { isDeletingAccount = false }
+    do {
+      try await supabase.deleteMyAccount()
+      isShowingDeleteAccount = false
+      await appState.signOut()
+    } catch {
+      isShowingDeleteAccount = false
+      errorText = "Your account could not be deleted. Please try again or contact support."
     }
   }
 
@@ -1072,6 +1118,37 @@ struct AccountView: View {
   private func cleanDigits(_ s: String) -> String? {
     let digits = s.filter { $0.isNumber }
     return digits.isEmpty ? nil : digits
+  }
+}
+
+private struct DeleteAccountConfirmationSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var confirmation = ""
+  let isDeleting: Bool
+  let onDelete: () -> Void
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Permanently delete account") {
+          Text("This removes your Home Plate login and profile and cannot be undone. Type DELETE to confirm.")
+          TextField("DELETE", text: $confirmation)
+            .textInputAutocapitalization(.characters)
+            .autocorrectionDisabled()
+        }
+      }
+      .navigationTitle("Delete Account")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+            .disabled(isDeleting)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Delete", role: .destructive, action: onDelete)
+            .disabled(confirmation != "DELETE" || isDeleting)
+        }
+      }
+    }
   }
 }
 

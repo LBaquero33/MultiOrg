@@ -2824,11 +2824,13 @@ final class SupabaseService: ObservableObject {
     let bio: String?
     let specialties: String?
     let website: String?
+    let instagram_url: String?
+    let perfect_game_url: String?
     let years_experience: Int?
 
     private enum CodingKeys: String, CodingKey {
       case id, role, full_name, avatar_path, phone, grad_year, primary_position, bats, school, team, height_in, weight_lb, notes
-      case professional_title, bio, specialties, website, years_experience
+      case professional_title, bio, specialties, website, instagram_url, perfect_game_url, years_experience
       case throws_hand = "throws"
     }
   }
@@ -2838,7 +2840,7 @@ final class SupabaseService: ObservableObject {
     let uid = session.user.id
     return try await client
       .from("profiles")
-      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,years_experience")
+      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,instagram_url,perfect_game_url,years_experience")
       .eq("id", value: uid.uuidString)
       .single()
       .execute()
@@ -2848,7 +2850,7 @@ final class SupabaseService: ObservableObject {
   func fetchProfileDetails(userId: UUID) async throws -> SDProfileDetails {
     try await client
       .from("profiles")
-      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,years_experience")
+      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,instagram_url,perfect_game_url,years_experience")
       .eq("id", value: userId.uuidString)
       .single()
       .execute()
@@ -2872,11 +2874,13 @@ final class SupabaseService: ObservableObject {
     let bio: String?
     let specialties: String?
     let website: String?
+    let instagram_url: String?
+    let perfect_game_url: String?
     let years_experience: Int?
 
     private enum CodingKeys: String, CodingKey {
       case full_name, avatar_path, phone, grad_year, primary_position, bats, school, team, height_in, weight_lb, notes
-      case professional_title, bio, specialties, website, years_experience
+      case professional_title, bio, specialties, website, instagram_url, perfect_game_url, years_experience
       case throws_hand = "throws"
     }
   }
@@ -3584,6 +3588,10 @@ final class SupabaseService: ObservableObject {
     struct Request: Encodable { let action = "list_jobs"; let org_id: UUID; let limit = 100 }
     let response: SDDevelopmentImportJobsResponse = try await invokePlayerDevelopmentImports(Request(org_id: organizationId))
     return response.jobs
+  }
+
+  func signedDevelopmentImportURL(bucket: String, path: String) async throws -> URL {
+    try await client.storage.from(bucket).createSignedURL(path: path, expiresIn: 600)
   }
 
   func listDevelopmentImportMappings(
@@ -5453,6 +5461,21 @@ final class SupabaseService: ObservableObject {
 
   func signOut() async throws {
     try await client.auth.signOut()
+  }
+
+  func deleteMyAccount() async throws {
+    struct Response: Decodable, Sendable { let deleted: Bool }
+    let response: Response = try await client.functions.invoke(
+      "delete-account",
+      options: FunctionInvokeOptions(body: ["confirmation": "DELETE"])
+    )
+    guard response.deleted else {
+      throw NSError(
+        domain: "HomePlate.AccountDeletion",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "Your account could not be deleted."]
+      )
+    }
   }
 }
 
