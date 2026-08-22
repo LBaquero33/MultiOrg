@@ -70,6 +70,7 @@ struct HPSidebar: View {
   let orgIdentity: HPIdentity
   let role: HPRole
   let groups: [HPNavGroup]
+  private let teamScopeControl: AnyView?
 
   private enum SelectionBinding {
     case id(Binding<UUID?>)
@@ -85,11 +86,13 @@ struct HPSidebar: View {
     orgIdentity: HPIdentity,
     role: HPRole,
     groups: [HPNavGroup],
+    teamScopeControl: AnyView? = nil,
     selection: Binding<UUID?>
   ) {
     self.orgIdentity = orgIdentity
     self.role = role
     self.groups = groups
+    self.teamScopeControl = teamScopeControl
     selectionBinding = .id(selection)
   }
 
@@ -98,11 +101,13 @@ struct HPSidebar: View {
     orgIdentity: HPIdentity,
     role: HPRole,
     groups: [HPNavGroup],
+    teamScopeControl: AnyView? = nil,
     selectionKey: Binding<String?>
   ) {
     self.orgIdentity = orgIdentity
     self.role = role
     self.groups = groups
+    self.teamScopeControl = teamScopeControl
     selectionBinding = .key(selectionKey)
   }
 
@@ -126,52 +131,57 @@ struct HPSidebar: View {
         }
       }
     }
-    .padding(HP.Space.sm)
+    .padding(HP.Space.md)
     .frame(
-      maxWidth: dts.isAccessibilitySize ? 360 : 280,
+      maxWidth: dts.isAccessibilitySize ? 360 : 288,
       maxHeight: .infinity,
       alignment: .top
     )
-    .background(HP.Color.surface)
+    .background(HP.Color.surface.opacity(0.4))
     .overlay(alignment: .trailing) { Rectangle().fill(HP.Color.border).frame(width: 1) }
   }
 
   private var header: some View {
-    Group {
-      if dts.isAccessibilitySize {
-        ViewThatFits(in: .horizontal) {
-          HStack(alignment: .top, spacing: HP.Space.sm) {
-            identityMark
-            identityLabels(lineLimit: 1)
-          }
-          .fixedSize(horizontal: true, vertical: false)
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+      HStack(spacing: 10) {
+        Image("BrandMark")
+          .resizable()
+          .scaledToFit()
+          .frame(width: 32, height: 32)
+        Text("Home Plate")
+          .font(.custom(HP.Font.displayFamily ?? "Archivo", size: 18, relativeTo: .headline).weight(.bold))
+          .foregroundStyle(HP.Color.text)
+        Spacer(minLength: 0)
+      }
 
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            identityMark
-            identityLabels(lineLimit: nil)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-        }
-      } else {
-        HStack(spacing: HP.Space.sm) {
-          identityMark
-          identityLabels(lineLimit: 1)
-          Spacer(minLength: 0)
-        }
+      HStack(spacing: HP.Space.sm) {
+        identityMark
+        identityLabels(lineLimit: dts.isAccessibilitySize ? nil : 1)
+        Spacer(minLength: 0)
+      }
+      .padding(HP.Space.sm)
+      .background(HP.Color.surface)
+      .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          .strokeBorder(HP.Color.border, lineWidth: 1)
+      }
+
+      if let teamScopeControl {
+        teamScopeControl
       }
     }
-    .padding(.horizontal, HP.Space.xs)
     .padding(.vertical, HP.Space.xs)
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .contain)
   }
 
   private var identityMark: some View {
     RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
       .fill(orgIdentity.gradient)
-      .frame(width: 34, height: 34)
+      .frame(width: 36, height: 36)
       .overlay(
-        Image(systemName: "diamond.fill")
-          .font(.caption)
+        Text(String(orgIdentity.shortName.prefix(2)).uppercased())
+          .font(HP.Font.caption.weight(.bold))
           .foregroundStyle(DHDTheme.identityText.opacity(0.92))
       )
       .accessibilityHidden(true)
@@ -202,13 +212,13 @@ struct HPSidebar: View {
         // Fixed icon size (does not scale with Dynamic Type) so a large-text
         // row can't overflow the icon into the label.
         Image(systemName: item.icon).font(.system(size: 16)).frame(width: 24)
-          .foregroundStyle(selected ? HP.Color.accent : HP.Color.textTertiary)
+          .foregroundStyle(selected ? HP.Color.text : HP.Color.textMuted)
         // At accessibility sizes the label wraps and any badge/lock moves to a
         // second line so nothing overlaps.
         VStack(alignment: .leading, spacing: 6) {
           Text(item.title)
             .font(HP.Font.callout)
-            .foregroundStyle(selected ? HP.Color.text : HP.Color.textTertiary)
+            .foregroundStyle(selected ? HP.Color.text : HP.Color.textMuted)
             .lineLimit(accessibility ? nil : 1)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,10 +230,10 @@ struct HPSidebar: View {
         }
       }
       .padding(.horizontal, HP.Space.sm)
-      .padding(.vertical, 8)
-      .frame(minHeight: DHDTheme.minimumTouchTarget)
+      .padding(.vertical, 10)
+      .frame(minHeight: 48)
       .background(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
-        .fill(selected ? HP.Color.accent.opacity(0.14) : .clear))
+        .fill(selected ? HP.Color.surfaceRaised : .clear))
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

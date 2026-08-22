@@ -697,6 +697,7 @@ enum HPWorkspaceCacheKey {
 
 enum HPTeamSelectionPersistence {
   static let schemaVersion = 2
+  static let allTeamsValue = "all"
 
   static func key(userId: UUID, organizationId: UUID) -> String {
     "homePlate.selectedTeam.v\(schemaVersion).\(userId.uuidString.lowercased()).\(organizationId.uuidString.lowercased())"

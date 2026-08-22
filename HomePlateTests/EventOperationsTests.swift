@@ -84,14 +84,15 @@ struct EventOperationsTests {
     #expect(source.contains("Reopen"))
   }
 
-  @Test("consumer Today experiences expose missions and availability but not staff controls")
+  @Test("consumer Today exposes the next team event and game with attendance controls")
   func consumerTodaySource() throws {
     let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
     let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
-    #expect(player.contains("Baseball mission"))
-    #expect(player.contains("event.team_name"))
-    #expect(player.contains("Update Availability"))
-    #expect(player.contains("No visible recap has been published"))
+    #expect(player.contains("Upcoming team schedule"))
+    #expect(player.contains("NEXT TEAM EVENT"))
+    #expect(player.contains("NEXT GAME"))
+    #expect(player.contains("Coming"))
+    #expect(player.contains("Not Coming"))
     #expect(parent.contains("Household timing conflict"))
     #expect(parent.contains("ForEach(children)"))
     #expect(parent.contains("Parents declare availability; official attendance"))
@@ -155,9 +156,9 @@ struct EventOperationsTests {
       canAdministerOrganization: true,
       isPlatformAdmin: false
     )
-    #expect(inventory.compactItems.isEmpty)
-    #expect(inventory.directoryItems.isEmpty)
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
+    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
   }
 
   private func sourceFile(_ path: String) throws -> String {
@@ -224,13 +225,13 @@ struct PracticePlanningTests {
     #expect(!inventory.regularItems.contains(where: { $0.destination == .coachSchedule }))
   }
 
-  @Test("player and parent receive redacted practice summaries")
+  @Test("player and parent calendar experiences remain redacted")
   func consumerExperience() throws {
     let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
     let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
-    #expect(player.contains("Your group:"))
-    #expect(player.contains("Bring "))
-    #expect(parent.contains("’s group:"))
+    #expect(player.contains("Upcoming team schedule"))
+    #expect(player.contains("event.location_name"))
+    #expect(parent.contains("ForEach(children)"))
     #expect(!player.contains("practice.coach_notes"))
     #expect(!parent.contains("coaching_points"))
   }
@@ -352,17 +353,17 @@ struct GameOperationsTests {
     #expect(admin.contains("Game plan inspection"))
     #expect(admin.contains("Reopen Completed Game Plan"))
     let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
   }
 
-  @Test("players and parents see only their assignment summaries")
+  @Test("players and parents do not expose internal game-plan details")
   func consumerExperience() throws {
     let player = try sourceFile("HomePlate/Features/Player/SDPlayerTodayView.swift")
     let parent = try sourceFile("HomePlate/Features/Home/ParentHomeView.swift")
-    #expect(player.contains("Your batting assignment:"))
-    #expect(player.contains("Starting defense"))
-    #expect(parent.contains("Game plan:"))
-    #expect(parent.contains("Starting defense"))
+    #expect(player.contains("NEXT GAME"))
+    #expect(player.contains("Coming"))
+    #expect(player.contains("Not Coming"))
+    #expect(parent.contains("ForEach(children)"))
     #expect(!player.contains("internal_strategy_notes"))
     #expect(!parent.contains("game.adjustments"))
   }
@@ -588,9 +589,9 @@ struct CompleteTodayExperienceTests {
     let player = HPAppNavigationInventory.player(chatEnabled: true, facilitiesEnabled: true, testingEnabled: true, analysisEnabled: true, facilitiesTitle: "Facilities", testingTitle: "Testing")
     #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
     let coach = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: false, isPlatformAdmin: false)
-    #expect(coach.regularItems.map(\.title) == ["Home", "Teams", "Calendar", "Facilities", "Payments", "Programs", "Player Development", "Games", "Messages", "Account"])
+    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Account"])
     let owner = HPAppNavigationInventory.owner(facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, isPlatformAdmin: false)
-    #expect(owner.regularItems.map(\.title) == ["Home", "Teams", "Calendar", "Facilities", "Payments", "Programs", "Player Development", "Games", "Messages", "Organization Settings", "Account"])
+    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Organization Settings", "Account"])
     #expect(owner.defaultDestination == .coachToday)
   }
 

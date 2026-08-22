@@ -11,7 +11,7 @@ struct CoachProgramsView: View {
   @State private var showCreate = false
   @State private var query = ""
   @State private var selectedKind: SDProgramKind = .strength
-  @State private var selectedWorkspace: Workspace = .templates
+  @State private var selectedWorkspace: Workspace = .tracker
 
 #if os(macOS)
   @State private var selectedTemplateId: UUID?

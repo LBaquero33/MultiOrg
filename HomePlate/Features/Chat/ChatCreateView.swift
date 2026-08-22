@@ -113,6 +113,18 @@ struct ChatCreateView: View {
           .keyboardShortcut(.cancelAction)
           #endif
       }
+      ToolbarItem(placement: .confirmationAction) {
+        Button {
+          Task { await create() }
+        } label: {
+          if isSaving {
+            ProgressView()
+          } else {
+            Text("Create")
+          }
+        }
+        .disabled(!canCreate || isSaving)
+      }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -228,19 +240,13 @@ struct ChatCreateView: View {
   }
 
   private func loadUsers() async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
     let context = chatCreateContextIdentity
     isLoading = true
     defer { isLoading = false }
     do {
-      // Coach: can DM anyone (players/parents/coaches) for admin workflows.
-      // Player/Parent: only list coaches (RLS allows select where role='coach').
-      let loadedProfiles: [Profile]
-      if (appState.myProfile?.role.lowercased() ?? "") == "coach" {
-        loadedProfiles = try await supabase.listAllProfilesForDirectory()
-      } else {
-        loadedProfiles = try await supabase.listCoachProfilesForDirectory()
-      }
+      let loadedProfiles = try await supabase.listChatDirectory(organizationId: organizationId)
       guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       profiles = loadedProfiles
     } catch {
@@ -261,7 +267,12 @@ struct ChatCreateView: View {
         guard let other = selected.first else { return }
         channelId = try await supabase.getOrCreateDM(otherUserId: other, orgId: appState.activeOrgId)
       case .group:
-        channelId = try await supabase.createGroup(title: groupTitle, memberIds: Array(selected), orgId: appState.activeOrgId)
+        let requestedTitle = groupTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        channelId = try await supabase.createGroup(
+          title: requestedTitle.isEmpty ? defaultGroupTitle : requestedTitle,
+          memberIds: Array(selected),
+          orgId: appState.activeOrgId
+        )
       }
       guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       onCreated(channelId)
@@ -269,6 +280,20 @@ struct ChatCreateView: View {
     } catch {
       guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+  }
+
+  private var defaultGroupTitle: String {
+    let names = profiles
+      .filter { selected.contains($0.id) }
+      .map(\.displayName)
+      .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    switch names.count {
+    case 0: return "Group conversation"
+    case 1: return names[0]
+    case 2: return "\(names[0]) and \(names[1])"
+    default:
+      return "\(names.dropLast().joined(separator: ", ")), and \(names.last!)"
     }
   }
 }

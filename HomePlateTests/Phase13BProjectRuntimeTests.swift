@@ -108,15 +108,16 @@ struct Phase13BProjectRuntimeTests {
     let schedule = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     let admin = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
 
-    #expect(shell.contains("let team = item(.coachTeam, \"Team\""))
-    #expect(shell.contains("let schedule = item(.coachSchedule, \"Schedule\""))
-    #expect(shell.contains("let organization = item(.organizationAdmin, \"Organization\""))
+    #expect(shell.contains("let home = item(.coachToday, \"Home\""))
+    #expect(shell.contains("let teams = item(.coachTeams, \"Teams\""))
+    #expect(shell.contains("let calendar = item(.coachCalendar, \"Calendar\""))
+    #expect(shell.contains("let organization = item(.organizationAdmin, \"Organization Settings\""))
     #expect(team.contains("CoachTeamSelector()"))
-    #expect(schedule.contains("Visible filter: \\(selectedTeamFilterName)"))
-    #expect(schedule.contains("Button(allTeamsLabel) { teamFilterId = nil }"))
-    #expect(schedule.contains("Label(selectedTeamFilterName, systemImage: \"person.3\")"))
+    #expect(schedule.contains("Calendar content"))
+    #expect(schedule.contains("appState.selectAllTeams()"))
+    #expect(schedule.contains("appState.selectTeam(team.id)"))
     #expect(!admin.contains("CoachTeamSelector()"))
-    for title in ["Overview", "People", "Teams & Seasons", "Business", "Settings"] {
+    for title in ["Overview", "People", "Teams", "Business", "Settings"] {
       #expect(admin.contains("= \"\(title)\""))
     }
   }

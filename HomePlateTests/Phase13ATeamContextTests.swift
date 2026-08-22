@@ -44,9 +44,9 @@ struct Phase13ATeamContextTests {
       facilitiesEnabled: true, chatEnabled: true, programsEnabled: true,
       canAdministerOrganization: false, isPlatformAdmin: false
     )
-    #expect(owner.item(for: .coachToday) == nil)
-    #expect(owner.item(for: .coachTeam)?.workspaceScope == .selectedTeam)
-    #expect(owner.defaultDestination == .coachTeam)
+    #expect(owner.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
+    #expect(owner.item(for: .coachTeams)?.workspaceScope == .organization)
+    #expect(owner.defaultDestination == .coachToday)
     #expect(coach.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
   }
 
@@ -200,16 +200,16 @@ struct Phase13ATeamContextTests {
     #expect(!finance.contains("CoachTeamSelector"))
   }
 
-  @Test("Global Schedule owns a visible filter and does not inherit Team selection")
+  @Test("Global Schedule owns a visible filter synchronized with the app team scope")
   func globalScheduleIsolation() throws {
     let source = try sourceFile("HomePlate/Features/Coach/CoachTeamScheduleView.swift")
     #expect(source.contains("@State private var teamFilterId"))
     #expect(source.contains("All Teams"))
-    #expect(source.contains("All My Teams"))
-    #expect(source.contains("Visible filter:"))
+    #expect(source.contains("Calendar content"))
     #expect(source.contains("Label(\"New Event\""))
     #expect(source.contains("teamId: effectiveTeamFilterId"))
-    #expect(!source.contains("appState.selectedTeamId"))
+    #expect(source.contains("appState.selectAllTeams()"))
+    #expect(source.contains("appState.selectTeam(team.id)"))
     #expect(!source.contains("CoachTeamSelector"))
   }
 
@@ -248,21 +248,21 @@ struct Phase13ATeamContextTests {
     #expect(parent.contains("SidebarSelection.child"))
   }
 
-  @Test("navigation uses Team and Teams without Current Team ambiguity")
+  @Test("navigation uses the website names without Current Team ambiguity")
   func navigationNaming() {
     let owner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities", programsTitle: "Programs",
       facilitiesEnabled: true, chatEnabled: true, programsEnabled: true,
       isPlatformAdmin: false
     )
-    #expect(owner.regularItems.contains(where: { $0.destination == .coachTeam && $0.title == "Team" }))
+    #expect(owner.regularItems.contains(where: { $0.destination == .coachToday && $0.title == "Home" }))
     #expect(owner.regularItems.contains(where: { $0.destination == .coachTeams && $0.title == "Teams" }))
-    #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin && $0.title == "Organization" }))
+    #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin && $0.title == "Organization Settings" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
-    #expect(owner.compactItems.map(\.title) == ["Team", "Schedule", "Chat", "Finances"])
-    #expect(owner.defaultDestination == .coachTeam)
-    #expect(owner.directoryItems.contains(where: { $0.destination == .organizationAdmin }))
+    #expect(owner.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
+    #expect(owner.defaultDestination == .coachToday)
+    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
   }
 
   @Test("superseded or cross-context team responses cannot publish")

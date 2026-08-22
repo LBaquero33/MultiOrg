@@ -553,6 +553,13 @@ final class AppState: ObservableObject {
       )
       let persistedValue = UserDefaults.standard.string(forKey: key)
         ?? UserDefaults.standard.string(forKey: legacyKey)
+      if persistedValue == HPTeamSelectionPersistence.allTeamsValue {
+        publishTeamSelection(nil, source: .explicit)
+        teamOperationsIssue = context.teams.isEmpty ? .noTeams : nil
+        UserDefaults.standard.set(HPTeamSelectionPersistence.allTeamsValue, forKey: key)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+        return
+      }
       let persisted = persistedValue.flatMap(UUID.init(uuidString:))
       let explicit = teamOperationsContext?.teams.contains(where: {
         $0.org_id == organizationId && $0.season_id == seasonId
@@ -612,11 +619,30 @@ final class AppState: ObservableObject {
     return true
   }
 
-  /// Compatibility entry point for existing routes. `nil` no longer means an
-  /// implicit all-teams Team workspace.
+  @discardableResult
+  func selectAllTeams() -> Bool {
+    guard canStaffActiveOrg,
+          let context = teamOperationsContext,
+          !context.teams.isEmpty,
+          let organizationId = activeOrgId,
+          let userId = myProfile?.id else { return false }
+    let key = HPTeamSelectionPersistence.key(
+      userId: userId,
+      organizationId: organizationId
+    )
+    publishTeamSelection(nil, source: .explicit)
+    teamOperationsIssue = nil
+    UserDefaults.standard.set(HPTeamSelectionPersistence.allTeamsValue, forKey: key)
+    return true
+  }
+
+  /// Compatibility entry point for existing routes.
   func selectCoachTeam(_ teamId: UUID?) {
-    guard let teamId else { return }
-    selectTeam(teamId)
+    if let teamId {
+      selectTeam(teamId)
+    } else {
+      selectAllTeams()
+    }
   }
 
   private func publishTeamSelection(_ teamId: UUID?, source: SDTeamSelectionSource) {
@@ -687,13 +713,6 @@ final class AppState: ObservableObject {
         needsAccess = false
       }
     } catch {
-      // If the user typed a configured legacy username, try the migration bridge.
-      // This migrates the legacy Shiny `public.users` row into Supabase Auth on first successful login.
-      let lower = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      if lower.hasSuffix("@\(DHDAppConfig.legacyEmailDomain.lowercased())"), let username = lower.split(separator: "@").first.map(String.init), !username.isEmpty {
-        await legacySignIn(username: username, password: password)
-        return
-      }
       authError = error.localizedDescription
       isAuthenticated = false
       myProfile = nil
@@ -701,66 +720,6 @@ final class AppState: ObservableObject {
       needsOnboarding = false
       clearOrgContext()
       coachListenersStarted = false
-    }
-  }
-
-  func signIn(orgSlug: String, identifier: String, password: String) async {
-    authError = nil
-    profileLoadError = nil
-    guard let supabase else {
-      authError = "Supabase not configured."
-      return
-    }
-    do {
-      let normalizedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      if normalizedIdentifier.contains("@") {
-        // Email identifies the user globally. Authenticate first, then resolve
-        // the organizations that account actually belongs to. This prevents a
-        // valid coach login from failing just because the public picker was
-        // initially pointing at a different organization.
-        try await supabase.signIn(email: normalizedIdentifier, password: password)
-      } else {
-        // Usernames are organization-scoped and must use the selected org.
-        let resp = try await supabase.orgLogin(
-          orgSlug: orgSlug,
-          identifier: normalizedIdentifier,
-          password: password
-        )
-        try await supabase.installSession(accessToken: resp.access_token, refreshToken: resp.refresh_token)
-        activeOrgId = resp.active_org_id
-      }
-      await loadMyProfile()
-      guard myProfile != nil else {
-        throw LoginBootstrapError.profileUnavailable
-      }
-
-      // Honor the selected organization when the authenticated account is a
-      // member; otherwise retain the first real active membership selected by
-      // refreshOrgContext().
-      if let selected = availableOrganizations.first(where: {
-        $0.slug.caseInsensitiveCompare(orgSlug) == .orderedSame
-      }), myOrgMemberships.contains(where: { $0.org_id == selected.id }) {
-        activeOrgId = selected.id
-        activeOrgSettings = try await supabase.fetchOrgSettings(orgId: selected.id)
-      }
-      isAuthenticated = true
-      startLiveUpdates()
-      if myProfile?.isPlayer == true {
-        if AppFlags.bypassAccessCheck {
-          myEntitlement = nil
-          needsAccess = false
-        } else {
-          await refreshEntitlement()
-        }
-        await refreshOnboarding()
-      } else {
-        myOnboarding = nil
-        needsOnboarding = false
-        myEntitlement = nil
-        needsAccess = false
-      }
-    } catch {
-      await clearFailedLogin(with: userFacingLoginMessage(for: error))
     }
   }
 
@@ -865,7 +824,6 @@ final class AppState: ObservableObject {
 
   func signUp(
     orgSlug: String,
-    username: String,
     email: String,
     password: String,
     fullName: String?,
@@ -887,13 +845,12 @@ final class AppState: ObservableObject {
         let refresh_token: String
       }
 
-      // Create the account server-side (Edge Function) so username-style accounts don't get stuck on email confirmation.
+      // Create the email account server-side so onboarding can establish the organization relationship atomically.
       let resp: CreateAccountResponse = try await supabase.client.functions.invoke(
         "create_account",
         options: FunctionInvokeOptions(
           body: [
             "org_slug": orgSlug,
-            "username": username,
             "email": email,
             "password": password,
             "full_name": fullName ?? "",
@@ -923,83 +880,6 @@ final class AppState: ObservableObject {
       myProfile = nil
       myOnboarding = nil
       needsOnboarding = false
-      clearOrgContext()
-    }
-  }
-
-  struct LegacyLoginResponse: Decodable {
-    let access_token: String
-    let refresh_token: String
-  }
-
-  func legacySignIn(username: String, password: String) async {
-    authError = nil
-    profileLoadError = nil
-    guard let supabase else {
-      authError = "Supabase not configured."
-      return
-    }
-    do {
-      let resp: LegacyLoginResponse = try await supabase.client.functions.invoke(
-        "legacy_login",
-        options: FunctionInvokeOptions(
-          body: ["username": username, "password": password]
-        )
-      )
-      try await supabase.client.auth.setSession(accessToken: resp.access_token, refreshToken: resp.refresh_token)
-      isAuthenticated = true
-      await loadMyProfile()
-      if myProfile?.isPlayer == true {
-        if AppFlags.bypassAccessCheck {
-          myEntitlement = nil
-          needsAccess = false
-        } else {
-          await refreshEntitlement()
-        }
-        await refreshOnboarding()
-      } else {
-        myOnboarding = nil
-        needsOnboarding = false
-        myEntitlement = nil
-        needsAccess = false
-      }
-    } catch let err as FunctionsError {
-      switch err {
-      case .relayError:
-        authError = err.localizedDescription
-      case .httpError(let code, let data):
-        struct FnErr: Decodable {
-          let error: String?
-          let message: String?
-          let reason: String?
-        }
-        let decoded = try? JSONDecoder().decode(FnErr.self, from: data)
-        let parts = [
-          decoded?.error,
-          decoded?.message,
-          decoded?.reason
-        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        if parts.isEmpty {
-          authError = "Legacy sign-in failed (\(code))."
-        } else {
-          authError = "Legacy sign-in failed (\(code)): " + parts.joined(separator: " — ")
-        }
-      }
-      isAuthenticated = false
-      myProfile = nil
-      myOnboarding = nil
-      needsOnboarding = false
-      myEntitlement = nil
-      needsAccess = false
-      clearOrgContext()
-    } catch {
-      authError = error.localizedDescription
-      isAuthenticated = false
-      myProfile = nil
-      myOnboarding = nil
-      needsOnboarding = false
-      myEntitlement = nil
-      needsAccess = false
       clearOrgContext()
     }
   }

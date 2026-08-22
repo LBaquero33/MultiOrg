@@ -158,7 +158,10 @@ final class NotificationCenterViewModel: ObservableObject {
     defer { markingReadIds.remove(notification.id) }
     do {
       let updated = try await service.markNotificationRead(notificationId: notification.id)
-      if let index = notifications.firstIndex(where: { $0.id == updated.id }) {
+      if updated.category == .eventCanceled {
+        notifications.removeAll { $0.id == updated.id }
+        totalAvailable = max(0, totalAvailable - 1)
+      } else if let index = notifications.firstIndex(where: { $0.id == updated.id }) {
         notifications[index] = updated
       }
       totalUnread = max(0, totalUnread - 1)

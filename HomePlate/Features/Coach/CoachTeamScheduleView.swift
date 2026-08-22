@@ -1,11 +1,19 @@
 import SwiftUI
 
 struct CoachTeamScheduleView: View {
+  private enum CalendarContent: String, CaseIterable, Identifiable {
+    case events = "Events"
+    case bookings = "Bookings"
+    var id: String { rawValue }
+  }
+
   @EnvironmentObject private var appState: AppState
   @State private var mode: SDTeamScheduleMode = .upcoming
+  @State private var calendarContent: CalendarContent = .events
   @State private var filter: SDTeamScheduleFilter = .all
   @State private var anchorDate = Date()
   @State private var events: [SDTeamEvent] = []
+  @State private var bookings: [SDFacilityBooking] = []
   @State private var facilities: [SDFacility] = []
   @State private var seasonFilterId: UUID?
   @State private var facilityFilterId: UUID?
@@ -39,13 +47,23 @@ struct CoachTeamScheduleView: View {
             ForEach(SDTeamScheduleMode.allCases) { Text($0.rawValue).tag($0) }
           }
           .pickerStyle(.segmented)
+          Picker("Calendar content", selection: $calendarContent) {
+            ForEach(CalendarContent.allCases) { Text($0.rawValue).tag($0) }
+          }
+          .pickerStyle(.segmented)
           ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: HP.Space.sm) {
             if seasonTeams.count > 1 {
               Menu {
-                Button(allTeamsLabel) { teamFilterId = nil }
+                Button(allTeamsLabel) {
+                  appState.selectAllTeams()
+                  teamFilterId = nil
+                }
                 ForEach(seasonTeams) { team in
-                  Button(team.name) { teamFilterId = team.id }
+                  Button(team.name) {
+                    appState.selectTeam(team.id)
+                    teamFilterId = team.id
+                  }
                 }
               } label: {
                 Label(selectedTeamFilterName, systemImage: "person.3")
@@ -90,6 +108,17 @@ struct CoachTeamScheduleView: View {
         scheduleResults
       }
       .navigationTitle("Schedule")
+      .task(id: appState.teamContextToken) {
+        synchronizeGlobalTeamScope()
+      }
+      .onChange(of: teamFilterId) { _, newValue in
+        guard newValue != appState.selectedTeamId else { return }
+        if let newValue {
+          appState.selectTeam(newValue)
+        } else {
+          appState.selectAllTeams()
+        }
+      }
       .task(id: reloadKey) { await reload() }
       .task(id: appState.activeOrgId) { await loadFacilities() }
       .refreshable { await reload() }
@@ -123,6 +152,14 @@ struct CoachTeamScheduleView: View {
   }
 
   @ViewBuilder private var scheduleResults: some View {
+    if calendarContent == .bookings {
+      bookingResults
+    } else {
+      eventResults
+    }
+  }
+
+  @ViewBuilder private var eventResults: some View {
     if seasonTeams.isEmpty {
       let issue = appState.teamOperationsIssue ?? .noAuthorizedTeams
       HPCard { HPEmptyState(title: issue.title, message: issue.message, systemImage: "calendar.badge.exclamationmark") }
@@ -247,6 +284,62 @@ struct CoachTeamScheduleView: View {
     }
   }
 
+  @ViewBuilder private var bookingResults: some View {
+    if isLoading && bookings.isEmpty {
+      HPCard { HPLoadingState(text: "Loading facility bookings…") }
+    } else if let errorText, bookings.isEmpty {
+      HPCard {
+        HPErrorState(title: "Bookings could not load", message: errorText, onRetry: { Task { await reload() } })
+      }
+    } else if filteredBookings.isEmpty {
+      HPCard {
+        HPEmptyState(
+          title: "No bookings",
+          message: "There are no facility bookings in this date range.",
+          systemImage: "building.2"
+        )
+      }
+    } else {
+      ForEach(groupedBookingDays, id: \.day) { group in
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            HPSectionHeader(group.day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+            ForEach(group.bookings) { booking in
+              VStack(alignment: .leading, spacing: HP.Space.xs) {
+                HStack(alignment: .top, spacing: HP.Space.sm) {
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(booking.title?.isEmpty == false ? booking.title! : booking.activity_type.capitalized)
+                      .font(HP.Font.headline)
+                      .foregroundStyle(HP.Color.text)
+                    Text("\(facilityName(booking.facility_id)) • \(booking.start_at.formatted(date: .omitted, time: .shortened))–\(booking.end_at.formatted(date: .omitted, time: .shortened))")
+                      .font(HP.Font.caption)
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  Spacer(minLength: HP.Space.sm)
+                  HPStatusBadge(text: booking.status.capitalized, kind: booking.status == "approved" ? .success : .neutral)
+                }
+                HStack(spacing: HP.Space.sm) {
+                  if let googleURL = googleCalendarURL(for: booking) {
+                    Link(destination: googleURL) {
+                      Label("Google Calendar", systemImage: "calendar.badge.plus")
+                    }
+                  }
+                  if let calendarFile = calendarFile(for: booking) {
+                    ShareLink(item: calendarFile) {
+                      Label("Apple Calendar", systemImage: "square.and.arrow.up")
+                    }
+                  }
+                }
+                .font(HP.Font.caption.weight(.semibold))
+              }
+              if booking.id != group.bookings.last?.id { Divider() }
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var canCreate: Bool {
     !creationTeams.isEmpty
   }
@@ -322,6 +415,10 @@ struct CoachTeamScheduleView: View {
     }
   }
 
+  private var filteredBookings: [SDFacilityBooking] {
+    bookings.filter { facilityFilterId == nil || $0.facility_id == facilityFilterId }
+  }
+
   private var selectedTeamFilterName: String {
     guard let teamFilterId else { return allTeamsLabel }
     return seasonTeams.first(where: { $0.id == teamFilterId })?.name ?? "Team"
@@ -387,8 +484,14 @@ struct CoachTeamScheduleView: View {
       .sorted { $0.day < $1.day }
   }
 
+  private var groupedBookingDays: [(day: Date, bookings: [SDFacilityBooking])] {
+    Dictionary(grouping: filteredBookings) { Calendar.current.startOfDay(for: $0.start_at) }
+      .map { ($0.key, $0.value.sorted { $0.start_at < $1.start_at }) }
+      .sorted { $0.day < $1.day }
+  }
+
   private var reloadKey: String {
-    "\(appState.activeOrgId?.uuidString ?? "none"):\(teamFilterId?.uuidString ?? "all"):\(mode.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(teamFilterId?.uuidString ?? "all"):\(mode.rawValue):\(calendarContent.rawValue):\(filter.rawValue):\(DateUtils.toISODate(anchorDate))"
   }
 
   private func teamName(_ id: UUID) -> String {
@@ -445,15 +548,25 @@ struct CoachTeamScheduleView: View {
     errorText = nil
     do {
       let limits = range()
-      let loadedEvents = try await service.listTeamEvents(
-        organizationId: organizationId,
-        seasonId: nil,
-        teamId: effectiveTeamFilterId,
-        rangeStart: limits.0,
-        rangeEnd: limits.1
-      )
+      let loadedEvents = calendarContent == .events
+        ? try await service.listTeamEvents(
+            organizationId: organizationId,
+            seasonId: nil,
+            teamId: effectiveTeamFilterId,
+            rangeStart: limits.0,
+            rangeEnd: limits.1
+          )
+        : events
+      let loadedBookings = calendarContent == .bookings
+        ? try await service.listFacilityBookings(
+            rangeStart: limits.0,
+            rangeEnd: limits.1,
+            orgId: organizationId
+          )
+        : bookings
       guard accepts(context: context, token: token) else { return }
       events = loadedEvents
+      bookings = loadedBookings
       isLoading = false
     } catch {
       guard accepts(context: context, token: token) else { return }
@@ -461,6 +574,71 @@ struct CoachTeamScheduleView: View {
       SDApplicationErrorClassifier.log(error, functionName: "team-scheduling")
       isLoading = false
     }
+  }
+
+  private func facilityName(_ id: UUID) -> String {
+    facilities.first(where: { $0.id == id })?.name ?? "Facility"
+  }
+
+  private func synchronizeGlobalTeamScope() {
+    let availableIds = Set(appState.authorizedScheduleTeams.map(\.id))
+    if let selected = appState.selectedTeamId, availableIds.contains(selected) {
+      teamFilterId = selected
+    } else {
+      teamFilterId = nil
+    }
+  }
+
+  private func googleCalendarURL(for booking: SDFacilityBooking) -> URL? {
+    var components = URLComponents(string: "https://calendar.google.com/calendar/render")
+    components?.queryItems = [
+      URLQueryItem(name: "action", value: "TEMPLATE"),
+      URLQueryItem(name: "text", value: booking.title?.isEmpty == false ? booking.title : booking.activity_type.capitalized),
+      URLQueryItem(name: "dates", value: "\(calendarTimestamp(booking.start_at))/\(calendarTimestamp(booking.end_at))"),
+      URLQueryItem(name: "details", value: booking.notes),
+      URLQueryItem(name: "location", value: facilityName(booking.facility_id)),
+    ]
+    return components?.url
+  }
+
+  private func calendarFile(for booking: SDFacilityBooking) -> URL? {
+    let title = (booking.title?.isEmpty == false ? booking.title! : booking.activity_type.capitalized)
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: ",", with: "\\,")
+    let notes = (booking.notes ?? "").replacingOccurrences(of: "\n", with: "\\n")
+    let contents = """
+    BEGIN:VCALENDAR\r
+    VERSION:2.0\r
+    PRODID:-//Home Plate//Facility Booking//EN\r
+    BEGIN:VEVENT\r
+    UID:\(booking.id.uuidString.lowercased())@homeplate\r
+    DTSTAMP:\(calendarTimestamp(Date()))\r
+    DTSTART:\(calendarTimestamp(booking.start_at))\r
+    DTEND:\(calendarTimestamp(booking.end_at))\r
+    SUMMARY:\(title)\r
+    LOCATION:\(facilityName(booking.facility_id))\r
+    DESCRIPTION:\(notes)\r
+    END:VEVENT\r
+    END:VCALENDAR\r
+    """
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("home-plate-booking-\(booking.id.uuidString.lowercased())")
+      .appendingPathExtension("ics")
+    do {
+      try contents.write(to: url, atomically: true, encoding: .utf8)
+      return url
+    } catch {
+      return nil
+    }
+  }
+
+  private func calendarTimestamp(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+    return formatter.string(from: date)
   }
 
   private func scheduleMessage(for error: Error) -> String? {

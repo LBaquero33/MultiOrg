@@ -14,12 +14,14 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
 
   case playerToday
   case playerCalendar
+  case playerProgram
   case playerTrends
   case playerTesting
   case playerAnalysis
   case playerFacilities
   case playerDevelopment
 
+  case parentHome
   case parentChildren
   case parentCalendar
 
@@ -31,8 +33,10 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
   case coachFacilities
   case coachTeams
   case coachPrograms
+  case games
 
   case chat
+  case payments
   case finance
   case organizationAdmin
   case platformAdmin
@@ -43,19 +47,19 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
   var workspaceScope: HPWorkspaceScope {
     switch self {
     case .directory, .account: .account
-    case .playerToday, .playerCalendar, .playerTrends, .playerTesting,
+    case .playerToday, .playerCalendar, .playerProgram, .playerTrends, .playerTesting,
          .playerAnalysis, .playerDevelopment:
       .selectedPlayer
     case .playerFacilities, .coachFacilities, .coachSchedule, .coachCalendar,
          .parentCalendar:
       .scheduleFilter
-    case .parentChildren:
+    case .parentHome, .parentChildren:
       .selectedChild
     case .coachToday:
       .allAssignedTeams
     case .coachTeam:
       .selectedTeam
-    case .coachPlayers, .coachTeams, .coachPrograms, .chat, .finance,
+    case .coachPlayers, .coachTeams, .coachPrograms, .games, .chat, .payments, .finance,
          .organizationAdmin:
       .organization
     case .platformAdmin:
@@ -113,7 +117,7 @@ struct HPAppNavigationSection: Identifiable, Equatable {
   }
 }
 
-/// A single role inventory rendered as compact tabs + directory or as a
+/// A single role inventory rendered as the website-matched mobile menu or
 /// regular-width sidebar. Feature and capability booleans are caller-owned.
 struct HPAppNavigationInventory: Equatable {
   let compactItems: [HPAppNavigationItem]
@@ -178,80 +182,41 @@ struct HPAppNavigationInventory: Equatable {
   ) -> Self {
     let today = item(.playerToday, "Today", "sun.max")
     let calendar = item(.playerCalendar, "Calendar", "calendar")
-    let trends = item(.playerTrends, "Trends", "chart.line.uptrend.xyaxis")
-    let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
-    let testing = item(.playerTesting, testingTitle, "tablecells")
-    let analysis = item(.playerAnalysis, "Analysis", "chart.xyaxis.line")
+    let program = item(.playerProgram, "Program", "square.stack.3d.up.fill")
+    let trends = item(.playerTrends, "Progress", "chart.line.uptrend.xyaxis")
+    let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let facilities = item(.playerFacilities, facilitiesTitle, "building.2")
-    let development = item(
-      .playerDevelopment,
-      "Development AI",
-      "sparkles.rectangle.stack"
-    )
-    let developmentItems = developmentAIEnabled ? [development] : []
-    let account = item(.account, "Account", "gearshape")
-
-    let compact = [today, calendar, trends] + (chatEnabled ? [chat] : [])
-    let directory = [
-      HPAppNavigationSection(
-        title: "Develop",
-        items: (testingEnabled ? [testing] : [])
-          + (analysisEnabled ? [analysis] : [])
-          + developmentItems
-      ),
-      HPAppNavigationSection(
-        title: "Run",
-        items: facilitiesEnabled ? [facilities] : []
-      ),
-      HPAppNavigationSection(title: "Manage", items: [account]),
-    ].filter { !$0.items.isEmpty }
-
-    let regular = [
-      HPAppNavigationSection(title: nil, items: [today]),
-      HPAppNavigationSection(
-        title: "Develop",
-        items: [trends]
-          + (testingEnabled ? [testing] : [])
-          + (analysisEnabled ? [analysis] : [])
-          + developmentItems
-      ),
-      HPAppNavigationSection(
-        title: "Run",
-        items: [calendar]
-          + (chatEnabled ? [chat] : [])
-          + (facilitiesEnabled ? [facilities] : [])
-      ),
-      HPAppNavigationSection(title: "Manage", items: [account]),
-    ].filter { !$0.items.isEmpty }
+    let account = item(.account, "Account", "person.crop.circle")
+    let websiteItems = [today, calendar]
+      + (facilitiesEnabled ? [facilities] : [])
+      + [program, trends]
+      + (chatEnabled ? [chat] : [])
+      + [account]
+    let regular = [HPAppNavigationSection(title: nil, items: websiteItems)]
 
     return Self(
-      compactItems: compact,
-      directorySections: directory,
+      compactItems: [],
+      directorySections: [],
       regularSections: regular,
       defaultDestination: .playerToday
     )
   }
 
   static func parent(childrenTitle: String, chatEnabled: Bool) -> Self {
+    let home = item(.parentHome, "Home", "house")
     let children = item(.parentChildren, childrenTitle, "person.2")
     let calendar = item(.parentCalendar, "Calendar", "calendar")
-    let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
-    let account = item(.account, "Account", "gearshape")
-    let compact = [children, calendar] + (chatEnabled ? [chat] : [])
-    let directory = [HPAppNavigationSection(title: "Manage", items: [account])]
-    let regular = [
-      HPAppNavigationSection(title: nil, items: [children]),
-      HPAppNavigationSection(
-        title: "Run",
-        items: [calendar] + (chatEnabled ? [chat] : [])
-      ),
-      HPAppNavigationSection(title: "Manage", items: [account]),
-    ].filter { !$0.items.isEmpty }
+    let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
+    let payments = item(.payments, "Payments", "creditcard")
+    let account = item(.account, "Account", "person.crop.circle")
+    let websiteItems = [home, children, calendar, payments]
+      + (chatEnabled ? [chat] : [])
+      + [account]
     return Self(
-      compactItems: compact,
-      directorySections: directory,
-      regularSections: regular,
-      defaultDestination: .parentChildren
+      compactItems: [],
+      directorySections: [],
+      regularSections: [HPAppNavigationSection(title: nil, items: websiteItems)],
+      defaultDestination: .parentHome
     )
   }
 
@@ -279,80 +244,44 @@ struct HPAppNavigationInventory: Equatable {
     canAdministerOrganization: Bool,
     isPlatformAdmin: Bool
   ) -> Self {
-    let today = item(.coachToday, "Today", "sun.max")
-    let team = item(.coachTeam, "Team", "person.3.fill")
-    let schedule = item(.coachSchedule, "Schedule", "calendar")
-    let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
+    let home = item(.coachToday, "Home", "house")
     let calendar = item(.coachCalendar, "Calendar", "calendar")
-    let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
-    let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
-    let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
-    let finance = item(.finance, "Finance", "dollarsign.circle")
-    let organization = item(.organizationAdmin, "Organization", "slider.horizontal.3")
+    let teams = item(.coachTeams, "Teams", "person.3")
+    let facilities = item(.coachFacilities, facilitiesTitle, "building.2")
+    let payments = item(.payments, "Payments", "creditcard")
+    let programs = item(.coachPrograms, "Programs", "list.clipboard")
+    let development = item(.coachPlayers, "Player Development", "figure.baseball")
+    let games = item(.games, "Games", "trophy")
+    let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
+    let organization = item(.organizationAdmin, "Organization Settings", "gearshape")
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
-    let account = item(.account, "Account", "gearshape")
-
-    let compact = [today, team, schedule]
-
-    let compactDestinations = Set(compact.map(\.destination))
-    let directoryItems = [
-      calendar,
-      facilitiesEnabled ? facilities : nil,
-      programsEnabled ? programs : nil,
-      chatEnabled ? chat : nil,
-      canAdministerOrganization ? teams : nil,
-      canAdministerOrganization ? finance : nil,
-      canAdministerOrganization ? organization : nil,
-      isPlatformAdmin ? platform : nil,
-      account,
-    ].compactMap { $0 }.filter { !compactDestinations.contains($0.destination) }
-
-    let directory = [
-      HPAppNavigationSection(
-        title: "Develop",
-        items: directoryItems.filter {
-          [.coachTeams, .coachPrograms].contains($0.destination)
-        }
-      ),
-      HPAppNavigationSection(
-        title: "Operate",
-        items: directoryItems.filter {
-          [.coachCalendar, .coachFacilities, .chat, .finance].contains($0.destination)
-        }
-      ),
-      HPAppNavigationSection(
-        title: "Administer",
-        items: directoryItems.filter {
-          [.organizationAdmin, .platformAdmin, .account].contains($0.destination)
-        }
-      ),
+    let account = item(.account, "Account", "person.crop.circle")
+    let compactItems = [home, teams, calendar] + (programsEnabled ? [programs] : [])
+    let teamOperations = (facilitiesEnabled ? [facilities] : []) + [development, games]
+    let communication = chatEnabled ? [chat] : []
+    let administration = [payments]
+      + (canAdministerOrganization ? [organization] : [])
+      + (isPlatformAdmin ? [platform] : [])
+      + [account]
+    let directorySections = [
+      HPAppNavigationSection(title: "Team Operations", items: teamOperations),
+      HPAppNavigationSection(title: "Communication", items: communication),
+      HPAppNavigationSection(title: "Administration", items: administration),
     ].filter { !$0.items.isEmpty }
-
-    let regular = [
-      HPAppNavigationSection(title: nil, items: [today, team, schedule]),
+    let regularSections = [
+      HPAppNavigationSection(title: "Daily Work", items: [home, calendar]),
       HPAppNavigationSection(
-        title: "Develop",
-        items: (canAdministerOrganization ? [teams] : []) + (programsEnabled ? [programs] : [])
+        title: "Team Operations",
+        items: [teams] + (programsEnabled ? [programs] : []) + teamOperations
       ),
-      HPAppNavigationSection(
-        title: "Operate",
-        items: [calendar]
-          + (facilitiesEnabled ? [facilities] : [])
-          + (chatEnabled ? [chat] : [])
-          + (canAdministerOrganization ? [finance] : [])
-      ),
-      HPAppNavigationSection(
-        title: "Administer",
-        items: (canAdministerOrganization ? [organization] : [])
-          + (isPlatformAdmin ? [platform] : [])
-          + [account]
-      ),
+      HPAppNavigationSection(title: "Communication", items: communication),
+      HPAppNavigationSection(title: "Administration", items: administration),
     ].filter { !$0.items.isEmpty }
 
     return Self(
-      compactItems: compact,
-      directorySections: directory,
-      regularSections: regular,
+      compactItems: compactItems,
+      directorySections: directorySections,
+      regularSections: regularSections,
       defaultDestination: .coachToday
     )
   }
@@ -365,49 +294,15 @@ struct HPAppNavigationInventory: Equatable {
     programsEnabled: Bool,
     isPlatformAdmin: Bool
   ) -> Self {
-    let finance = item(.finance, "Finances", "dollarsign.circle")
-    let chat = item(.chat, "Chat", "bubble.left.and.bubble.right")
-    let organization = item(.organizationAdmin, "Organization", "slider.horizontal.3")
-    let team = item(.coachTeam, "Team", "person.3.fill")
-    let schedule = item(.coachSchedule, "Schedule", "calendar")
-    let calendar = item(.coachCalendar, "Game Calendar", "sportscourt")
-    let teams = item(.coachTeams, "Teams", "person.3.sequence.fill")
-    let facilities = item(.coachFacilities, facilitiesTitle, "calendar.badge.clock")
-    let programs = item(.coachPrograms, programsTitle, "square.stack.3d.up")
-    let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
-    let account = item(.account, "Account", "gearshape")
-
-    let compact = [team, schedule] + (chatEnabled ? [chat] : []) + [finance]
-    let directory = [
-      HPAppNavigationSection(
-        title: "Operate",
-        items: [calendar] + (facilitiesEnabled ? [facilities] : [])
-      ),
-      HPAppNavigationSection(
-        title: "Develop",
-        items: [teams] + (programsEnabled ? [programs] : [])
-      ),
-      HPAppNavigationSection(
-        title: "Administer",
-        items: [organization] + (isPlatformAdmin ? [platform] : []) + [account]
-      ),
-    ].filter { !$0.items.isEmpty }
-    let regular = [
-      HPAppNavigationSection(title: nil, items: [team, schedule]),
-      HPAppNavigationSection(
-        title: "Operate",
-        items: [calendar] + (chatEnabled ? [chat] : []) + [finance]
-          + (facilitiesEnabled ? [facilities] : [])
-      ),
-      HPAppNavigationSection(title: "Develop", items: [teams] + (programsEnabled ? [programs] : [])),
-      HPAppNavigationSection(title: "Administer", items: [organization] + (isPlatformAdmin ? [platform] : []) + [account]),
-    ].filter { !$0.items.isEmpty }
-
-    return Self(
-      compactItems: compact,
-      directorySections: directory,
-      regularSections: regular,
-      defaultDestination: .coachTeam
+    staff(
+      playersTitle: "Players",
+      facilitiesTitle: facilitiesTitle,
+      programsTitle: programsTitle,
+      facilitiesEnabled: facilitiesEnabled,
+      chatEnabled: chatEnabled,
+      programsEnabled: programsEnabled,
+      canAdministerOrganization: true,
+      isPlatformAdmin: isPlatformAdmin
     )
   }
 
@@ -415,12 +310,9 @@ struct HPAppNavigationInventory: Equatable {
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
     let account = item(.account, "Account", "gearshape")
     return Self(
-      compactItems: [platform],
-      directorySections: [HPAppNavigationSection(title: "Manage", items: [account])],
-      regularSections: [
-        HPAppNavigationSection(title: nil, items: [platform]),
-        HPAppNavigationSection(title: "Manage", items: [account]),
-      ],
+      compactItems: [],
+      directorySections: [],
+      regularSections: [HPAppNavigationSection(title: nil, items: [platform, account])],
       defaultDestination: .platformAdmin
     )
   }
@@ -486,9 +378,11 @@ struct HPApplicationIdentityShell<Content: View>: View {
 /// size-class boundary, so selected player/child, navigation, filter, and form
 /// state survive iPad multitasking transitions.
 struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
+  @EnvironmentObject private var appState: AppState
   @Environment(\.dhdOrgBranding) private var branding
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var menuIsOpen = false
 
   let role: HPRole
   let roleSubtitle: String
@@ -517,6 +411,7 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
           orgIdentity: identity,
           role: role,
           groups: inventory.regularGroups,
+          teamScopeControl: sidebarTeamScopeControl,
           selectionKey: selectionKey
         )
         .frame(width: regularSidebarWidth)
@@ -529,13 +424,25 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
       HPApplicationIdentityShell(
         roleSubtitle: roleSubtitle,
-        showsIdentity: !isRegular
+        showsIdentity: false
       ) {
-        retainedDestinationHost
-      }
-      .safeAreaInset(edge: .bottom, spacing: 0) {
-        if !isRegular {
-          compactNavigationBar
+        VStack(spacing: 0) {
+          if !isRegular {
+            mobileHeader
+          }
+
+          ZStack(alignment: .top) {
+            retainedDestinationHost
+
+            if !isRegular && menuIsOpen {
+              mobileMenu
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+          }
+
+          if !isRegular && usesBottomNavigation {
+            mobileBottomBar
+          }
         }
       }
     }
@@ -549,29 +456,16 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
   }
 
   private var regularSidebarWidth: CGFloat {
-    dynamicTypeSize.isAccessibilitySize ? 320 : 272
+    dynamicTypeSize.isAccessibilitySize ? 320 : 288
   }
 
-  private var retainedItems: [HPAppNavigationItem] {
-    var seen: Set<HPAppNavigationDestination> = []
-    return inventory.regularItems.filter { seen.insert($0.destination).inserted }
+  private var usesBottomNavigation: Bool {
+    !inventory.compactItems.isEmpty
   }
 
   private var retainedDestinationHost: some View {
-    TabView(selection: $selection) {
-      ForEach(retainedItems) { item in
-        retainedDestination(item.destination)
-          .background(HPPageSwipeLock().allowsHitTesting(false))
-          .tag(item.destination)
-      }
-
-      if !inventory.directoryItems.isEmpty {
-        compactDirectory
-          .background(HPPageSwipeLock().allowsHitTesting(false))
-          .tag(HPAppNavigationDestination.directory)
-      }
-    }
-    .tabViewStyle(.page(indexDisplayMode: .never))
+    retainedDestination(selection)
+      .id(selection)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(DHDTheme.pageBackground)
   }
@@ -579,106 +473,294 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
   private func retainedDestination(
     _ destination: HPAppNavigationDestination
   ) -> some View {
-    VStack(spacing: 0) {
-      if !isRegular, inventory.isDirectoryItem(destination) {
-        HStack {
-          DHDButton(
-            "Back to More",
-            systemImage: "chevron.left",
-            variant: .secondary,
-            size: .compact
-          ) {
-            selection = .directory
-          }
-          Spacer(minLength: 0)
-        }
-        .padding(.horizontal, DHDTheme.pagePadding)
-        .padding(.top, HP.Space.xs)
-      }
+    destinationContent(destination)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
 
-      destinationContent(destination)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  private var mobileHeader: some View {
+    HStack(spacing: HP.Space.sm) {
+      organizationBadge
+      Text(branding.name)
+        .font(HP.Font.headline)
+        .foregroundStyle(HP.Color.text)
+        .lineLimit(1)
+      if showsTeamScopeControl {
+        teamScopeMenu(compact: true)
+      }
+      Spacer(minLength: HP.Space.xs)
+      if !usesBottomNavigation {
+        Button {
+          withAnimation(HP.Motion.quick) { menuIsOpen.toggle() }
+        } label: {
+          Image(systemName: menuIsOpen ? "xmark" : "line.3.horizontal")
+            .font(.system(size: 24, weight: .medium))
+            .foregroundStyle(HP.Color.text)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(menuIsOpen ? "Close menu" : "Open menu")
+      }
+    }
+    .padding(.horizontal, HP.Space.md)
+    .padding(.vertical, HP.Space.xs)
+    .background(HP.Color.bg.opacity(0.98))
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(HP.Color.border).frame(height: 1)
     }
   }
 
-  private var compactDirectory: some View {
+  private var mobileMenu: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        HPWorkspaceHeader(
-          "More",
-          orgLabel: branding.shortName,
-          context: "All available workspaces"
-        )
-        HPWorkspaceDirectory(groups: inventory.directoryGroups) { item in
-          guard let destination = inventory.destination(forWorkspaceKey: item.key) else { return }
-          selection = destination
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        organizationSwitcher
+        if showsTeamScopeControl {
+          teamScopeMenu(compact: false)
         }
+
+        ForEach(mobileMenuSections) { section in
+          VStack(alignment: .leading, spacing: 4) {
+            if let title = section.title {
+              Text(title)
+                .font(HP.Font.caption.weight(.bold))
+                .foregroundStyle(HP.Color.textMuted)
+                .textCase(.uppercase)
+                .padding(.horizontal, HP.Space.sm)
+                .padding(.top, HP.Space.xs)
+            }
+            ForEach(section.items) { item in
+              mobileMenuRow(item)
+            }
+          }
+        }
+
+        Button(role: .destructive) {
+          Task { await appState.signOut() }
+        } label: {
+          Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+            .font(HP.Font.body.weight(.medium))
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .padding(.horizontal, HP.Space.sm)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(HP.Color.textMuted)
+        .padding(.top, 4)
       }
-      .padding(DHDTheme.pagePadding)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(HP.Space.md)
     }
-    .dhdPageBackground()
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(HP.Color.surface)
   }
 
-  private var compactNavigationBar: some View {
-    HStack(spacing: HP.Space.xs) {
-      ForEach(inventory.compactItems) { item in
-        compactNavigationButton(item)
-      }
+  private var mobileMenuSections: [HPAppNavigationSection] {
+    usesBottomNavigation ? inventory.directorySections : inventory.regularSections
+  }
 
-      if !inventory.directoryItems.isEmpty {
-        compactNavigationButton(
-          HPAppNavigationItem(
-            destination: .directory,
-            title: "More",
-            systemImage: "square.grid.2x2"
-          )
-        )
+  private var mobileBottomBar: some View {
+    HStack(spacing: 0) {
+      ForEach(inventory.compactItems) { item in
+        mobileBottomButton(item)
       }
+      Button {
+        withAnimation(HP.Motion.quick) { menuIsOpen.toggle() }
+      } label: {
+        VStack(spacing: 3) {
+          Image(systemName: "ellipsis.circle")
+            .font(.system(size: 20, weight: .medium))
+          Text("More")
+            .font(HP.Font.eyebrow)
+            .lineLimit(1)
+        }
+        .foregroundStyle(menuIsOpen || inventory.isDirectoryItem(selection) ? HP.Color.accent : HP.Color.textMuted)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("More")
+      .accessibilityValue(menuIsOpen ? "Open" : "Closed")
     }
     .padding(.horizontal, HP.Space.xs)
-    .padding(.vertical, HP.Space.xs)
-    .padding(.bottom, HP.Space.xs)
-    .background(DHDTheme.cardBackground)
+    .padding(.top, 4)
+    .background(HP.Color.bg.opacity(0.98))
     .overlay(alignment: .top) {
-      Rectangle()
-        .fill(DHDTheme.border)
-        .frame(height: 1)
-        .allowsHitTesting(false)
+      Rectangle().fill(HP.Color.border).frame(height: 1)
     }
   }
 
-  private func compactNavigationButton(
-    _ item: HPAppNavigationItem
-  ) -> some View {
-    let selected = item.destination == .directory
-      ? (selection == .directory || inventory.isDirectoryItem(selection))
-      : selection == item.destination
-
+  private func mobileBottomButton(_ item: HPAppNavigationItem) -> some View {
+    let selected = selection == item.destination && !menuIsOpen
     return Button {
       selection = item.destination
+      withAnimation(HP.Motion.quick) { menuIsOpen = false }
     } label: {
-      VStack(spacing: 2) {
+      VStack(spacing: 3) {
         Image(systemName: item.systemImage)
-          .font(.system(size: 18, weight: .semibold))
-          .accessibilityHidden(true)
+          .font(.system(size: 20, weight: .medium))
         Text(item.title)
-          // Match native tab-bar behavior: navigation labels stay compact at
-          // accessibility sizes while destination content continues to scale.
-          .font(.system(size: 10, weight: .semibold))
+          .font(HP.Font.eyebrow)
           .lineLimit(1)
-          .minimumScaleFactor(0.8)
+          .minimumScaleFactor(0.75)
       }
-      .foregroundStyle(selected ? DHDTheme.accent : DHDTheme.textSecondary)
-      .frame(maxWidth: .infinity, minHeight: 48)
-      .background(
-        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-          .fill(selected ? DHDTheme.accent.opacity(0.14) : .clear)
-      )
+      .foregroundStyle(selected ? HP.Color.accent : HP.Color.textMuted)
+      .frame(maxWidth: .infinity, minHeight: 50)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(item.title)
+    .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+  }
+
+  private var organizationSwitcher: some View {
+    Group {
+      if appState.availableOrganizations.count <= 1 {
+        Text(branding.name)
+          .font(HP.Font.body.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+          .lineLimit(1)
+          .padding(.horizontal, HP.Space.sm)
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      } else {
+        Menu {
+          ForEach(appState.availableOrganizations) { organization in
+            Button {
+              Task {
+                await appState.switchActiveOrganization(to: organization.id)
+                menuIsOpen = false
+              }
+            } label: {
+              if organization.id == appState.activeOrgId {
+                Label(organization.displayName, systemImage: "checkmark")
+              } else {
+                Text(organization.displayName)
+              }
+            }
+          }
+        } label: {
+          HStack(spacing: HP.Space.sm) {
+            Text(branding.name)
+              .font(HP.Font.body.weight(.semibold))
+              .foregroundStyle(HP.Color.text)
+              .lineLimit(1)
+            Spacer()
+            Image(systemName: "chevron.up.chevron.down")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          .padding(.horizontal, HP.Space.sm)
+          .frame(minHeight: 44)
+          .background(HP.Color.surfaceRaised)
+          .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+          .overlay {
+            RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+              .strokeBorder(HP.Color.input, lineWidth: 1)
+          }
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+
+  private var organizationBadge: some View {
+    Group {
+      if let logoURL = branding.logoURL {
+        AsyncImage(url: logoURL) { image in
+          image.resizable().scaledToFit()
+        } placeholder: {
+          Text(String(branding.shortName.prefix(2)).uppercased())
+        }
+      } else {
+        Text(String(branding.shortName.prefix(2)).uppercased())
+      }
+    }
+    .font(HP.Font.caption.weight(.bold))
+    .foregroundStyle(Color.white)
+    .frame(width: 36, height: 36)
+    .background(branding.primary)
+    .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+  }
+
+  private var activeTeamScopes: [SDTeamOperationsTeam] {
+    appState.authorizedScheduleTeams
+      .filter(\.is_active)
+      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+  }
+
+  private var showsTeamScopeControl: Bool {
+    (role == .coach || role == .owner) && activeTeamScopes.count > 1
+  }
+
+  private var sidebarTeamScopeControl: AnyView? {
+    guard showsTeamScopeControl else { return nil }
+    return AnyView(teamScopeMenu(compact: false))
+  }
+
+  private func teamScopeMenu(compact: Bool) -> some View {
+    Menu {
+      Button {
+        appState.selectAllTeams()
+      } label: {
+        if appState.selectedTeamId == nil {
+          Label("All Teams", systemImage: "checkmark")
+        } else {
+          Text("All Teams")
+        }
+      }
+      ForEach(activeTeamScopes) { team in
+        Button {
+          appState.selectTeam(team.id)
+        } label: {
+          if appState.selectedTeamId == team.id {
+            Label(team.name, systemImage: "checkmark")
+          } else {
+            Text(team.name)
+          }
+        }
+      }
+    } label: {
+      HStack(spacing: HP.Space.xs) {
+        Image(systemName: "person.3")
+        Text(appState.selectedTeam?.name ?? "All Teams")
+          .lineLimit(1)
+        Image(systemName: "chevron.up.chevron.down")
+          .font(.caption2.weight(.bold))
+      }
+      .font(compact ? HP.Font.caption.weight(.semibold) : HP.Font.body.weight(.semibold))
+      .foregroundStyle(HP.Color.text)
+      .padding(.horizontal, compact ? HP.Space.xs : HP.Space.sm)
+      .frame(minHeight: 40)
+      .background(HP.Color.surfaceRaised)
+      .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+          .strokeBorder(HP.Color.input, lineWidth: 1)
+      }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Team workspace")
+    .accessibilityValue(appState.selectedTeam?.name ?? "All Teams")
+  }
+
+  private func mobileMenuRow(_ item: HPAppNavigationItem) -> some View {
+    let selected = selection == item.destination
+    return Button {
+      selection = item.destination
+      withAnimation(HP.Motion.quick) { menuIsOpen = false }
+    } label: {
+      HStack(spacing: HP.Space.sm) {
+        Image(systemName: item.systemImage)
+          .font(.system(size: 20, weight: .regular))
+          .frame(width: 20)
+        Text(item.title)
+          .font(HP.Font.body.weight(.medium))
+        Spacer()
+      }
+      .foregroundStyle(selected ? HP.Color.text : HP.Color.textMuted)
+      .padding(.horizontal, HP.Space.sm)
+      .padding(.vertical, 12)
+      .background(selected ? HP.Color.surfaceRaised : .clear)
+      .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
     .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
   }
 
@@ -707,7 +789,6 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
   private func synchronizePresentation() {
     let selectionIsAvailable = inventory.regularItems.contains { $0.destination == selection }
-      || (!isRegular && selection == .directory)
     if !selectionIsAvailable {
       selection = inventory.defaultDestination
     }
@@ -787,7 +868,7 @@ struct HPRegularApplicationShell<Detail: View>: View {
   private var sidebarColumnWidths: (minimum: CGFloat, ideal: CGFloat, maximum: CGFloat) {
     dynamicTypeSize.isAccessibilitySize
       ? (minimum: 280, ideal: 320, maximum: 360)
-      : (minimum: 238, ideal: 272, maximum: 310)
+      : (minimum: 288, ideal: 288, maximum: 288)
   }
 
   private var selectionKey: Binding<String?> {
@@ -804,40 +885,3 @@ struct HPRegularApplicationShell<Detail: View>: View {
     selection = inventory.normalizedRegularSelection(selection)
   }
 }
-
-#if os(iOS)
-/// `PageTabViewStyle` is the only system TabView presentation that emits no
-/// regular-width or nested tab chrome. Programmatic selection remains enabled,
-/// while this noninteractive marker disables only the enclosing UIKit paging
-/// scroll view so the shell does not add a new swipe-navigation behavior or
-/// steal horizontal gestures from charts and other destination content.
-private struct HPPageSwipeLock: UIViewRepresentable {
-  func makeUIView(context: Context) -> HPPageSwipeLockView {
-    HPPageSwipeLockView()
-  }
-
-  func updateUIView(_ uiView: HPPageSwipeLockView, context: Context) {
-    uiView.disableEnclosingPageScrollWhenReady()
-  }
-}
-
-private final class HPPageSwipeLockView: UIView {
-  override func didMoveToWindow() {
-    super.didMoveToWindow()
-    disableEnclosingPageScrollWhenReady()
-  }
-
-  func disableEnclosingPageScrollWhenReady() {
-    DispatchQueue.main.async { [weak self] in
-      var ancestor = self?.superview
-      while let current = ancestor {
-        if let scrollView = current as? UIScrollView, scrollView.isPagingEnabled {
-          scrollView.isScrollEnabled = false
-          return
-        }
-        ancestor = current.superview
-      }
-    }
-  }
-}
-#endif

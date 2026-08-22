@@ -37,25 +37,25 @@ struct CoachProgramTrackerView: View {
           .tint(HP.Color.accent)
         }
       }
-    } results: { context in
-      if context.tableLayout == .columns {
-        HStack(alignment: .top, spacing: HP.Space.md) {
-          playerList
-            .frame(width: 300)
-          assignmentList
-        }
-      } else {
-        VStack(alignment: .leading, spacing: HP.Space.md) {
-          playerList
-          assignmentList
-        }
-      }
+    } results: { _ in
+      playerList
     }
     .navigationTitle("Player Program Tracker")
     .task(id: appState.activeOrgId) {
       await prepareOrganizationContext()
     }
-    .onChange(of: selectedTeamId) { _, _ in
+    .onChange(of: appState.teamContextToken) { _, _ in
+      synchronizeGlobalTeamScope()
+      repairPlayerSelection(clearSelection: true)
+    }
+    .onChange(of: selectedTeamId) { _, newValue in
+      if newValue != appState.selectedTeamId {
+        if let newValue {
+          appState.selectTeam(newValue)
+        } else {
+          appState.selectAllTeams()
+        }
+      }
       repairPlayerSelection()
     }
     .onChange(of: selectedPlayerId) { _, _ in
@@ -64,6 +64,24 @@ struct CoachProgramTrackerView: View {
     .sheet(item: $selectedDay) { day in
       CoachProgramDayDetailView(day: day)
         .environmentObject(appState)
+    }
+    .sheet(isPresented: Binding(
+      get: { selectedPlayerId != nil },
+      set: { if !$0 { selectedPlayerId = nil } }
+    )) {
+      NavigationStack {
+        ScrollView {
+          assignmentList
+            .padding(HP.Space.md)
+        }
+        .background(HP.Color.bg)
+        .navigationTitle(selectedPlayer?.displayName ?? "Program Tracker")
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Close") { selectedPlayerId = nil }
+          }
+        }
+      }
     }
     .alert("Program Tracker", isPresented: Binding(
       get: { errorText != nil },
@@ -250,7 +268,7 @@ struct CoachProgramTrackerView: View {
   }
 
   private func prepareOrganizationContext() async {
-    selectedTeamId = nil
+    selectedTeamId = appState.selectedTeamId
     selectedPlayerId = nil
     assignments = []
     templates = [:]
@@ -260,13 +278,21 @@ struct CoachProgramTrackerView: View {
     if appState.teamOperationsContext == nil {
       await appState.refreshTeamOperationsContext()
     }
-    repairPlayerSelection()
+    repairPlayerSelection(clearSelection: true)
   }
 
-  private func repairPlayerSelection() {
+  private func synchronizeGlobalTeamScope() {
+    selectedTeamId = appState.selectedTeamId
+  }
+
+  private func repairPlayerSelection(clearSelection: Bool = false) {
+    if clearSelection {
+      selectedPlayerId = nil
+      return
+    }
     let ids = Set(visiblePlayers.map(\.id))
     if let selectedPlayerId, ids.contains(selectedPlayerId) { return }
-    selectedPlayerId = visiblePlayers.first?.id
+    selectedPlayerId = nil
   }
 
   private func reloadPlayerData() async {
