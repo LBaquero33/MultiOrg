@@ -19,7 +19,16 @@ struct CoachProgramTrackerView: View {
         "Player Program Tracker",
         orgLabel: activeOrganizationName,
         context: selectedPlayer?.displayName ?? "Select a player"
-      )
+      ) {
+        Button {
+          Task { await refreshTracker() }
+        } label: {
+          Image(systemName: "arrow.clockwise")
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading)
+        .accessibilityLabel("Refresh player programs")
+      }
     } controls: {
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
@@ -275,10 +284,17 @@ struct CoachProgramTrackerView: View {
     programDays = [:]
     strengthLogs = []
     selectedDay = nil
-    if appState.teamOperationsContext == nil {
-      await appState.refreshTeamOperationsContext()
-    }
+    await appState.refreshTeamOperationsContext()
     repairPlayerSelection(clearSelection: true)
+  }
+
+  private func refreshTracker() async {
+    await appState.refreshTeamOperationsContext()
+    synchronizeGlobalTeamScope()
+    repairPlayerSelection()
+    if selectedPlayerId != nil {
+      await reloadPlayerData()
+    }
   }
 
   private func synchronizeGlobalTeamScope() {
@@ -307,6 +323,7 @@ struct CoachProgramTrackerView: View {
     }
 
     isLoading = true
+    errorText = nil
     defer { isLoading = false }
     do {
       let loadedAssignments = try await supabase.fetchProgramAssignments(
@@ -326,16 +343,30 @@ struct CoachProgramTrackerView: View {
           missingDayDetails += 1
         }
       }
-      let loadedLogs = try await supabase.listStrengthLogs(playerId: playerId)
 
       guard selectedPlayerId == playerId else { return }
       assignments = loadedAssignments
       templates = loadedTemplates
       programDays = loadedDays
-      strengthLogs = loadedLogs
+      strengthLogs = []
+
+      var logsUnavailable = false
+      do {
+        let loadedLogs = try await supabase.listStrengthLogs(
+          playerId: playerId,
+          orgId: organizationId
+        )
+        guard selectedPlayerId == playerId else { return }
+        strengthLogs = loadedLogs
+      } catch {
+        logsUnavailable = true
+      }
+
       let missingTemplates = Set(loadedAssignments.map(\.template_id)).subtracting(loadedTemplates.keys).count
-      if missingTemplates > 0 || missingDayDetails > 0 {
-        errorText = "Some older program details are unavailable, but every valid assignment and submission remains visible."
+      if missingTemplates > 0 || missingDayDetails > 0 || logsUnavailable {
+        errorText = logsUnavailable
+          ? "Program assignments are visible, but submitted exercise results could not be refreshed. Please try again."
+          : "Some older program details are unavailable, but every valid assignment and submission remains visible."
       }
     } catch {
       let message = SDApplicationErrorClassifier.alertMessage(for: error) ?? "Please try again."

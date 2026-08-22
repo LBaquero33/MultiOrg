@@ -5003,11 +5003,21 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
-  func listStrengthLogs(playerId: UUID, limit: Int = 500) async throws -> [SDStrengthLog] {
-    try await client
+  func listStrengthLogs(
+    playerId: UUID,
+    orgId: UUID? = nil,
+    limit: Int = 500
+  ) async throws -> [SDStrengthLog] {
+    var query = client
       .from("sd_strength_logs")
       .select()
       .eq("player_id", value: playerId.uuidString)
+
+    if let orgId {
+      query = query.eq("org_id", value: orgId.uuidString)
+    }
+
+    return try await query
       .order("log_date", ascending: false)
       .limit(limit)
       .execute()
