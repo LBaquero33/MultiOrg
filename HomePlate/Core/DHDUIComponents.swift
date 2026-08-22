@@ -6,8 +6,9 @@ enum DHDCardStyle {
 }
 
 struct DHDCard<Content: View>: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   let content: Content
-  var style: DHDCardStyle = .elevated
+  var style: DHDCardStyle = .flat
 
   init(@ViewBuilder content: () -> Content) {
     self.content = content()
@@ -20,7 +21,7 @@ struct DHDCard<Content: View>: View {
 
   var body: some View {
     content
-      .padding(DHDTheme.cardPadding)
+      .padding(horizontalSizeClass == .regular ? HP.Space.lg : 20)
       .background(cardShape.fill(backgroundFill))
       .clipShape(cardShape)
       .overlay(
@@ -482,7 +483,7 @@ private struct DHDUniversalButtonStyle: ButtonStyle {
 
   static func foregroundColor(for variant: DHDButtonVariant) -> Color {
     switch variant {
-    case .primary: DHDTheme.accentText
+    case .primary: DHDTheme.identityText
     case .secondary, .icon: DHDTheme.textPrimary
     case .destructive: DHDTheme.danger
     case .compactAction: DHDTheme.identityText
@@ -491,7 +492,7 @@ private struct DHDUniversalButtonStyle: ButtonStyle {
 
   private var backgroundColor: Color {
     switch variant {
-    case .primary: DHDTheme.accent
+    case .primary: DHDTheme.primary
     case .secondary, .icon: DHDTheme.surfaceMuted
     case .destructive: DHDTheme.danger.opacity(0.14)
     case .compactAction: DHDTheme.primary
@@ -501,7 +502,7 @@ private struct DHDUniversalButtonStyle: ButtonStyle {
   private var strokeColor: Color {
     if isFocused { return DHDTheme.focusRing }
     switch variant {
-    case .primary: return DHDTheme.accent.opacity(0.8)
+    case .primary: return DHDTheme.primaryGlow.opacity(0.8)
     case .secondary, .icon: return DHDTheme.borderStrong
     case .destructive: return DHDTheme.danger.opacity(0.75)
     case .compactAction: return DHDTheme.primaryGlow.opacity(0.75)
@@ -554,7 +555,7 @@ struct DHDTextInput: View {
     VStack(alignment: .leading, spacing: HP.Space.xs) {
       if !label.isEmpty {
         Text(label)
-          .font(HP.Font.caption)
+          .font(HP.Font.body.weight(.medium))
           .foregroundStyle(DHDTheme.textPrimary)
       }
 
@@ -567,9 +568,9 @@ struct DHDTextInput: View {
         field
       }
       .font(HP.Font.body)
-      .padding(.horizontal, HP.Space.sm)
-      .frame(minHeight: DHDTheme.minimumTouchTarget)
-      .background(inputShape.fill(DHDTheme.inputBackground))
+      .padding(.horizontal, 14)
+      .frame(minHeight: 48)
+      .background(inputShape.fill(DHDTheme.surfaceElevated))
       .overlay(
         inputShape
           .strokeBorder(strokeColor, lineWidth: isFocused || error != nil ? 2 : 1)
@@ -603,11 +604,11 @@ struct DHDTextInput: View {
 
   private var strokeColor: Color {
     if error != nil { return DHDTheme.danger }
-    return isFocused ? DHDTheme.focusRing : DHDTheme.borderStrong
+    return isFocused ? DHDTheme.focusRing : DHDTheme.inputBackground
   }
 
   private var inputShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+    RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
   }
 }
 

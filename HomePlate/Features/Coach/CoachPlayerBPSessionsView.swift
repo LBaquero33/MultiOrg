@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 
 struct CoachPlayerBPSessionsView: View {
   @EnvironmentObject private var appState: AppState
@@ -111,6 +112,7 @@ private struct CoachPlayerBPSessionDetailView: View {
   @State private var events: [SDBPEvent] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var videoURL: URL?
 
   var body: some View {
     HPDetailScreenLayout {
@@ -140,12 +142,23 @@ private struct CoachPlayerBPSessionDetailView: View {
         )
       }
     } details: {
-      HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        if let videoURL {
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader(session.activity_type == "bullpen" ? "Bullpen video" : "Hitting video")
+              VideoPlayer(player: AVPlayer(url: videoURL))
+                .frame(minHeight: 260)
+                .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md))
+            }
+          }
+        }
+        HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           HPSectionHeader("Summary")
           if isLoading {
             HPLoadingState(text: "Loading…")
-          } else if events.isEmpty {
+          } else if events.isEmpty && session.video_path == nil {
             HPEmptyState(
               title: "No events",
               message: "No pitch events are available for this BP session.",
@@ -157,6 +170,7 @@ private struct CoachPlayerBPSessionDetailView: View {
             HPStatTile(label: "Source", value: session.source.capitalized)
           }
         }
+      }
       }
     } related: { context in
       if !events.isEmpty {
@@ -207,6 +221,11 @@ private struct CoachPlayerBPSessionDetailView: View {
     defer { isLoading = false }
     do {
       events = try await supabase.fetchBPEvents(sessionId: session.id)
+      if let path = session.video_path {
+        videoURL = try await supabase.signedPlayerSessionVideoURL(path: path)
+      } else {
+        videoURL = nil
+      }
     } catch {
       errorText = error.localizedDescription
     }

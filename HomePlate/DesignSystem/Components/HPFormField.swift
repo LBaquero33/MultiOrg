@@ -17,9 +17,9 @@ struct HPFormField: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(label.uppercased())
-        .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
-        .foregroundStyle(HP.Color.textMuted)
+      Text(label)
+        .font(HP.Font.body.weight(.medium))
+        .foregroundStyle(HP.Color.text)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityHidden(true)
 
@@ -30,12 +30,12 @@ struct HPFormField: View {
         .disabled(!isEnabled)
         .accessibilityLabel(label)
         .accessibilityHint(accessibilityHint)
-        .padding(.horizontal, HP.Space.sm)
-        .padding(.vertical, 10)
-        .frame(minHeight: 44)
-        .background(RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous).fill(HP.Color.input))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(minHeight: 48)
+        .background(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous).fill(HP.Color.surfaceRaised))
         .overlay(
-          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+          RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
             .strokeBorder(borderColor, lineWidth: (focused || error != nil) ? 2 : 1)
             .allowsHitTesting(false)
         )
@@ -66,7 +66,7 @@ struct HPFormField: View {
 
   private var borderColor: Color {
     if error != nil { return HP.Color.danger }
-    return focused ? HP.Color.focusRing : HP.Color.border
+    return focused ? HP.Color.focusRing : HP.Color.input
   }
 
   private var accessibilityHint: String {

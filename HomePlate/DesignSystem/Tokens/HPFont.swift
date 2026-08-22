@@ -9,11 +9,12 @@ extension HP {
   /// changing any component API**.
   enum Font {
     /// Display / heading family. Set to "Archivo" once fonts are bundled.
-    static let displayFamily: String? = nil
+    static let displayFamily: String? = "Archivo"
     /// Body / UI family. Set to "InstrumentSans" once fonts are bundled.
-    static let textFamily: String? = nil
+    static let textFamily: String? = "Instrument Sans"
 
-    static var display:  SwiftUI.Font { resolve(displayFamily, 34, .bold, .largeTitle) }
+    static var display:  SwiftUI.Font { resolve(displayFamily, 30, .bold, .largeTitle) }
+    static var pageTitle: SwiftUI.Font { resolve(displayFamily, 24, .bold, .title2) }
     static var title:    SwiftUI.Font { resolve(displayFamily, 22, .bold, .title2) }
     static var headline: SwiftUI.Font { resolve(textFamily, 17, .semibold, .headline) }
     static var body:     SwiftUI.Font { resolve(textFamily, 16, .regular, .body) }

@@ -138,8 +138,6 @@ private struct CoachPlayerDailyLogDetailView: View {
           }
         }
 
-        selfAssessmentCard
-
         if let comments = log?.comments, !comments.isEmpty || log?.feel != nil {
           liftNoteCard(comments: comments)
         }
@@ -157,30 +155,6 @@ private struct CoachPlayerDailyLogDetailView: View {
       Text(errorText ?? "")
     }
     .task { await reload() }
-  }
-
-  private var selfAssessmentCard: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Self assessment")
-        row("Got video", log?.got_video)
-        row("Ate breakfast", log?.ate_breakfast)
-        row("Hit daily goals", log?.hit_daily_goals)
-        row("Stuck to process", log?.stuck_to_process)
-        if let text = log?.fell_short, !text.isEmpty {
-          Text("Fell short: \(text)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        if let text = log?.excelled, !text.isEmpty {
-          Text("Excelled: \(text)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-    }
   }
 
   private func liftNoteCard(comments: String) -> some View {
@@ -258,25 +232,4 @@ private struct CoachPlayerDailyLogDetailView: View {
     }
   }
 
-  @ViewBuilder private func row(_ label: String, _ value: Bool?) -> some View {
-    HStack {
-      Text(label)
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.text)
-      Spacer()
-      if value == true {
-        Image(systemName: "checkmark.circle.fill")
-          .foregroundStyle(HP.Color.success)
-          .accessibilityLabel("Yes")
-      } else if value == false {
-        Image(systemName: "xmark.circle.fill")
-          .foregroundStyle(HP.Color.danger)
-          .accessibilityLabel("No")
-      } else {
-        Text("—")
-          .foregroundStyle(HP.Color.textMuted)
-          .accessibilityLabel("Not reported")
-      }
-    }
-  }
 }

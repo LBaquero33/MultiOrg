@@ -17,9 +17,10 @@
 // - Deploy with JWT verification OFF (Stripe won't send an Authorization header).
 // - For best attribution, pass the Supabase user_id as Stripe Checkout Session `client_reference_id`.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 type Json = Record<string, unknown>;
+type AdminClient = SupabaseClient<any, "public", any>;
 
 function json(status: number, body: Json) {
   return new Response(JSON.stringify(body), {
@@ -120,7 +121,7 @@ function periodEndToIso(seconds: unknown): string | null {
 }
 
 async function upsertEntitlementByUserId(args: {
-  admin: ReturnType<typeof createClient>;
+  admin: AdminClient;
   userId: string;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
@@ -144,7 +145,7 @@ async function upsertEntitlementByUserId(args: {
 }
 
 async function updateEntitlementByStripeIds(args: {
-  admin: ReturnType<typeof createClient>;
+  admin: AdminClient;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   status?: string | null;
@@ -296,7 +297,7 @@ Deno.serve(async (req) => {
 
     return json(200, { ok: true });
   } catch (err) {
-    console.log("stripe-webhook error", String(err?.message ?? err));
+    console.log("stripe-webhook error", err instanceof Error ? err.message : String(err));
     return json(500, { error: "handler_failed" });
   }
 });

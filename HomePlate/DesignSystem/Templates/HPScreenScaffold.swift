@@ -122,7 +122,8 @@ struct HPScreenScaffold<Content: View>: View {
   var body: some View {
     ScrollView {
       content(context)
-        .padding(HP.Space.md)
+        .padding(.horizontal, context.widthClass == .wide ? HP.Space.xl : (context.isRegularWidth ? HP.Space.lg : HP.Space.md))
+        .padding(.vertical, context.isRegularWidth ? HP.Space.xl : HP.Space.lg)
         .frame(maxWidth: maxContentWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .top)
     }

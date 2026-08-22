@@ -19,6 +19,10 @@ enum DHDAppConfig {
     infoString("DHD_SUPPORT_EMAIL")
   }
 
+  static var websiteHost: String? {
+    infoString("DHD_WEBSITE_HOST")
+  }
+
   static var legacyEmailDomain: String {
     infoString("DHD_LEGACY_EMAIL_DOMAIN") ?? "legacy.dhd.local"
   }

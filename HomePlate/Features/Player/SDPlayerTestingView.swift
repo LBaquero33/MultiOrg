@@ -4,6 +4,7 @@ struct SDPlayerTestingView: View {
   @EnvironmentObject private var appState: AppState
 
   @State private var entries: [SDTestingEntry] = []
+  @State private var fieldDefinitions: [SDTestingFieldDefinition] = []
   @State private var isLoading = false
   @State private var showAdd = false
   @State private var errorText: String?
@@ -90,10 +91,25 @@ struct SDPlayerTestingView: View {
         }
       }
       .sheet(isPresented: $showAdd) {
-        AddTestingEntrySheet { newEntry in
-          entries.insert(newEntry, at: 0)
+        if let playerId = appState.myProfile?.id {
+          TestingEntryFormSheet(
+            title: "Add entry",
+            playerId: playerId,
+            existing: nil,
+            fields: fieldDefinitions,
+            allowsFieldVideos: true
+          ) { newEntry in
+            entries.removeAll(where: { $0.entry_date == newEntry.entry_date })
+            entries.insert(newEntry, at: 0)
+          }
+          .environmentObject(appState)
+        } else {
+          ContentUnavailableView(
+            "Player profile unavailable",
+            systemImage: "person.crop.circle.badge.exclamationmark",
+            description: Text("Close this screen and sign in again.")
+          )
         }
-        .environmentObject(appState)
       }
       .task {
         await reload()
@@ -115,13 +131,33 @@ struct SDPlayerTestingView: View {
     do {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
-      entries = try await supabase.listTestingEntries(playerId: uid)
+      async let loadedEntries = supabase.listTestingEntries(playerId: uid)
+      if let orgId = appState.activeOrgId {
+        async let loadedFields = supabase.listTestingFieldDefinitions(orgId: orgId)
+        (entries, fieldDefinitions) = try await (loadedEntries, loadedFields)
+      } else {
+        entries = try await loadedEntries
+        fieldDefinitions = []
+      }
     } catch {
       errorText = error.localizedDescription
     }
   }
 
   private func summary(_ entry: SDTestingEntry) -> String {
+    if let values = entry.custom_values, !values.isEmpty {
+      let definitions = Dictionary(uniqueKeysWithValues: fieldDefinitions.map { ($0.field_key, $0) })
+      return values
+        .sorted {
+          (definitions[$0.key]?.sort_order ?? .max) < (definitions[$1.key]?.sort_order ?? .max)
+        }
+        .prefix(4)
+        .map { key, value in
+          let field = definitions[key]
+          return "\(field?.label ?? key.testingFieldTitle): \(value.testingDisplayValue(unit: field?.unit))"
+        }
+        .joined(separator: " • ")
+    }
     var parts: [String] = []
     if let value = entry.squat_1rm { parts.append("Squat \(fmt(value))") }
     if let value = entry.bench_1rm { parts.append("Bench \(fmt(value))") }
@@ -289,6 +325,7 @@ private struct AddTestingEntrySheet: View {
         hip_ir_diff: toDouble(hipIR),
         shoulder_ir_diff: toDouble(shoulderIR),
         shoulder_er_diff: toDouble(shoulderER),
+        custom_values: nil,
         notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes
       )
       let saved = try await supabase.upsertTestingEntry(create)

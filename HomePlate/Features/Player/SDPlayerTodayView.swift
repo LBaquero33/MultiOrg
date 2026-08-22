@@ -8,18 +8,6 @@ struct SDPlayerTodayView: View {
   }
 }
 
-private struct PlayerAvailabilityPresentation: Identifiable {
-  let id = UUID()
-  let event: SDTeamEvent
-  let draft: SDEventAvailabilityDraft
-}
-
-private struct PlayerPendingAvailability {
-  let event: SDTeamEvent
-  let draft: SDEventAvailabilityDraft
-  let requestId: UUID
-}
-
 struct SDPlayerTodayViewInternal: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.scenePhase) private var scenePhase
@@ -30,28 +18,16 @@ struct SDPlayerTodayViewInternal: View {
   @State private var template: SDProgramTemplate?
   @State private var exercises: [SDExercise] = []
   @State private var strengthLogs: [SDStrengthLog] = []
-  @State private var dailyLog: SDDailyLog?
   @State private var testingEntries: [SDTestingEntry] = []
-  @State private var teamEvents: [SDTeamEvent] = []
+  @State private var teamEvents: [SDCanonicalEvent] = []
+  @State private var eventAttendance: [UUID: Bool] = [:]
+  @State private var attendanceSavingEventIds: Set<UUID> = []
+  @State private var selectedEvent: SDCanonicalEvent?
+  @State private var changingAttendanceEventIds: Set<UUID> = []
   @State private var todayAggregate: SDTodayResponse?
   @State private var todayServiceError: String?
   @State private var todayLoadToken: UUID?
   @State private var todayPublishedContext: String?
-  @State private var eventOperations: [UUID: SDEventOperationDetailResponse] = [:]
-  @State private var practicePlans: [UUID: SDPracticePlanDetailResponse] = [:]
-  @State private var gamePlans: [UUID: SDGamePlanDetailResponse] = [:]
-  @State private var availabilityEditor: PlayerAvailabilityPresentation?
-  @State private var pendingAvailability: PlayerPendingAvailability?
-
-  @State private var comments = ""
-  @State private var feel = 5
-  @State private var gotVideo = false
-  @State private var ateBreakfast = false
-  @State private var hitDailyGoals = false
-  @State private var stuckToProcess = false
-  @State private var fellShort = ""
-  @State private var excelled = ""
-
   @State private var weightEntries: [String: [String]] = [:]
   @State private var noWeight: [String: Bool] = [:]
   @State private var setsCompleted: [String: Int] = [:]
@@ -63,7 +39,6 @@ struct SDPlayerTodayViewInternal: View {
   @State private var successToast: String?
 
   @State private var isStrengthExpanded = true
-  @State private var isSelfAssessmentExpanded = false
 
   init(initialDate: Date) {
     self.initialDate = initialDate
@@ -78,7 +53,6 @@ struct SDPlayerTodayViewInternal: View {
     } programSummary: {
       playerTodayAttentionCard
       playerBaseballDayCard
-      RegistrationFamilySummaryCard(audience: .player)
       improvementCard
       programCard
     } activities: {
@@ -88,7 +62,7 @@ struct SDPlayerTodayViewInternal: View {
     } subActivities: {
       SDPlayerBPDaySection(date: date)
     } assessment: {
-      selfAssessmentCard
+      EmptyView()
     } submission: {
       submitCard
     }
@@ -117,13 +91,14 @@ struct SDPlayerTodayViewInternal: View {
       Text(errorText ?? "")
     }
     .hpToast($successToast)
-    .sheet(item: $availabilityEditor) { presentation in
-      EventAvailabilityEditorSheet(
-        playerName: appState.myProfile?.displayName ?? "Player",
-        initial: presentation.draft
-      ) { draft, requestId in
-        availabilityEditor = nil
-        saveAvailability(event: presentation.event, draft: draft, requestId: requestId)
+    .sheet(item: $selectedEvent) { event in
+      NavigationStack {
+        GameDetailView(eventId: event.id)
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { selectedEvent = nil }
+            }
+          }
       }
     }
     .task(id: todayContextIdentity) {
@@ -142,109 +117,100 @@ struct SDPlayerTodayViewInternal: View {
   private var playerBaseballDayCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Baseball mission") {
-          HPStatusBadge(text: "\(teamEvents.count) today", kind: teamEvents.isEmpty ? .neutral : .info)
+        HPSectionHeader("Upcoming team schedule") {
+          HPStatusBadge(text: "\(teamEvents.count) upcoming", kind: teamEvents.isEmpty ? .neutral : .info)
         }
         if teamEvents.isEmpty {
-          HPEmptyState(title: "No team event", message: "No visible team mission is scheduled for this day.", systemImage: "calendar")
+          HPEmptyState(
+            title: "No upcoming team events",
+            message: "Your next practice, team event, or game will appear here.",
+            systemImage: "calendar"
+          )
         } else {
           ForEach(teamEvents) { event in
-            let detail = eventOperations[event.id]
-            let participant = detail?.participants?.first
             VStack(alignment: .leading, spacing: HP.Space.xs) {
               HStack {
-                Label(event.title, systemImage: event.event_type.systemImage)
-                  .font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(event.event_type == .game ? "NEXT GAME" : "NEXT TEAM EVENT")
+                    .font(HP.Font.eyebrow)
+                    .tracking(HP.Font.eyebrowTracking)
+                    .foregroundStyle(HP.Color.textMuted)
+                  Button { selectedEvent = event } label: {
+                    Label(event.title, systemImage: event.event_type.systemImage)
+                      .font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                  }
+                  .buttonStyle(.plain)
+                }
                 Spacer()
-                HPStatusBadge(text: detail?.operation?.status.label ?? "Not Started", kind: detail?.operation?.status == .completed ? .success : .info)
+                HPStatusBadge(text: event.status.rawValue.capitalized, kind: .info)
               }
-              Text("\(event.team_name ?? "Team") • \(event.event_type.label) • \(event.startDate.formatted(date: .omitted, time: .shortened))")
+              Text("\(event.event_type.label) • \(event.scheduled_start.formatted(date: .abbreviated, time: .shortened))")
                 .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
-              if let arrival = event.arrivalDate {
+              if let arrival = event.arrival_time {
                 Label("Arrive \(arrival.formatted(date: .omitted, time: .shortened))", systemImage: "figure.walk.arrival")
               }
               if let location = event.location_name?.sdNilIfBlank { Label(location, systemImage: "mappin") }
-              if let attire = event.uniformOrDressCode?.sdNilIfBlank { Label(attire, systemImage: "tshirt") }
-              Text("Availability: \(participant?.availability_status.label ?? "Unknown")")
-                .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
-              if event.status == .cancelled {
-                Label(event.cancellation_reason ?? "Event cancelled", systemImage: "calendar.badge.exclamationmark")
-                  .foregroundStyle(HP.Color.warning)
-              } else if event.status == .postponed {
+              if event.status == .postponed {
                 Label("Event postponed", systemImage: "clock.badge.exclamationmark")
                   .foregroundStyle(HP.Color.warning)
               }
-              Button("Update Availability") {
-                availabilityEditor = PlayerAvailabilityPresentation(
-                  event: event,
-                  draft: availabilityDraft(participant)
-                )
-              }
-              .buttonStyle(.bordered).frame(minHeight: 44)
-              .disabled(
-                detail?.operation?.status == .completed ||
-                  [.completed, .cancelled, .postponed].contains(event.status)
-              )
-              ForEach(detail?.notes ?? []) { note in
-                if note.visibility == "team" || note.subject_player_id == appState.myProfile?.id {
-                  Text(note.body).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              if let attending = eventAttendance[event.id], !changingAttendanceEventIds.contains(event.id) {
+                HStack(spacing: HP.Space.sm) {
+                  HPStatusBadge(text: attending ? "Coming" : "Not Coming", kind: attending ? .success : .danger)
+                  Button("Change") { changingAttendanceEventIds.insert(event.id) }
+                    .font(HP.Font.caption.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(HP.Color.accent)
                 }
-              }
-              if event.event_type == .practice, let practice = practicePlans[event.id], let plan = practice.plan {
-                VStack(alignment: .leading, spacing: HP.Space.xs) {
-                  Text("Practice: \(plan.title)").font(HP.Font.callout.weight(.semibold))
-                  if !plan.objectives.isEmpty { Text(plan.objectives.joined(separator: " • ")) }
-                  ForEach(practice.groups) { group in Text("Your group: \(group.name)") }
-                  ForEach(practice.blocks.filter { $0.visibility != "staff_only" }) { block in
-                    Text("\(block.title) • \(block.duration_minutes)m")
-                  }
-                  ForEach(practice.equipment.filter { $0.visibility == "player_visible" }) { item in
-                    Label("Bring \(item.quantity)× \(item.name)", systemImage: "shippingbox")
-                  }
+              } else {
+                HStack(spacing: HP.Space.sm) {
+                  attendanceButton(
+                    event: event,
+                    title: "Coming",
+                    systemImage: "checkmark.circle.fill",
+                    color: .green,
+                    selected: eventAttendance[event.id] == true,
+                    attending: true
+                  )
+                  attendanceButton(
+                    event: event,
+                    title: "Not Coming",
+                    systemImage: "xmark.circle.fill",
+                    color: .red,
+                    selected: eventAttendance[event.id] == false,
+                    attending: false
+                  )
                 }
-                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-              }
-              if event.event_type == .game, let game = gamePlans[event.id], let plan = game.plan {
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("Game plan: \(plan.status.label) • \(plan.lineup_mode.label)")
-                    .font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
-                  ForEach(game.batting_order ?? []) { entry in
-                    Text("Your batting assignment: \(entry.batting_slot.map { "#\($0)" } ?? "Bench") • \(entry.offensive_role.label)")
-                  }
-                  ForEach(game.defense ?? []) { assignment in
-                    Text("\(assignment.inning_number == 0 ? "Starting defense" : "Inning \(assignment.inning_number)"): \(assignment.position_label?.sdNilIfBlank ?? assignment.position_code)")
-                  }
-                  ForEach(game.pitcher_catcher ?? []) { assignment in
-                    Text(assignment.role_type.replacingOccurrences(of: "_", with: " ").capitalized)
-                  }
-                  if let result = game.result {
-                    Text(result.team_score.flatMap { team in result.opponent_score.map { "Final: \(team)–\($0)" } } ?? "Game completed")
-                  }
-                  ForEach(game.recaps ?? []) { recap in Text(recap.body) }
-                }
-                .font(HP.Font.caption).foregroundStyle(HP.Color.text)
-              }
-              if detail?.operation?.status == .completed, detail?.notes?.contains(where: { $0.note_type == "post_event_recap" }) != true {
-                Text("Event complete. No visible recap has been published.")
-                  .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
               }
             }
             .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
             if event.id != teamEvents.last?.id { Divider() }
           }
         }
-        if let pendingAvailability {
-          VStack(alignment: .leading, spacing: HP.Space.xs) {
-            Text("Availability update awaiting confirmation.")
-              .font(HP.Font.caption).foregroundStyle(HP.Color.warning)
-            Button("Retry Availability") {
-              saveAvailability(event: pendingAvailability.event, draft: pendingAvailability.draft, requestId: pendingAvailability.requestId)
-            }
-            .buttonStyle(.bordered)
-          }
-        }
       }
     }
+  }
+
+  private func attendanceButton(
+    event: SDCanonicalEvent,
+    title: String,
+    systemImage: String,
+    color: Color,
+    selected: Bool,
+    attending: Bool
+  ) -> some View {
+    Button {
+      respondToEvent(event, attending: attending)
+    } label: {
+      Label(title, systemImage: systemImage)
+        .font(HP.Font.callout.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .foregroundStyle(selected ? Color.white : color)
+        .background(selected ? color : color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md))
+    }
+    .buttonStyle(.plain)
+    .disabled(attendanceSavingEventIds.contains(event.id) || event.status == .postponed)
   }
 
   @ViewBuilder private var playerTodayAttentionCard: some View {
@@ -276,15 +242,6 @@ struct SDPlayerTodayViewInternal: View {
         }
       }
     }
-  }
-
-  private func availabilityDraft(_ participant: SDEventOperationParticipant?) -> SDEventAvailabilityDraft {
-    SDEventAvailabilityDraft(
-      status: participant?.availability_status ?? .unknown,
-      reason: participant?.availability_reason ?? "",
-      expectedArrival: SDEventOperationDateParser.date(participant?.expected_arrival_at),
-      expectedDeparture: SDEventOperationDateParser.date(participant?.expected_departure_at)
-    )
   }
 
   private var scheduleContext: SDProgramSchedule.DayContext? {
@@ -328,11 +285,6 @@ struct SDPlayerTodayViewInternal: View {
           HPLoadingState()
         }
 
-        if (appState.myProfile?.isCoach == false) {
-          HPButton(title: "Enable Coach Mode (allowlist)", variant: .secondary, size: .sm) {
-            Task { await appState.promoteMeToCoach() }
-          }
-        }
       }
     }
   }
@@ -414,45 +366,6 @@ struct SDPlayerTodayViewInternal: View {
     }
   }
 
-  private var selfAssessmentCard: some View {
-    HPCard {
-      DisclosureGroup(isExpanded: $isSelfAssessmentExpanded) {
-        VStack(alignment: .leading, spacing: HP.Space.sm) {
-          Toggle("Did I get video today?", isOn: $gotVideo)
-          Toggle("Did I eat breakfast?", isOn: $ateBreakfast)
-          Toggle("Did I hit my daily goals?", isOn: $hitDailyGoals)
-          Toggle("Did I stick to my process?", isOn: $stuckToProcess)
-
-          HPFormField(label: "Where did I fall short? (optional)", text: $fellShort,
-                      kind: .multiline, placeholder: "Optional")
-          HPFormField(label: "How did I excel? (optional)", text: $excelled,
-                      kind: .multiline, placeholder: "Optional")
-
-          if scheduleContext?.isScheduled == true {
-            HPFormField(label: "Comments (optional)", text: $comments,
-                        kind: .multiline, placeholder: "Optional")
-            VStack(alignment: .leading, spacing: 6) {
-              Text("How did you feel? (\(feel))")
-                .font(HP.Font.caption.weight(.semibold))
-                .foregroundStyle(HP.Color.textMuted)
-              Slider(value: Binding(get: { Double(feel) }, set: { feel = Int($0.rounded()) }), in: 1...10, step: 1)
-                .tint(HP.Color.accent)
-            }
-          }
-        }
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.text)
-        .tint(HP.Color.accent)
-        .padding(.top, HP.Space.sm)
-      } label: {
-        Text("Self assessment")
-          .font(HP.Font.headline)
-          .foregroundStyle(HP.Color.text)
-      }
-      .tint(HP.Color.accent)
-    }
-  }
-
   private var improvementCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
@@ -519,26 +432,19 @@ struct SDPlayerTodayViewInternal: View {
   private var submitCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPButton(title: "Submit day", variant: .primary, size: .lg,
+        HPButton(title: "Save workout", variant: .primary, size: .lg,
                  isLoading: isSaving, fullWidth: true) {
           Task { await submitDay() }
         }
 
-        if scheduleContext?.isScheduled == true {
-          Text("Submitting saves your self assessment and any lift logs for today.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-        } else {
-          Text("Submitting saves your self assessment for today.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-        }
+        Text("Save the sets, weights, custom results, and notes entered above.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
       }
     }
   }
 
   private var isDaySaved: Bool {
-    if dailyLog != nil { return true }
     if !strengthLogs.isEmpty { return true }
     return false
   }
@@ -549,15 +455,6 @@ struct SDPlayerTodayViewInternal: View {
   }
 
   private func hydrateFromExistingLogs() {
-    comments = dailyLog?.comments ?? ""
-    feel = dailyLog?.feel ?? 5
-    gotVideo = dailyLog?.got_video ?? false
-    ateBreakfast = dailyLog?.ate_breakfast ?? false
-    hitDailyGoals = dailyLog?.hit_daily_goals ?? false
-    stuckToProcess = dailyLog?.stuck_to_process ?? false
-    fellShort = dailyLog?.fell_short ?? ""
-    excelled = dailyLog?.excelled ?? ""
-
     var weights: [String: [String]] = [:]
     var nw: [String: Bool] = [:]
     var sc: [String: Int] = [:]
@@ -626,90 +523,64 @@ struct SDPlayerTodayViewInternal: View {
     do {
       let session = try await supabase.client.auth.session
       let playerId = session.user.id
-      let start = DateUtils.startOfDayET(date)
-      let end = DateUtils.calendarET.date(byAdding: .day, value: 1, to: start)!
-      let loadedTeamEvents = try await supabase.listTeamEvents(
+      let start = DateUtils.startOfDayET(max(date, Date()))
+      let end = DateUtils.calendarET.date(byAdding: .day, value: 90, to: start)!
+      let upcomingEvents = try await supabase.listCanonicalEvents(
         organizationId: organizationId,
-        teamId: nil,
-        playerId: playerId,
-        rangeStart: start,
-        rangeEnd: end
-      ).filter { $0.status != .draft }
+        from: start,
+        through: end
+      )
+      .filter { ![.draft, .canceled].contains($0.status) && $0.scheduled_start >= start }
+      .sorted { $0.scheduled_start < $1.scheduled_start }
+
+      var loadedTeamEvents: [SDCanonicalEvent] = []
+      if let nextTeamEvent = upcomingEvents.first {
+        loadedTeamEvents.append(nextTeamEvent)
+      }
+      if let nextGame = upcomingEvents.first(where: { $0.event_type == .game }),
+         !loadedTeamEvents.contains(where: { $0.id == nextGame.id }) {
+        loadedTeamEvents.append(nextGame)
+      }
       guard context == todayContextIdentity, !Task.isCancelled else { return }
-      var details: [UUID: SDEventOperationDetailResponse] = [:]
-      var plans: [UUID: SDPracticePlanDetailResponse] = [:]
-      var games: [UUID: SDGamePlanDetailResponse] = [:]
+
+      var loadedAttendance: [UUID: Bool] = [:]
       for event in loadedTeamEvents {
         guard context == todayContextIdentity, !Task.isCancelled else { return }
-        do {
-          details[event.id] = try await supabase.eventOperation(
-            organizationId: organizationId,
-            eventId: event.id,
-            playerId: playerId
-          )
-        } catch {
-          // A canonical event can truthfully exist before its day-operation row.
-          // Keep the mission visible so the first availability declaration can
-          // initialize the operation deterministically on the server.
-          details[event.id] = SDEventOperationDetailResponse(
-            ok: true,
-            operation: nil,
-            participants: [],
-            checklist: [],
-            notes: [],
-            initialized: nil,
-            replayed: nil
-          )
-        }
-        if event.event_type == .practice {
-          plans[event.id] = try? await supabase.practicePlan(
-            organizationId: organizationId,
-            eventId: event.id,
-            playerId: playerId
-          )
-        }
-        if event.event_type == .game {
-          games[event.id] = try? await supabase.gamePlan(
-            organizationId: organizationId,
-            eventId: event.id,
-            playerId: playerId
-          )
+        if let response = try await supabase.listEventAttendance(
+          eventId: event.id,
+          organizationId: organizationId
+        ).first(where: { $0.player_id == playerId }),
+           let attending = response.expected_attendance {
+          loadedAttendance[event.id] = attending
         }
       }
       guard context == todayContextIdentity, !Task.isCancelled else { return }
       teamEvents = loadedTeamEvents
-      eventOperations = details
-      practicePlans = plans
-      gamePlans = games
+      eventAttendance = loadedAttendance
     } catch {
       guard context == todayContextIdentity, !Task.isCancelled else { return }
-      eventOperations = [:]
-      practicePlans = [:]
-      gamePlans = [:]
       errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
 
-  private func saveAvailability(event: SDTeamEvent, draft: SDEventAvailabilityDraft, requestId: UUID) {
+  private func respondToEvent(_ event: SDCanonicalEvent, attending: Bool) {
     Task {
       guard let supabase = appState.supabase, let organizationId = appState.activeOrgId else { return }
+      attendanceSavingEventIds.insert(event.id)
+      defer { attendanceSavingEventIds.remove(event.id) }
       do {
         let playerId = try await supabase.client.auth.session.user.id
-        let participant = eventOperations[event.id]?.participants?.first
-        _ = try await supabase.updateEventAvailability(
-          organizationId: organizationId,
+        _ = try await supabase.setExpectedGameAttendance(
           eventId: event.id,
+          organizationId: organizationId,
           playerId: playerId,
-          participantVersion: participant?.version,
-          draft: draft,
-          requestId: requestId
+          attending: attending
         )
-        pendingAvailability = nil
-        await reloadBaseballDay()
-        success("Availability saved.")
+        eventAttendance[event.id] = attending
+        changingAttendanceEventIds.remove(event.id)
+        success(attending ? "You’re marked as coming." : "You’re marked as not coming.")
       } catch {
-        pendingAvailability = PlayerPendingAvailability(event: event, draft: draft, requestId: requestId)
-        errorText = "Availability was not confirmed. The change remains available to retry."
+        errorText = "Your response could not be saved. Please try again."
       }
     }
   }
@@ -742,7 +613,6 @@ struct SDPlayerTodayViewInternal: View {
     do {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
-      dailyLog = try await supabase.fetchDailyLog(playerId: uid, dateISO: dateISO)
       strengthLogs = try await supabase.fetchStrengthLogs(playerId: uid, dateISO: dateISO)
 
       if let assignment, let template {
@@ -787,25 +657,6 @@ struct SDPlayerTodayViewInternal: View {
     } catch {
       // Non-fatal; Today can render without this.
     }
-  }
-
-  private func upsertDailyLogOnly() async throws {
-    guard let supabase = appState.supabase else { return }
-    let session = try await supabase.client.auth.session
-    let uid = session.user.id
-    var payload: [String: AnyEncodable] = [
-      "got_video": AnyEncodable(gotVideo),
-      "ate_breakfast": AnyEncodable(ateBreakfast),
-      "hit_daily_goals": AnyEncodable(hitDailyGoals),
-      "stuck_to_process": AnyEncodable(stuckToProcess),
-      "fell_short": AnyEncodable(fellShort.trimmingCharacters(in: .whitespacesAndNewlines)),
-      "excelled": AnyEncodable(excelled.trimmingCharacters(in: .whitespacesAndNewlines)),
-    ]
-    if scheduleContext?.isScheduled == true {
-      payload["comments"] = AnyEncodable(comments.trimmingCharacters(in: .whitespacesAndNewlines))
-      payload["feel"] = AnyEncodable(feel)
-    }
-    dailyLog = try await supabase.upsertDailyLog(playerId: uid, dateISO: dateISO, payload: payload, orgId: appState.activeOrgId)
   }
 
   private func submitDay() async {
@@ -862,7 +713,6 @@ struct SDPlayerTodayViewInternal: View {
         }
       }
 
-      try await upsertDailyLogOnly()
       await reloadDay()
       success("Saved.")
     } catch {

@@ -123,11 +123,13 @@ class FakeFinanceStore implements FinanceDashboardStore {
     return this.refundRows;
   }
   async createExpense(
-    _org: string,
+    org: string,
     _actor: string,
-    _input: FinanceExpenseInput,
+    input: FinanceExpenseInput,
   ): Promise<FinanceExpenseRecord> {
-    throw new Error("not used by Phase 8A tests");
+    const expense = makeExpense({ org_id: org, ...input });
+    this.expenseRows.push(expense);
+    return expense;
   }
   async updateExpense(
     _org: string,
@@ -144,6 +146,43 @@ class FakeFinanceStore implements FinanceDashboardStore {
   ): Promise<FinanceExpenseRecord> {
     throw new Error("not used by Phase 8A tests");
   }
+  async setExpenseReceipt(
+    _org: string,
+    _actor: string,
+    expenseId: string,
+    receiptPath: string,
+  ): Promise<FinanceExpenseRecord> {
+    const expense = this.expenseRows.find((row) => row.id === expenseId);
+    if (!expense) throw new Error("expense not found");
+    expense.receipt_path = receiptPath;
+    return expense;
+  }
+}
+
+function makeExpense(
+  overrides: Partial<FinanceExpenseRecord> = {},
+): FinanceExpenseRecord {
+  return {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000301",
+    org_id: orgId,
+    category: "Facility Rent",
+    category_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000701",
+    description: "Cage rental",
+    amount_cents: 1_000,
+    currency: "usd",
+    expense_date: "2026-07-08",
+    vendor: "Marist",
+    notes: "July session",
+    payment_method: "card",
+    team_id: null,
+    recurring: false,
+    receipt_path: null,
+    created_at: "2026-07-08T12:00:00.000Z",
+    updated_at: "2026-07-08T12:00:00.000Z",
+    archived_at: null,
+    archived_by: null,
+    ...overrides,
+  };
 }
 
 async function call(
@@ -216,21 +255,7 @@ function populatedStore() {
       null,
     ),
   ];
-  store.expenseRows = [{
-    id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000301",
-    org_id: orgId,
-    category: "facilities",
-    description: "Cage rental",
-    amount_cents: 1_000,
-    currency: "usd",
-    expense_date: "2026-07-08",
-    vendor: "Marist",
-    notes: "July session",
-    created_at: "2026-07-08T12:00:00.000Z",
-    updated_at: "2026-07-08T12:00:00.000Z",
-    archived_at: null,
-    archived_by: null,
-  }];
+  store.expenseRows = [makeExpense()];
   store.refundRows = [{
     id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000401",
     org_id: orgId,
@@ -402,6 +427,58 @@ Deno.test("expense and refund actions are read-only typed lists", async () => {
   assertEqual((refunds.json.refunds as unknown[]).length, 2, "refund count");
 });
 
+Deno.test("owner can create an expense with typed category, team, and recurring fields", async () => {
+  const store = populatedStore();
+  const result = await call(store, {
+    action: "create_expense",
+    org_id: orgId,
+    category: "League Fees",
+    category_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000702",
+    description: "Fall league entry",
+    amount_cents: 12_500,
+    currency: "usd",
+    expense_date: "2026-07-14",
+    vendor: "League",
+    notes: null,
+    payment_method: "ACH",
+    team_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000801",
+    recurring: false,
+  });
+  assertEqual(result.response.status, 200, "status");
+  const expense = result.json.expense as Record<string, unknown>;
+  assertEqual(expense.category, "League Fees", "category snapshot");
+  assertEqual(expense.payment_method, "ACH", "payment method");
+  assertEqual(expense.recurring, false, "recurring");
+});
+
+Deno.test("coach cannot create organization expenses", async () => {
+  const store = populatedStore();
+  store.actorId = coachId;
+  store.setMembership(orgId, coachId, "coach");
+  const result = await call(store, {
+    action: "create_expense",
+    org_id: orgId,
+    category: "Equipment",
+    description: "Baseballs",
+    amount_cents: 5_000,
+    currency: "usd",
+    expense_date: "2026-07-14",
+  });
+  assertEqual(result.response.status, 403, "status");
+});
+
+Deno.test("receipt path must remain inside the selected organization", async () => {
+  const store = populatedStore();
+  const result = await call(store, {
+    action: "set_expense_receipt",
+    org_id: orgId,
+    expense_id: store.expenseRows[0].id,
+    receipt_path: `${otherOrgId}/receipt.pdf`,
+  });
+  assertEqual(result.response.status, 400, "status");
+  assertEqual(result.json.error, "invalid_receipt_path", "error");
+});
+
 Deno.test("week, month, quarter, year, and inclusive custom UTC boundaries are exact", () => {
   const expected: Record<string, [string, string]> = {
     this_week: ["2026-07-13", "2026-07-19"],
@@ -450,7 +527,7 @@ Deno.test("client-supplied roles, platform flags, and totals are rejected", asyn
   }
 });
 
-Deno.test("production finance adapter is JWT verified, service-read-only, and has no Stripe API call", async () => {
+Deno.test("production finance adapter is JWT verified, scoped, and has no Stripe API call", async () => {
   const source = await Deno.readTextFile(
     new URL("../finance-dashboard/index.ts", import.meta.url),
   );
@@ -479,8 +556,18 @@ Deno.test("production finance adapter is JWT verified, service-read-only, and ha
   assert(source.includes('.from("sd_payment_requests")'), "request reads");
   assert(source.includes('.from("sd_expenses")'), "expense reads");
   assert(source.includes('.from("sd_refunds")'), "refund reads");
-  assert(!source.includes(".insert("), "no insert");
-  assert(!source.includes(".update("), "no update");
+  assert(
+    source.includes("sd_create_expense"),
+    "authenticated expense create RPC",
+  );
+  assert(
+    source.includes("sd_update_expense"),
+    "authenticated expense update RPC",
+  );
+  assert(
+    source.includes("sd_archive_expense"),
+    "authenticated expense archive RPC",
+  );
   assert(!source.includes(".delete("), "no delete");
   assert(!source.includes("api.stripe.com"), "no Stripe API");
   assert(

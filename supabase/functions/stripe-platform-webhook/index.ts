@@ -1,8 +1,9 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { env, json } from "../_shared/org_billing.ts";
 import { stripeRequest, stripeSubscriptionSnapshot, stripeUnixToIso, verifyStripeSignature } from "../_shared/stripe.ts";
 
 type StripeSubscription = Record<string, any>;
+type AdminClient = SupabaseClient<any, "public", any>;
 
 function stripeId(value: unknown): string | null {
   if (typeof value === "string") return value;
@@ -32,7 +33,7 @@ function subscriptionPayload(subscription: StripeSubscription, orgId: string) {
   };
 }
 
-async function resolveOrgId(admin: ReturnType<typeof createClient>, subscription: StripeSubscription, fallbackMetadata: Record<string, any> = {}) {
+async function resolveOrgId(admin: AdminClient, subscription: StripeSubscription, fallbackMetadata: Record<string, any> = {}) {
   const metadataOrgId = String(subscription.metadata?.org_id ?? fallbackMetadata.org_id ?? "").trim();
   if (metadataOrgId) return metadataOrgId;
   const customerId = stripeId(subscription.customer);
@@ -42,7 +43,7 @@ async function resolveOrgId(admin: ReturnType<typeof createClient>, subscription
   return data?.org_id ? String(data.org_id) : null;
 }
 
-async function synchronizeSubscription(admin: ReturnType<typeof createClient>, secret: string, subscriptionId: string, metadata: Record<string, any> = {}) {
+async function synchronizeSubscription(admin: AdminClient, secret: string, subscriptionId: string, metadata: Record<string, any> = {}) {
   const subscription = await stripeRequest<StripeSubscription>(secret, `/subscriptions/${encodeURIComponent(subscriptionId)}`);
   const orgId = await resolveOrgId(admin, subscription, metadata);
   if (!orgId) throw new Error("organization_resolution_failed");
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
   let ledgerId = existing?.id as string | undefined;
   if (ledgerId) {
     const { error } = await admin.from("sd_webhook_events").update({
-      processing_status: "processing", attempt_count: Number(existing.attempt_count ?? 0) + 1, error_message: null,
+      processing_status: "processing", attempt_count: Number(existing?.attempt_count ?? 0) + 1, error_message: null,
     }).eq("id", ledgerId);
     if (error) return json(500, { error: "webhook_ledger_update_failed" });
   } else {

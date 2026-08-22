@@ -172,6 +172,8 @@ struct PlayerHomeView: View {
       SDPlayerTodayView()
     case .playerCalendar:
       PlayerUnifiedCalendarView()
+    case .playerProgram:
+      SDPlayerProgramView()
     case .chat:
       ChatChannelListView()
     case .playerFacilities:
@@ -188,6 +190,8 @@ struct PlayerHomeView: View {
       } else {
         SDPlayerTodayView()
       }
+    case .payments:
+      NavigationStack { AccountView() }
     case .account:
       NavigationStack { AccountView() }
     default:

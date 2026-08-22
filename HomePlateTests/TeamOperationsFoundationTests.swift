@@ -63,7 +63,7 @@ struct TeamOperationsFoundationTests {
     ) == nil)
   }
 
-  @Test("coach iPhone inventory is Today Team Schedule More")
+  @Test("coach iPhone inventory matches the website menu")
   func compactNavigation() {
     let inventory = HPAppNavigationInventory.staff(
       playersTitle: "Players",
@@ -75,10 +75,11 @@ struct TeamOperationsFoundationTests {
       canAdministerOrganization: false,
       isPlatformAdmin: false
     )
-    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeam, .coachSchedule])
-    #expect(inventory.compactTabCountIncludingDirectory == 4)
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
+    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .account])
     #expect(inventory.defaultDestination == .coachToday)
-    #expect(!inventory.directoryItems.contains(where: { $0.destination == .coachPlayers }))
+    #expect(inventory.regularItems.contains(where: { $0.destination == .coachPlayers }))
   }
 
   @Test("team selector is a label for one team and a compact menu for multiple teams")
@@ -179,16 +180,14 @@ struct TeamOperationsFoundationTests {
     ).validationIssue == .missingOrganization)
   }
 
-  @Test("Teams and Seasons uses focused workspaces and scoped errors")
+  @Test("Teams uses a focused workspace and scoped errors")
   func teamOperationsUsabilityContracts() throws {
     let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     #expect(source.contains("HPWorkspaceHeader("))
-    #expect(source.contains("teamsAndSeasonsWorkspace"))
-    #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)"))
+    #expect(source.contains("teamsWorkspace"))
+    #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)") == false)
     #expect(source.contains(".sheet(isPresented: $isShowingTeamEditor)"))
-    #expect(source.contains("activeMutations.contains(.season)"))
     #expect(source.contains("This action is not available in the current environment."))
-    #expect(source.contains("DatePicker(\"Start date\""))
     #expect(source.contains(".alert(\"Team Operations\"") == false)
     #expect(source.contains("error.localizedDescription") == false)
   }
@@ -237,12 +236,14 @@ struct TeamOperationsFoundationTests {
     #expect(migration.contains("sd_team_operations_audit_logs"))
   }
 
-  @Test("Mac destination shell owns notification chrome and one vertical screen scroll")
+  @Test("destination shell owns one website-style navigation chrome")
   func macShellContract() throws {
     let root = try sourceFile("HomePlate/App/RootView.swift")
     let shell = try sourceFile("HomePlate/Features/Home/HomePlateNavigationShell.swift")
     let scaffold = try sourceFile("HomePlate/DesignSystem/Templates/HPScreenScaffold.swift")
-    #expect(root.contains("#if os(iOS)\n    .safeAreaInset(edge: .top"))
+    #expect(!root.contains(".safeAreaInset(edge: .top"))
+    #expect(shell.contains("mobileHeader"))
+    #expect(shell.contains("mobileMenu"))
     #expect(shell.contains("ToolbarItem(placement: .primaryAction)"))
     #expect(scaffold.contains(".contentMargins(.top, HP.Space.lg, for: .scrollContent)"))
   }
@@ -288,7 +289,7 @@ struct TeamOperationsFoundationTests {
     let admin = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     #expect(admin.contains("case overview = \"Overview\""))
     #expect(admin.contains("case people = \"People\""))
-    #expect(admin.contains("case teamsAndSeasons = \"Teams & Seasons\""))
+    #expect(admin.contains("case teams = \"Teams\""))
     #expect(admin.contains("case business = \"Business\""))
     #expect(admin.contains("case settings = \"Settings\""))
     #expect(admin.contains("organizationOperationsSection(.registration)"))
@@ -380,8 +381,8 @@ struct TeamOperationsFoundationTests {
       facilitiesTitle: "Facilities",
       testingTitle: "Testing"
     )
-    #expect(player.compactItems.map(\.title) == ["Today", "Calendar", "Trends", "Chat"])
-    #expect(player.compactTabCountIncludingDirectory == 5)
+    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
+    #expect(player.compactItems.isEmpty)
 
     let coach = HPAppNavigationInventory.staff(
       playersTitle: "Players",
@@ -393,8 +394,8 @@ struct TeamOperationsFoundationTests {
       canAdministerOrganization: false,
       isPlatformAdmin: false
     )
-    #expect(coach.compactItems.map(\.title) == ["Today", "Team", "Schedule"])
-    #expect(coach.compactTabCountIncludingDirectory == 4)
+    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Account"])
+    #expect(coach.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
 
     let owner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities",
@@ -404,21 +405,19 @@ struct TeamOperationsFoundationTests {
       programsEnabled: true,
       isPlatformAdmin: false
     )
-    #expect(owner.compactItems.map(\.title) == ["Team", "Schedule", "Chat", "Finances"])
-    #expect(owner.compactTabCountIncludingDirectory == 5)
-    #expect(owner.defaultDestination == .coachTeam)
-    #expect(owner.item(for: .coachTeam)?.workspaceScope == .selectedTeam)
-    #expect(!owner.regularItems.contains(where: { $0.destination == .coachToday }))
-    #expect(owner.regularItems.contains(where: { $0.title == "Team" }))
+    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Organization Settings", "Account"])
+    #expect(owner.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
+    #expect(owner.defaultDestination == .coachToday)
+    #expect(owner.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
+    #expect(owner.regularItems.contains(where: { $0.destination == .coachToday }))
     #expect(owner.regularItems.contains(where: { $0.title == "Teams" }))
-    #expect(owner.regularItems.contains(where: { $0.title == "Finances" }))
+    #expect(owner.regularItems.contains(where: { $0.title == "Payments" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
     #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin }))
-    #expect(owner.directoryItems.contains(where: { $0.destination == .organizationAdmin }))
+    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
     #expect(!owner.regularItems.contains(where: { $0.destination == .platformAdmin }))
-    #expect(owner.regularSections.contains(where: { $0.title == "Operate" }))
-    #expect(owner.regularSections.contains(where: { $0.title == "Administer" }))
+    #expect(owner.regularSections.map(\.title) == ["Daily Work", "Team Operations", "Communication", "Administration"])
 
     let platformOwner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities",
@@ -500,28 +499,23 @@ final class Phase12UnavailableStateRenderTests: XCTestCase {
     window.rootViewController = nil
   }
 
-  func testRenderCreateSeasonRepresentativeStates() throws {
+  func testRenderCreateTeamRepresentativeStates() throws {
     try assertRenders(AnyView(
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
-          HPSectionHeader("Seasons")
-          HPFormField(label: "Season name", text: .constant("2027 Spring"), placeholder: "2027 Spring")
-          DatePicker("Start date", selection: .constant(Date()), displayedComponents: .date)
-          DatePicker("End date", selection: .constant(Date()), displayedComponents: .date)
-          Picker("Lifecycle", selection: .constant(SDSeasonLifecycle.planning)) {
-            Text("Planning").tag(SDSeasonLifecycle.planning)
-          }
-          Toggle("Default season", isOn: .constant(true))
-          HPButton(title: "Create Season", systemImage: "plus", variant: .primary, size: .md) {}
+          HPSectionHeader("Teams")
+          HPFormField(label: "Team name", text: .constant("10U Navy"), placeholder: "Team name")
+          HPFormField(label: "Age group", text: .constant("10U"), placeholder: "Optional")
+          HPButton(title: "Create Team", systemImage: "plus", variant: .primary, size: .md) {}
         }
       }
     ))
     try assertRenders(AnyView(
       HPCard {
         VStack(spacing: HP.Space.sm) {
-          HPFormField(label: "Season name", text: .constant(""), placeholder: "2027 Spring")
-          Text("Enter a season name.").foregroundStyle(HP.Color.warning)
-          HPButton(title: "Create Season", variant: .primary, size: .md) {}
+          HPFormField(label: "Team name", text: .constant(""), placeholder: "Team name")
+          Text("Enter a team name.").foregroundStyle(HP.Color.warning)
+          HPButton(title: "Create Team", variant: .primary, size: .md) {}
             .disabled(true)
         }
       }
@@ -529,7 +523,7 @@ final class Phase12UnavailableStateRenderTests: XCTestCase {
     try assertRenders(AnyView(
       HPCard {
         HPErrorState(
-          title: "The season could not be created.",
+          title: "The team could not be created.",
           message: "This action is not available in the current environment.",
           onRetry: {}
         )
@@ -543,9 +537,9 @@ final class Phase12UnavailableStateRenderTests: XCTestCase {
         HPWorkspaceHeader(
           "Team Management",
           orgLabel: "Red Foxes",
-          context: "Organization Administration · 2027 Spring · Organization-wide"
+          context: "Organization Administration · Organization-wide"
         )
-        HPCard { HPLoadingState(text: "Creating season…") }
+        HPCard { HPLoadingState(text: "Loading teams…") }
       }
     ), width: 720, height: 420)
 

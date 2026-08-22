@@ -77,14 +77,31 @@ function decodeExpenseMutation(value: unknown): FinanceExpenseRecord {
     throw new FinanceDashboardStoreError("expense_mutation_failed");
   }
   const category = nullableString(expense.category);
+  const categoryId = expense.category_id === undefined
+    ? null
+    : nullableString(expense.category_id);
   const description = nullableString(expense.description);
   const vendor = nullableString(expense.vendor);
   const notes = nullableString(expense.notes);
+  const paymentMethod = expense.payment_method === undefined
+    ? null
+    : nullableString(expense.payment_method);
+  const teamId = expense.team_id === undefined
+    ? null
+    : nullableString(expense.team_id);
+  const receiptPath = expense.receipt_path === undefined
+    ? null
+    : nullableString(expense.receipt_path);
+  const recurring = expense.recurring === undefined ? false : expense.recurring;
   const archivedAt = nullableString(expense.archived_at);
   const archivedBy = nullableString(expense.archived_by);
   if (
-    category === undefined || description === undefined ||
+    category === undefined || categoryId === undefined ||
+    description === undefined ||
     vendor === undefined || notes === undefined ||
+    paymentMethod === undefined || teamId === undefined ||
+    receiptPath === undefined ||
+    typeof recurring !== "boolean" ||
     archivedAt === undefined || archivedBy === undefined
   ) {
     throw new FinanceDashboardStoreError("expense_mutation_failed");
@@ -93,12 +110,17 @@ function decodeExpenseMutation(value: unknown): FinanceExpenseRecord {
     id: expense.id as string,
     org_id: expense.org_id as string,
     category,
+    category_id: categoryId,
     description,
     amount_cents: expense.amount_cents as number,
     currency: expense.currency as string,
     expense_date: expense.expense_date as string,
     vendor,
     notes,
+    payment_method: paymentMethod,
+    team_id: teamId,
+    recurring: recurring as boolean,
+    receipt_path: receiptPath,
     created_at: expense.created_at as string,
     updated_at: expense.updated_at as string,
     archived_at: archivedAt,
@@ -195,6 +217,40 @@ function makeStore(): FinanceDashboardStore {
     p_vendor: input.vendor,
     p_notes: input.notes,
   });
+
+  const decorateExpense = async (
+    orgId: string,
+    expense: FinanceExpenseRecord,
+    input: FinanceExpenseInput,
+  ): Promise<FinanceExpenseRecord> => {
+    const { data, error } = await admin.from("sd_expenses").update({
+      category_id: input.category_id,
+      payment_method: input.payment_method,
+      team_id: input.team_id,
+      recurring: input.recurring,
+    }).eq("id", expense.id).eq("org_id", orgId).select([
+      "id",
+      "org_id",
+      "category",
+      "category_id",
+      "description",
+      "amount_cents",
+      "currency",
+      "expense_date",
+      "vendor",
+      "notes",
+      "payment_method",
+      "team_id",
+      "recurring",
+      "receipt_path",
+      "created_at",
+      "updated_at",
+      "archived_at",
+      "archived_by",
+    ].join(",")).single();
+    if (error) throw new FinanceDashboardStoreError("expense_mutation_failed");
+    return decodeExpenseMutation({ expense: data });
+  };
 
   return {
     async authenticate(request) {
@@ -332,12 +388,17 @@ function makeStore(): FinanceDashboardStore {
           "id",
           "org_id",
           "category",
+          "category_id",
           "description",
           "amount_cents",
           "currency",
           "expense_date",
           "vendor",
           "notes",
+          "payment_method",
+          "team_id",
+          "recurring",
+          "receipt_path",
           "created_at",
           "updated_at",
           "archived_at",
@@ -384,17 +445,19 @@ function makeStore(): FinanceDashboardStore {
     },
 
     async createExpense(orgId, actorId, input) {
-      return await mutateExpense(
+      const expense = await mutateExpense(
         "sd_create_expense",
         expenseParameters(orgId, actorId, input),
       );
+      return await decorateExpense(orgId, expense, input);
     },
 
     async updateExpense(orgId, actorId, expenseId, input) {
-      return await mutateExpense("sd_update_expense", {
+      const expense = await mutateExpense("sd_update_expense", {
         ...expenseParameters(orgId, actorId, input),
         p_expense_id: expenseId,
       });
+      return await decorateExpense(orgId, expense, input);
     },
 
     async archiveExpense(orgId, actorId, expenseId) {
@@ -403,6 +466,38 @@ function makeStore(): FinanceDashboardStore {
         p_actor_id: actorId,
         p_expense_id: expenseId,
       });
+    },
+
+    async setExpenseReceipt(orgId, _actorId, expenseId, receiptPath) {
+      const { data, error } = await admin.from("sd_expenses").update({
+        receipt_path: receiptPath,
+      }).eq("org_id", orgId).eq("id", expenseId).is("archived_at", null).select(
+        [
+          "id",
+          "org_id",
+          "category",
+          "category_id",
+          "description",
+          "amount_cents",
+          "currency",
+          "expense_date",
+          "vendor",
+          "notes",
+          "payment_method",
+          "team_id",
+          "recurring",
+          "receipt_path",
+          "created_at",
+          "updated_at",
+          "archived_at",
+          "archived_by",
+        ].join(","),
+      ).maybeSingle();
+      if (error) {
+        throw new FinanceDashboardStoreError("expense_mutation_failed");
+      }
+      if (!data) throw new FinanceDashboardStoreError("expense_not_found");
+      return decodeExpenseMutation({ expense: data });
     },
   };
 }

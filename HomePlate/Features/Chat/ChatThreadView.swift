@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct ChatThreadView: View {
   @EnvironmentObject private var appState: AppState
@@ -15,6 +17,11 @@ struct ChatThreadView: View {
   @State private var isSending = false
   @State private var sendErrorText: String?
   @State private var sendOperation = ChatSendOperationState()
+  @State private var attachmentsByMessage: [UUID: [SDChatAttachment]] = [:]
+  @State private var signedAttachmentURLs: [UUID: URL] = [:]
+  @State private var pendingAttachments: [PendingChatAttachment] = []
+  @State private var photoPickerItem: PhotosPickerItem?
+  @State private var isShowingFileImporter = false
 
   private var myId: UUID? { appState.myProfile?.id }
   private var canSend: Bool {
@@ -42,8 +49,11 @@ struct ChatThreadView: View {
               MessageRow(
                 text: message.body,
                 senderName: senderName(for: message.sender_id),
+                senderProfile: message.sender_id.flatMap { profileById[$0] },
                 isMe: message.sender_id == myId,
                 createdAt: message.created_at,
+                attachments: attachmentsByMessage[message.id] ?? [],
+                attachmentURLs: signedAttachmentURLs,
                 showSender: shouldShowSender(for: message, previous: previous),
                 showTimestamp: shouldShowTimestamp(for: message, previous: previous)
               )
@@ -73,6 +83,13 @@ struct ChatThreadView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+    .fileImporter(
+      isPresented: $isShowingFileImporter,
+      allowedContentTypes: [.image, .pdf, .plainText, .commaSeparatedText, .data],
+      allowsMultipleSelection: true
+    ) { result in
+      handleImportedFiles(result)
+    }
     .onAppear {
       appState.setActiveChatChannel(channel.id)
     }
@@ -149,11 +166,24 @@ struct ChatThreadView: View {
         : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
       layout {
         HStack(alignment: .top, spacing: HP.Space.sm) {
-          ChatAvatarView(
-            title: channelTitle == "Chat" ? threadSubtitle : channelTitle,
-            isAnnouncement: channel.isAnnouncement,
-            size: 46
-          )
+          if channel.isAnnouncement || profileById.isEmpty {
+            ChatAvatarView(
+              title: channelTitle == "Chat" ? threadSubtitle : channelTitle,
+              isAnnouncement: channel.isAnnouncement,
+              size: 46
+            )
+          } else {
+            HStack(spacing: -10) {
+              ForEach(
+                profileById.values
+                  .filter { $0.id != myId }
+                  .sorted { $0.displayName < $1.displayName }
+                  .prefix(3)
+              ) { profile in
+                HPProfileAvatarButton(profile: profile, size: .md)
+              }
+            }
+          }
 
           VStack(alignment: .leading, spacing: 3) {
             Text(channelTitle == "Chat" ? threadSubtitle : channelTitle)
@@ -195,6 +225,47 @@ struct ChatThreadView: View {
   private var composer: some View {
     HPCard(style: .flat) {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HStack(spacing: HP.Space.xs) {
+          PhotosPicker(selection: $photoPickerItem, matching: .images) {
+            Label("Photo", systemImage: "photo.badge.plus")
+          }
+          .onChange(of: photoPickerItem) { _, item in
+            guard let item else { return }
+            Task { await addPhoto(item) }
+          }
+          Button { isShowingFileImporter = true } label: {
+            Label("File", systemImage: "paperclip")
+          }
+        }
+        .buttonStyle(.bordered)
+        .disabled(!canSend || isSending)
+
+        if !pendingAttachments.isEmpty {
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: HP.Space.xs) {
+              ForEach(pendingAttachments) { attachment in
+                HStack(spacing: 5) {
+                  Image(systemName: attachment.isImage ? "photo" : "doc")
+                  Text(attachment.fileName).lineLimit(1)
+                  Button {
+                    pendingAttachments.removeAll(where: { $0.id == attachment.id })
+                    sendOperation.clear()
+                  } label: {
+                    Image(systemName: "xmark.circle.fill")
+                  }
+                  .buttonStyle(.plain)
+                  .accessibilityLabel("Remove \(attachment.fileName)")
+                }
+                .font(HP.Font.caption)
+                .padding(.horizontal, HP.Space.xs)
+                .padding(.vertical, 6)
+                .background(HP.Color.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm))
+              }
+            }
+          }
+        }
+
         let layout = dynamicTypeSize.isAccessibilitySize
           ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
           : AnyLayout(HStackLayout(alignment: .bottom, spacing: HP.Space.sm))
@@ -220,7 +291,8 @@ struct ChatThreadView: View {
           .disabled(
             !canSend
               || isSending
-              || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              || (composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                  && pendingAttachments.isEmpty)
           )
         }
 
@@ -263,7 +335,8 @@ struct ChatThreadView: View {
       Task { await send() }
     }
     .disabled(
-      isSending || composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      isSending || (composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && pendingAttachments.isEmpty)
     )
   }
 
@@ -296,6 +369,18 @@ struct ChatThreadView: View {
       )
       guard accepts(organizationId: organizationId, token: token) else { return }
       messages = msgs
+
+      let loadedAttachments = try await supabase.listChatAttachments(messageIds: msgs.map(\.id))
+      guard accepts(organizationId: organizationId, token: token) else { return }
+      attachmentsByMessage = Dictionary(grouping: loadedAttachments, by: \.message_id)
+      var loadedURLs: [UUID: URL] = [:]
+      for attachment in loadedAttachments {
+        if let url = try? await supabase.signedChatAttachmentURL(path: attachment.storage_path) {
+          loadedURLs[attachment.id] = url
+        }
+      }
+      guard accepts(organizationId: organizationId, token: token) else { return }
+      signedAttachmentURLs = loadedURLs
 
       // Load participant profiles so we can label messages.
       let memberships = try await supabase.listChatMemberships(
@@ -351,24 +436,58 @@ struct ChatThreadView: View {
       return
     }
     let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let outgoingAttachments = pendingAttachments
+    let messageBody = text.isEmpty ? "Shared an attachment" : text
+    let operationMaterial = messageBody + "\n" + outgoingAttachments.map(\.fileName).joined(separator: "|")
     guard let clientMessageId = sendOperation.begin(
       channelId: channel.id,
-      body: text
+      body: operationMaterial
     ) else { return }
-    composerText = ""
     sendErrorText = nil
     isSending = true
     defer { isSending = false }
     do {
       let response = try await supabase.sendChatMessage(
         channelId: channel.id,
-        body: text,
+        body: messageBody,
         clientMessageId: clientMessageId
       )
       if !messages.contains(where: { $0.id == response.message.id }) {
         messages.append(response.message)
       }
+      var existing = (try? await supabase.listChatAttachments(messageIds: [response.message.id])) ?? []
+      for attachment in outgoingAttachments {
+        if existing.contains(where: {
+          $0.file_name == attachment.fileName && $0.byte_size == attachment.data.count
+        }) {
+          continue
+        }
+        guard let organizationId = channel.org_id else { continue }
+        let storagePath = try await supabase.uploadChatAttachment(
+          attachment.data,
+          organizationId: organizationId,
+          channelId: channel.id,
+          fileName: attachment.fileName,
+          contentType: attachment.mimeType
+        )
+        let saved = try await supabase.createChatAttachment(
+          messageId: response.message.id,
+          storagePath: storagePath,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          byteSize: attachment.data.count,
+          isImage: attachment.isImage
+        )
+        existing.append(saved)
+        if let url = try? await supabase.signedChatAttachmentURL(path: storagePath) {
+          signedAttachmentURLs[saved.id] = url
+        }
+      }
+      attachmentsByMessage[response.message.id] = existing
       sendOperation.finish(success: true)
+      composerText = ""
+      pendingAttachments = []
+      photoPickerItem = nil
       await markRead(through: response.message.id)
     } catch {
       if SDApplicationErrorClassifier.isCancellation(
@@ -390,6 +509,62 @@ struct ChatThreadView: View {
     }
   }
 
+  private func addPhoto(_ item: PhotosPickerItem) async {
+    do {
+      guard let data = try await item.loadTransferable(type: Data.self) else {
+        sendErrorText = "That photo could not be loaded."
+        return
+      }
+      try appendPending(
+        data: data,
+        fileName: "Photo-\(pendingAttachments.count + 1).jpg",
+        mimeType: "image/jpeg",
+        isImage: true
+      )
+    } catch {
+      sendErrorText = "That photo could not be attached."
+    }
+  }
+
+  private func handleImportedFiles(_ result: Result<[URL], Error>) {
+    do {
+      for url in try result.get() {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        let type = UTType(filenameExtension: url.pathExtension)
+        try appendPending(
+          data: data,
+          fileName: url.lastPathComponent,
+          mimeType: type?.preferredMIMEType ?? "application/octet-stream",
+          isImage: type?.conforms(to: .image) == true
+        )
+      }
+    } catch {
+      sendErrorText = error.localizedDescription
+    }
+  }
+
+  private func appendPending(data: Data, fileName: String, mimeType: String, isImage: Bool) throws {
+    guard data.count <= 52_428_800 else {
+      throw NSError(domain: "chat", code: 10, userInfo: [NSLocalizedDescriptionKey: "Attachments must be 50 MB or smaller."])
+    }
+    let allowed = isImage
+      || [
+        "application/pdf", "text/plain", "text/csv", "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ].contains(mimeType)
+    guard allowed else {
+      throw NSError(domain: "chat", code: 11, userInfo: [NSLocalizedDescriptionKey: "That file type is not supported."])
+    }
+    pendingAttachments.append(
+      PendingChatAttachment(data: data, fileName: fileName, mimeType: mimeType, isImage: isImage)
+    )
+    sendOperation.clear()
+  }
+
   private func markRead(through messageId: UUID) async {
     guard let supabase = appState.supabase,
           channel.org_id == appState.activeOrgId else { return }
@@ -409,8 +584,11 @@ struct ChatThreadView: View {
 private struct MessageRow: View {
   let text: String
   let senderName: String
+  let senderProfile: Profile?
   let isMe: Bool
   let createdAt: Date
+  let attachments: [SDChatAttachment]
+  let attachmentURLs: [UUID: URL]
   let showSender: Bool
   let showTimestamp: Bool
 
@@ -425,6 +603,10 @@ private struct MessageRow: View {
 
       HStack(alignment: .bottom, spacing: HP.Space.xs) {
         if isMe { Spacer(minLength: 44) }
+
+        if !isMe, let senderProfile {
+          HPProfileAvatarButton(profile: senderProfile, size: .sm)
+        }
 
         VStack(alignment: isMe ? .trailing : .leading, spacing: HP.Space.xs) {
           if showSender {
@@ -450,6 +632,36 @@ private struct MessageRow: View {
               )
               .fill(isMe ? HP.Color.accent : HP.Color.surfaceRaised)
             )
+
+          ForEach(attachments) { attachment in
+            if let url = attachmentURLs[attachment.id] {
+              if attachment.isImage {
+                Link(destination: url) {
+                  AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                      image.resizable().scaledToFill()
+                    } else {
+                      ZStack {
+                        HP.Color.surfaceRaised
+                        ProgressView()
+                      }
+                    }
+                  }
+                  .frame(width: 220, height: 160)
+                  .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md))
+                }
+              } else {
+                Link(destination: url) {
+                  Label(attachment.file_name, systemImage: "doc.fill")
+                    .font(HP.Font.callout.weight(.semibold))
+                    .lineLimit(2)
+                    .padding(HP.Space.sm)
+                    .background(HP.Color.surfaceRaised)
+                    .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm))
+                }
+              }
+            }
+          }
             .overlay(
               UnevenRoundedRectangle(
                 topLeadingRadius: HP.Radius.md,
@@ -476,4 +688,12 @@ private struct MessageRow: View {
     guard showTimestamp else { return message }
     return "\(createdAt.formatted(date: .abbreviated, time: .shortened)). \(message)"
   }
+}
+
+private struct PendingChatAttachment: Identifiable {
+  let id = UUID()
+  let data: Data
+  let fileName: String
+  let mimeType: String
+  let isImage: Bool
 }

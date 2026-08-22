@@ -21,7 +21,6 @@ struct FacilityDaySheet: View {
   let onApprove: (SDFacilityBooking) -> Void
   let onDeny: (SDFacilityBooking) -> Void
   let onMove: (SDFacilityBooking, UUID, Date, Date) -> Void
-  let onResizeSpan: (SDFacilityBooking, UUID?) -> Void
 
   @State private var isRearrangeMode = false
 
@@ -89,7 +88,6 @@ struct FacilityDaySheet: View {
               onApprove: onApprove,
               onDeny: onDeny,
               onMove: onMove,
-              onResizeSpan: onResizeSpan,
               onCancelOwnPending: nil,
               onEdit: onEdit,
               onCreateAt: { facilityId, startAt in

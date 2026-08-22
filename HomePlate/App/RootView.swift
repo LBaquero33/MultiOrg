@@ -19,26 +19,6 @@ struct RootView: View {
     .environment(\.dhdOrgBranding, activeBranding)
     .tint(DHDTheme.accent)
     .dhdToast($appState.globalToastText)
-    #if os(iOS)
-    .safeAreaInset(edge: .top, spacing: 0) {
-      if appState.isAuthenticated {
-        HStack {
-          Spacer(minLength: 0)
-          NotificationBellButton()
-            .environmentObject(appState)
-        }
-        .padding(.horizontal, HP.Space.md)
-        .padding(.vertical, HP.Space.xs)
-        .background(HP.Color.bg)
-        .overlay(alignment: .bottom) {
-          Rectangle()
-            .fill(HP.Color.border)
-            .frame(height: 1)
-            .allowsHitTesting(false)
-        }
-      }
-    }
-    #endif
     .onChange(of: scenePhase) { _, next in
       guard next == .active else { return }
       guard appState.isAuthenticated else { return }

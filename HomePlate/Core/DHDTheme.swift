@@ -135,7 +135,7 @@ enum DHDTheme {
 
   static let pagePadding: CGFloat = HP.Space.md
   static let cardPadding: CGFloat = HP.Space.md
-  static let cornerRadius: CGFloat = HP.Radius.lg
+  static let cornerRadius: CGFloat = HP.Radius.md
   static let innerCornerRadius: CGFloat = HP.Radius.md
   static let gridSpacing: CGFloat = HP.Space.sm
   static let sectionSpacing: CGFloat = HP.Space.md
@@ -165,23 +165,24 @@ enum DHDTheme {
   /// role-equivalent Home Plate colors rather than system-default blue/gray.
   static func components(for role: SemanticRole, appearance: Appearance) -> RGBA {
     switch (role, appearance) {
-    case (.pageBackground, .dark): return RGBA(hex: 0x0F110C)
-    case (.surface, .dark): return RGBA(hex: 0x1A1E16)
-    case (.surfaceRaised, .dark): return RGBA(hex: 0x262B21)
-    case (.surfaceMuted, .dark): return RGBA(hex: 0x20241A)
-    case (.input, .dark): return RGBA(hex: 0x2E3327)
-    case (.border, .dark): return RGBA(hex: 0x333829)
-    case (.borderStrong, .dark): return RGBA(hex: 0x474D3B)
-    case (.text, .dark): return RGBA(hex: 0xECE8DD)
-    case (.textMuted, .dark): return RGBA(hex: 0xA6A394)
-    case (.textTertiary, .dark): return RGBA(hex: 0xC8C4B4)
-    case (.primary, .dark): return RGBA(hex: 0x2E7D57)
-    case (.primaryGlow, .dark): return RGBA(hex: 0x46B07C)
-    case (.brandDeep, .dark): return RGBA(hex: 0x0F110C)
-    case (.accent, .dark), (.focusRing, .dark): return RGBA(hex: 0xD6B370)
-    case (.accentText, .dark): return RGBA(hex: 0x2B2A1E)
-    case (.danger, .dark): return RGBA(hex: 0xD0453E)
-    case (.success, .dark): return RGBA(hex: 0x46B07C)
+    // Exact sRGB equivalents of the website's OKLCH design tokens.
+    case (.pageBackground, .dark): return RGBA(hex: 0x0A0D0A)
+    case (.surface, .dark): return RGBA(hex: 0x111511)
+    case (.surfaceRaised, .dark): return RGBA(hex: 0x1B201B)
+    case (.surfaceMuted, .dark): return RGBA(hex: 0x191D19)
+    case (.input, .dark): return RGBA(hex: 0x282D28)
+    case (.border, .dark): return RGBA(hex: 0x232823)
+    case (.borderStrong, .dark): return RGBA(hex: 0x282D28)
+    case (.text, .dark): return RGBA(hex: 0xEAE8DF)
+    case (.textMuted, .dark): return RGBA(hex: 0x95968C)
+    case (.textTertiary, .dark): return RGBA(hex: 0xB7B6AC)
+    case (.primary, .dark): return RGBA(hex: 0x296944)
+    case (.primaryGlow, .dark): return RGBA(hex: 0x4B9D6B)
+    case (.brandDeep, .dark): return RGBA(hex: 0x0A0D0A)
+    case (.accent, .dark), (.focusRing, .dark): return RGBA(hex: 0xD2AF67)
+    case (.accentText, .dark): return RGBA(hex: 0x18160C)
+    case (.danger, .dark): return RGBA(hex: 0xDE3B3D)
+    case (.success, .dark): return RGBA(hex: 0x4B9D6B)
     case (.warning, .dark): return RGBA(hex: 0xE0A33E)
     case (.info, .dark): return RGBA(hex: 0x5A9BD6)
 

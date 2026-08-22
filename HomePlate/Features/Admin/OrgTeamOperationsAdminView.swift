@@ -483,7 +483,7 @@ struct OrgTeamOperationsAdminView: View {
 
   private func rosterPlayerCard(_ player: Profile) -> some View {
     HStack(spacing: HP.Space.xs) {
-      HPAvatar(name: player.displayName, size: .sm)
+      HPProfileAvatarButton(profile: player, size: .sm)
       Text(player.displayName)
         .font(HP.Font.callout.weight(.semibold))
         .lineLimit(2)

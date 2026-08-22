@@ -96,14 +96,15 @@ final class HPTemplateRenderTests: XCTestCase {
         let image = renderer.image { context in
           captured = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
           if !captured {
-            // The simulator render server can reject the very tall AX analytics
-            // chart snapshot. Preserve that deterministic evidence with a layer
-            // fallback; every other capture must include live UIKit controls.
+            // The simulator render server can reject very tall AX record and
+            // analytics snapshots. Preserve deterministic evidence with a
+            // layer fallback; every other capture must include live controls.
             host.view.layer.render(in: context.cgContext)
           }
         }
-        let permitsChartFallback = template == .analytics && dts.isAccessibilitySize
-        if !permitsChartFallback {
+        let permitsTallAccessibilityFallback = dts.isAccessibilitySize
+          && (template == .recordDetail || template == .analytics)
+        if !permitsTallAccessibilityFallback {
           XCTAssertTrue(captured, "Template \(template.rawValue) must render live controls at \(name)")
         }
         let url = dir.appendingPathComponent("tmpl-\(template.rawValue)-\(name).png")

@@ -18,6 +18,7 @@ struct HPWorkspaceHeader<Trailing: View>: View {
   private let trailing: Trailing
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   /// - Parameters:
   ///   - title: the workspace title.
@@ -44,63 +45,21 @@ struct HPWorkspaceHeader<Trailing: View>: View {
       : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.md))
 
     layout {
-      identityAndTitle
+      titleBlock
       trailing
         .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
                alignment: .leading)
         .environment(\.hpForceFullWidthAction, dynamicTypeSize.isAccessibilitySize)
     }
-    .padding(HP.Space.md)
-    .frame(maxWidth: .infinity)
-    .background(
-      RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous).fill(HP.Color.surface)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: HP.Radius.lg, style: .continuous)
-        .strokeBorder(HP.Color.borderStrong, lineWidth: 1)
-        .allowsHitTesting(false)
-    )
-  }
-
-  @ViewBuilder
-  private var identityAndTitle: some View {
-    if dynamicTypeSize.isAccessibilitySize {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        identityMark
-        titleBlock
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    } else {
-      HStack(alignment: .center, spacing: HP.Space.md) {
-        identityMark
-        titleBlock
-        Spacer(minLength: HP.Space.sm)
-      }
-    }
-  }
-
-  private var identityMark: some View {
-    RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
-      .fill(identity.gradient)
-      .frame(width: 40, height: 40)
-      .overlay(
-        Image(systemName: "diamond.fill")
-          .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(DHDTheme.identityText.opacity(0.92))
-      )
-      .accessibilityHidden(true)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var titleBlock: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text(orgLabel.uppercased())
-        .font(HP.Font.eyebrow)
-        .tracking(HP.Font.eyebrowTracking)
-        .foregroundStyle(HP.Color.textMuted)
-        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-        .truncationMode(.tail)
       Text(title)
-        .font(HP.Font.title)
+        .font(dynamicTypeSize.isAccessibilitySize
+          ? HP.Font.title
+          : (horizontalSizeClass == .regular ? HP.Font.display : HP.Font.pageTitle))
         .tracking(HP.Font.titleTracking)
         .foregroundStyle(HP.Color.text)
         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
@@ -109,7 +68,7 @@ struct HPWorkspaceHeader<Trailing: View>: View {
         .accessibilityAddTraits(.isHeader)
       if let context {
         Text(context)
-          .font(HP.Font.caption)
+          .font(HP.Font.body)
           .foregroundStyle(HP.Color.textMuted)
           .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
           .fixedSize(horizontal: false, vertical: true)

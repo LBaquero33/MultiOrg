@@ -304,8 +304,6 @@ private struct ParentChildDayDetailView: View {
           }
         }
 
-        selfAssessmentCard
-
         if let comments = log?.comments, !comments.isEmpty || log?.feel != nil {
           liftNoteCard(comments: comments)
         }
@@ -331,30 +329,6 @@ private struct ParentChildDayDetailView: View {
     return appState.activeOrgSettings?.display_name
       ?? appState.activeOrgSettings?.short_name
       ?? "Home Plate"
-  }
-
-  private var selfAssessmentCard: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Self assessment")
-        row("Got video", log?.got_video)
-        row("Ate breakfast", log?.ate_breakfast)
-        row("Hit daily goals", log?.hit_daily_goals)
-        row("Stuck to process", log?.stuck_to_process)
-        if let fellShort = log?.fell_short, !fellShort.isEmpty {
-          Text("Fell short: \(fellShort)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        if let excelled = log?.excelled, !excelled.isEmpty {
-          Text("Excelled: \(excelled)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-    }
   }
 
   private func liftNoteCard(comments: String) -> some View {
@@ -464,19 +438,4 @@ private struct ParentChildDayDetailView: View {
     }
   }
 
-  @ViewBuilder private func row(_ label: String, _ value: Bool?) -> some View {
-    HStack {
-      Text(label)
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.text)
-      Spacer()
-      if value == true {
-        Image(systemName: "checkmark.circle.fill").foregroundStyle(HP.Color.success)
-      } else if value == false {
-        Image(systemName: "xmark.circle.fill").foregroundStyle(HP.Color.danger)
-      } else {
-        Text("—").foregroundStyle(HP.Color.textMuted)
-      }
-    }
-  }
 }

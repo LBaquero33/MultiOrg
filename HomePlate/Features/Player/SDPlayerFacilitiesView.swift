@@ -200,7 +200,6 @@ struct SDPlayerFacilitiesView: View {
           onApprove: { _ in },
           onDeny: { _ in },
           onMove: { _, _, _, _ in },
-          onResizeSpan: nil,
           onCancelOwnPending: { booking in
             Task { await cancelPending(booking) }
           },
@@ -338,7 +337,6 @@ private struct PlayerRequestBookingSheet: View {
   @State private var start: Date = Date()
   @State private var durationMin: Int = 60
   @State private var notes: String = ""
-  @State private var isFullCage3: Bool = false
   @State private var isSaving = false
   @State private var errorText: String?
 
@@ -391,11 +389,6 @@ private struct PlayerRequestBookingSheet: View {
           start = DateUtils.calendarET.date(byAdding: .hour, value: 16, to: base) ?? base
         }
       }
-      .onChange(of: facilityId) { _, newValue in
-        if newValue != cage3_1Id {
-          isFullCage3 = false
-        }
-      }
     }
   }
 
@@ -430,12 +423,9 @@ private struct PlayerRequestBookingSheet: View {
         HPSectionHeader("Cage + activity")
         Picker("Cage", selection: $facilityId) {
           Text("Select…").tag(UUID?.none)
-          ForEach(selectableFacilities) { facility in
+          ForEach(facilities) { facility in
             Text(facility.name).tag(UUID?.some(facility.id))
           }
-        }
-        if facilityId == cage3_1Id {
-          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
         }
         Picker("Activity", selection: $activityType) {
           Text("BP").tag("bp")
@@ -462,12 +452,6 @@ private struct PlayerRequestBookingSheet: View {
     }
   }
 
-  private var cage3_1Id: UUID? { facilities.first(where: { $0.name == "Cage 3.1" })?.id }
-  private var cage3_2Id: UUID? { facilities.first(where: { $0.name == "Cage 3.2" })?.id }
-  private var selectableFacilities: [SDFacility] {
-    facilities.filter { $0.name != "Cage 3.2" }
-  }
-
   private func save() async {
     guard let supabase = appState.supabase else { return }
     guard let facilityId else { return }
@@ -477,7 +461,6 @@ private struct PlayerRequestBookingSheet: View {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
       let end = start.addingTimeInterval(Double(durationMin) * 60)
-      let spanId: UUID? = (facilityId == cage3_1Id && isFullCage3) ? cage3_2Id : nil
       _ = try await supabase.createFacilityBooking(
         facilityId: facilityId,
         playerId: uid,
@@ -489,7 +472,7 @@ private struct PlayerRequestBookingSheet: View {
         coachId: nil,
         title: nil,
         notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-        spanFacilityId: spanId,
+        spanFacilityId: nil,
         orgId: appState.activeOrgId
       )
       onCreated()

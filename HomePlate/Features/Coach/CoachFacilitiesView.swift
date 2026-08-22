@@ -89,8 +89,7 @@ struct CoachFacilitiesView: View {
         onEdit: { b in editingBooking = b },
         onApprove: { b in Task { await setStatus(b, status: "approved") } },
         onDeny: { b in Task { await setStatus(b, status: "denied") } },
-        onMove: { b, fid, s, e in Task { await moveBooking(b, facilityId: fid, startAt: s, endAt: e) } },
-        onResizeSpan: { b, newSpan in Task { await resizeBookingSpan(b, spanFacilityId: newSpan) } }
+        onMove: { b, fid, s, e in Task { await moveBooking(b, facilityId: fid, startAt: s, endAt: e) } }
       )
       .environmentObject(appState)
     }
@@ -115,8 +114,7 @@ struct CoachFacilitiesView: View {
         onEdit: { b in editingBooking = b },
         onApprove: { b in Task { await setStatus(b, status: "approved") } },
         onDeny: { b in Task { await setStatus(b, status: "denied") } },
-        onMove: { b, fid, s, e in Task { await moveBooking(b, facilityId: fid, startAt: s, endAt: e) } },
-        onResizeSpan: { b, newSpan in Task { await resizeBookingSpan(b, spanFacilityId: newSpan) } }
+        onMove: { b, fid, s, e in Task { await moveBooking(b, facilityId: fid, startAt: s, endAt: e) } }
       )
       .environmentObject(appState)
       #if !os(macOS)
@@ -647,10 +645,6 @@ struct CoachFacilitiesView: View {
     isLoading = true
     defer { isLoading = false }
     do {
-      // If the booking is a full Cage 3 (spanning 3.2) and it’s moved to a different cage,
-      // drop the span so it doesn’t occupy an unrelated column.
-      let keepSpan = (facilityId == booking.facility_id)
-      let newSpan = keepSpan ? booking.span_facility_id : nil
       _ = try await supabase.updateFacilityBooking(
         id: booking.id,
         facilityId: facilityId,
@@ -662,7 +656,7 @@ struct CoachFacilitiesView: View {
         approved: booking.status == "approved",
         title: booking.title,
         notes: booking.notes,
-        spanFacilityId: newSpan,
+        spanFacilityId: nil,
         orgId: appState.activeOrgId
       )
       toastText = "Moved"
@@ -672,29 +666,4 @@ struct CoachFacilitiesView: View {
     }
   }
 
-  private func resizeBookingSpan(_ booking: SDFacilityBooking, spanFacilityId: UUID?) async {
-    guard let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
-    do {
-      _ = try await supabase.updateFacilityBooking(
-        id: booking.id,
-        facilityId: booking.facility_id,
-        status: booking.status,
-        activityType: booking.activity_type,
-        startAt: booking.start_at,
-        endAt: booking.end_at,
-        coachId: booking.coach_id,
-        approved: booking.status == "approved",
-        title: booking.title,
-        notes: booking.notes,
-        spanFacilityId: spanFacilityId,
-        orgId: appState.activeOrgId
-      )
-      toastText = (spanFacilityId == nil) ? "Half cage" : "Full cage"
-      await reloadAll()
-    } catch {
-      errorText = error.localizedDescription
-    }
-  }
 }

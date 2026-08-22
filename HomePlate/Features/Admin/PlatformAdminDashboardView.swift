@@ -53,6 +53,24 @@ final class PlatformOrganizationCreationWorkflow: ObservableObject {
 /// Platform-wide controls. This is intentionally separate from Org Admin:
 /// it spans every organization and is only exposed after server authorization.
 struct PlatformAdminDashboardView: View {
+  private enum Section: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case organizations = "Organizations"
+    case access = "Access"
+    case controls = "Controls"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+      switch self {
+      case .overview: "chart.bar.xaxis"
+      case .organizations: "building.2"
+      case .access: "person.badge.key"
+      case .controls: "slider.horizontal.3"
+      }
+    }
+  }
+
   @EnvironmentObject private var appState: AppState
   @State private var dashboard: SDPlatformDashboard?
   @State private var isLoading = false
@@ -74,6 +92,7 @@ struct PlatformAdminDashboardView: View {
   @State private var platformFeatureMutationKey: String?
   @State private var auditEntries: [SDPlatformAuditEntry] = []
   @State private var pendingPlatformAdminChange: PlatformAdministratorChange?
+  @State private var selectedSection: Section = .overview
   @StateObject private var creationWorkflow = PlatformOrganizationCreationWorkflow()
 
   var body: some View {
@@ -84,22 +103,18 @@ struct PlatformAdminDashboardView: View {
             organizationName: "all organizations",
             message: "Platform support does not grant organization membership or ownership. Platform-authorized changes here are separately authenticated and audited by the backend."
           )
-        ) { _ in
+        ) { context in
           HPWorkspaceHeader(
             "Platform Admin",
             orgLabel: "Home Plate Platform",
             context: "Organizations, access, and billing health across Home Plate."
           ) {
-            HPButton(
-              title: "New Organization",
-              systemImage: "plus",
-              variant: .primary,
-              size: .md,
-              action: { creationWorkflow.present() }
-            )
+            if context.isExpanded {
+              newOrganizationButton(fullWidth: false)
+            }
           }
         } sectionNavigation: { context in
-          refreshCard(context)
+          platformNavigationCard(context)
         } content: { context in
           dashboardContent(context)
         } dangerZone: { _ in
@@ -174,39 +189,86 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
-  private func refreshCard(_ context: HPScreenLayoutContext) -> some View {
+  private func platformNavigationCard(_ context: HPScreenLayoutContext) -> some View {
     HPCard(style: .flat) {
-      let layout = context.isExpanded
-        ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
-        : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
-      layout {
-        VStack(alignment: .leading, spacing: 4) {
-          HPSectionHeader("Platform overview")
-          Text("Review organization health, membership access, and platform permissions.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        if context.isExpanded {
+          HStack(spacing: HP.Space.xs) {
+            ForEach(Section.allCases) { section in
+              Button {
+                selectedSection = section
+              } label: {
+                Label(section.rawValue, systemImage: section.systemImage)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .padding(.horizontal, HP.Space.sm)
+                  .frame(minHeight: 40)
+                  .background(
+                    Capsule().fill(selectedSection == section ? HP.Color.accent.opacity(0.16) : .clear)
+                  )
+              }
+              .buttonStyle(.plain)
+              .foregroundStyle(selectedSection == section ? HP.Color.accent : HP.Color.text)
+            }
+            Spacer(minLength: HP.Space.sm)
+            refreshButton(fullWidth: false)
+          }
+        } else {
+          Menu {
+            ForEach(Section.allCases) { section in
+              Button {
+                selectedSection = section
+              } label: {
+                Label(section.rawValue, systemImage: selectedSection == section ? "checkmark" : section.systemImage)
+              }
+            }
+          } label: {
+            HStack(spacing: HP.Space.sm) {
+              Image(systemName: selectedSection.systemImage)
+                .foregroundStyle(HP.Color.accent)
+              Text(selectedSection.rawValue)
+                .font(HP.Font.callout.weight(.semibold))
+                .foregroundStyle(HP.Color.text)
+              Spacer(minLength: HP.Space.sm)
+              Image(systemName: "chevron.up.chevron.down")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          HStack(spacing: HP.Space.xs) {
+            newOrganizationButton(fullWidth: true)
+            refreshButton(fullWidth: false)
+          }
         }
-        if context.isExpanded { Spacer(minLength: HP.Space.sm) }
-        let actionLayout = context.isExpanded
-          ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
-          : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
-        actionLayout {
-          HPStatusBadge(text: isLoading ? "Refreshing" : "Ready", kind: isLoading ? .warning : .success)
-          HPButton(
-            title: "Refresh",
-            systemImage: "arrow.clockwise",
-            variant: .secondary,
-            size: .md,
-            isLoading: isLoading,
-            fullWidth: !context.isExpanded,
-            action: { Task { await reload() } }
-          )
-          .disabled(isLoading)
-        }
-        .frame(maxWidth: context.isExpanded ? nil : .infinity, alignment: .leading)
       }
     }
+  }
+
+  private func newOrganizationButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "New Organization",
+      systemImage: "plus",
+      variant: .primary,
+      size: .md,
+      fullWidth: fullWidth,
+      action: { creationWorkflow.present() }
+    )
+  }
+
+  private func refreshButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Refresh",
+      systemImage: "arrow.clockwise",
+      variant: .secondary,
+      size: .md,
+      isLoading: isLoading,
+      fullWidth: fullWidth,
+      action: { Task { await reload() } }
+    )
+    .disabled(isLoading)
   }
 
   @ViewBuilder
@@ -218,17 +280,23 @@ struct PlatformAdminDashboardView: View {
       }
     } else if let dashboard {
       VStack(alignment: .leading, spacing: HP.Space.md) {
-        metricGrid(dashboard, context: context)
-        ownerlessOrganizationWarning(dashboard.ownerless_organizations)
-        unmanagedOrganizationWarning(dashboard.unmanaged_organizations)
-        platformFeatureControlsCard(context)
-        organizationDirectory(dashboard.organizations, context: context)
-        if let organization = dashboard.organizations.first(where: { $0.id == selectedOrganizationId }) {
-          organizationMemberCard(organization, context: context)
+        switch selectedSection {
+        case .overview:
+          metricGrid(dashboard, context: context)
+          ownerlessOrganizationWarning(dashboard.ownerless_organizations)
+          unmanagedOrganizationWarning(dashboard.unmanaged_organizations)
+        case .organizations:
+          organizationDirectory(dashboard.organizations, context: context)
+          if let organization = dashboard.organizations.first(where: { $0.id == selectedOrganizationId }) {
+            organizationMemberCard(organization, context: context)
+          }
+        case .access:
+          globalUserLookupCard(context)
+          platformAdministratorsCard(context)
+        case .controls:
+          platformFeatureControlsCard(context)
+          auditHistoryCard(context)
         }
-        globalUserLookupCard(context)
-        platformAdministratorsCard(context)
-        auditHistoryCard(context)
       }
     } else {
       HPCard {
@@ -533,17 +601,6 @@ struct PlatformAdminDashboardView: View {
 
   @ViewBuilder
   private func organizationDetailActions(_ organization: SDPlatformOrganization, fullWidth: Bool) -> some View {
-    NavigationLink {
-      OrganizationSetupWizardView(
-        organizationId: organization.id,
-        organizationName: organization.name
-      )
-    } label: {
-      Label("Assist Setup", systemImage: "checklist")
-        .font(HP.Font.callout.weight(.semibold))
-        .foregroundStyle(HP.Color.accent)
-        .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 44, alignment: .leading)
-    }
     HPButton(
       title: "Edit Organization",
       variant: .secondary,

@@ -6,12 +6,19 @@ struct HPLoadingState: View {
   var text: String = "Loading…"
 
   var body: some View {
-    HStack(spacing: HP.Space.sm) {
-      ProgressView().controlSize(.small)
-      Text(text).font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
+    HStack(spacing: 12) {
+      ProgressView().controlSize(.small).frame(width: 20, height: 20)
+      Text(text).font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
+      Spacer(minLength: 0)
     }
-    .frame(maxWidth: .infinity, alignment: .center)
-    .padding(HP.Space.md)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(24)
+    .background(HP.Color.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+    }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(text)
   }

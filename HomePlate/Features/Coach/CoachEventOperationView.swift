@@ -139,7 +139,7 @@ struct CoachEventOperationView: View {
         HPSectionHeader(event.title) {
           HPStatusBadge(text: operation?.status.label ?? "Not Started", kind: operation?.status == .completed ? .success : .info)
         }
-        Text("\(teamName) • \(appState.selectedSeason?.name ?? "Season")")
+        Text(teamName)
           .font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
         Label(event.startDate.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
         if let arrival = event.arrivalDate {
@@ -2220,7 +2220,6 @@ struct GameRuleProfileEditorSheet: View {
         TextField("Profile name", text: $name)
         Picker("Scope", selection: $scope) {
           Text("Organization").tag("organization")
-          Text("Season").tag("season")
           Text("Team").tag("team")
           Text("Tournament").tag("tournament")
           Text("This Game").tag("game")
@@ -2250,7 +2249,7 @@ struct GameRuleProfileEditorSheet: View {
             var data: [String: SDJSONValue] = [
               "name": .string(name), "innings": .int(innings), "minimum_batting_slots": .int(minimum), "defensive_player_count": .int(defensiveCount), "continuous_batting_order_allowed": .bool(allowContinuous), "bat_entire_roster_allowed": .bool(allowEntireRoster), "dh_allowed": .bool(allowDH), "eh_allowed": .bool(allowEH), "defensive_only_players_allowed": .bool(allowDefensiveOnly), "offensive_only_players_allowed": .bool(allowOffensiveOnly), "required_positions": .array(["P","C","1B","2B","3B","SS","LF","CF","RF"].map(SDJSONValue.string)),
             ]
-            if scope == "season" || scope == "team" { data["season_id"] = .string(event.season_id.uuidString) }
+            if scope == "team" { data["season_id"] = .string(event.season_id.uuidString) }
             if scope == "team" { data["team_id"] = .string(event.team_id.uuidString) }
             if scope == "game" { data["event_id"] = .string(event.id.uuidString) }
             if scope == "tournament", let id = UUID(uuidString: tournamentEventId.trimmingCharacters(in: .whitespacesAndNewlines)) { data["tournament_event_id"] = .string(id.uuidString) }

@@ -128,8 +128,8 @@ struct OrganizationSetupTests {
     #expect(source.contains("pendingMutationRequestIds"))
     #expect(source.contains("snapshot?.seasons.first(where: \\.is_default)"))
     #expect(source.contains("snapshot?.teams.first"))
-    #expect(settings.contains("Test Organization Setup Wizard"))
-    #expect(settings.contains("Open Setup Wizard"))
+    #expect(settings.contains("Test Organization Setup Wizard") == false)
+    #expect(settings.contains("Open Setup Wizard") == false)
   }
 
   @Test("Phase 12ZA form semantics remove raw storage formats")
@@ -262,7 +262,7 @@ struct OrganizationSetupTests {
     #expect(schedule.contains("Previously loaded events remain visible"))
   }
 
-  @Test("organization admin navigation is horizontal responsive and setup remains under settings")
+  @Test("organization admin navigation is horizontal responsive without onboarding setup")
   func adminNavigationContract() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(contentsOf: root.appendingPathComponent("HomePlate/Features/Admin/OrgAdminConsoleView.swift"))
@@ -275,8 +275,8 @@ struct OrganizationSetupTests {
     #expect(source.contains("case settings = \"Settings\""))
     #expect(source.contains("case .settings:\n      settingsWorkspace(context)"))
     #expect(source.contains("case .advanced:\n        advancedSettingsCard"))
-    #expect(source.contains("setupAndLaunchCard"))
-    #expect(source.contains("HPSectionHeader(\"Organization setup\")"))
+    #expect(source.contains("setupAndLaunchCard") == false)
+    #expect(source.contains("HPSectionHeader(\"Organization setup\")") == false)
     #expect(!source.contains("case setup = \"Setup\""))
   }
 }

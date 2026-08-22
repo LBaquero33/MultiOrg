@@ -11,6 +11,7 @@
 //
 // Request body (JSON):
 // {
+//   "org_id": "uuid",
 //   "player_id": "uuid",
 //   "session_date": "YYYY-MM-DD",
 //   "source": "rapsodo" | "hitrax" | "trackman",
@@ -61,13 +62,14 @@ Deno.serve(async (req) => {
     return json(400, { error: "invalid_json" });
   }
 
+  const org_id = asText(payload.org_id);
   const player_id = asText(payload.player_id);
   const session_date = asText(payload.session_date);
   const source = asText(payload.source);
   const reps_type = asText(payload.reps_type);
   const events = Array.isArray(payload.events) ? payload.events : [];
 
-  if (!player_id || !session_date || !source || !reps_type) {
+  if (!org_id || !player_id || !session_date || !source || !reps_type) {
     return json(400, { error: "missing_fields" });
   }
 
@@ -84,18 +86,19 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Verify caller is a coach (profiles.role = 'coach')
-  const { data: prof, error: profErr } = await admin.from("profiles").select("id, role").eq("id", uid).maybeSingle();
-  if (profErr) return json(500, { error: "profile_lookup_failed", message: profErr.message });
-  const role = String((prof as any)?.role ?? "").toLowerCase();
-  if (role !== "coach") return json(403, { error: "forbidden" });
+  const { data: canManage, error: scopeError } = await userClient.rpc("sd_can_manage_team_player", {
+    target_org: org_id,
+    target_player: player_id,
+  });
+  if (scopeError) return json(403, { error: "scope_check_failed" });
+  if (canManage !== true) return json(403, { error: "forbidden" });
 
   // Upsert session
   const { data: sessionRow, error: sessErr } = await admin
     .from("sd_bp_sessions")
     .upsert(
-      { player_id, session_date, source, reps_type },
-      { onConflict: "player_id,session_date,source,reps_type" },
+      { org_id, player_id, session_date, activity_type: "bp", source, reps_type },
+      { onConflict: "org_id,player_id,session_date,activity_type,source,reps_type" },
     )
     .select("id")
     .single();

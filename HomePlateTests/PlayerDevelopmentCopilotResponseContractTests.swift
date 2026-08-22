@@ -208,7 +208,7 @@ struct PlayerDevelopmentPlatformVaultTests {
     #expect(inventory.normalizedRegularSelection(.playerDevelopment) == .playerToday)
   }
 
-  @Test("Enabled state restores Player Copilot navigation")
+  @Test("Enabled state keeps Copilot inside Progress instead of adding a website route")
   func enabledPlayerRoute() throws {
     let inventory = HPAppNavigationInventory.player(
       chatEnabled: true,
@@ -219,7 +219,8 @@ struct PlayerDevelopmentPlatformVaultTests {
       facilitiesTitle: "Facilities",
       testingTitle: "Testing"
     )
-    #expect(inventory.destination(forWorkspaceKey: HPAppNavigationDestination.playerDevelopment.rawValue) == .playerDevelopment)
+    #expect(inventory.destination(forWorkspaceKey: HPAppNavigationDestination.playerDevelopment.rawValue) == nil)
+    #expect(inventory.normalizedRegularSelection(.playerDevelopment) == .playerToday)
   }
 
   @Test("Disabled state removes Coach AI and enabled state restores it")

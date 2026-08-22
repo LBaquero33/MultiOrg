@@ -93,7 +93,7 @@ struct HPButtonStyle: ButtonStyle {
 
   private var foreground: Color {
     switch variant {
-    case .primary:     HP.Color.accentText
+    case .primary:     Color.white
     case .secondary:   HP.Color.text
     case .tertiary:    HP.Color.textTertiary
     case .destructive: HP.Color.text
@@ -102,7 +102,7 @@ struct HPButtonStyle: ButtonStyle {
 
   private func background(pressed: Bool) -> Color {
     let base: Color = switch variant {
-    case .primary:     HP.Color.accent
+    case .primary:     HP.Color.primary
     case .destructive: HP.Color.danger
     case .secondary, .tertiary: .clear
     }
@@ -110,10 +110,10 @@ struct HPButtonStyle: ButtonStyle {
   }
 
   private var borderColor: Color {
-    variant == .secondary ? HP.Color.borderStrong : .clear
+    variant == .secondary ? HP.Color.border : .clear
   }
 
   private var borderWidth: CGFloat {
-    variant == .secondary ? 1.5 : 0
+    variant == .secondary ? 1 : 0
   }
 }

@@ -201,7 +201,6 @@ struct SDParentFacilitiesView: View {
           onApprove: { _ in },
           onDeny: { _ in },
           onMove: { _, _, _, _ in },
-          onResizeSpan: nil,
           onCancelOwnPending: { booking in
             Task { await cancelPending(booking) }
           },
@@ -402,7 +401,6 @@ private struct ParentRequestBookingSheet: View {
   @State private var start: Date = Date()
   @State private var durationMin: Int = 60
   @State private var notes: String = ""
-  @State private var isFullCage3: Bool = false
   @State private var isSaving = false
   @State private var errorText: String?
 
@@ -461,11 +459,6 @@ private struct ParentRequestBookingSheet: View {
         start = seed?.startAt ?? defaultDate
         durationMin = seed?.durationMin ?? 60
       }
-      .onChange(of: facilityId) { _, newValue in
-        if newValue != cage3_1Id {
-          isFullCage3 = false
-        }
-      }
     }
   }
 
@@ -515,12 +508,9 @@ private struct ParentRequestBookingSheet: View {
         HPSectionHeader("Details")
         Picker("Cage", selection: $facilityId) {
           Text("Select…").tag(UUID?.none)
-          ForEach(selectableFacilities) { facility in
+          ForEach(facilities) { facility in
             Text(facility.name).tag(UUID?.some(facility.id))
           }
-        }
-        if facilityId == cage3_1Id {
-          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
         }
         Picker("Activity", selection: $activityType) {
           Text("BP").tag("bp")
@@ -546,12 +536,6 @@ private struct ParentRequestBookingSheet: View {
     }
   }
 
-  private var cage3_1Id: UUID? { facilities.first(where: { $0.name == "Cage 3.1" })?.id }
-  private var cage3_2Id: UUID? { facilities.first(where: { $0.name == "Cage 3.2" })?.id }
-  private var selectableFacilities: [SDFacility] {
-    facilities.filter { $0.name != "Cage 3.2" }
-  }
-
   private func save() async {
     guard let supabase = appState.supabase else { return }
     guard let facilityId else { return }
@@ -559,7 +543,6 @@ private struct ParentRequestBookingSheet: View {
     defer { isSaving = false }
     do {
       let end = start.addingTimeInterval(TimeInterval(durationMin * 60))
-      let spanId: UUID? = (facilityId == cage3_1Id && isFullCage3) ? cage3_2Id : nil
       _ = try await supabase.createFacilityBooking(
         facilityId: facilityId,
         playerId: child.id,
@@ -571,7 +554,7 @@ private struct ParentRequestBookingSheet: View {
         coachId: nil,
         title: nil,
         notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-        spanFacilityId: spanId,
+        spanFacilityId: nil,
         orgId: appState.activeOrgId
       )
       dismiss()

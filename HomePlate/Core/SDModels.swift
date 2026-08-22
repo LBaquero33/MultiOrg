@@ -181,6 +181,44 @@ struct SDStrengthLog: Identifiable, Decodable, Equatable {
   let updated_at: Date?
 }
 
+enum SDTestingFieldValueType: String, Codable, CaseIterable, Identifiable {
+  case number
+  case text
+  case time
+  case boolean
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .number: return "Number"
+    case .text: return "Text"
+    case .time: return "Time"
+    case .boolean: return "Yes / No"
+    }
+  }
+}
+
+struct SDTestingFieldDefinition: Identifiable, Decodable, Equatable {
+  let id: UUID
+  let org_id: UUID
+  let field_key: String
+  let label: String
+  let category: String
+  let unit: String?
+  let value_type: String
+  let is_required: Bool
+  let sort_order: Int
+  let is_active: Bool
+  let created_by: UUID?
+  let created_at: Date?
+  let updated_at: Date?
+
+  var valueType: SDTestingFieldValueType {
+    SDTestingFieldValueType(rawValue: value_type) ?? .text
+  }
+}
+
 struct SDTestingEntry: Identifiable, Decodable, Equatable {
   let id: UUID
   let org_id: UUID?
@@ -197,9 +235,70 @@ struct SDTestingEntry: Identifiable, Decodable, Equatable {
   let hip_ir_diff: Double?
   let shoulder_ir_diff: Double?
   let shoulder_er_diff: Double?
+  let custom_values: [String: SDJSONValue]?
   let notes: String?
   let created_at: Date?
   let updated_at: Date?
+}
+
+extension SDTestingEntry {
+  var testingValues: [String: String] {
+    if let custom_values, !custom_values.isEmpty {
+      return custom_values.compactMapValues(\.stringValue)
+    }
+
+    let legacy: [(String, Double?)] = [
+      ("height_in", height_in),
+      ("weight_lb", weight_lb),
+      ("squat_1rm", squat_1rm),
+      ("bench_1rm", bench_1rm),
+      ("deadlift_1rm", deadlift_1rm),
+      ("max_exit_velo", max_exit_velo),
+      ("avg_exit_velo", avg_exit_velo),
+      ("hip_er_diff", hip_er_diff),
+      ("hip_ir_diff", hip_ir_diff),
+      ("shoulder_ir_diff", shoulder_ir_diff),
+      ("shoulder_er_diff", shoulder_er_diff),
+    ]
+    return Dictionary(uniqueKeysWithValues: legacy.compactMap { key, value in
+      value.map { (key, $0.testingValueString) }
+    })
+  }
+}
+
+extension SDJSONValue {
+  var doubleValue: Double? {
+    switch self {
+    case .double(let value): return value
+    case .int(let value): return Double(value)
+    case .string(let value): return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    default: return nil
+    }
+  }
+
+  func testingDisplayValue(unit: String?) -> String {
+    let value: String
+    switch self {
+    case .bool(let flag): value = flag ? "Yes" : "No"
+    default: value = stringValue ?? "—"
+    }
+    guard let unit, !unit.isEmpty, value != "—" else { return value }
+    return "\(value) \(unit)"
+  }
+}
+
+extension Double {
+  fileprivate var testingValueString: String {
+    rounded() == self ? String(Int(self)) : String(format: "%.2f", self)
+  }
+}
+
+extension String {
+  var testingFieldTitle: String {
+    split(separator: "_")
+      .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+      .joined(separator: " ")
+  }
 }
 
 struct SDBPSession: Identifiable, Decodable, Equatable {
@@ -207,8 +306,10 @@ struct SDBPSession: Identifiable, Decodable, Equatable {
   let org_id: UUID?
   let player_id: UUID
   let session_date: String
+  let activity_type: String?
   let source: String
   let reps_type: String
+  let video_path: String?
   let created_at: Date?
   let updated_at: Date?
 }

@@ -2,62 +2,483 @@ import SwiftUI
 
 struct LoginView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  enum Screen: String, CaseIterable, Identifiable {
-    case signIn = "Sign In"
-    case signUp = "Create Account"
+  enum Mode: String, CaseIterable, Identifiable {
+    case email = "Sign in"
+    case create = "Create account"
     var id: String { rawValue }
   }
 
-  @State private var screen: Screen = .signIn
-
   enum AccountType: String, CaseIterable, Identifiable {
     case player = "Player"
-    case parent = "Parent"
+    case parent = "Parent or guardian"
     case coach = "Coach"
     var id: String { rawValue }
-
     var apiValue: String {
       switch self {
-      case .player: return "player"
-      case .parent: return "parent"
-      case .coach: return "coach"
+      case .player: "player"
+      case .parent: "parent"
+      case .coach: "coach"
       }
     }
   }
 
-  @State private var orgs: [SDOrg] = []
-  @State private var selectedOrgId: UUID?
-  @State private var isLoadingOrganizations = false
-  @State private var organizationLoadError: String?
-
-  @State private var emailOrUsername: String = ""
-  @State private var signUpEmail: String = ""
-  @State private var signUpUsername: String = ""
-  @State private var password: String = ""
-  @State private var fullName: String = ""
+  @State private var mode: Mode = .email
+  @State private var orgSlug = ""
+  @State private var email = ""
+  @State private var password = ""
+  @State private var fullName = ""
   @State private var accountType: AccountType = .player
-  @State private var parentCode: String = ""
-  @State private var relationship: String = ""
-  @State private var coachInviteCode: String = ""
+  @State private var parentCode = ""
+  @State private var relationship = ""
+  @State private var coachCode = ""
   @State private var isSubmitting = false
-  @State private var showReset = false
+  @State private var publicMenuOpen = false
 
-  private var selectedOrg: SDOrg? {
-    guard let selectedOrgId else { return nil }
-    return orgs.first { $0.id == selectedOrgId }
+  var body: some View {
+    VStack(spacing: 0) {
+      publicHeader
+
+      ScrollView {
+        VStack(spacing: 0) {
+          brand.padding(.bottom, 24)
+          signInPanel
+
+          HStack(spacing: 4) {
+            Text("Need help?")
+            Link("Contact support", destination: supportURL)
+              .foregroundStyle(HP.Color.accent)
+          }
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .padding(.top, 24)
+        }
+        .frame(maxWidth: 448)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 48)
+
+        publicFooter
+      }
+      .background(HP.Color.bg)
+      #if os(iOS)
+      .scrollDismissesKeyboard(.interactively)
+      #endif
+    }
+    .background(HP.Color.bg.ignoresSafeArea())
+    .task { await applyInvitationContext() }
+    .onChange(of: appState.pendingInvitation) { _, _ in
+      Task { await applyInvitationContext() }
+    }
   }
 
-  private func normalizedUsername() -> String {
-    emailOrUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  private var publicHeader: some View {
+    VStack(spacing: 0) {
+      HStack(spacing: 16) {
+        publicLogo(markSize: 32, textSize: 18)
+        Spacer(minLength: 12)
+
+        Button {
+          withAnimation(.easeInOut(duration: 0.18)) {
+            publicMenuOpen.toggle()
+          }
+        } label: {
+          Image(systemName: publicMenuOpen ? "xmark" : "line.3.horizontal")
+            .font(.system(size: 20, weight: .medium))
+            .foregroundStyle(HP.Color.text)
+            .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(publicMenuOpen ? "Close menu" : "Open menu")
+      }
+      .frame(maxWidth: 1152)
+      .frame(maxWidth: .infinity)
+      .padding(.horizontal, 16)
+      .frame(height: 64)
+
+      if publicMenuOpen {
+        VStack(alignment: .leading, spacing: 0) {
+          ForEach(publicNavigationLinks, id: \.label) { link in
+            Link(destination: websiteURL(path: link.path)) {
+              Text(link.label)
+                .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline).weight(.medium))
+                .foregroundStyle(HP.Color.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 10)
+            }
+          }
+
+          VStack(spacing: 8) {
+            Button("Sign In") {
+              withAnimation(.easeInOut(duration: 0.18)) {
+                publicMenuOpen = false
+              }
+            }
+            .buttonStyle(HPOutlineButtonStyle())
+
+            Link(destination: websiteURL(path: "/#early-access")) {
+              Text("Request Early Access")
+                .font(.custom("Instrument Sans", size: 16, relativeTo: .body).weight(.semibold))
+                .foregroundStyle(HP.Color.accentText)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(HP.Color.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+          }
+          .padding(.top, 16)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+        .background(HP.Color.bg)
+        .transition(.move(edge: .top).combined(with: .opacity))
+      }
+    }
+    .background(HP.Color.bg.opacity(0.96))
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(HP.Color.border).frame(height: 1)
+    }
+    .zIndex(2)
   }
 
-  private func normalizedSignUpEmail() -> String {
-    signUpEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  private var publicFooter: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      publicLogo(markSize: 32, textSize: 18)
+
+      Text("Home Plate — The operating system for baseball development businesses.")
+        .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline))
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: 320, alignment: .leading)
+        .padding(.top, 16)
+
+      Link(supportEmail, destination: supportURL)
+        .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline))
+        .foregroundStyle(HP.Color.accent)
+        .padding(.top, 16)
+
+      VStack(alignment: .leading, spacing: 32) {
+        footerLinks(
+          heading: "Product",
+          links: [
+            ("Platform", "/platform"),
+            ("Player Development", "/player-development"),
+            ("Scheduling", "/scheduling"),
+            ("Payments", "/payments"),
+            ("Analytics", "/analytics")
+          ]
+        )
+        footerLinks(
+          heading: "Company",
+          links: [
+            ("Home", "/"),
+            ("Pricing", "/pricing"),
+            ("About", "/about"),
+            ("Support", "/support")
+          ]
+        )
+        footerLinks(
+          heading: "Legal",
+          links: [
+            ("Privacy Policy", "/privacy"),
+            ("Terms of Service", "/terms")
+          ]
+        )
+      }
+      .padding(.top, 40)
+
+      VStack(alignment: .leading, spacing: 12) {
+        Text("© 2026 Home Plate. All rights reserved.")
+        Text("Built for baseball facilities, academies, travel organizations, and coaches.")
+      }
+      .font(.custom("Instrument Sans", size: 12, relativeTo: .caption))
+      .foregroundStyle(HP.Color.textMuted)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.top, 24)
+      .overlay(alignment: .top) {
+        Rectangle().fill(HP.Color.border).frame(height: 1)
+      }
+      .padding(.top, 48)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 56)
+    .frame(maxWidth: 1152)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay(alignment: .top) {
+      Rectangle().fill(HP.Color.border).frame(height: 1)
+    }
   }
 
-  private func normalizedSignUpUsername() -> String {
-    signUpUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  private func publicLogo(markSize: CGFloat, textSize: CGFloat) -> some View {
+    HStack(spacing: 10) {
+      Image("BrandMark")
+        .resizable()
+        .scaledToFit()
+        .frame(width: markSize, height: markSize)
+      Text("Home Plate")
+        .font(.custom("Archivo", size: textSize, relativeTo: .headline).weight(.bold))
+        .foregroundStyle(HP.Color.text)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Home Plate")
+  }
+
+  private func footerLinks(heading: String, links: [(String, String)]) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(heading)
+        .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline).weight(.semibold))
+        .foregroundStyle(HP.Color.text)
+        .padding(.bottom, 12)
+      ForEach(links, id: \.0) { link in
+        Link(link.0, destination: websiteURL(path: link.1))
+          .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline))
+          .foregroundStyle(HP.Color.textMuted)
+          .padding(.bottom, 8)
+      }
+    }
+  }
+
+  private var publicNavigationLinks: [(label: String, path: String)] {
+    [
+      ("Home", "/"),
+      ("Platform", "/platform"),
+      ("Player Development", "/player-development"),
+      ("Scheduling", "/scheduling"),
+      ("Payments", "/payments"),
+      ("Analytics", "/analytics"),
+      ("Pricing", "/pricing"),
+      ("About", "/about"),
+      ("Support", "/support")
+    ]
+  }
+
+  private var brand: some View {
+    HStack(spacing: 10) {
+      Image("BrandMark")
+        .resizable()
+        .scaledToFit()
+        .frame(width: 36, height: 36)
+        .accessibilityHidden(true)
+      Text("Home Plate")
+        .font(.custom("Archivo", size: 20, relativeTo: .title3).weight(.bold))
+        .foregroundStyle(HP.Color.text)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Home Plate")
+  }
+
+  private var signInPanel: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(mode == .create ? "Create your account" : "Sign in")
+        .font(.custom("Archivo", size: 24, relativeTo: .title2).weight(.bold))
+        .foregroundStyle(HP.Color.text)
+        .accessibilityAddTraits(.isHeader)
+
+      Text(subtitle)
+        .font(HP.Font.body)
+        .foregroundStyle(HP.Color.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 6)
+
+      modeTabs.padding(.top, 20)
+
+      VStack(alignment: .leading, spacing: 16) {
+        if let invitation = appState.pendingInvitation {
+          invitationNotice(invitation)
+        } else if let invitationError = appState.invitationErrorText {
+          HPErrorState(
+            title: "Invitation unavailable",
+            message: invitationError,
+            onRetry: retryInvitation
+          )
+        }
+
+        if mode == .create {
+          HPFormField(label: "Organization code", text: $orgSlug, placeholder: "your-organization")
+            #if os(iOS)
+            .textInputAutocapitalization(.never)
+            #endif
+            .autocorrectionDisabled()
+        }
+
+        switch mode {
+        case .email:
+          HPFormField(label: "Email", text: $email)
+            #if os(iOS)
+            .textInputAutocapitalization(.never)
+            .keyboardType(.emailAddress)
+            #endif
+            .autocorrectionDisabled()
+        case .create:
+          createAccountFields
+        }
+
+        HPFormField(label: "Password", text: $password, kind: .secure)
+
+        if let error = appState.authError, !error.isEmpty {
+          errorNotice(safeAuthMessage(error))
+        }
+
+        HPButton(
+          title: isSubmitting ? "Please wait…" : (mode == .create ? "Create account" : "Sign in"),
+          variant: .primary,
+          size: .lg,
+          isLoading: isSubmitting,
+          fullWidth: true
+        ) {
+          Task { await submit() }
+        }
+        .disabled(isSubmitDisabled)
+        .keyboardShortcut(.defaultAction)
+      }
+      .padding(.top, 24)
+    }
+    .padding(panelPadding)
+    .background(HP.Color.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
+    }
+  }
+
+  private var panelPadding: CGFloat {
+    #if os(macOS)
+    32
+    #else
+    horizontalSizeClass == .regular ? 32 : 24
+    #endif
+  }
+
+  private var modeTabs: some View {
+    LazyVGrid(columns: tabColumns, spacing: 8) {
+      ForEach(Mode.allCases) { item in
+        Button {
+          mode = item
+          appState.authError = nil
+        } label: {
+          Text(item.rawValue)
+            .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline).weight(.semibold))
+            .foregroundStyle(mode == item ? HP.Color.text : HP.Color.textMuted)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .padding(.horizontal, 12)
+            .background(mode == item ? HP.Color.surfaceRaised : .clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(mode == item ? [.isButton, .isSelected] : .isButton)
+      }
+    }
+  }
+
+  private var tabColumns: [GridItem] {
+    #if os(macOS)
+    Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
+    #else
+    Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
+    #endif
+  }
+
+  @ViewBuilder
+  private var createAccountFields: some View {
+    HPFormField(label: "Email", text: $email)
+      #if os(iOS)
+      .textInputAutocapitalization(.never)
+      .keyboardType(.emailAddress)
+      #endif
+      .autocorrectionDisabled()
+
+    HPFormField(label: "Full name", text: $fullName)
+      #if os(iOS)
+      .textInputAutocapitalization(.words)
+      #endif
+
+    VStack(alignment: .leading, spacing: 6) {
+      Text("I am a")
+        .font(HP.Font.body.weight(.medium))
+        .foregroundStyle(HP.Color.text)
+      Picker("I am a", selection: $accountType) {
+        ForEach(AccountType.allCases) { item in
+          Text(item.rawValue).tag(item)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+      .padding(.horizontal, 14)
+      .background(HP.Color.surfaceRaised)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .strokeBorder(HP.Color.input, lineWidth: 1)
+      }
+    }
+
+    if accountType == .parent && appState.pendingInvitation == nil {
+      HPFormField(label: "Parent code", text: $parentCode)
+      HPFormField(label: "Relationship to player", text: $relationship, placeholder: "Mother, father, guardian…")
+    }
+
+    if accountType == .coach && appState.pendingInvitation == nil {
+      HPFormField(label: "Coach code", text: $coachCode)
+    }
+  }
+
+  private var subtitle: String {
+    switch mode {
+    case .email: "Use the email and password on your account."
+    case .create: "Ask your organization for its code before you start."
+    }
+  }
+
+  private var isSubmitDisabled: Bool {
+    let cleanOrg = normalized(orgSlug)
+    let cleanEmail = normalized(email)
+    return isSubmitting
+      || password.count < 6
+      || (mode == .create && cleanOrg.isEmpty)
+      || (mode == .email && !cleanEmail.contains("@"))
+      || (mode == .create && !cleanEmail.contains("@"))
+      || (mode == .create && appState.pendingInvitation == nil && accountType == .parent && normalized(parentCode).isEmpty)
+  }
+
+  private func submit() async {
+    isSubmitting = true
+    defer { isSubmitting = false }
+    appState.authError = nil
+    switch mode {
+    case .email:
+      await appState.signIn(email: normalized(email), password: password)
+    case .create:
+      await appState.signUp(
+        orgSlug: normalized(orgSlug),
+        email: normalized(email),
+        password: password,
+        fullName: fullName.trimmingCharacters(in: .whitespacesAndNewlines),
+        accountType: accountType.apiValue,
+        parentCode: parentCode,
+        relationship: relationship,
+        coachCode: coachCode,
+        invitationToken: appState.pendingInvitationToken
+      )
+    }
+  }
+
+  private func normalized(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func applyInvitationContext() async {
+    guard let invitation = appState.pendingInvitation else { return }
+    mode = .create
+    accountType = invitation.invitation_context == .family ? .parent : .coach
+    guard orgSlug.isEmpty, let supabase = appState.supabase else { return }
+    let organizations = try? await supabase.listOrgs()
+    if let org = organizations?.first(where: { $0.id == invitation.organization_id }) {
+      orgSlug = org.slug
+    }
   }
 
   private func retryInvitation() {
@@ -66,476 +487,104 @@ struct LoginView: View {
     Task { await appState.handleInvitationURL(url) }
   }
 
-  private var isEmailSignIn: Bool {
-    screen == .signIn && normalizedUsername().contains("@")
-  }
-
-  var body: some View {
-    HPScreenScaffold(widthMode: .compact, maxContentWidth: 560) { _ in
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        loginHeader
-
-        if let invitation = appState.pendingInvitation {
-          HPCard {
-            VStack(alignment: .leading, spacing: HP.Space.xs) {
-              HPSectionHeader("Invitation") { HPStatusBadge(text: invitation.invitation_context.invitedRole, kind: .gold) }
-              Text("Continue to \(invitation.organization_name). Your invitation remains private and will be confirmed after authentication.")
-                .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
-            }
-          }
-        }
-
-        if let invitationError = appState.invitationErrorText,
-           appState.pendingInvitation == nil {
-          HPCard {
-            HPErrorState(
-              title: "Invitation unavailable",
-              message: invitationError,
-              onRetry: retryInvitation
-            )
-          }
-        }
-
-        HPCard {
-          organizationAndModeControls
-        }
-
-        HPCard {
-          if screen == .signUp {
-            signUpFields
-          } else {
-            signInFields
-          }
-        }
-
-        HPCard(style: .flat) {
-          troubleshootingDisclosure
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    #if os(iOS)
-    .scrollDismissesKeyboard(.interactively)
-    #endif
-    .task {
-      await loadOrgsIfNeeded()
-      applyInvitationContext()
-    }
-    .onChange(of: appState.pendingInvitation) { _, _ in applyInvitationContext() }
-    .alert("Reset password", isPresented: $showReset) {
-      Button("Send reset email") {
-        let raw = emailOrUsername.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard raw.contains("@") else {
-          appState.authError = "Enter your email address to reset your password."
-          return
-        }
-        Task { await appState.resetPassword(email: raw.lowercased()) }
-      }
-      .keyboardShortcut(.defaultAction)
-      Button("Cancel", role: .cancel) {}
-        .keyboardShortcut(.cancelAction)
-    } message: {
-      Text("We’ll email a reset link if you entered a real email address.")
-    }
-  }
-
-  private var loginHeader: some View {
-    HStack(alignment: .top, spacing: HP.Space.sm) {
-      Image(systemName: "baseball.diamond.bases")
-        .font(.system(size: 28, weight: .semibold))
-        .foregroundStyle(HP.Color.accent)
-        .frame(width: 44, height: 44)
-        .background(
-          RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-            .fill(HP.Color.accent.opacity(0.14))
-        )
-        .accessibilityHidden(true)
-
-      VStack(alignment: .leading, spacing: HP.Space.xs) {
-        Text(DHDAppConfig.displayName)
-          .font(HP.Font.title)
-          .tracking(HP.Font.titleTracking)
-          .foregroundStyle(HP.Color.text)
-          .fixedSize(horizontal: false, vertical: true)
-          .accessibilityAddTraits(.isHeader)
-        Text("Choose your organization, then sign in or create an account.")
-          .font(HP.Font.callout)
-          .foregroundStyle(HP.Color.textMuted)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private var organizationAndModeControls: some View {
-    VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPSectionHeader("Access")
-
-      if orgs.isEmpty {
-        if isLoadingOrganizations {
-          HPLoadingState(text: "Loading organizations…")
-        } else {
-          VStack(alignment: .leading, spacing: HP.Space.xs) {
-            HStack(alignment: .center, spacing: HP.Space.sm) {
-              Text("Organization list unavailable")
-                .font(HP.Font.callout.weight(.semibold))
-                .foregroundStyle(HP.Color.text)
-                .fixedSize(horizontal: false, vertical: true)
-              Spacer(minLength: 0)
-              HPButton(
-                title: "Retry",
-                systemImage: "arrow.clockwise",
-                variant: .secondary,
-                size: .sm
-              ) {
-                Task { await loadOrgsIfNeeded(force: true) }
-              }
-            }
-            if let organizationLoadError {
-              Text(organizationLoadError)
-                .font(HP.Font.caption)
-                .foregroundStyle(HP.Color.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            Text("Email sign-in still works without selecting an organization.")
-              .font(HP.Font.caption)
-              .foregroundStyle(HP.Color.textMuted)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-        }
-      } else {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("ORGANIZATION")
-            .font(HP.Font.eyebrow)
-            .tracking(HP.Font.eyebrowTracking)
-            .foregroundStyle(HP.Color.textMuted)
-          Picker("Organization", selection: $selectedOrgId) {
-            ForEach(orgs) { org in
-              Text(org.displayName).tag(Optional(org.id))
-            }
-          }
-          .pickerStyle(.menu)
-          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        }
-      }
-
-      HPSegmentedControl(
-        options: Screen.allCases.map { (value: $0, label: $0.rawValue) },
-        selection: $screen
-      )
-      .accessibilityLabel("Authentication screen")
-    }
-  }
-
-  private var signInFields: some View {
-    VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPSectionHeader("Sign in")
-
-      HPFormField(
-        label: "Email or username",
-        text: $emailOrUsername,
-        placeholder: "Email or organization username"
-      )
-      #if canImport(UIKit)
-        .textInputAutocapitalization(.never)
-      #endif
-        .autocorrectionDisabled()
-        .frame(minHeight: 44)
-
-      passwordField
-      authErrorView
-      submitButton
-
-      HStack(spacing: HP.Space.sm) {
-        Rectangle().fill(HP.Color.border).frame(height: 1)
-        Text("OR")
-          .font(HP.Font.eyebrow)
-          .tracking(HP.Font.eyebrowTracking)
-          .foregroundStyle(HP.Color.textMuted)
-        Rectangle().fill(HP.Color.border).frame(height: 1)
-      }
-      .accessibilityElement(children: .combine)
-
-      AppleSignInButtonView()
-        .environmentObject(appState)
-
-      HPButton(
-        title: "Forgot password?",
-        variant: .tertiary,
-        size: .sm
-      ) {
-        showReset = true
-      }
-    }
-  }
-
-  private var signUpFields: some View {
-    VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPSectionHeader("Create account")
-
-      HPFormField(label: "Email", text: $signUpEmail, placeholder: "Account email")
-      #if canImport(UIKit)
-        .textInputAutocapitalization(.never)
-      #endif
-        .autocorrectionDisabled()
-        .frame(minHeight: 44)
-
-      HPFormField(label: "Username", text: $signUpUsername, placeholder: "Organization username")
-      #if canImport(UIKit)
-        .textInputAutocapitalization(.never)
-      #endif
-        .autocorrectionDisabled()
-        .frame(minHeight: 44)
-
-      VStack(alignment: .leading, spacing: 6) {
-        Text("ACCOUNT TYPE")
-          .font(HP.Font.eyebrow)
-          .tracking(HP.Font.eyebrowTracking)
-          .foregroundStyle(HP.Color.textMuted)
-        if let invitation = appState.pendingInvitation {
-          Label(invitation.invitation_context.invitedRole, systemImage: "person.badge.key")
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        } else {
-          HPSegmentedControl(
-            options: AccountType.allCases.map { (value: $0, label: $0.rawValue) },
-            selection: $accountType
-          )
-        }
-      }
-
-      HPFormField(label: "Full name (optional)", text: $fullName, placeholder: "Full name")
-      #if canImport(UIKit)
-        .textInputAutocapitalization(.words)
-      #endif
-        .autocorrectionDisabled()
-        .frame(minHeight: 44)
-
-      if accountType == .parent && appState.pendingInvitation == nil {
-        HPFormField(
-          label: "Parent code",
-          text: $parentCode,
-          placeholder: "Code from player",
-          helper: "Ask your child for their Parent code in Account → Family."
-        )
-        #if canImport(UIKit)
-          .textInputAutocapitalization(.characters)
-        #endif
-          .autocorrectionDisabled()
-          .frame(minHeight: 44)
-
-        HPFormField(
-          label: "Relationship (optional)",
-          text: $relationship,
-          placeholder: "Relationship to player"
-        )
-        #if canImport(UIKit)
-          .textInputAutocapitalization(.words)
-        #endif
-          .autocorrectionDisabled()
-          .frame(minHeight: 44)
-      }
-
-      if accountType == .coach && appState.pendingInvitation == nil {
-        HPFormField(
-          label: "Coach invite code",
-          text: $coachInviteCode,
-          placeholder: "Invite code",
-          helper: "Coach accounts require an invite code."
-        )
-        #if canImport(UIKit)
-          .textInputAutocapitalization(.never)
-        #endif
-          .autocorrectionDisabled()
-          .frame(minHeight: 44)
-      }
-
-      passwordField
-      authErrorView
-      submitButton
-    }
-  }
-
-  private var passwordField: some View {
-    HPFormField(label: "Password", text: $password, kind: .secure, placeholder: "Password")
-      .frame(minHeight: 44)
-  }
-
-  @ViewBuilder
-  private var authErrorView: some View {
-    if let error = appState.authError, !error.isEmpty {
-      if error.localizedCaseInsensitiveContains("password reset email sent") {
-        HStack(alignment: .top, spacing: HP.Space.sm) {
-          HPStatusBadge(text: "Sent", kind: .success)
-          Text("Password reset email sent. Check your inbox and spam folder.")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-          Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
-      } else {
-        HPErrorState(
-          title: screen == .signUp ? "Account couldn’t be created" : "Authentication issue",
-          message: safeAuthMessage(error)
-        )
-      }
-    }
-  }
-
-  private var submitButton: some View {
-    HPButton(
-      title: screen == .signUp ? "Create Account" : "Sign In",
-      systemImage: screen == .signUp ? "person.badge.plus" : "arrow.right.circle",
-      variant: .primary,
-      size: .lg,
-      isLoading: isSubmitting,
-      fullWidth: true
-    ) {
-      Task { await submit() }
-    }
-    .disabled(isSubmitDisabled)
-    .keyboardShortcut(.defaultAction)
-  }
-
-  private var isSubmitDisabled: Bool {
-    isSubmitting
-      || password.isEmpty
-      || (!isEmailSignIn && selectedOrg == nil)
-      || (screen == .signIn && normalizedUsername().isEmpty)
-      || (screen == .signUp && normalizedSignUpEmail().isEmpty)
-      || (screen == .signUp && normalizedSignUpUsername().isEmpty)
-      || (screen == .signUp && appState.pendingInvitation == nil && accountType == .parent && parentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      || (screen == .signUp && appState.pendingInvitation == nil && accountType == .coach && coachInviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-  }
-
-  private var troubleshootingDisclosure: some View {
-    DisclosureGroup("Having trouble signing in?") {
-      Text("You can sign in with either your account email or your organization-specific username. Password reset requires your email address.")
+  private func invitationNotice(_ invitation: SDOrganizationInvitationValidation) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "person.badge.key").foregroundStyle(HP.Color.accent)
+      Text("Continue to \(invitation.organization_name) as \(invitation.invitation_context.invitedRole.lowercased()).")
         .font(HP.Font.caption)
-        .foregroundStyle(HP.Color.textMuted)
+        .foregroundStyle(HP.Color.text)
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.top, HP.Space.xs)
     }
-    .font(HP.Font.callout.weight(.semibold))
-    .foregroundStyle(HP.Color.textTertiary)
-    .frame(minHeight: 44)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(HP.Color.accent.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
   }
 
-  private func safeAuthMessage(_ error: String) -> String {
-    let knownMessages = [
-      "Enter your email address to reset your password.",
-      "Pick an organization first.",
-      "Pick an organization before signing in with a username.",
-      "Login credentials are incorrect.",
-      "We couldn't sign you in right now. Check your connection and try again.",
-      "The selected organization could not be found. Refresh the organization list and try again.",
-    ]
-    if let known = knownMessages.first(where: { error.caseInsensitiveCompare($0) == .orderedSame }) {
-      return known
-    }
+  private func errorNotice(_ message: String) -> some View {
+    Text(message)
+      .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline))
+      .foregroundStyle(HP.Color.danger)
+      .fixedSize(horizontal: false, vertical: true)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(HP.Color.danger.opacity(0.10))
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+  }
 
-    let normalized = error.lowercased()
-    if normalized.contains("already registered")
-      || normalized.contains("already exists")
-      || normalized.contains("username_taken")
-      || normalized.contains("username taken")
-      || normalized.contains("duplicate") {
+  private func safeAuthMessage(_ raw: String) -> String {
+    let value = raw.lowercased()
+    if value.contains("already registered") || value.contains("already exists") || value.contains("duplicate") {
       return "An account with those details already exists. Try signing in or use different account details."
     }
-    if normalized.contains("invite")
-      || normalized.contains("parent code")
-      || normalized.contains("parent_code")
-      || normalized.contains("coach code")
-      || normalized.contains("coach_code") {
+    if value.contains("invite") || value.contains("parent code") || value.contains("coach code") {
       return "The invite or family code could not be verified. Check the code and try again."
     }
-    if normalized.contains("coach_signup_disabled") {
-      return "Coach account creation is unavailable for this organization. Ask an organization owner for an invite."
-    }
-    if normalized.contains("invalid email")
-      || normalized.contains("invalid_email")
-      || normalized.contains("email address is invalid") {
+    if value.contains("invalid") && value.contains("email") {
       return "Enter a valid email address and try again."
     }
-    if normalized.contains("rate limit")
-      || normalized.contains("too many requests")
-      || normalized.contains("request limit") {
+    if value.contains("rate limit") || value.contains("too many requests") {
       return "Too many requests were made. Wait a moment, then try again."
     }
-    if normalized.contains("password")
-      && (normalized.contains("weak")
-        || normalized.contains("length")
-        || normalized.contains("characters")
-        || normalized.contains("requirements")) {
-      return "The password does not meet the account requirements. Use a longer, stronger password and try again."
+    if value.contains("credentials") || value.contains("password") || value.contains("unauthorized") {
+      return "Login credentials are incorrect."
     }
-    if normalized.contains("reset") || normalized.contains("recovery") {
-      return "The password-reset request could not be completed. Check the email address and try again."
+    if value.contains("not configured") {
+      return "Sign-in is unavailable in this build. Contact support."
     }
-    if normalized.contains("not configured") {
-      return "Sign-in is unavailable in this build. Install a configured Home Plate build or contact support."
-    }
-    return screen == .signUp
+    return mode == .create
       ? "Home Plate couldn’t create your account. Check the details and try again."
-      : "Home Plate couldn’t complete the authentication request. Check your connection and try again."
+      : "Home Plate couldn’t sign you in. Check your details and try again."
   }
 
-  private func submit() async {
-    isSubmitting = true
-    defer { isSubmitting = false }
-    if screen == .signUp {
-      guard let org = selectedOrg else {
-        appState.authError = "Pick an organization first."
-        return
-      }
-      await appState.signUp(
-        orgSlug: org.slug,
-        username: normalizedSignUpUsername(),
-        email: normalizedSignUpEmail(),
-        password: password,
-        fullName: fullName,
-        accountType: accountType.apiValue,
-        parentCode: parentCode,
-        relationship: relationship,
-        coachCode: coachInviteCode,
-        invitationToken: appState.pendingInvitationToken
-      )
+  private var supportURL: URL {
+    if let email = DHDAppConfig.supportEmail,
+       let url = URL(string: "mailto:\(email)") {
+      return url
+    }
+    return URL(string: "mailto:support@homeplateapp.com")!
+  }
+
+  private var supportEmail: String {
+    DHDAppConfig.supportEmail ?? "support@homeplateapp.com"
+  }
+
+  private func websiteURL(path: String) -> URL {
+    let configured = DHDAppConfig.websiteHost?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawBase: String
+    if let configured, !configured.isEmpty {
+      rawBase = configured.hasPrefix("http://") || configured.hasPrefix("https://")
+        ? configured
+        : "https://\(configured)"
     } else {
-      let identifier = normalizedUsername()
-      if !identifier.contains("@"), selectedOrg == nil {
-        appState.authError = "Pick an organization before signing in with a username."
-        return
-      }
-      await appState.signIn(
-        orgSlug: selectedOrg?.slug ?? "",
-        identifier: identifier,
-        password: password
-      )
+      rawBase = "https://homeplateapp.com"
     }
-  }
 
-  private func loadOrgsIfNeeded(force: Bool = false) async {
-    guard force || orgs.isEmpty else { return }
-    guard !isLoadingOrganizations else { return }
-    guard let supabase = appState.supabase else { return }
-    isLoadingOrganizations = true
-    organizationLoadError = nil
-    defer { isLoadingOrganizations = false }
-    do {
-      let fetched = try await supabase.listOrgs()
-      orgs = fetched
-      if selectedOrgId == nil {
-        selectedOrgId = fetched.first?.id
-      }
-      applyInvitationContext()
-    } catch {
-      organizationLoadError = "Retry to load organizations, or use your account email to sign in now."
+    if path.hasPrefix("/#"), let base = URL(string: rawBase) {
+      var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
+      components?.fragment = String(path.dropFirst(2))
+      return components?.url ?? base
     }
-  }
 
-  private func applyInvitationContext() {
-    guard let invitation = appState.pendingInvitation else { return }
-    selectedOrgId = invitation.organization_id
-    accountType = invitation.invitation_context == .family ? .parent : .coach
+    return URL(string: path, relativeTo: URL(string: rawBase))?.absoluteURL
+      ?? URL(string: "https://homeplateapp.com")!
+  }
+}
+
+private struct HPOutlineButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.custom("Instrument Sans", size: 16, relativeTo: .body).weight(.semibold))
+      .foregroundStyle(HP.Color.text)
+      .frame(maxWidth: .infinity, minHeight: 44)
+      .background(HP.Color.bg)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .strokeBorder(HP.Color.border, lineWidth: 1)
+      }
+      .opacity(configuration.isPressed ? 0.78 : 1)
   }
 }

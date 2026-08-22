@@ -6,6 +6,23 @@ enum SDGameEventType: String, Codable, CaseIterable, Hashable, Sendable {
   case testing, meeting
   case organizationEvent = "organization_event"
   case other
+
+  var label: String {
+    rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+  }
+
+  var systemImage: String {
+    switch self {
+    case .practice: "figure.baseball"
+    case .game: "baseball.diamond.bases"
+    case .training: "dumbbell"
+    case .facilityBooking: "building.2"
+    case .testing: "chart.bar.doc.horizontal"
+    case .meeting: "person.3"
+    case .organizationEvent: "calendar.badge.clock"
+    case .other: "calendar"
+    }
+  }
 }
 
 enum SDGameLifecycle: String, Codable, CaseIterable, Sendable {
@@ -111,6 +128,31 @@ struct SDEventAttendance: Identifiable, Codable, Equatable, Sendable {
   let recorded_at: Date?
 }
 
+struct SDGameAttendanceRosterRow: Identifiable, Codable, Equatable, Sendable {
+  var id: String { "\(event_id.uuidString):\(player_id.uuidString)" }
+  let event_id: UUID
+  let player_id: UUID
+  let display_name: String
+  let expected_attendance: Bool?
+  let responded_at: Date?
+}
+
+enum SDGameAttendanceResponseGroup: String, CaseIterable, Identifiable, Sendable {
+  case coming = "Coming"
+  case notComing = "Not Coming"
+  case noResponse = "No Response"
+
+  var id: String { rawValue }
+
+  func contains(_ row: SDGameAttendanceRosterRow) -> Bool {
+    switch self {
+    case .coming: return row.expected_attendance == true
+    case .notComing: return row.expected_attendance == false
+    case .noResponse: return row.expected_attendance == nil
+    }
+  }
+}
+
 struct SDCreateGameRequest: Encodable, Sendable {
   let p_org_id: UUID
   let p_team_id: UUID
@@ -146,5 +188,23 @@ enum SDGameAuthorization {
     return participants.contains {
       $0.event_id == game.event_id && $0.user_id == userId && $0.can_score
     }
+  }
+}
+
+enum SDGameAttendanceAuthorization {
+  static func canRespond(
+    event: SDCanonicalEvent,
+    userId: UUID?,
+    membership: SDOrgMembership?
+  ) -> Bool {
+    guard event.event_type == .game,
+          event.canceled_at == nil,
+          event.status != .canceled,
+          let userId,
+          let membership else { return false }
+    return membership.user_id == userId
+      && membership.org_id == event.org_id
+      && membership.isActive
+      && membership.normalizedRole == "player"
   }
 }

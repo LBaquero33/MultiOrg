@@ -164,7 +164,7 @@ struct PlayerDetailView: View {
 
   private var playerIdentity: some View {
     HStack(spacing: HP.Space.md) {
-      HPAvatar(name: player.displayName, size: .lg)
+      HPProfileAvatarButton(profile: player, size: .lg)
       VStack(alignment: .leading, spacing: 2) {
         Text(player.displayName)
           .font(HP.Font.title)

@@ -9,9 +9,12 @@ struct SDPlayerBPDaySection: View {
 
   @State private var isExpanded = false
   @State private var didBP = false
+  @State private var activityType = "bp"
   @State private var repsType = "practice"
   @State private var source = "rapsodo"
+  @State private var importKind = "data"
   @State private var isImporting = false
+  @State private var isImportingVideo = false
   @State private var isWorking = false
   @State private var errorText: String?
   @State private var toastText: String?
@@ -23,7 +26,7 @@ struct SDPlayerBPDaySection: View {
     HPCard {
       DisclosureGroup(isExpanded: $isExpanded) {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
-          Toggle("Did you take BP today?", isOn: $didBP)
+          Toggle("Did you train hitting or throw a bullpen today?", isOn: $didBP)
             .font(HP.Font.callout)
             .foregroundStyle(HP.Color.text)
             .tint(HP.Color.accent)
@@ -36,6 +39,20 @@ struct SDPlayerBPDaySection: View {
 
           if didBP {
             VStack(alignment: .leading, spacing: 6) {
+              Text("Session")
+                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                .foregroundStyle(HP.Color.textMuted)
+              HPSegmentedControl(
+                options: [(value: "bp", label: "Hitting"), (value: "bullpen", label: "Bullpen")],
+                selection: $activityType
+              )
+              .onChange(of: activityType) { _, newValue in
+                if newValue == "bullpen" { importKind = "video" }
+                Task { await loadSession() }
+              }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
               Text("Reps type")
                 .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
                 .foregroundStyle(HP.Color.textMuted)
@@ -46,50 +63,88 @@ struct SDPlayerBPDaySection: View {
               .onChange(of: repsType) { _, _ in Task { await loadSession() } }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-              Text("Upload type")
-                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
-                .foregroundStyle(HP.Color.textMuted)
-              HPSegmentedControl(
-                options: BPImportSource.allCases.map { (value: $0.rawValue, label: $0.label) },
-                selection: $source
-              )
-              .onChange(of: source) { _, _ in Task { await loadSession() } }
-            }
-
-            HPButton(title: "Import CSV", systemImage: "square.and.arrow.down",
-                     variant: .secondary, size: .md, isLoading: isWorking) {
-              isImporting = true
-            }
-            .disabled(isWorking)
-
-            if isWorking {
-              HPLoadingState(text: "Working…")
-            }
-
-            if events.isEmpty {
-              Text("No BP pitch events imported yet for this date.")
-                .font(HP.Font.callout)
-                .foregroundStyle(HP.Color.textMuted)
-            } else {
-              let evs = events.compactMap(\.exit_velo)
-              let maxEV = evs.max() ?? 0
-              let avgEV = avg(evs)
-              VStack(alignment: .leading, spacing: 4) {
-                HPStatTile(label: "Events", value: "\(events.count)")
-                HPStatTile(label: "Max EV", value: "\(fmt(maxEV)) mph")
-                HPStatTile(label: "Avg EV", value: "\(fmt(avgEV)) mph")
+            if activityType == "bp" {
+              VStack(alignment: .leading, spacing: 6) {
+                Text("Upload method")
+                  .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                  .foregroundStyle(HP.Color.textMuted)
+                HPSegmentedControl(
+                  options: [(value: "data", label: "Data file"), (value: "video", label: "Video")],
+                  selection: $importKind
+                )
+                .onChange(of: importKind) { _, _ in Task { await loadSession() } }
               }
             }
 
-            if !events.isEmpty {
-              Text("First 12 events")
-                .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
-                .foregroundStyle(HP.Color.textMuted)
-              ForEach(Array(events.prefix(12))) { e in
-                Text("#\(e.pitch_num ?? 0) • EV \(fmt(e.exit_velo ?? 0)) • LA \(fmt(e.launch_angle ?? 0)) • Dist \(fmt(e.distance ?? 0))")
-                  .font(HP.Font.caption)
+            if activityType == "bp" && importKind == "data" {
+              VStack(alignment: .leading, spacing: 6) {
+                Text("Data source")
+                  .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
                   .foregroundStyle(HP.Color.textMuted)
+                HPSegmentedControl(
+                  options: BPImportSource.allCases.map { (value: $0.rawValue, label: $0.label) },
+                  selection: $source
+                )
+                .onChange(of: source) { _, _ in Task { await loadSession() } }
+              }
+
+              HPButton(title: "Import CSV", systemImage: "tablecells",
+                       variant: .secondary, size: .md, isLoading: isWorking) {
+                isImportingVideo = false
+                isImporting = true
+              }
+              .disabled(isWorking)
+            } else {
+              Text(activityType == "bullpen"
+                   ? "Upload a bullpen video for your coaches."
+                   : "Upload a hitting video instead of a data file.")
+                .font(HP.Font.callout)
+                .foregroundStyle(HP.Color.textMuted)
+
+              HPButton(
+                title: activityType == "bullpen" ? "Upload bullpen video" : "Upload hitting video",
+                systemImage: "video.badge.plus",
+                variant: .secondary,
+                size: .md,
+                isLoading: isWorking
+              ) {
+                isImportingVideo = true
+                isImporting = true
+              }
+              .disabled(isWorking)
+
+              if session?.video_path != nil {
+                Label("Video uploaded", systemImage: "checkmark.circle.fill")
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.success)
+              }
+            }
+
+            if activityType == "bp" && importKind == "data" {
+              if events.isEmpty {
+                Text("No BP pitch events imported yet for this date.")
+                  .font(HP.Font.callout)
+                  .foregroundStyle(HP.Color.textMuted)
+              } else {
+                let evs = events.compactMap(\.exit_velo)
+                let maxEV = evs.max() ?? 0
+                let avgEV = avg(evs)
+                VStack(alignment: .leading, spacing: 4) {
+                  HPStatTile(label: "Events", value: "\(events.count)")
+                  HPStatTile(label: "Max EV", value: "\(fmt(maxEV)) mph")
+                  HPStatTile(label: "Avg EV", value: "\(fmt(avgEV)) mph")
+                }
+              }
+
+              if !events.isEmpty {
+                Text("First 12 events")
+                  .font(HP.Font.eyebrow).tracking(HP.Font.eyebrowTracking)
+                  .foregroundStyle(HP.Color.textMuted)
+                ForEach(Array(events.prefix(12))) { e in
+                  Text("#\(e.pitch_num ?? 0) • EV \(fmt(e.exit_velo ?? 0)) • LA \(fmt(e.launch_angle ?? 0)) • Dist \(fmt(e.distance ?? 0))")
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
+                }
               }
             }
           } else {
@@ -100,7 +155,7 @@ struct SDPlayerBPDaySection: View {
         }
         .padding(.top, HP.Space.sm)
       } label: {
-        Text("Hitting (BP)")
+        Text("Hitting & Bullpens")
           .font(HP.Font.headline)
           .foregroundStyle(HP.Color.text)
       }
@@ -108,7 +163,9 @@ struct SDPlayerBPDaySection: View {
     }
     .fileImporter(
       isPresented: $isImporting,
-      allowedContentTypes: [UTType.commaSeparatedText, UTType.text, UTType.data],
+      allowedContentTypes: isImportingVideo
+        ? [UTType.movie, UTType.mpeg4Movie, UTType.quickTimeMovie]
+        : [UTType.commaSeparatedText, UTType.text, UTType.data],
       allowsMultipleSelection: false
     ) { result in
       switch result {
@@ -116,7 +173,13 @@ struct SDPlayerBPDaySection: View {
         errorText = err.localizedDescription
       case .success(let urls):
         guard let url = urls.first else { return }
-        Task { await importCSV(url: url) }
+        Task {
+          if isImportingVideo {
+            await importVideo(url: url)
+          } else {
+            await importCSV(url: url)
+          }
+        }
       }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -131,7 +194,7 @@ struct SDPlayerBPDaySection: View {
   private var dateISO: String { DateUtils.toISODate(date) }
 
   private func inferExisting() async {
-    // If a session exists for either practice/game, we consider "did BP" true.
+    // If a hitting or bullpen session exists, restore its input mode.
     guard let supabase = appState.supabase else { return }
     do {
       let sessionAuth = try await supabase.client.auth.session
@@ -140,13 +203,19 @@ struct SDPlayerBPDaySection: View {
       if all.contains(where: { $0.session_date == dateISO }) {
         didBP = true
         isExpanded = true
-        // Prefer practice if it exists.
-        if let s = all.first(where: { $0.session_date == dateISO && $0.reps_type == repsType && $0.source == source }) {
+        if let s = all.first(where: {
+          $0.session_date == dateISO
+            && ($0.activity_type ?? "bp") == activityType
+            && $0.reps_type == repsType
+            && $0.source == activeSource
+        }) {
           session = s
           events = try await supabase.fetchBPEvents(sessionId: s.id)
         } else if let s = all.first(where: { $0.session_date == dateISO }) {
+          activityType = s.activity_type ?? "bp"
           repsType = s.reps_type
-          source = s.source
+          importKind = s.source == "video" ? "video" : "data"
+          if s.source != "video" { source = s.source }
           session = s
           events = try await supabase.fetchBPEvents(sessionId: s.id)
         }
@@ -164,7 +233,14 @@ struct SDPlayerBPDaySection: View {
     do {
       let sessionAuth = try await supabase.client.auth.session
       let uid = sessionAuth.user.id
-      let s = try await supabase.upsertBPSession(playerId: uid, dateISO: dateISO, source: source, repsType: repsType, orgId: appState.activeOrgId)
+      let s = try await supabase.upsertBPSession(
+        playerId: uid,
+        dateISO: dateISO,
+        source: activeSource,
+        repsType: repsType,
+        activityType: activityType,
+        orgId: appState.activeOrgId
+      )
       session = s
       events = try await supabase.fetchBPEvents(sessionId: s.id)
     } catch {
@@ -183,7 +259,14 @@ struct SDPlayerBPDaySection: View {
 
       let sessionAuth = try await supabase.client.auth.session
       let uid = sessionAuth.user.id
-      let s = try await supabase.upsertBPSession(playerId: uid, dateISO: dateISO, source: importResult.source.rawValue, repsType: repsType, orgId: appState.activeOrgId)
+      let s = try await supabase.upsertBPSession(
+        playerId: uid,
+        dateISO: dateISO,
+        source: importResult.source.rawValue,
+        repsType: repsType,
+        activityType: "bp",
+        orgId: appState.activeOrgId
+      )
       session = s
       let creates = importResult.rows.enumerated().map { idx, row in
         SDBPEventCreate(
@@ -200,6 +283,53 @@ struct SDPlayerBPDaySection: View {
       try await supabase.replaceBPEvents(sessionId: s.id, events: creates)
       events = try await supabase.fetchBPEvents(sessionId: s.id)
       toast("Imported \(events.count) \(importResult.source.label) events.")
+    } catch {
+      errorText = error.localizedDescription
+    }
+  }
+
+  private var activeSource: String {
+    activityType == "bullpen" || importKind == "video" ? "video" : source
+  }
+
+  private func importVideo(url: URL) async {
+    guard let supabase = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
+    isWorking = true
+    defer { isWorking = false }
+    let accessed = url.startAccessingSecurityScopedResource()
+    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+    do {
+      let values = try url.resourceValues(forKeys: [.fileSizeKey])
+      if let size = values.fileSize, size > 262_144_000 {
+        throw NSError(
+          domain: "HomePlate",
+          code: 2,
+          userInfo: [NSLocalizedDescriptionKey: "Videos must be 250 MB or smaller."]
+        )
+      }
+      let data = try Data(contentsOf: url)
+      let fileExtension = url.pathExtension.lowercased() == "mov" ? "mov" : "mp4"
+      let contentType = fileExtension == "mov" ? "video/quicktime" : "video/mp4"
+      let playerId = try await supabase.client.auth.session.user.id
+      let path = try await supabase.uploadPlayerSessionVideo(
+        data,
+        organizationId: organizationId,
+        playerId: playerId,
+        fileExtension: fileExtension,
+        contentType: contentType
+      )
+      session = try await supabase.upsertBPSession(
+        playerId: playerId,
+        dateISO: dateISO,
+        source: "video",
+        repsType: repsType,
+        activityType: activityType,
+        videoPath: path,
+        orgId: organizationId
+      )
+      events = []
+      toast(activityType == "bullpen" ? "Bullpen video uploaded." : "Hitting video uploaded.")
     } catch {
       errorText = error.localizedDescription
     }

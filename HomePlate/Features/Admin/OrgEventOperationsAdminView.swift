@@ -15,7 +15,7 @@ struct OrgEventOperationsAdminView: View {
     HPListScreenLayout {
       HPWorkspaceHeader(
         "Event Operations",
-        orgLabel: appState.selectedSeason?.name ?? "Season",
+        orgLabel: organizationName,
         context: "Administrative inspection and correction"
       )
     } controls: {
@@ -81,6 +81,13 @@ struct OrgEventOperationsAdminView: View {
     .alert("Event Operations", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
+  }
+
+  private var organizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.displayName
+      ?? appState.activeOrgSettings?.display_name
+      ?? appState.activeOrgSettings?.short_name
+      ?? "Organization"
   }
 
   private func teamName(_ id: UUID) -> String {
@@ -430,7 +437,7 @@ private struct OrgEventOperationInspectionView: View {
     if profile.event_id != nil { return "Game" }
     if profile.tournament_event_id != nil { return "Tournament" }
     if profile.team_id != nil { return "Team" }
-    if profile.season_id != nil { return "Season" }
+    if profile.season_id != nil { return "Organization" }
     return "Organization"
   }
 

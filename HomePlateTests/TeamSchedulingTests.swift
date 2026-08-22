@@ -180,8 +180,8 @@ struct TeamSchedulingTests {
       canAdministerOrganization: true,
       isPlatformAdmin: false
     )
-    #expect(inventory.compactItems.isEmpty)
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachFacilities, .payments, .coachPrograms, .coachPlayers, .games, .chat, .organizationAdmin, .account])
+    #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
   }
 
   @Test("schedule UI is one destination with progressive filters and forms")

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AVKit
 
 /// Coach-facing calendar for a player (month grid + day tap -> view-only day details).
 struct CoachPlayerCalendarView: View {
@@ -272,6 +273,7 @@ private struct CoachPlayerDailyLogDetailView: View {
   @State private var strength: [SDStrengthLog] = []
   @State private var sessions: [SDBPSession] = []
   @State private var bpEvents: [SDBPEvent] = []
+  @State private var videoURLs: [UUID: URL] = [:]
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var toastText: String?
@@ -316,8 +318,6 @@ private struct CoachPlayerDailyLogDetailView: View {
           }
         }
 
-        selfAssessmentCard
-
         if let comments = log?.comments, !comments.isEmpty || log?.feel != nil {
           liftNoteCard(comments: comments)
         }
@@ -360,30 +360,6 @@ private struct CoachPlayerDailyLogDetailView: View {
     return appState.activeOrgSettings?.display_name
       ?? appState.activeOrgSettings?.short_name
       ?? "Home Plate"
-  }
-
-  private var selfAssessmentCard: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Self assessment")
-        row("Got video", log?.got_video)
-        row("Ate breakfast", log?.ate_breakfast)
-        row("Hit daily goals", log?.hit_daily_goals)
-        row("Stuck to process", log?.stuck_to_process)
-        if let fellShort = log?.fell_short, !fellShort.isEmpty {
-          Text("Fell short: \(fellShort)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        if let excelled = log?.excelled, !excelled.isEmpty {
-          Text("Excelled: \(excelled)")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-    }
   }
 
   private func liftNoteCard(comments: String) -> some View {
@@ -466,12 +442,17 @@ private struct CoachPlayerDailyLogDetailView: View {
         } else {
           ForEach(sessions) { session in
             VStack(alignment: .leading, spacing: 4) {
-              Text("\(session.source.uppercased()) • \(session.reps_type)")
+              Text("\(session.activity_type == "bullpen" ? "BULLPEN" : "HITTING") • \(session.reps_type)")
                 .font(HP.Font.headline)
                 .foregroundStyle(HP.Color.text)
-              Text("Events: \(bpEvents.count)")
+              Text("Source: \(session.source.capitalized) • Events: \(bpEvents.count)")
                 .font(HP.Font.caption)
                 .foregroundStyle(HP.Color.textMuted)
+              if let url = videoURLs[session.id] {
+                VideoPlayer(player: AVPlayer(url: url))
+                  .frame(minHeight: 220)
+                  .clipShape(RoundedRectangle(cornerRadius: HP.Radius.md))
+              }
             }
           }
         }
@@ -544,9 +525,14 @@ private struct CoachPlayerDailyLogDetailView: View {
       let all = try await supabase.listBPSessions(playerId: player.id, limit: 365)
       sessions = all.filter { $0.session_date == dateISO }
       bpEvents = []
+      videoURLs = [:]
       for s in sessions {
         let ev = try await supabase.fetchBPEvents(sessionId: s.id)
         bpEvents.append(contentsOf: ev)
+        if let path = s.video_path,
+           let url = try? await supabase.signedPlayerSessionVideoURL(path: path) {
+          videoURLs[s.id] = url
+        }
       }
     } catch {
       errorText = SDApplicationErrorClassifier.alertMessage(
@@ -577,7 +563,11 @@ private struct CoachPlayerDailyLogDetailView: View {
         )
       }
 
+      guard let orgId = appState.activeOrgId else {
+        throw NSError(domain: "HomePlate", code: 1, userInfo: [NSLocalizedDescriptionKey: "No active organization is selected."])
+      }
       _ = try await supabase.coachReplaceBPEvents(
+        orgId: orgId,
         playerId: player.id,
         dateISO: dateISO,
         source: result.source.rawValue,
@@ -594,17 +584,4 @@ private struct CoachPlayerDailyLogDetailView: View {
     }
   }
 
-  @ViewBuilder private func row(_ label: String, _ value: Bool?) -> some View {
-    HStack {
-      Text(label)
-      Spacer()
-      if value == true {
-        Image(systemName: "checkmark.circle.fill").foregroundStyle(HP.Color.success)
-      } else if value == false {
-        Image(systemName: "xmark.circle.fill").foregroundStyle(HP.Color.danger)
-      } else {
-        Text("—").foregroundStyle(HP.Color.textMuted)
-      }
-    }
-  }
 }

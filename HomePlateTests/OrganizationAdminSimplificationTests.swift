@@ -14,7 +14,7 @@ struct OrganizationAdminSimplificationTests {
 
     #expect(tabSource.contains("case overview = \"Overview\""))
     #expect(tabSource.contains("case people = \"People\""))
-    #expect(tabSource.contains("case teamsAndSeasons = \"Teams & Seasons\""))
+    #expect(tabSource.contains("case teams = \"Teams\""))
     #expect(tabSource.contains("case business = \"Business\""))
     #expect(tabSource.contains("case settings = \"Settings\""))
     #expect(tabSource.components(separatedBy: "case ").count - 1 == 5)
@@ -29,17 +29,17 @@ struct OrganizationAdminSimplificationTests {
 
     #expect(header.contains("Text(\"Organization\")"))
     #expect(header.contains("Manage people, teams, business settings, and organization details."))
-    #expect(header.contains("Continue Setup"))
+    #expect(header.contains("Continue Setup") == false)
     #expect(header.contains("Organization Admin Console") == false)
     #expect(header.contains("Autosave on") == false)
   }
 
-  @Test("navigation switches immediately supports keyboard movement and narrows to More")
+  @Test("navigation switches immediately supports keyboard movement and uses one compact menu")
   func adaptiveNavigation() throws {
     let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
-    #expect(source.contains("ViewThatFits(in: .horizontal)"))
-    #expect(source.contains("[.overview, .people, .teamsAndSeasons]"))
-    #expect(source.contains("overflow: [.business, .settings]"))
+    #expect(source.contains("if context.isExpanded"))
+    #expect(source.contains("adminMenuButtons(visibleTabs)"))
+    #expect(source.contains("Organization admin section"))
     #expect(source.contains(".onMoveCommand"))
     #expect(source.contains("transaction.disablesAnimations = true"))
     #expect(source.contains(".accessibilityValue(selectedTab.rawValue)"))
@@ -64,8 +64,19 @@ struct OrganizationAdminSimplificationTests {
 
     #expect(narrow.widthClass == .compact)
     #expect(wide.widthClass == .wide)
-    #expect(adminSource.contains("ViewThatFits(in: .horizontal)"))
+    #expect(adminSource.contains("adminMenuButtons(visibleTabs)"))
     #expect(teamsSource.contains("ViewThatFits(in: .horizontal)"))
+  }
+
+  @Test("Platform Admin uses focused sections and a compact phone selector")
+  func platformAdminSections() throws {
+    let source = try sourceFile("HomePlate/Features/Admin/PlatformAdminDashboardView.swift")
+    for section in ["Overview", "Organizations", "Access", "Controls"] {
+      #expect(source.contains("\"\(section)\""))
+    }
+    #expect(source.contains("selectedSection"))
+    #expect(source.contains("chevron.up.chevron.down"))
+    #expect(source.contains("if context.isExpanded"))
   }
 
   @Test("Overview contains readiness counts attention and required quick actions")
@@ -73,7 +84,7 @@ struct OrganizationAdminSimplificationTests {
     let source = try sourceFile("HomePlate/Features/Admin/OrgAdminConsoleView.swift")
     for copy in [
       "Organization status", "Active teams", "Members", "Players", "Coaches", "Invitations",
-      "Needs attention", "Add Member", "Create Team", "Create Season", "Open Registration",
+      "Needs attention", "Add Member", "Create Team", "Open Registration",
       "Edit Organization",
     ] {
       #expect(source.contains(copy))
@@ -81,7 +92,7 @@ struct OrganizationAdminSimplificationTests {
     #expect(source.contains("organizationNeedsSetup"))
     #expect(source.contains("organizationAttentionItems"))
     #expect(source.contains("teamOperationsLaunchAction = .createTeam"))
-    #expect(source.contains("teamOperationsLaunchAction = .createSeason"))
+    #expect(source.contains("teamOperationsLaunchAction = .createSeason") == false)
   }
 
   @Test("People consolidates search filters members and invitations without raw IDs")
@@ -100,36 +111,31 @@ struct OrganizationAdminSimplificationTests {
     #expect(source.contains("title: \"Invitations unavailable\""))
   }
 
-  @Test("Teams and Seasons initial page is list detail and create forms live in sheets")
-  func teamsAndSeasonsLayout() throws {
+  @Test("Teams initial page is list detail and the create form lives in a sheet")
+  func teamsLayout() throws {
     let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
     let pageStart = try #require(source.range(of: "private var pageContent: some View"))
     let pageEnd = try #require(source.range(of: "private var organizationName", range: pageStart.upperBound..<source.endIndex))
     let page = String(source[pageStart.lowerBound..<pageEnd.lowerBound])
 
-    #expect(page.contains("teamsAndSeasonsWorkspace"))
+    #expect(page.contains("teamsWorkspace"))
     #expect(page.contains("seasonCard") == false)
     #expect(page.contains("teamSeasonCard") == false)
     #expect(source.contains("ViewThatFits(in: .horizontal)"))
     #expect(source.contains("teamList"))
     #expect(source.contains("teamDetail"))
-    #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)"))
+    #expect(source.contains(".sheet(isPresented: $isShowingSeasonEditor)") == false)
     #expect(source.contains(".sheet(isPresented: $isShowingTeamEditor)"))
   }
 
-  @Test("Create Season sheet validates labeled fields and closes after save")
-  func createSeasonSheet() throws {
+  @Test("Season management is not exposed in the active team workflow")
+  func seasonManagementHidden() throws {
     let source = try sourceFile("HomePlate/Features/Admin/OrgTeamOperationsAdminView.swift")
-    #expect(source.contains("private var seasonEditorSheet"))
-    #expect(source.contains("TextField(\"Season name\""))
-    #expect(source.contains("Example: 2027 Spring"))
-    #expect(source.contains("DatePicker(\"Start date\""))
-    #expect(source.contains("DatePicker(\"End date\""))
-    #expect(source.contains("Picker(\"Lifecycle\""))
-    #expect(source.contains("Toggle(\"Make default season\""))
-    #expect(source.contains("isShowingSeasonEditor = false"))
-    #expect(source.contains("selectedSeasonId = saved.id"))
-    #expect(source.contains("let requestId = seasonRequestId"))
+    let bodyStart = try #require(source.range(of: "var body: some View"))
+    let pageStart = try #require(source.range(of: "private var pageContent", range: bodyStart.upperBound..<source.endIndex))
+    let activeBody = String(source[bodyStart.lowerBound..<pageStart.lowerBound])
+    #expect(source.contains("case createSeason") == false)
+    #expect(activeBody.contains("isShowingSeasonEditor") == false)
   }
 
   @Test("Create Team sheet has the approved fields no color and idempotent retry")
@@ -139,11 +145,12 @@ struct OrganizationAdminSimplificationTests {
     let sheetEnd = try #require(source.range(of: "private var schedulingCard", range: sheetStart.upperBound..<source.endIndex))
     let sheet = String(source[sheetStart.lowerBound..<sheetEnd.lowerBound])
 
-    #expect(sheet.contains("TextField(\"Team name\""))
-    #expect(sheet.contains("Picker(\"Season\""))
-    #expect(sheet.contains("TextField(\"Age group\""))
-    #expect(sheet.contains("TextField(\"Level\""))
-    #expect(sheet.contains("Roster capacity (optional)"))
+    #expect(sheet.contains("LabeledContent(\"Team name\""))
+    #expect(sheet.contains("Picker(\"Season\"") == false)
+    #expect(sheet.contains("LabeledContent(\"Age group\""))
+    #expect(sheet.contains("LabeledContent(\"Competitive level\""))
+    #expect(sheet.contains("LabeledContent(\"Roster capacity\""))
+    #expect(sheet.contains(".keyboardType(.numberPad)"))
     #expect(sheet.contains("TextField(\"Color\"") == false)
     #expect(sheet.contains("teamColor") == false)
     #expect(source.contains("requestId: teamRequestId"))
@@ -186,7 +193,7 @@ struct OrganizationAdminSimplificationTests {
     #expect(source.contains("Label(\"Saving…\""))
     #expect(source.contains("Label(\"Saved\""))
     #expect(source.contains("Label(\"Couldn’t save\""))
-    #expect(source.contains("SDOrganizationSetupTestConfiguration.current().allows"))
+    #expect(source.contains("SDOrganizationSetupTestConfiguration.current().allows") == false)
   }
 
   @Test("section failures preserve other authoritative content")

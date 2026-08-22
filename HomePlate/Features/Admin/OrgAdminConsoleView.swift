@@ -19,6 +19,8 @@ struct OrgAdminConsoleView: View {
   @State private var templateCount = 0
   @State private var channelCount = 0
   @State private var invitationLinks: [SDOrganizationInvitationLink] = []
+  @State private var generatedInvitationURLs: [SDOrganizationInvitationContext: String] = [:]
+  @State private var invitationActionInFlight: SDOrganizationInvitationContext?
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var peopleErrorText: String?
@@ -102,7 +104,7 @@ struct OrgAdminConsoleView: View {
   enum Tab: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case people = "People"
-    case teamsAndSeasons = "Teams & Seasons"
+    case teams = "Teams"
     case business = "Business"
     case settings = "Settings"
     var id: String { rawValue }
@@ -111,7 +113,7 @@ struct OrgAdminConsoleView: View {
       switch self {
       case .overview: "rectangle.3.group"
       case .people: "person.3"
-      case .teamsAndSeasons: "person.3.sequence.fill"
+      case .teams: "person.3.sequence.fill"
       case .business: "chart.line.uptrend.xyaxis"
       case .settings: "gearshape"
       }
@@ -350,15 +352,34 @@ struct OrgAdminConsoleView: View {
 
   @ViewBuilder
   private func adminSectionNavigation(_ context: HPScreenLayoutContext) -> some View {
-    ViewThatFits(in: .horizontal) {
-      adminNavigationRow(
-        Tab.allCases,
-        overflow: []
-      )
-      adminNavigationRow(
-        [.overview, .people, .teamsAndSeasons],
-        overflow: [.business, .settings]
-      )
+    Group {
+      if context.isExpanded {
+        adminNavigationRow(
+          Tab.allCases,
+          overflow: []
+        )
+      } else {
+        Menu {
+          adminMenuButtons(visibleTabs)
+        } label: {
+          HStack(spacing: HP.Space.sm) {
+            Image(systemName: selectedTab.systemImage)
+              .foregroundStyle(HP.Color.accent)
+            Text(selectedTab.rawValue)
+              .font(HP.Font.callout.weight(.semibold))
+              .foregroundStyle(HP.Color.text)
+            Spacer(minLength: HP.Space.sm)
+            Image(systemName: "chevron.up.chevron.down")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Organization admin section")
+        .accessibilityValue(selectedTab.rawValue)
+      }
     }
     .accessibilityLabel("Organization admin sections")
     .accessibilityValue(selectedTab.rawValue)
@@ -447,7 +468,7 @@ struct OrgAdminConsoleView: View {
       organizationOverview(context)
     case .people:
       peopleWorkspace(context)
-    case .teamsAndSeasons:
+    case .teams:
       OrgTeamOperationsAdminView(
         embedded: true,
         launchAction: teamOperationsLaunchAction,
@@ -611,19 +632,6 @@ struct OrgAdminConsoleView: View {
           .frame(minWidth: 44, minHeight: 44)
           .accessibilityLabel("Loading organization data")
       }
-      if organizationNeedsSetup, let organizationId = appState.activeOrgId {
-        NavigationLink {
-          OrganizationSetupWizardView(
-            organizationId: organizationId,
-            organizationName: settings?.display_name ?? settings?.short_name
-          )
-        } label: {
-          Label("Continue Setup", systemImage: "checklist")
-            .font(HP.Font.callout.weight(.semibold))
-            .frame(minHeight: 44)
-        }
-        .buttonStyle(.borderedProminent)
-      }
     }
     .padding(.vertical, HP.Space.xs)
     .accessibilityElement(children: .contain)
@@ -648,8 +656,7 @@ struct OrgAdminConsoleView: View {
   }
 
   private var organizationNeedsSetup: Bool {
-    appState.teamOperationsContext?.activeSeason == nil
-      || appState.teamOperationsContext?.teams.filter(\.is_active).isEmpty != false
+    appState.teamOperationsContext?.teams.filter(\.is_active).isEmpty != false
   }
 
   private var activeOrganizationTeams: [SDTeamOperationsTeam] {
@@ -679,15 +686,6 @@ struct OrgAdminConsoleView: View {
             adminMetric("Players", value: playerCount, symbol: "figure.baseball", color: HP.Color.success)
             adminMetric("Coaches", value: coachCount, symbol: "person.crop.rectangle.stack", color: HP.Color.info)
             adminMetric("Invitations", value: activeInvitationLinks.count, symbol: "link.badge.plus", color: HP.Color.warning)
-          }
-          HStack(spacing: HP.Space.xs) {
-            Text("Current season")
-              .font(HP.Font.caption)
-              .foregroundStyle(HP.Color.textMuted)
-            Spacer()
-            Text(appState.teamOperationsContext?.activeSeason?.name ?? "No active season")
-              .font(HP.Font.callout.weight(.semibold))
-              .foregroundStyle(HP.Color.text)
           }
         }
       }
@@ -720,11 +718,7 @@ struct OrgAdminConsoleView: View {
             }
             HPButton(title: "Create Team", systemImage: "plus", variant: .secondary, fullWidth: !context.isExpanded) {
               teamOperationsLaunchAction = .createTeam
-              selectAdminTab(.teamsAndSeasons)
-            }
-            HPButton(title: "Create Season", systemImage: "calendar.badge.plus", variant: .secondary, fullWidth: !context.isExpanded) {
-              teamOperationsLaunchAction = .createSeason
-              selectAdminTab(.teamsAndSeasons)
+              selectAdminTab(.teams)
             }
             HPButton(title: "Open Registration", systemImage: "person.crop.circle.badge.plus", variant: .secondary, fullWidth: !context.isExpanded) {
               businessSection = .registration
@@ -742,7 +736,6 @@ struct OrgAdminConsoleView: View {
 
   private var organizationAttentionItems: [String] {
     var items: [String] = []
-    if appState.teamOperationsContext?.activeSeason == nil { items.append("Create or activate a season") }
     if activeOrganizationTeams.isEmpty { items.append("Create the first team") }
     let assignedPlayers = Set(appState.teamOperationsContext?.player_memberships.filter {
       $0.active && $0.ended_at == nil
@@ -816,7 +809,15 @@ struct OrgAdminConsoleView: View {
         } else {
           ForEach(filteredAdminMembers) { member in
             HStack(spacing: HP.Space.sm) {
-              HPAvatar(name: member.displayName, size: .sm)
+              HPProfileAvatarButton(
+                profile: Profile(
+                  id: member.user_id,
+                  role: member.profile_role ?? member.role,
+                  full_name: member.full_name,
+                  avatar_path: nil
+                ),
+                size: .sm
+              )
               VStack(alignment: .leading, spacing: 2) {
                 Text(member.displayName).font(HP.Font.callout.weight(.semibold))
                 Text(memberContactSummary(member))
@@ -832,7 +833,7 @@ struct OrgAdminConsoleView: View {
               Menu {
                 Button("View") { editingMember = MemberDraft(member: member) }
                 Button("Edit role") { editingMember = MemberDraft(member: member) }
-                Button("Assign team") { selectAdminTab(.teamsAndSeasons) }
+                Button("Assign team") { selectAdminTab(.teams) }
               } label: {
                 Image(systemName: "ellipsis.circle").frame(width: 36, height: 36)
               }
@@ -889,17 +890,18 @@ struct OrgAdminConsoleView: View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPSectionHeader("Invitation links") {
-          if let organizationId = appState.activeOrgId {
-            NavigationLink {
-              OrganizationSetupWizardView(
-                organizationId: organizationId,
-                organizationName: settings?.display_name ?? settings?.short_name
-              )
-            } label: {
-              Label("Create Invite Link", systemImage: "link.badge.plus")
+          Menu {
+            Button("Coach or staff") {
+              Task { await generateInvitation(context: .staff) }
             }
-            .buttonStyle(.borderedProminent)
+            Button("Parent or guardian") {
+              Task { await generateInvitation(context: .family) }
+            }
+          } label: {
+            Label("Create Invite Link", systemImage: "link.badge.plus")
+              .frame(minHeight: 44)
           }
+          .disabled(invitationActionInFlight != nil)
         }
         if let invitationErrorText {
           HPErrorState(title: "Invitations unavailable", message: invitationErrorText, onRetry: { Task { await reload() } })
@@ -907,19 +909,104 @@ struct OrgAdminConsoleView: View {
           HPEmptyState(title: "No invitation links", message: "Create a link when you are ready to invite staff or families.", systemImage: "link")
         } else {
           ForEach(invitationLinks) { link in
-            HStack {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(link.invitation_context.title).font(HP.Font.callout.weight(.semibold))
-                Text(link.intended_role.capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(link.invitation_context.title).font(HP.Font.callout.weight(.semibold))
+                  Text(link.intended_role.capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                }
+                Spacer()
+                HPStatusBadge(text: link.isActive ? "Active" : "Inactive", kind: link.isActive ? .success : .neutral)
               }
-              Spacer()
-              HPStatusBadge(text: link.isActive ? "Active" : "Inactive", kind: link.isActive ? .success : .neutral)
+              if let invitationURL = generatedInvitationURLs[link.invitation_context] {
+                HStack(spacing: HP.Space.sm) {
+                  Button {
+                    copyInvitationURL(invitationURL)
+                    toastText = "Invitation link copied."
+                  } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                  }
+                  if let url = URL(string: invitationURL) {
+                    ShareLink(item: url) {
+                      Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              HStack(spacing: HP.Space.sm) {
+                Button("Regenerate") {
+                  Task { await generateInvitation(context: link.invitation_context) }
+                }
+                if link.revoked_at == nil {
+                  Button("Disable", role: .destructive) {
+                    Task { await revokeInvitation(link) }
+                  }
+                }
+              }
+              .buttonStyle(.borderless)
             }
             .frame(minHeight: 44)
+            Divider().overlay(HP.Color.border.opacity(0.5))
           }
         }
       }
     }
+  }
+
+  @MainActor
+  private func generateInvitation(context: SDOrganizationInvitationContext) async {
+    guard let supabase = appState.supabase, let orgId = paymentRequestOrganizationId else { return }
+    invitationActionInFlight = context
+    defer { if invitationActionInFlight == context { invitationActionInFlight = nil } }
+    do {
+      let rotating = invitationLinks.contains { $0.invitation_context == context && $0.revoked_at == nil }
+      let response = try await supabase.generateOrganizationInvitationLink(
+        organizationId: orgId,
+        context: context,
+        rotating: rotating,
+        teamId: nil,
+        responsibilities: []
+      )
+      guard !Task.isCancelled, paymentRequestOrganizationId == orgId else { return }
+      invitationLinks.removeAll { $0.invitation_context == context }
+      invitationLinks.append(response.link)
+      generatedInvitationURLs[context] = response.invitation_url
+      toastText = rotating ? "Invitation link regenerated." : "Invitation link created."
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
+      invitationErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+  }
+
+  @MainActor
+  private func revokeInvitation(_ link: SDOrganizationInvitationLink) async {
+    guard let supabase = appState.supabase else { return }
+    invitationActionInFlight = link.invitation_context
+    defer { if invitationActionInFlight == link.invitation_context { invitationActionInFlight = nil } }
+    do {
+      let response = try await supabase.revokeOrganizationInvitationLink(
+        organizationId: link.organization_id,
+        linkId: link.id
+      )
+      guard !Task.isCancelled else { return }
+      invitationLinks.removeAll { $0.id == link.id }
+      invitationLinks.append(response.link)
+      generatedInvitationURLs[link.invitation_context] = nil
+      toastText = "Invitation link disabled."
+    } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
+      invitationErrorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+  }
+
+  private func copyInvitationURL(_ value: String) {
+    #if canImport(UIKit)
+    UIPasteboard.general.string = value
+    #elseif canImport(AppKit)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(value, forType: .string)
+    #endif
   }
 
   private func businessWorkspace(_ context: HPScreenLayoutContext) -> some View {
@@ -1077,30 +1164,12 @@ struct OrgAdminConsoleView: View {
   }
 
   private var advancedSettingsCard: some View {
-    VStack(alignment: .leading, spacing: HP.Space.md) {
-      setupAndLaunchCard
-      if let organizationId = appState.activeOrgId,
-         SDOrganizationSetupTestConfiguration.current().allows(
-          organizationId: organizationId,
-          hasAuthority: appState.canAdminActiveOrg || appState.isPlatformAdmin
-         ) {
-        HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Developer / Testing")
-            Text("Testing controls are available only in approved environments for this organization.")
-              .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-            NavigationLink {
-              OrganizationSetupWizardView(
-                organizationId: organizationId,
-                organizationName: settings?.display_name ?? settings?.short_name
-              )
-            } label: {
-              Label("Test Organization Setup Wizard", systemImage: "wrench.and.screwdriver")
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            }
-          }
-        }
-      }
+    HPCard {
+      HPEmptyState(
+        title: "No advanced settings",
+        message: "Organization details, branding, features, booking rules, and facilities are managed in the sections above.",
+        systemImage: "gearshape.2"
+      )
     }
   }
 
@@ -1217,86 +1286,6 @@ struct OrgAdminConsoleView: View {
             ) {
               settingsSection = .operations
               selectAdminTab(.settings)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private var setupAndLaunchCard: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        HPSectionHeader("Organization setup") {
-          HPStatusBadge(text: "Resumable", kind: .info)
-        }
-        Text("Review organization details, seasons, teams, people, and launch readiness in one guided flow.")
-          .font(HP.Font.caption)
-          .foregroundStyle(HP.Color.textMuted)
-        if let organizationId = appState.activeOrgId {
-          NavigationLink {
-            OrganizationSetupWizardView(
-              organizationId: organizationId,
-              organizationName: settings?.display_name ?? settings?.short_name
-            )
-          } label: {
-            Label("Open Organization Setup", systemImage: "arrow.right.circle.fill")
-              .font(HP.Font.callout.weight(.semibold))
-              .foregroundStyle(HP.Color.accent)
-              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-          }
-        } else {
-          HPEmptyState(
-            title: "Organization required",
-            message: "Select an organization to open setup.",
-            systemImage: "building.2"
-          )
-        }
-      }
-    }
-  }
-
-  private var settingsAndTestingCard: some View {
-    VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPCard {
-        VStack(alignment: .leading, spacing: HP.Space.sm) {
-          HPSectionHeader("Organization settings")
-          Text("Branding, feature, booking, team-scope, and setup controls remain organization-scoped.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-          HPButton(title: "Branding", systemImage: "paintbrush", variant: .secondary) {
-            settingsSection = .branding
-            selectAdminTab(.settings)
-          }
-          HPButton(title: "Feature Controls", systemImage: "switch.2", variant: .secondary) {
-            settingsSection = .operations
-            selectAdminTab(.settings)
-          }
-        }
-      }
-      if let organizationId = appState.activeOrgId,
-         SDOrganizationSetupTestConfiguration.current().allows(
-          organizationId: organizationId,
-          hasAuthority: appState.canAdminActiveOrg || appState.isPlatformAdmin
-         ) {
-        HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Test Organization Setup Wizard") {
-              HPStatusBadge(text: "Guarded", kind: .warning)
-            }
-            Text("Reset setup progress for Marist Red Foxes and reopen the onboarding wizard for visual and workflow testing. Available only for the exact configured organization UUID.")
-              .font(HP.Font.caption)
-              .foregroundStyle(HP.Color.textMuted)
-            NavigationLink {
-              OrganizationSetupWizardView(
-                organizationId: organizationId,
-                organizationName: settings?.display_name ?? settings?.short_name
-              )
-            } label: {
-              Label("Open Setup Wizard", systemImage: "wrench.and.screwdriver")
-                .font(HP.Font.callout.weight(.semibold))
-                .foregroundStyle(HP.Color.accent)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             }
           }
         }
@@ -3873,7 +3862,7 @@ private struct OrganizationOperationsAdminView: View {
   private var title: String {
     switch section {
     case .communication: "Communication Operations"
-    case .registration: "Registration & Seasons"
+    case .registration: "Registration"
     case .analytics: "Organization Analytics"
     }
   }
@@ -4082,7 +4071,7 @@ private struct OrganizationOperationsAdminView: View {
     ReportType(key: "game_completion", title: "Game completion"),
     ReportType(key: "communication_delivery", title: "Communication delivery"),
     ReportType(key: "missing_requirements", title: "Missing requirements"),
-    ReportType(key: "season_summary", title: "Season summary")
+    ReportType(key: "season_summary", title: "Activity summary")
   ]
 
   @MainActor private func load() async {

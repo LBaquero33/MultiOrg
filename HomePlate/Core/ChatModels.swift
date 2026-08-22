@@ -1,5 +1,22 @@
 import Foundation
 
+struct SDChatDirectoryMember: Identifiable, Decodable, Equatable, Sendable {
+  var id: UUID { user_id }
+  let user_id: UUID
+  let role: String
+  let display_name: String
+  let avatar_path: String?
+
+  var profile: Profile {
+    Profile(
+      id: user_id,
+      role: role,
+      full_name: display_name,
+      avatar_path: avatar_path
+    )
+  }
+}
+
 struct SDChatChannel: Identifiable, Decodable, Equatable, Sendable {
   let id: UUID
   let org_id: UUID?
@@ -42,6 +59,22 @@ struct SDChatMessage: Identifiable, Decodable, Equatable, Sendable {
   let deleted_at: Date?
 
   var isDeleted: Bool { deleted_at != nil }
+}
+
+struct SDChatAttachment: Identifiable, Decodable, Equatable, Sendable {
+  let id: UUID
+  let org_id: UUID
+  let channel_id: UUID
+  let message_id: UUID
+  let uploader_id: UUID
+  let storage_path: String
+  let file_name: String
+  let mime_type: String
+  let byte_size: Int
+  let attachment_kind: String
+  let created_at: Date
+
+  var isImage: Bool { attachment_kind == "image" || mime_type.hasPrefix("image/") }
 }
 
 struct SDChatLastMessageRow: Identifiable, Decodable, Equatable, Sendable {

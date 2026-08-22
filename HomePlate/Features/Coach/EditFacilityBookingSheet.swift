@@ -18,7 +18,6 @@ struct EditFacilityBookingSheet: View {
   @State private var coachId: UUID?
   @State private var title: String
   @State private var notes: String
-  @State private var isFullCage3: Bool
 
   @State private var isSaving = false
   @State private var errorText: String?
@@ -44,7 +43,6 @@ struct EditFacilityBookingSheet: View {
     _coachId = State(initialValue: booking.coach_id)
     _title = State(initialValue: booking.title ?? "")
     _notes = State(initialValue: booking.notes ?? "")
-    _isFullCage3 = State(initialValue: booking.span_facility_id != nil)
   }
 
   var body: some View {
@@ -91,11 +89,6 @@ struct EditFacilityBookingSheet: View {
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
       } message: { Text(errorText ?? "") }
-      .onChange(of: facilityId) { _, newValue in
-        if newValue != cage3_1Id {
-          isFullCage3 = false
-        }
-      }
     }
   }
 
@@ -177,17 +170,12 @@ struct EditFacilityBookingSheet: View {
       VStack(alignment: .leading, spacing: HP.Space.md) {
         HPSectionHeader("Resource")
         Picker("Cage", selection: $facilityId) {
-          ForEach(selectableFacilities) { f in
+          ForEach(facilities) { f in
             Text(f.name).tag(f.id)
           }
         }
         .frame(minHeight: 44)
         .contentShape(Rectangle())
-        if facilityId == cage3_1Id {
-          Toggle("Full Cage 3 (3.1 + 3.2)", isOn: $isFullCage3)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
         if let onBeginMove {
           HPButton(
             title: "Move by tapping schedule…",
@@ -248,22 +236,11 @@ struct EditFacilityBookingSheet: View {
     }
   }
 
-  private var cage3_1Id: UUID? { facilities.first(where: { $0.name == "Cage 3.1" })?.id }
-  private var cage3_2Id: UUID? { facilities.first(where: { $0.name == "Cage 3.2" })?.id }
-
-  private var selectableFacilities: [SDFacility] {
-    // Hide Cage 3.2 from direct selection; it is used automatically for full Cage 3 bookings.
-    // Keep it visible if the existing booking is already on 3.2 (defensive).
-    let isOn3_2 = facilities.first(where: { $0.id == booking.facility_id })?.name == "Cage 3.2"
-    return isOn3_2 ? facilities : facilities.filter { $0.name != "Cage 3.2" }
-  }
-
   private func save() async {
     guard let supabase = appState.supabase else { return }
     isSaving = true
     defer { isSaving = false }
     do {
-      let spanId: UUID? = (facilityId == cage3_1Id && isFullCage3) ? cage3_2Id : nil
       _ = try await supabase.updateFacilityBooking(
         id: booking.id,
         facilityId: facilityId,
@@ -275,7 +252,7 @@ struct EditFacilityBookingSheet: View {
         approved: status == "approved",
         title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title,
         notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-        spanFacilityId: spanId,
+        spanFacilityId: nil,
         orgId: appState.activeOrgId
       )
       onSaved()

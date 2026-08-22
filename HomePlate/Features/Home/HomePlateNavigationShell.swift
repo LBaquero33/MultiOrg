@@ -685,7 +685,8 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
   }
 
   private var showsTeamScopeControl: Bool {
-    (role == .coach || role == .owner) && activeTeamScopes.count > 1
+    let canSelectTeam = role == .coach || role == .owner
+    return canSelectTeam && !activeTeamScopes.isEmpty
   }
 
   private var sidebarTeamScopeControl: AnyView? {

@@ -41,12 +41,17 @@ function expense(
     id,
     org_id: organization,
     category: "Facilities",
+    category_id: null,
     description: "Cage rental",
     amount_cents: amount,
     currency: "usd",
     expense_date: "2026-07-14",
     vendor: "Marist",
     notes: null,
+    payment_method: null,
+    team_id: null,
+    recurring: false,
+    receipt_path: null,
     created_at: "2026-07-14T10:00:00.000Z",
     updated_at: "2026-07-14T10:00:00.000Z",
     archived_at: null,
@@ -106,6 +111,7 @@ class ExpenseStore implements FinanceDashboardStore {
       id: this.nextId,
       org_id: org,
       ...input,
+      receipt_path: null,
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
       archived_at: null,
@@ -153,6 +159,25 @@ class ExpenseStore implements FinanceDashboardStore {
     };
     this.expenseRows[index] = row;
     this.audits.push({ action: "expense_archived", actor, expense: id });
+    return row;
+  }
+  async setExpenseReceipt(
+    org: string,
+    actor: string,
+    id: string,
+    receiptPath: string,
+  ) {
+    const index = this.expenseRows.findIndex((row) =>
+      row.org_id === org && row.id === id
+    );
+    if (index < 0) throw new FinanceDashboardStoreError("expense_not_found");
+    const row = {
+      ...this.expenseRows[index],
+      receipt_path: receiptPath,
+      updated_at: now.toISOString(),
+    };
+    this.expenseRows[index] = row;
+    this.audits.push({ action: "expense_receipt_set", actor, expense: id });
     return row;
   }
 }

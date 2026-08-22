@@ -22,6 +22,34 @@ struct GameCalendarIntegrationTests {
     #expect(payload.gameId == game)
   }
 
+  @Test func onlyActivePlayersCanRespondToGames() {
+    let org = UUID()
+    let player = UUID()
+    let event = fixture(org: org).event
+    let playerMembership = SDOrgMembership(
+      org_id: org, user_id: player, role: "player", status: "active",
+      created_at: nil, created_by: nil
+    )
+    let coachMembership = SDOrgMembership(
+      org_id: org, user_id: player, role: "coach", status: "active",
+      created_at: nil, created_by: nil
+    )
+    let inactiveMembership = SDOrgMembership(
+      org_id: org, user_id: player, role: "player", status: "inactive",
+      created_at: nil, created_by: nil
+    )
+
+    #expect(SDGameAttendanceAuthorization.canRespond(
+      event: event, userId: player, membership: playerMembership
+    ))
+    #expect(!SDGameAttendanceAuthorization.canRespond(
+      event: event, userId: player, membership: coachMembership
+    ))
+    #expect(!SDGameAttendanceAuthorization.canRespond(
+      event: event, userId: player, membership: inactiveMembership
+    ))
+  }
+
   private func fixture(org: UUID) -> SDGameCalendarItem {
     let now = Date()
     return SDGameCalendarItem(

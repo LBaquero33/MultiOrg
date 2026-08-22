@@ -30,7 +30,7 @@ final class OrganizationSetupViewModel: ObservableObject {
       let response = try await service.organizationSetup(organizationId: organizationId)
       guard accepts(response: response, token: token, organizationId: organizationId) else { return }
       snapshot = response
-      selectedStep = response.session?.current_step ?? .basics
+      selectedStep = Self.userFacingStep(response.session?.current_step ?? .basics)
     } catch {
       guard requestToken == token, self.organizationId == organizationId,
             !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
@@ -72,7 +72,7 @@ final class OrganizationSetupViewModel: ObservableObject {
       guard accepts(response: response, token: token, organizationId: organizationId) else { return }
       snapshot = response
       pendingMutationRequestIds.removeValue(forKey: operationKey)
-      selectedStep = response.session?.current_step ?? selectedStep
+      selectedStep = Self.userFacingStep(response.session?.current_step ?? selectedStep)
       toastText = successMessage
     } catch {
       guard requestToken == token, self.organizationId == organizationId,
@@ -104,6 +104,10 @@ final class OrganizationSetupViewModel: ObservableObject {
       currentToken: requestToken,
       taskIsCancelled: Task.isCancelled
     ) && response.organization.id == organizationId
+  }
+
+  private static func userFacingStep(_ step: SDOrganizationSetupStep) -> SDOrganizationSetupStep {
+    step == .season ? .teams : step
   }
 }
 
@@ -214,7 +218,7 @@ struct OrganizationSetupWizardView: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("This preserves all organization, season, team, roster, financial, communication, and baseball history.")
+      Text("This preserves all organization, team, roster, financial, communication, and baseball history.")
     }
     .confirmationDialog(
       "Delete setup-created test data?",
@@ -249,7 +253,7 @@ struct OrganizationSetupWizardView: View {
       .padding(.top, HP.Space.lg)
       ScrollView {
         VStack(spacing: HP.Space.xs) {
-          ForEach(SDOrganizationSetupStep.allCases) { step in
+          ForEach(visibleSetupSteps) { step in
             Button { select(step) } label: {
               HStack(spacing: HP.Space.sm) {
                 Image(systemName: stepSymbol(step))
@@ -284,7 +288,7 @@ struct OrganizationSetupWizardView: View {
       get: { model.selectedStep },
       set: { select($0) }
     )) {
-      ForEach(SDOrganizationSetupStep.allCases) { step in
+      ForEach(visibleSetupSteps) { step in
         Text("\(step.title)\(step.isOptional ? " · Optional" : "")").tag(step)
       }
     }
@@ -319,7 +323,7 @@ struct OrganizationSetupWizardView: View {
   @ViewBuilder private var stepContent: some View {
     switch model.selectedStep {
     case .basics: basicsStep
-    case .season: seasonStep
+    case .season: teamStep
     case .teams: teamStep
     case .staff: staffStep
     case .playersFamilies: playersStep
@@ -351,17 +355,8 @@ struct OrganizationSetupWizardView: View {
     }
   }
 
-  private var seasonStep: some View {
-    setupCard("Create the default season", detail: "The season becomes the scope for teams, rosters, events, registration, and reports.") {
-      HPFormField(label: "Season name", text: $seasonName, placeholder: "Example: Fall 2026")
-      labeledDatePicker("Start date", selection: $seasonStart)
-      labeledDatePicker("End date", selection: $seasonEnd)
-      existingSummary(model.snapshot?.seasons.map(\.name) ?? [], empty: "No season exists yet.")
-    }
-  }
-
   private var teamStep: some View {
-    setupCard("Teams", detail: "Create one or more teams for this season. Existing teams are reused and are never duplicated on retry.") {
+    setupCard("Teams", detail: "Create one or more teams. Existing teams are reused and are never duplicated on retry.") {
       if let teams = model.snapshot?.teams, !teams.isEmpty {
         VStack(alignment: .leading, spacing: HP.Space.xs) {
           Text("EXISTING TEAMS").font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)
@@ -438,7 +433,6 @@ struct OrganizationSetupWizardView: View {
         HPFormField(label: "Capacity", text: $registrationCapacity, placeholder: "Optional roster limit")
         labeledDatePicker("Open date", selection: $registrationOpenDate)
         labeledDatePicker("Close date", selection: $registrationCloseDate)
-        labeledValue("Season", value: seasonName.sdNilIfBlank ?? "Default season")
         labeledValue("Team scope", value: "All teams")
         labeledValue("State", value: "Draft")
       } else {
@@ -493,9 +487,9 @@ struct OrganizationSetupWizardView: View {
               kind: model.snapshot?.readiness.ready == true ? .success : .warning
             )
           }
-          Text("Launch requires an active organization, name and timezone, an active/default season, and an active team in that season. Optional steps never block launch.")
+          Text("Launch requires an active organization, name and timezone, and at least one active team. Optional steps never block launch.")
             .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
-          ForEach(model.snapshot?.readiness.items ?? []) { item in
+          ForEach((model.snapshot?.readiness.items ?? []).filter { $0.route_step != .season }) { item in
             Button { select(item.route_step) } label: {
               HStack {
                 Image(systemName: item.complete ? "checkmark.circle.fill" : "circle")
@@ -568,7 +562,7 @@ struct OrganizationSetupWizardView: View {
   private var footerActions: some View {
     HStack(spacing: HP.Space.sm) {
       HPButton(title: "Back", systemImage: "chevron.left", variant: .secondary) {
-        select(model.selectedStep.previous)
+        select(previousVisibleStep)
       }
       .disabled(model.selectedStep == .basics || model.isSaving)
       if model.selectedStep.isOptional {
@@ -615,7 +609,6 @@ struct OrganizationSetupWizardView: View {
       HPFormField(label: "Age group", text: team.ageGroup, placeholder: "Example: 14U")
       HPFormField(label: "Level", text: team.level, placeholder: "Example: Travel")
       HPFormField(label: "Roster capacity", text: team.rosterCapacity, placeholder: "Optional", error: draft.rosterCapacity.isEmpty ? nil : draft.validationError)
-      labeledValue("Season", value: seasonName.sdNilIfBlank ?? "Default season")
     }
     .padding(HP.Space.sm)
     .background(RoundedRectangle(cornerRadius: HP.Radius.md).fill(HP.Color.surfaceRaised))
@@ -819,7 +812,16 @@ struct OrganizationSetupWizardView: View {
   }
 
   private func select(_ step: SDOrganizationSetupStep) {
-    model.selectedStep = step
+    model.selectedStep = step == .season ? .teams : step
+  }
+
+  private var visibleSetupSteps: [SDOrganizationSetupStep] {
+    SDOrganizationSetupStep.allCases.filter { $0 != .season }
+  }
+
+  private var previousVisibleStep: SDOrganizationSetupStep {
+    guard let index = visibleSetupSteps.firstIndex(of: model.selectedStep), index > 0 else { return .basics }
+    return visibleSetupSteps[index - 1]
   }
 
   private func reload() async {
@@ -874,14 +876,21 @@ struct OrganizationSetupWizardView: View {
         "phone": .string(phone), "website_host": .string(website), "support_email": .string(supportEmail),
       ], success: "Organization basics saved.")
     case .season:
-      await perform(action: "save_season", field: "season", payload: [
-        "id": model.snapshot?.seasons.first(where: \.is_default).map { .string($0.id.uuidString) } ?? .null,
-        "name": .string(seasonName), "start_date": .string(Self.setupDateString(seasonStart)), "end_date": .string(Self.setupDateString(seasonEnd)),
-        "status": .string("active"), "is_default": .bool(true),
-      ], success: "Season saved.")
+      model.selectedStep = .teams
     case .teams:
+      if model.snapshot?.seasons.isEmpty != false {
+        await perform(action: "save_season", field: "season", payload: [
+          "id": .null,
+          "name": .string("Current"),
+          "start_date": .string(Self.setupDateString(Date())),
+          "end_date": .string(Self.setupDateString(Calendar.current.date(byAdding: .year, value: 10, to: Date()) ?? Date())),
+          "status": .string("active"),
+          "is_default": .bool(true),
+        ])
+        guard model.errorText == nil else { return }
+      }
       guard let seasonId = model.snapshot?.seasons.first(where: \.is_default)?.id ?? model.snapshot?.seasons.first?.id else {
-        model.errorText = "Create a season before adding a team."
+        model.errorText = "Team setup is temporarily unavailable. Refresh and try again."
         return
       }
       guard pendingTeams.allSatisfy({ $0.validationError == nil }) else { model.errorText = pendingTeams.compactMap(\.validationError).first; return }

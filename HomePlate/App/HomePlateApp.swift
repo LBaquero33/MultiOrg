@@ -125,6 +125,9 @@ struct HomePlateApp: App {
     WindowGroup {
       RootView()
         .environmentObject(appState)
+        #if os(iOS)
+        .preferredColorScheme(.dark)
+        #endif
         .task { await appState.bootstrap() }
     }
     #if os(macOS)

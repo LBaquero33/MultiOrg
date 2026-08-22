@@ -2238,6 +2238,75 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
+  func listChatAttachments(messageIds: [UUID]) async throws -> [SDChatAttachment] {
+    guard !messageIds.isEmpty else { return [] }
+    let ids = messageIds.map(\.uuidString).joined(separator: ",")
+    return try await client
+      .from("sd_chat_attachments")
+      .select("id,org_id,channel_id,message_id,uploader_id,storage_path,file_name,mime_type,byte_size,attachment_kind,created_at")
+      .filter("message_id", operator: "in", value: "(\(ids))")
+      .order("created_at", ascending: true)
+      .execute()
+      .value
+  }
+
+  func uploadChatAttachment(
+    _ data: Data,
+    organizationId: UUID,
+    channelId: UUID,
+    fileName: String,
+    contentType: String
+  ) async throws -> String {
+    let session = try await client.auth.session
+    let rawExtension = URL(fileURLWithPath: fileName).pathExtension.lowercased()
+    let safeExtension = rawExtension.isEmpty ? "bin" : rawExtension
+    let path = "\(organizationId.uuidString.lowercased())/\(channelId.uuidString.lowercased())/\(session.user.id.uuidString.lowercased())/\(UUID().uuidString.lowercased()).\(safeExtension)"
+    _ = try await client.storage.from("chat-attachments").upload(
+      path,
+      data: data,
+      options: FileOptions(contentType: contentType, upsert: false)
+    )
+    return path
+  }
+
+  func createChatAttachment(
+    messageId: UUID,
+    storagePath: String,
+    fileName: String,
+    mimeType: String,
+    byteSize: Int,
+    isImage: Bool
+  ) async throws -> SDChatAttachment {
+    struct Write: Encodable {
+      let message_id: UUID
+      let storage_path: String
+      let file_name: String
+      let mime_type: String
+      let byte_size: Int
+      let attachment_kind: String
+    }
+    return try await client
+      .from("sd_chat_attachments")
+      .insert(
+        Write(
+          message_id: messageId,
+          storage_path: storagePath,
+          file_name: fileName,
+          mime_type: mimeType,
+          byte_size: byteSize,
+          attachment_kind: isImage ? "image" : "file"
+        )
+      )
+      .select()
+      .single()
+      .execute()
+      .value
+  }
+
+  func signedChatAttachmentURL(path: String) async throws -> URL {
+    try await client.storage.from("chat-attachments").createSignedURL(path: path, expiresIn: 3_600)
+  }
+
   func markChatConversationRead(
     channelId: UUID,
     throughMessageId: UUID
@@ -2771,6 +2840,16 @@ final class SupabaseService: ObservableObject {
       .from("profiles")
       .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,years_experience")
       .eq("id", value: uid.uuidString)
+      .single()
+      .execute()
+      .value
+  }
+
+  func fetchProfileDetails(userId: UUID) async throws -> SDProfileDetails {
+    try await client
+      .from("profiles")
+      .select("id,role,full_name,avatar_path,phone,grad_year,primary_position,bats,throws,school,team,height_in,weight_lb,notes,professional_title,bio,specialties,website,years_experience")
+      .eq("id", value: userId.uuidString)
       .single()
       .execute()
       .value
@@ -4879,29 +4958,181 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
-  // MARK: - BP
+  func listTestingFieldDefinitions(
+    orgId: UUID,
+    includeInactive: Bool = false
+  ) async throws -> [SDTestingFieldDefinition] {
+    var query = client
+      .from("sd_testing_field_definitions")
+      .select()
+      .eq("org_id", value: orgId.uuidString)
 
-  func upsertBPSession(playerId: UUID, dateISO: String, source: String, repsType: String, orgId: UUID? = nil) async throws -> SDBPSession {
-    struct Upsert: Encodable {
-      let org_id: UUID?
-      let player_id: UUID
-      let session_date: String
-      let source: String
-      let reps_type: String
+    if !includeInactive {
+      query = query.eq("is_active", value: true)
     }
-    return try await client
-      .from("sd_bp_sessions")
-      .upsert(Upsert(org_id: orgId, player_id: playerId, session_date: dateISO, source: source, reps_type: repsType),
-              onConflict: orgId == nil ? "player_id,session_date,source,reps_type" : "org_id,player_id,session_date,source,reps_type")
+
+    return try await query
+      .order("sort_order", ascending: true)
+      .order("label", ascending: true)
+      .execute()
+      .value
+  }
+
+  func createTestingFieldDefinition(
+    _ field: SDTestingFieldDefinitionWrite
+  ) async throws -> SDTestingFieldDefinition {
+    try await client
+      .from("sd_testing_field_definitions")
+      .insert(field)
       .select()
       .single()
       .execute()
       .value
   }
 
-  func coachReplaceBPEvents(playerId: UUID, dateISO: String, source: String, repsType: String, events: [SDBPEventCreate]) async throws -> UUID {
+  func updateTestingFieldDefinition(
+    id: UUID,
+    field: SDTestingFieldDefinitionWrite
+  ) async throws -> SDTestingFieldDefinition {
+    try await client
+      .from("sd_testing_field_definitions")
+      .update(field)
+      .eq("id", value: id.uuidString)
+      .select()
+      .single()
+      .execute()
+      .value
+  }
+
+  func deleteTestingFieldDefinition(id: UUID) async throws {
+    _ = try await client
+      .from("sd_testing_field_definitions")
+      .delete()
+      .eq("id", value: id.uuidString)
+      .execute()
+  }
+
+  // MARK: - BP
+
+  func upsertBPSession(
+    playerId: UUID,
+    dateISO: String,
+    source: String,
+    repsType: String,
+    activityType: String = "bp",
+    videoPath: String? = nil,
+    orgId: UUID? = nil
+  ) async throws -> SDBPSession {
+    struct Upsert: Encodable {
+      let org_id: UUID?
+      let player_id: UUID
+      let session_date: String
+      let activity_type: String
+      let source: String
+      let reps_type: String
+      let video_path: String?
+    }
+    return try await client
+      .from("sd_bp_sessions")
+      .upsert(
+        Upsert(
+          org_id: orgId,
+          player_id: playerId,
+          session_date: dateISO,
+          activity_type: activityType,
+          source: source,
+          reps_type: repsType,
+          video_path: videoPath
+        ),
+        onConflict: orgId == nil
+          ? "player_id,session_date,activity_type,source,reps_type"
+          : "org_id,player_id,session_date,activity_type,source,reps_type"
+      )
+      .select()
+      .single()
+      .execute()
+      .value
+  }
+
+  func uploadPlayerSessionVideo(
+    _ data: Data,
+    organizationId: UUID,
+    playerId: UUID,
+    fileExtension: String,
+    contentType: String
+  ) async throws -> String {
+    let safeExtension = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).\(safeExtension)"
+    _ = try await client.storage.from("player-session-videos").upload(
+      path,
+      data: data,
+      options: FileOptions(contentType: contentType, upsert: false)
+    )
+    return path
+  }
+
+  func signedPlayerSessionVideoURL(path: String) async throws -> URL {
+    try await client.storage.from("player-session-videos").createSignedURL(path: path, expiresIn: 600)
+  }
+
+  func uploadTestingFieldVideo(
+    _ data: Data,
+    organizationId: UUID,
+    playerId: UUID,
+    testingEntryId: UUID,
+    fieldKey: String,
+    fileExtension: String,
+    contentType: String
+  ) async throws -> String {
+    let safeExtension = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
+    let safeField = fieldKey
+      .lowercased()
+      .replacingOccurrences(of: "[^a-z0-9_-]", with: "-", options: .regularExpression)
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/testing/\(testingEntryId.uuidString.lowercased())/\(safeField)-\(UUID().uuidString.lowercased()).\(safeExtension)"
+    _ = try await client.storage.from("player-session-videos").upload(
+      path,
+      data: data,
+      options: FileOptions(contentType: contentType, upsert: false)
+    )
+    return path
+  }
+
+  func upsertTestingFieldMedia(
+    testingEntryId: UUID,
+    fieldKey: String,
+    storagePath: String,
+    fileName: String,
+    mimeType: String,
+    byteSize: Int
+  ) async throws {
+    struct Write: Encodable {
+      let testing_entry_id: UUID
+      let field_key: String
+      let storage_path: String
+      let file_name: String
+      let mime_type: String
+      let byte_size: Int
+    }
+    _ = try await client
+      .from("sd_testing_field_media")
+      .upsert(
+        Write(
+          testing_entry_id: testingEntryId,
+          field_key: fieldKey,
+          storage_path: storagePath,
+          file_name: fileName,
+          mime_type: mimeType,
+          byte_size: byteSize
+        ),
+        onConflict: "testing_entry_id,field_key"
+      )
+      .execute()
+  }
+
+  func coachReplaceBPEvents(orgId: UUID, playerId: UUID, dateISO: String, source: String, repsType: String, events: [SDBPEventCreate]) async throws -> UUID {
     // NOTE: Coaches cannot write to sd_bp_* via RLS; this goes through an Edge Function using service_role.
     struct Payload: Encodable {
+      let org_id: String
       let player_id: String
       let session_date: String
       let source: String
@@ -4923,6 +5154,7 @@ final class SupabaseService: ObservableObject {
     }
 
     let body = Payload(
+      org_id: orgId.uuidString,
       player_id: playerId.uuidString,
       session_date: dateISO,
       source: source,
@@ -5259,7 +5491,20 @@ struct SDTestingEntryCreate: Encodable {
   let hip_ir_diff: Double?
   let shoulder_ir_diff: Double?
   let shoulder_er_diff: Double?
+  let custom_values: [String: SDJSONValue]?
   let notes: String?
+}
+
+struct SDTestingFieldDefinitionWrite: Encodable {
+  let org_id: UUID
+  let field_key: String
+  let label: String
+  let category: String
+  let unit: String?
+  let value_type: String
+  let is_required: Bool
+  let sort_order: Int
+  let is_active: Bool
 }
 
 struct SDBPEventCreate: Encodable {

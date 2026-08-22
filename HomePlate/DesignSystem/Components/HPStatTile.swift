@@ -7,49 +7,40 @@ struct HPStatTile: View {
   let value: String
   var systemImage: String? = nil
   var valueColor: Color = HP.Color.text
+  var hint: String? = nil
 
   var body: some View {
-    ViewThatFits(in: .horizontal) {
-      horizontalContent
-      stackedContent
-    }
-    .padding(.vertical, 6)
-    .accessibilityElement(children: .combine)
-  }
-
-  private var horizontalContent: some View {
-    HStack(spacing: HP.Space.sm) {
-      labelContent
-      Spacer(minLength: HP.Space.sm)
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 6) {
+        if let systemImage {
+          Image(systemName: systemImage)
+            .foregroundStyle(HP.Color.textMuted)
+            .accessibilityHidden(true)
+        }
+        Text(label)
+          .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline).weight(.medium))
+          .foregroundStyle(HP.Color.textMuted)
+      }
       Text(value)
-        .font(HP.Font.callout.weight(.semibold)).foregroundStyle(valueColor)
-        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
-    }
-    .fixedSize(horizontal: true, vertical: false)
-  }
-
-  private var stackedContent: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      labelContent
-      Text(value)
-        .font(HP.Font.callout.weight(.semibold))
+        .font(.custom("Instrument Sans", size: 30, relativeTo: .title).weight(.bold))
         .foregroundStyle(valueColor)
-        .fixedSize(horizontal: false, vertical: true)
+        .monospacedDigit()
+        .padding(.top, 8)
+      if let hint {
+        Text(hint)
+          .font(.custom("Instrument Sans", size: 14, relativeTo: .subheadline))
+          .foregroundStyle(HP.Color.textMuted)
+          .padding(.top, 4)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private var labelContent: some View {
-    HStack(spacing: HP.Space.xs) {
-      if let systemImage {
-        Image(systemName: systemImage)
-          .foregroundStyle(HP.Color.textMuted)
-          .accessibilityHidden(true)
-      }
-      Text(label)
-        .font(HP.Font.caption)
-        .foregroundStyle(HP.Color.textMuted)
-        .fixedSize(horizontal: false, vertical: true)
+    .padding(20)
+    .background(HP.Color.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .strokeBorder(HP.Color.border, lineWidth: 1)
     }
+    .accessibilityElement(children: .combine)
   }
 }

@@ -8,18 +8,19 @@ import UIKit
 
 @MainActor
 final class UniversalNavigationShellTests: XCTestCase {
-  func testPlayerCompactInventoryUsesFourTabsPlusDirectory() {
+  func testPlayerInventoryMatchesWebsiteMenu() {
     let inventory = playerInventory()
 
     XCTAssertEqual(
-      inventory.compactItems.map(\.destination),
-      [.playerToday, .playerCalendar, .playerTrends, .chat]
+      inventory.regularItems.map(\.destination),
+      [.playerToday, .playerCalendar, .playerFacilities, .playerProgram, .playerTrends, .chat, .account]
     )
-    XCTAssertEqual(inventory.compactTabCountIncludingDirectory, 5)
     XCTAssertEqual(
-      Set(inventory.directoryItems.map(\.destination)),
-      [.playerTesting, .playerAnalysis, .playerFacilities, .playerDevelopment, .account]
+      inventory.regularItems.map(\.title),
+      ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"]
     )
+    XCTAssertTrue(inventory.compactItems.isEmpty)
+    XCTAssertTrue(inventory.directoryItems.isEmpty)
   }
 
   func testPlayerFeatureGatesRemoveOnlyGatedDestinations() {
@@ -32,42 +33,53 @@ final class UniversalNavigationShellTests: XCTestCase {
       testingTitle: "Testing"
     )
 
-    let destinations = Set((inventory.compactItems + inventory.directoryItems).map(\.destination))
+    let destinations = Set(inventory.regularItems.map(\.destination))
     XCTAssertFalse(destinations.contains(.chat))
     XCTAssertFalse(destinations.contains(.playerFacilities))
     XCTAssertFalse(destinations.contains(.playerTesting))
     XCTAssertFalse(destinations.contains(.playerAnalysis))
-    XCTAssertTrue(destinations.contains(.playerDevelopment))
+    XCTAssertTrue(destinations.contains(.playerProgram))
+    XCTAssertTrue(destinations.contains(.playerTrends))
     XCTAssertTrue(destinations.contains(.account))
   }
 
-  func testParentInventoryPreservesChildrenChatAndAccount() {
+  func testParentInventoryMatchesWebsiteMenu() {
     let inventory = HPAppNavigationInventory.parent(childrenTitle: "Children", chatEnabled: true)
 
     XCTAssertEqual(
-      inventory.compactItems.map(\.destination),
-      [.parentChildren, .parentCalendar, .chat]
+      inventory.regularItems.map(\.destination),
+      [.parentHome, .parentChildren, .parentCalendar, .payments, .chat, .account]
     )
-    XCTAssertEqual(inventory.directoryItems.map(\.destination), [.account])
-    XCTAssertEqual(inventory.compactTabCountIncludingDirectory, 4)
+    XCTAssertEqual(
+      inventory.regularItems.map(\.title),
+      ["Home", "Children", "Calendar", "Payments", "Messages", "Account"]
+    )
+    XCTAssertTrue(inventory.compactItems.isEmpty)
+    XCTAssertTrue(inventory.directoryItems.isEmpty)
   }
 
-  func testCoachInventoryNeverExceedsFiveCompactTabs() {
+  func testCoachInventoryMatchesWebsiteMenuWithoutAdminLeakage() {
     let coach = staffInventory(canAdminister: false, isPlatformAdmin: true)
-    XCTAssertEqual(coach.compactTabCountIncludingDirectory, 4)
+    XCTAssertEqual(
+      coach.regularItems.map(\.destination),
+      [
+        .coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities,
+        .coachPlayers, .games, .chat, .payments, .platformAdmin, .account,
+      ]
+    )
+    XCTAssertFalse(coach.regularItems.contains { $0.destination == .organizationAdmin })
     XCTAssertEqual(
       coach.compactItems.map(\.destination),
-      [.coachToday, .coachTeam, .coachSchedule]
+      [.coachToday, .coachTeams, .coachCalendar, .coachPrograms]
     )
-    XCTAssertFalse(coach.directoryItems.contains { $0.destination == .coachPlayers })
-    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .coachCalendar })
-    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .coachFacilities })
-    XCTAssertFalse(coach.directoryItems.contains { $0.destination == .coachTeams })
-    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .platformAdmin })
-    XCTAssertTrue(coach.directoryItems.contains { $0.destination == .account })
+    XCTAssertEqual(coach.compactTabCountIncludingDirectory, 5)
+    XCTAssertEqual(
+      coach.directoryItems.map(\.destination),
+      [.coachFacilities, .coachPlayers, .games, .chat, .payments, .platformAdmin, .account]
+    )
   }
 
-  func testOwnerInventoryPromotesTeamScheduleChatAndFinances() {
+  func testOwnerInventoryMatchesWebsiteMenuWithOrganizationSettings() {
     let owner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities",
       programsTitle: "Program Templates",
@@ -77,26 +89,29 @@ final class UniversalNavigationShellTests: XCTestCase {
       isPlatformAdmin: false
     )
 
+    XCTAssertEqual(owner.defaultDestination, .coachToday)
+    XCTAssertTrue(owner.regularItems.contains { $0.destination == .coachToday })
+    XCTAssertTrue(owner.regularItems.contains { $0.destination == .coachCalendar })
+    XCTAssertFalse(owner.regularItems.contains { $0.destination == .platformAdmin })
+    XCTAssertTrue(owner.regularItems.contains { $0.destination == .payments })
+    XCTAssertTrue(owner.regularItems.contains { $0.destination == .organizationAdmin })
+    XCTAssertTrue(owner.regularItems.contains { $0.destination == .account })
     XCTAssertEqual(
       owner.compactItems.map(\.destination),
-      [.coachTeam, .coachSchedule, .chat, .finance]
+      [.coachToday, .coachTeams, .coachCalendar, .coachPrograms]
     )
-    XCTAssertEqual(owner.compactItems.map(\.title), ["Team", "Schedule", "Chat", "Finances"])
     XCTAssertEqual(owner.compactTabCountIncludingDirectory, 5)
-    XCTAssertEqual(owner.defaultDestination, .coachTeam)
-    XCTAssertFalse(owner.regularItems.contains { $0.destination == .coachToday })
-    XCTAssertTrue(owner.directoryItems.contains { $0.destination == .coachCalendar })
-    XCTAssertFalse(owner.regularItems.contains { $0.destination == .platformAdmin })
-    XCTAssertTrue(owner.regularItems.contains { $0.destination == .finance })
-    XCTAssertTrue(owner.directoryItems.contains { $0.destination == .organizationAdmin })
-    XCTAssertTrue(owner.regularItems.contains { $0.destination == .account })
+    XCTAssertEqual(
+      owner.directoryItems.map(\.destination),
+      [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account]
+    )
   }
 
   func testPlatformOnlyInventoryHasAdministrationAndAccountEscape() {
     let inventory = HPAppNavigationInventory.platformOnly()
 
-    XCTAssertEqual(inventory.compactItems.map(\.destination), [.platformAdmin])
-    XCTAssertEqual(inventory.directoryItems.map(\.destination), [.account])
+    XCTAssertTrue(inventory.compactItems.isEmpty)
+    XCTAssertTrue(inventory.directoryItems.isEmpty)
     XCTAssertEqual(
       Set(inventory.regularItems.map(\.destination)),
       [.platformAdmin, .account]
@@ -111,7 +126,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertTrue(inventory.directoryItems.isEmpty)
   }
 
-  func testAdaptiveShellRetainsBaselineDestinationSubtrees() throws {
+  func testAdaptiveShellHostsOnlyTheSelectedDestination() throws {
     let projectRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -123,9 +138,30 @@ final class UniversalNavigationShellTests: XCTestCase {
 
     XCTAssertTrue(source.contains("struct HPAdaptiveApplicationShell"))
     XCTAssertTrue(source.contains("HStack(spacing: 0)"))
-    XCTAssertTrue(source.contains("TabView(selection: $selection)"))
-    XCTAssertTrue(source.contains(".tabViewStyle(.page(indexDisplayMode: .never))"))
-    XCTAssertTrue(source.contains("HPPageSwipeLock"))
+    XCTAssertTrue(source.contains("retainedDestination(selection)"))
+    XCTAssertTrue(source.contains(".id(selection)"))
+    XCTAssertFalse(source.contains("TabView(selection: $selection)"))
+    XCTAssertFalse(source.contains(".tabViewStyle(.page(indexDisplayMode: .never))"))
+    XCTAssertTrue(source.contains("private var mobileHeader"))
+    XCTAssertTrue(source.contains("private var mobileMenu"))
+    XCTAssertTrue(source.contains("private var mobileBottomBar"))
+    XCTAssertFalse(source.contains("compactNavigationBar"))
+    XCTAssertFalse(source.contains("HPPageSwipeLock"))
+  }
+
+  func testTeamScopeSelectorIsVisibleToStaffAndAdminsWithOneOrMoreTeams() throws {
+    let projectRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let source = try String(
+      contentsOf: projectRoot
+        .appendingPathComponent("HomePlate/Features/Home/HomePlateNavigationShell.swift"),
+      encoding: .utf8
+    )
+
+    XCTAssertTrue(source.contains("role == .coach || role == .owner"))
+    XCTAssertTrue(source.contains("canSelectTeam && !activeTeamScopes.isEmpty"))
+    XCTAssertTrue(source.contains("Text(\"All Teams\")"))
   }
 
   func testNavigationKeysRemainStableWhenInventoriesAreRebuilt() {
@@ -139,7 +175,8 @@ final class UniversalNavigationShellTests: XCTestCase {
   func testRegularSelectionFallsBackOnlyWhenDestinationIsUnavailable() {
     let inventory = playerInventory()
 
-    XCTAssertEqual(inventory.normalizedRegularSelection(.playerAnalysis), .playerAnalysis)
+    XCTAssertEqual(inventory.normalizedRegularSelection(.playerProgram), .playerProgram)
+    XCTAssertEqual(inventory.normalizedRegularSelection(.playerAnalysis), .playerToday)
     XCTAssertEqual(inventory.normalizedRegularSelection(.organizationAdmin), .playerToday)
     XCTAssertEqual(inventory.normalizedRegularSelection(.directory), .playerToday)
   }
@@ -171,12 +208,12 @@ final class UniversalNavigationShellTests: XCTestCase {
     )
   }
 
-  func testRenderCompactDirectoryDarkAX3() throws {
+  func testRenderCompactPlayerProgramDarkAX3() throws {
     try renderNavigation(
-      name: "compact-directory-ax3-dark",
+      name: "compact-player-program-ax3-dark",
       role: .player,
       inventory: playerInventory(),
-      selection: .directory,
+      selection: .playerProgram,
       width: 393,
       height: 1_260,
       dynamicTypeSize: .accessibility3,
@@ -227,7 +264,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     )
   }
 
-  func testAdaptiveShellPreservesDestinationStateAcrossSizeClassesWithoutSwipe() throws {
+  func testAdaptiveShellPreservesSelectionAcrossSizeClassesWithoutPagingHost() throws {
     let inventory = HPAppNavigationInventory.parent(
       childrenTitle: "Children",
       chatEnabled: true
@@ -250,9 +287,9 @@ final class UniversalNavigationShellTests: XCTestCase {
     controller.view.layoutIfNeeded()
     RunLoop.current.run(until: Date().addingTimeInterval(0.2))
 
-    let firstIdentity = try XCTUnwrap(recorder.identities[.parentChildren]?.last)
     model.isRegular = false
     RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+    XCTAssertEqual(model.selection, .parentChildren)
     model.selection = .account
     RunLoop.current.run(until: Date().addingTimeInterval(0.2))
     model.selection = .parentChildren
@@ -262,10 +299,8 @@ final class UniversalNavigationShellTests: XCTestCase {
 
     let visits = try XCTUnwrap(recorder.identities[.parentChildren])
     XCTAssertGreaterThanOrEqual(visits.count, 2)
-    XCTAssertEqual(visits.last, firstIdentity)
-    let pageScrollViews = pagingScrollViews(in: controller.view)
-    XCTAssertFalse(pageScrollViews.isEmpty)
-    XCTAssertTrue(pageScrollViews.allSatisfy { !$0.isScrollEnabled })
+    XCTAssertEqual(model.selection, .parentChildren)
+    XCTAssertTrue(pagingScrollViews(in: controller.view).isEmpty)
 
     window.isHidden = true
     window.rootViewController = nil
@@ -315,14 +350,11 @@ final class UniversalNavigationShellTests: XCTestCase {
     controller.view.layoutIfNeeded()
     RunLoop.current.run(until: Date().addingTimeInterval(0.1))
 
-    if regular || selection == .directory {
-      let pageScrollViews = pagingScrollViews(in: controller.view)
-      XCTAssertFalse(pageScrollViews.isEmpty, "Expected a page-style retention host")
-      XCTAssertTrue(
-        pageScrollViews.allSatisfy { !$0.isScrollEnabled },
-        "Retained destinations must not add swipe navigation"
-      )
-    }
+    let pageScrollViews = pagingScrollViews(in: controller.view)
+    XCTAssertTrue(
+      pageScrollViews.isEmpty,
+      "The adaptive shell must not embed destination navigation stacks in a page controller"
+    )
 
     let format = UIGraphicsImageRendererFormat()
     format.scale = dynamicTypeSize.isAccessibilitySize || width > 500 ? 1 : 2
@@ -405,6 +437,7 @@ private struct LayerBNavigationEvidence: View {
     ) { destination in
       detail(destination)
     }
+    .environmentObject(AppState())
   }
 
   private func detail(_ destination: HPAppNavigationDestination) -> some View {
@@ -471,6 +504,7 @@ private struct LayerBRegularRetentionHarness: View {
         recorder: recorder
       )
     }
+    .environmentObject(AppState())
     .environment(\.horizontalSizeClass, model.isRegular ? .regular : .compact)
   }
 }

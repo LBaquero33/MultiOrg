@@ -66,7 +66,7 @@ struct HPProgramExecutionLayout<
 ///
 /// Anatomy: `HPWorkspaceHeader` (+ Scheduled/Off + Saved/Not-logged badges) →
 /// date context → improvement metrics → program + completion ring →
-/// per-exercise loggers → sub-activity section → self-assessment →
+/// per-exercise loggers → sub-activity section → submission →
 /// ONE dominant gold "Submit day".
 ///
 /// Rules:
@@ -83,7 +83,6 @@ struct HPProgramExecutionTemplate: View {
   @State private var weight = "135"
   @State private var notes = ""
   @State private var feel = 8.0
-  @State private var sampleSelfAssessmentStarted = false
 
   var body: some View {
     HPProgramExecutionLayout(widthMode: isWide ? .automatic : .compact) {
@@ -104,17 +103,11 @@ struct HPProgramExecutionTemplate: View {
         HPCard { HPLoadingState(text: "Loading today’s program…") }
       case .empty:
         HPCard {
-          VStack(spacing: HP.Space.sm) {
-            HPEmptyState(title: "No program assigned",
-                         message: "Your coach hasn’t assigned a program yet. You can still log a self-assessment.",
-                         systemImage: "figure.strengthtraining.traditional",
-                         actionTitle: "Log self-assessment",
-                         actionIsPrimary: false,
-                         action: { sampleSelfAssessmentStarted = true })
-            if sampleSelfAssessmentStarted {
-              HPStatusBadge(text: "Self-assessment ready", kind: .info)
-            }
-          }
+          HPEmptyState(
+            title: "No program assigned",
+            message: "Your coach hasn’t assigned a program for today.",
+            systemImage: "figure.strengthtraining.traditional"
+          )
         }
       case .error:
         HPCard {
@@ -216,7 +209,7 @@ struct HPProgramExecutionTemplate: View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
         HPButton(title: "Submit day", variant: .primary, size: .lg, fullWidth: true)
-        Text("Submitting saves your self assessment and any lift logs for today.")
+        Text("Submitting saves your exercise results and notes for today.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
       }
     }

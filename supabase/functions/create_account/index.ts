@@ -46,9 +46,13 @@ function normalizeSlug(x: unknown): string | null {
   return t ? t : null;
 }
 
-function normalizeUsername(x: unknown): string | null {
-  const t = String(x ?? "").trim().toLowerCase();
-  return t ? t : null;
+function deriveUsername(email: string, userId: string): string {
+  const stem = email.split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "")
+    .slice(0, 24) || "member";
+  const suffix = userId.replaceAll("-", "").slice(0, 8).toLowerCase();
+  return `${stem}-${suffix}`;
 }
 
 async function sha256(value: string): Promise<string> {
@@ -88,7 +92,6 @@ Deno.serve(async (req) => {
   const email = normalizeEmail(payload.email);
   const password = normalizePassword(payload.password);
   const org_slug = normalizeSlug(payload.org_slug);
-  const username = normalizeUsername(payload.username);
   // `account_type` is what the client should send.
   // `role` is supported only for backward compatibility, but the server still enforces restrictions.
   const accountType = normalizeAccountType(payload.account_type) ??
@@ -105,7 +108,6 @@ Deno.serve(async (req) => {
     return json(400, { error: "missing_email_or_password" });
   }
   if (!org_slug) return json(400, { error: "missing_org_slug" });
-  if (!username) return json(400, { error: "missing_username" });
 
   const supabaseUrl = getEnv("SUPABASE_URL") || getEnv("DHD_SUPABASE_URL");
   const anonKey = getEnv("SUPABASE_ANON_KEY") ||
@@ -272,7 +274,11 @@ Deno.serve(async (req) => {
     return json(500, { error: "missing_tokens" });
   }
 
-  userId = userId ?? authedUserId;
+  const resolvedUserId = userId ?? authedUserId;
+  userId = resolvedUserId;
+  // Login is email-only. Keep the organization username as a server-derived
+  // display/compatibility identifier, never as client-selected auth input.
+  const username = deriveUsername(email, resolvedUserId);
 
   // Prevent two users from claiming the same username inside the same org.
   const { data: existingUsername, error: usernameErr } = await admin

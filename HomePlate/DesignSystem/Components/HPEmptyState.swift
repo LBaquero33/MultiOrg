@@ -13,29 +13,41 @@ struct HPEmptyState: View {
   var action: (() -> Void)? = nil
 
   var body: some View {
-    VStack(spacing: HP.Space.sm) {
+    VStack(spacing: 0) {
       Image(systemName: systemImage)
-        .font(.system(size: 30, weight: .regular))
+        .font(.system(size: 24, weight: .regular))
         .foregroundStyle(HP.Color.textMuted)
+        .frame(width: 48, height: 48)
+        .background(HP.Color.surfaceRaised)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.bottom, 16)
       Text(title)
-        .font(HP.Font.headline)
+        .font(.custom("Instrument Sans", size: 18, relativeTo: .headline).weight(.semibold))
         .foregroundStyle(HP.Color.text)
         .multilineTextAlignment(.center)
       if let message {
         Text(message)
-          .font(HP.Font.callout)
+          .font(HP.Font.body)
           .foregroundStyle(HP.Color.textMuted)
           .multilineTextAlignment(.center)
+          .frame(maxWidth: 448)
+          .padding(.top, 8)
       }
       if let actionTitle, let action {
         HPButton(title: actionTitle,
                  variant: actionIsPrimary ? .primary : .secondary,
                  size: .md,
                  action: action)
-          .padding(.top, HP.Space.xs)
+          .padding(.top, 20)
       }
     }
     .frame(maxWidth: .infinity)
-    .padding(HP.Space.lg)
+    .padding(40)
+    .background(HP.Color.surface.opacity(0.5))
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .strokeBorder(HP.Color.border, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+    }
   }
 }

@@ -24,7 +24,6 @@ struct FacilitiesDayTimelineView: View {
   let onApprove: (SDFacilityBooking) -> Void
   let onDeny: (SDFacilityBooking) -> Void
   let onMove: (SDFacilityBooking, UUID, Date, Date) -> Void
-  let onResizeSpan: ((SDFacilityBooking, UUID?) -> Void)?
   let onCancelOwnPending: ((SDFacilityBooking) -> Void)?
   let onEdit: ((SDFacilityBooking) -> Void)?
   let onCreateAt: ((UUID, Date) -> Void)?
@@ -112,8 +111,6 @@ struct FacilitiesDayTimelineView: View {
                       .gesture(createTapGesture(facilityId: facility.id, pxPerMin: pxPerMin))
 
                     ForEach(bookingsForFacility(facility.id)) { b in
-                      let siblingSpanId = siblingFacilityIdForFullCage(
-                        primaryFacilityId: facility.id)
                       let bookingHeight = blockHeight(
                         for: currentBooking(b),
                         pxPerMin: pxPerMin
@@ -126,13 +123,7 @@ struct FacilitiesDayTimelineView: View {
                         date: date,
                         startHour: startHour,
                         pxPerMin: pxPerMin,
-                        isSecondaryColumn: facility.id == b.span_facility_id,
-                        allowResize: mode == .coach
-                          && isResizableInFacilityColumn(booking: b, facilityId: facility.id),
-                        siblingSpanFacilityId: siblingSpanId,
-                        onResizeSpan: { newSpan in
-                          onResizeSpan?(b, newSpan)
-                        }
+                        isSecondaryColumn: facility.id == b.span_facility_id
                       )
                       .offset(y: yOffset(for: currentBooking(b).start_at, pxPerMin: pxPerMin))
                       .frame(height: bookingHeight)
@@ -164,16 +155,6 @@ struct FacilitiesDayTimelineView: View {
                           Button("Approve") { onApprove(b) }.disabled(b.status == "approved")
                           Button("Deny", role: .destructive) { onDeny(b) }.disabled(
                             b.status == "denied")
-                          if isResizableInFacilityColumn(booking: b, facilityId: facility.id) {
-                            Divider()
-                            Button(b.span_facility_id == nil ? "Make full cage" : "Make half cage")
-                            {
-                              let newSpan =
-                                (b.span_facility_id == nil)
-                                ? siblingFacilityIdForFullCage(primaryFacilityId: facility.id) : nil
-                              onResizeSpan?(b, newSpan)
-                            }
-                          }
                         }
                       } else {
                         block
@@ -292,9 +273,6 @@ struct FacilitiesDayTimelineView: View {
         startHour: startHour,
         pxPerMin: timelinePointsPerMinute,
         isSecondaryColumn: facility.id == booking.span_facility_id,
-        allowResize: false,
-        siblingSpanFacilityId: nil,
-        onResizeSpan: { _ in },
         usesExpandedLayout: true
       )
 
@@ -350,15 +328,6 @@ struct FacilitiesDayTimelineView: View {
         .disabled(booking.status == "approved")
       Button("Deny", role: .destructive) { onDeny(booking) }
         .disabled(booking.status == "denied")
-      if isResizableInFacilityColumn(booking: booking, facilityId: facility.id) {
-        Divider()
-        Button(booking.span_facility_id == nil ? "Make full cage" : "Make half cage") {
-          let newSpan =
-            booking.span_facility_id == nil
-            ? siblingFacilityIdForFullCage(primaryFacilityId: facility.id) : nil
-          onResizeSpan?(booking, newSpan)
-        }
-      }
     } label: {
       Label("Booking actions", systemImage: "ellipsis.circle")
         .font(HP.Font.callout.weight(.semibold))
@@ -376,7 +345,7 @@ struct FacilitiesDayTimelineView: View {
 
   @ViewBuilder
   private func accessibleTimeMenu(for facility: SDFacility) -> some View {
-    if onCreateAt != nil, facility.name != "Cage 3.2" {
+    if onCreateAt != nil {
       Menu {
         ForEach(accessibleTimeSlots, id: \.self) { startAt in
           Button(startAt.formatted(date: .omitted, time: .shortened)) {
@@ -417,21 +386,6 @@ struct FacilitiesDayTimelineView: View {
   private func isDraggableInFacilityColumn(booking: SDFacilityBooking, facilityId: UUID) -> Bool {
     // Only allow drag in the primary column. Secondary (span) column is view-only.
     booking.facility_id == facilityId
-  }
-
-  private func isResizableInFacilityColumn(booking: SDFacilityBooking, facilityId: UUID) -> Bool {
-    // Only allow resize in the primary column and only for Cage 3.1 (full cage spans to Cage 3.2).
-    guard booking.facility_id == facilityId else { return false }
-    guard let name = facilities.first(where: { $0.id == facilityId })?.name else { return false }
-    return name == "Cage 3.1"
-  }
-
-  private func siblingFacilityIdForFullCage(primaryFacilityId: UUID) -> UUID? {
-    // For Cage 3.1, span should be Cage 3.2 (if present).
-    guard let name = facilities.first(where: { $0.id == primaryFacilityId })?.name,
-      name == "Cage 3.1"
-    else { return nil }
-    return facilities.first(where: { $0.name == "Cage 3.2" })?.id
   }
 
   private func currentBooking(_ b: SDFacilityBooking) -> SDFacilityBooking {
@@ -491,16 +445,11 @@ struct FacilitiesDayTimelineView: View {
           facilities.indices.contains(newFacilityIndex)
           ? facilities[newFacilityIndex].id : facilityId
 
-        // If a booking spans two cages (full Cage 3), and the coach drags it to a different cage,
-        // we drop the span to avoid "phantom" occupancy in another column.
-        let shouldKeepSpan = (newFacilityId == booking.facility_id)
-        let newSpan: UUID? = shouldKeepSpan ? booking.span_facility_id : nil
-
         let preview = SDFacilityBooking(
           id: booking.id,
           org_id: booking.org_id,
           facility_id: newFacilityId,
-          span_facility_id: newSpan,
+          span_facility_id: nil,
           player_id: booking.player_id,
           created_by: booking.created_by,
           is_block: booking.is_block,
@@ -530,10 +479,6 @@ struct FacilitiesDayTimelineView: View {
   private func createTapGesture(facilityId: UUID, pxPerMin: CGFloat) -> AnyGesture<Void> {
     func handleTap(at location: CGPoint) {
       guard onCreateAt != nil else { return }
-      // Prevent creating half-cage bookings directly in Cage 3.2; it’s reserved as the "span" half.
-      if facilities.first(where: { $0.id == facilityId })?.name == "Cage 3.2" {
-        return
-      }
       let base = DateUtils.startOfDayET(date)
       let startOfWindow =
         DateUtils.calendarET.date(byAdding: .hour, value: startHour, to: base) ?? base
@@ -626,12 +571,7 @@ private struct BookingBlockView: View {
   let startHour: Int
   let pxPerMin: CGFloat
   let isSecondaryColumn: Bool
-  let allowResize: Bool
-  let siblingSpanFacilityId: UUID?
-  let onResizeSpan: (UUID?) -> Void
   var usesExpandedLayout: Bool = false
-
-  @State private var resizeDragX: CGFloat = 0
 
   var body: some View {
     let color = statusColor(booking.status)
@@ -677,73 +617,6 @@ private struct BookingBlockView: View {
           .allowsHitTesting(false)
       }
     }
-    .overlay(alignment: .trailing) {
-      if allowResize && !isSecondaryColumn {
-        resizeHandle
-      }
-    }
-  }
-
-  private var resizeHandle: some View {
-    // Drag right to expand to full cage (span = Cage 3.2). Drag left to collapse to half (span = nil).
-    ZStack {
-      RoundedRectangle(cornerRadius: HP.Radius.sm)
-        .fill(HP.Color.borderStrong.opacity(0.7))
-        .frame(width: 10)
-        .padding(.vertical, 6)
-      Image(systemName: "line.3.horizontal")
-        .font(.caption2)
-        .foregroundStyle(HP.Color.textMuted)
-        .rotationEffect(.degrees(90))
-        .accessibilityHidden(true)
-    }
-    .frame(width: 44)
-    .frame(minHeight: 44)
-    .contentShape(Rectangle())
-    .gesture(
-      DragGesture(minimumDistance: 0)
-        .onChanged { v in
-          resizeDragX = v.translation.width
-        }
-        .onEnded { _ in
-          defer { resizeDragX = 0 }
-          let threshold: CGFloat = 26
-          // Expand
-          if booking.span_facility_id == nil, resizeDragX > threshold, let siblingSpanFacilityId {
-            onResizeSpan(siblingSpanFacilityId)
-            return
-          }
-          // Collapse
-          if booking.span_facility_id != nil, resizeDragX < -threshold {
-            onResizeSpan(nil)
-            return
-          }
-        }
-    )
-    .accessibilityLabel(
-      booking.span_facility_id == nil ? "Resize to full cage" : "Resize to half cage"
-    )
-    .accessibilityHint(
-      booking.span_facility_id == nil
-        ? "Drag right to include the adjacent cage"
-        : "Drag left to release the adjacent cage"
-    )
-    .accessibilityAction(
-      named: Text(booking.span_facility_id == nil ? "Make full cage" : "Make half cage")
-    ) {
-      if booking.span_facility_id == nil {
-        if let siblingSpanFacilityId {
-          onResizeSpan(siblingSpanFacilityId)
-        }
-      } else {
-        onResizeSpan(nil)
-      }
-    }
-    #if os(macOS)
-      .help(
-        booking.span_facility_id == nil
-          ? "Drag right to make full cage" : "Drag left to make half cage")
-    #endif
   }
 
   private var titleText: String {

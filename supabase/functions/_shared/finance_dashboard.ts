@@ -66,12 +66,17 @@ export type FinanceExpenseRecord = {
   id: string;
   org_id: string;
   category: string | null;
+  category_id: string | null;
   description: string | null;
   amount_cents: number;
   currency: string;
   expense_date: string;
   vendor: string | null;
   notes: string | null;
+  payment_method: string | null;
+  team_id: string | null;
+  recurring: boolean;
+  receipt_path: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -86,6 +91,10 @@ export type FinanceExpenseInput = {
   expense_date: string;
   vendor: string | null;
   notes: string | null;
+  category_id: string | null;
+  payment_method: string | null;
+  team_id: string | null;
+  recurring: boolean;
 };
 
 export type FinanceRefundRecord = {
@@ -200,6 +209,12 @@ export interface FinanceDashboardStore {
     actorId: string,
     expenseId: string,
   ): Promise<FinanceExpenseRecord>;
+  setExpenseReceipt(
+    orgId: string,
+    actorId: string,
+    expenseId: string,
+    receiptPath: string,
+  ): Promise<FinanceExpenseRecord>;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -232,6 +247,7 @@ const expenseMutationActions = new Set([
   "create_expense",
   "update_expense",
   "archive_expense",
+  "set_expense_receipt",
 ]);
 const forbiddenClientFields = new Set([
   "actor_id",
@@ -268,6 +284,7 @@ const errorMessages: Record<string, string> = {
     "Expenses cannot be changed for an inactive organization.",
   invalid_expense: "The expense request is invalid.",
   invalid_expense_id: "Select a valid expense.",
+  invalid_receipt_path: "The receipt path is invalid.",
   expense_not_found: "The expense was not found in this organization.",
   expense_already_archived: "This expense is already archived.",
   expense_archived: "Archived expenses cannot be edited.",
@@ -412,6 +429,16 @@ function validateExpenseInput(
   if ((notes?.length ?? 0) > EXPENSE_MAX_NOTES_LENGTH) {
     return { error: "invalid_expense_notes" };
   }
+  const categoryId = cleanOptional(body.category_id)?.toLowerCase() ?? null;
+  if (categoryId && !uuidPattern.test(categoryId)) {
+    return { error: "invalid_expense_category" };
+  }
+  const teamId = cleanOptional(body.team_id)?.toLowerCase() ?? null;
+  if (teamId && !uuidPattern.test(teamId)) {
+    return { error: "invalid_expense" };
+  }
+  const paymentMethod = cleanOptional(body.payment_method);
+  if ((paymentMethod?.length ?? 0) > 60) return { error: "invalid_expense" };
   return {
     input: {
       category,
@@ -421,6 +448,10 @@ function validateExpenseInput(
       expense_date: expenseDate,
       vendor,
       notes,
+      category_id: categoryId,
+      payment_method: paymentMethod,
+      team_id: teamId,
+      recurring: body.recurring === true,
     },
   };
 }
@@ -684,7 +715,25 @@ export function createFinanceDashboardHandler(
         }
 
         let expense: FinanceExpenseRecord;
-        if (action === "archive_expense") {
+        if (action === "set_expense_receipt") {
+          const expenseId = clean(body.expense_id).toLowerCase();
+          const receiptPath = clean(body.receipt_path);
+          if (!uuidPattern.test(expenseId)) {
+            return errorResponse(400, "invalid_expense_id");
+          }
+          if (
+            receiptPath.length < 10 || receiptPath.length > 500 ||
+            !receiptPath.startsWith(`${orgId}/`) || receiptPath.includes("..")
+          ) {
+            return errorResponse(400, "invalid_receipt_path");
+          }
+          expense = await store.setExpenseReceipt(
+            orgId,
+            actorId,
+            expenseId,
+            receiptPath,
+          );
+        } else if (action === "archive_expense") {
           const expenseId = clean(body.expense_id).toLowerCase();
           if (!uuidPattern.test(expenseId)) {
             return errorResponse(400, "invalid_expense_id");

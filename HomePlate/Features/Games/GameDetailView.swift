@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GameDetailView: View {
   @EnvironmentObject private var appState: AppState
+  @Environment(\.openURL) private var openURL
 
   let eventId: UUID?
   let gameId: UUID?
@@ -13,6 +14,7 @@ struct GameDetailView: View {
   @State private var attendanceMessage: String?
   @State private var errorText: String?
   @State private var selectedSection: SDGameWorkspaceSection = .overview
+  @State private var isChangingAttendance = false
 
   init(calendarItem: SDGameCalendarItem) {
     eventId = calendarItem.event.id
@@ -110,6 +112,15 @@ struct GameDetailView: View {
           if let arrival = item.event.arrival_time {
             detail("Arrival", arrival.formatted(date: .omitted, time: .shortened))
           }
+          if let venue = item.event.location_name?.sdNilIfBlank {
+            detail("Venue", venue)
+          }
+          if let address = item.event.venue_address?.sdNilIfBlank {
+            VStack(alignment: .leading, spacing: 8) {
+              detail("Address", address)
+              directionsMenu(address: address)
+            }
+          }
         case .roster:
           participantList(role: nil)
         case .availability:
@@ -187,23 +198,32 @@ struct GameDetailView: View {
       Text("You can change your response at any time before the event.")
         .font(.footnote)
         .foregroundStyle(DHDTheme.textSecondary)
-      HStack(spacing: 10) {
-        attendanceButton(
-          "Coming",
-          symbol: "checkmark.circle.fill",
-          attending: true,
-          selected: myAttendance?.expected_attendance == true,
-          color: .green,
-          event: event
-        )
-        attendanceButton(
-          "Not Coming",
-          symbol: "xmark.circle.fill",
-          attending: false,
-          selected: myAttendance?.expected_attendance == false,
-          color: .red,
-          event: event
-        )
+      if let attending = myAttendance?.expected_attendance, !isChangingAttendance {
+        HStack(spacing: 10) {
+          HPStatusBadge(text: attending ? "Coming" : "Not Coming", kind: attending ? .success : .danger)
+          Button("Change") { isChangingAttendance = true }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(DHDTheme.accent)
+        }
+      } else {
+        HStack(spacing: 10) {
+          attendanceButton(
+            "Coming",
+            symbol: "checkmark.circle.fill",
+            attending: true,
+            selected: myAttendance?.expected_attendance == true,
+            color: .green,
+            event: event
+          )
+          attendanceButton(
+            "Not Coming",
+            symbol: "xmark.circle.fill",
+            attending: false,
+            selected: myAttendance?.expected_attendance == false,
+            color: .red,
+            event: event
+          )
+        }
       }
       if let attendanceMessage {
         Text(attendanceMessage)
@@ -319,6 +339,7 @@ struct GameDetailView: View {
       )
       attendance.removeAll { $0.player_id == playerId }
       attendance.append(saved)
+      isChangingAttendance = false
       attendanceMessage = "Response saved."
     } catch {
       attendanceMessage = "Your response could not be saved. Please try again."
@@ -341,6 +362,36 @@ struct GameDetailView: View {
 
   private func detail(_ label: String, _ value: String) -> some View {
     HStack { Text(label).foregroundStyle(DHDTheme.textSecondary); Spacer(); Text(value).fontWeight(.semibold) }
+  }
+
+  private func directionsMenu(address: String) -> some View {
+    Menu {
+      if let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+        Button("Apple Maps") {
+          if let url = URL(string: "http://maps.apple.com/?daddr=\(encoded)") { openURL(url) }
+        }
+        Button("Google Maps") {
+          if let appURL = URL(string: "comgooglemaps://?daddr=\(encoded)&directionsmode=driving"),
+             UIApplication.shared.canOpenURL(appURL) {
+            openURL(appURL)
+          } else if let webURL = URL(string: "https://www.google.com/maps/dir/?api=1&destination=\(encoded)") {
+            openURL(webURL)
+          }
+        }
+        Button("Waze") {
+          if let appURL = URL(string: "waze://?q=\(encoded)&navigate=yes"),
+             UIApplication.shared.canOpenURL(appURL) {
+            openURL(appURL)
+          } else if let webURL = URL(string: "https://www.waze.com/ul?q=\(encoded)&navigate=yes") {
+            openURL(webURL)
+          }
+        }
+      }
+      Button("Copy Address") { UIPasteboard.general.string = address }
+    } label: {
+      Label("Directions", systemImage: "map")
+    }
+    .buttonStyle(.bordered)
   }
 
   private func load() async {

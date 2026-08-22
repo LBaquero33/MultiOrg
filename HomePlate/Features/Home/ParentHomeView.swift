@@ -156,25 +156,7 @@ struct ParentHomeView: View {
             }
           }
         }
-        .navigationTitle("Parent")
-        .toolbar {
-          ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-              Button {
-                Task { await reload() }
-              } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-              }
-              Button(role: .destructive) {
-                Task { await appState.signOut() }
-              } label: {
-                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-              }
-            } label: {
-              Image(systemName: "ellipsis.circle")
-            }
-          }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: parentContextIdentity) { await reload() }
       }
 #endif

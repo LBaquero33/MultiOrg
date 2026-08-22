@@ -13,9 +13,6 @@ struct CoachTeamSelector: View {
           NavigationLink { OrgTeamOperationsAdminView() } label: {
             Label("Manage Teams", systemImage: "person.3.sequence")
           }
-          NavigationLink { OrgAdminConsoleView() } label: {
-            Label("Return to Organization Setup", systemImage: "building.2")
-          }
         } label: {
           selectorLabel(title: "No team selected", interactive: true)
         }
@@ -85,28 +82,79 @@ struct CoachTodayFoundationView: View {
 
   var body: some View {
     NavigationStack {
-      HPWorkspaceScreenLayout {
-        HPWorkspaceHeader(screenTitle, orgLabel: organizationName, context: contextLabel)
-      } attention: {
-        topPriorityCard
-      } metrics: {
-        ForEach(today?.summaries ?? []) { summary in
-          HPMetricCard(title: summary.label, value: summary.value, context: summary.status ?? "As of now")
-        }
-      } supporting: {
-        missionSection
-        attentionSection
-        serviceStateSection
-        if isOwnerOverview {
-          if let organizationId = appState.activeOrgId {
-            OrganizationSetupOverviewCard(
-              organizationId: organizationId,
-              organizationName: organizationName
-            )
+      ScrollView {
+        VStack(alignment: .leading, spacing: HP.Space.lg) {
+          HStack(alignment: .top, spacing: HP.Space.md) {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              Text("Home")
+                .font(HP.Font.display)
+                .foregroundStyle(HP.Color.text)
+              Text("\(organizationName) — what's happening next.")
+                .font(HP.Font.body)
+                .foregroundStyle(HP.Color.textMuted)
+            }
+            Spacer(minLength: HP.Space.sm)
+            NavigationLink {
+              GameCalendarView()
+            } label: {
+              Label("Open calendar", systemImage: "calendar")
+            }
+            .buttonStyle(HPButtonStyle(variant: .primary, size: .md))
+          }
+
+          LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 150), spacing: HP.Space.sm)],
+            spacing: HP.Space.sm
+          ) {
+            websiteMetric("Active teams", value: activeTeamCount)
+            websiteMetric("Active members", value: activeMemberCount)
+            websiteMetric("Upcoming events", value: upcomingEvents.count, hint: "Next 6 scheduled")
+          }
+
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.sm) {
+              HPSectionHeader("Coming up")
+              if let error = loadError, events.isEmpty {
+                HPErrorState(
+                  title: "We couldn't load the schedule",
+                  message: error,
+                  onRetry: { Task { await reloadToday() } }
+                )
+              } else if upcomingEvents.isEmpty {
+                HPEmptyState(
+                  title: "Nothing scheduled yet",
+                  message: "When practices, games, and events are added to this organization, they'll appear here.",
+                  systemImage: "calendar"
+                )
+              } else {
+                ForEach(Array(upcomingEvents.enumerated()), id: \.element.id) { index, event in
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                      Text(event.title)
+                        .font(HP.Font.body.weight(.medium))
+                        .foregroundStyle(HP.Color.text)
+                        .lineLimit(1)
+                      Spacer()
+                      HPStatusBadge(text: event.event_type.rawValue.replacingOccurrences(of: "_", with: " ").uppercased(), kind: .neutral)
+                    }
+                    Text(event.startDate.formatted(date: .abbreviated, time: .shortened))
+                      .font(HP.Font.caption)
+                      .foregroundStyle(HP.Color.textMuted)
+                  }
+                  .padding(.vertical, HP.Space.xs)
+                  if index < upcomingEvents.count - 1 {
+                    Divider().overlay(HP.Color.border)
+                  }
+                }
+              }
+            }
           }
         }
+        .padding(HP.Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .navigationTitle(screenTitle)
+      .background(HP.Color.bg)
+      .navigationTitle("")
       .task(id: todayContextIdentity) { await reloadToday() }
       .refreshable { await appState.refreshTeamOperationsContext(); await reloadToday() }
       .onChange(of: scenePhase) { _, phase in
@@ -115,11 +163,46 @@ struct CoachTodayFoundationView: View {
     }
   }
 
+  private func websiteMetric(_ label: String, value: Int, hint: String? = nil) -> some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Text(label.uppercased())
+          .font(HP.Font.eyebrow)
+          .foregroundStyle(HP.Color.textMuted)
+        Text("\(value)")
+          .font(HP.Font.number())
+          .foregroundStyle(HP.Color.text)
+        if let hint {
+          Text(hint).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+    }
+  }
+
+  private var activeTeamCount: Int {
+    appState.teamOperationsContext?.teams.filter(\.is_active).count ?? 0
+  }
+
+  private var activeMemberCount: Int {
+    let players = appState.teamOperationsContext?.player_memberships
+      .filter { $0.active && $0.ended_at == nil }
+      .map(\.player_id) ?? []
+    let coaches = appState.teamOperationsContext?.coach_assignments
+      .filter { $0.active && $0.ended_at == nil }
+      .map(\.coach_id) ?? []
+    return Set(players + coaches).count
+  }
+
+  private var upcomingEvents: [SDTeamEvent] {
+    Array(events.filter { $0.startDate >= Date() }.sorted { $0.startDate < $1.startDate }.prefix(6))
+  }
+
   private var isOwnerOverview: Bool { appState.activeOrgMembership?.canAdministerOrganization == true }
   private var screenTitle: String { isOwnerOverview ? "Overview" : "Today" }
 
   private var contextLabel: String {
-    if isOwnerOverview { return "Organization-wide • \(appState.selectedSeason?.name ?? "No active season")" }
+    if isOwnerOverview { return "Organization-wide" }
     if appState.authorizedCoachTeams.count == 1 { return appState.authorizedCoachTeams[0].name }
     return appState.authorizedCoachTeams.isEmpty ? "No assigned teams" : "All assigned teams"
   }
@@ -380,7 +463,7 @@ struct CoachTeamCommandCenterView: View {
       HPListScreenLayout {
         HPWorkspaceHeader(
           "Team",
-          orgLabel: appState.selectedSeason?.name ?? "Season",
+          orgLabel: organizationName,
           context: teamHeaderContext
         ) { CoachTeamSelector() }
       } controls: {
@@ -468,6 +551,10 @@ struct CoachTeamCommandCenterView: View {
     visibleSections.filter { [.communication, .documents].contains($0) }
   }
 
+  private var organizationName: String {
+    appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.displayName ?? "Home Plate"
+  }
+
   private var teamHeaderContext: String {
     guard let team = appState.selectedTeam else { return "Select a team to open its workspace" }
     let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }
@@ -541,10 +628,8 @@ struct CoachTeamCommandCenterView: View {
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           HPSectionHeader(team.name) {
-            HPStatusBadge(text: appState.selectedSeason?.status.label ?? "Season", kind: .info)
+            HPStatusBadge(text: team.is_active ? "Active" : "Archived", kind: team.is_active ? .success : .neutral)
           }
-          Text(appState.selectedSeason?.name ?? "No active season")
-            .font(HP.Font.callout).foregroundStyle(HP.Color.textMuted)
           Text("\(team.roster_count) players • \(team.staff_count) assigned staff")
             .font(HP.Font.body).foregroundStyle(HP.Color.text)
         }
@@ -625,7 +710,7 @@ struct CoachTeamCommandCenterView: View {
         } else {
           ForEach(people) { person in
             HStack(spacing: HP.Space.sm) {
-              HPAvatar(name: person.displayName, size: .sm)
+              HPProfileAvatarButton(profile: person, size: .sm)
               Text(person.displayName).font(HP.Font.callout.weight(.semibold)).foregroundStyle(HP.Color.text)
               Spacer()
             }

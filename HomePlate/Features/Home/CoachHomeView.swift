@@ -246,19 +246,54 @@ struct CoachHomeView: View {
 #endif
 
   private func reload() async {
-    guard let supabase = appState.supabase else { return }
+    guard appState.supabase != nil else { return }
     isLoading = true
     defer { isLoading = false }
-    do {
-      players = try await supabase.listPlayerProfiles()
-#if os(macOS)
-      hydrateSelection()
-      await loadRosterBadges()
-#endif
-    } catch {
+    await appState.refreshTeamOperationsContext()
+    guard let context = appState.teamOperationsContext else {
       players = []
-      appState.authError = error.localizedDescription
+      return
     }
+
+    if appState.canAdminActiveOrg {
+      players = context.people
+    } else if let coachId = appState.myProfile?.id {
+      let teamIds = Set(
+        context.coach_assignments
+          .filter {
+            $0.coach_id == coachId &&
+            $0.active &&
+            $0.ended_at == nil
+          }
+          .map(\.team_id)
+      )
+      let playerIds = Set(
+        context.player_memberships
+          .filter {
+            teamIds.contains($0.team_id) &&
+            $0.active &&
+            $0.ended_at == nil
+          }
+          .map(\.player_id)
+      )
+      let coachIds = Set(
+        context.coach_assignments
+          .filter {
+            teamIds.contains($0.team_id) &&
+            $0.active &&
+            $0.ended_at == nil
+          }
+          .map(\.coach_id)
+      )
+      let visibleIds = playerIds.union(coachIds)
+      players = context.people.filter { visibleIds.contains($0.id) }
+    } else {
+      players = []
+    }
+#if os(macOS)
+    hydrateSelection()
+    await loadRosterBadges()
+#endif
   }
 
 #if os(macOS)

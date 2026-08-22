@@ -103,7 +103,7 @@ struct CoachTeamsView: View {
               ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
               : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
             layout {
-              HPAvatar(name: person.displayName, size: .sm)
+              HPProfileAvatarButton(profile: person, size: .sm)
               VStack(alignment: .leading, spacing: 3) {
                 Text(person.displayName)
                   .font(HP.Font.callout.weight(.semibold))
@@ -158,7 +158,7 @@ struct CoachTeamsView: View {
               : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
             layout {
               HStack(spacing: HP.Space.sm) {
-                HPAvatar(name: person.displayName, size: .sm)
+                HPProfileAvatarButton(profile: person, size: .sm)
                 VStack(alignment: .leading, spacing: 4) {
                   Text(person.displayName)
                     .font(HP.Font.callout.weight(.semibold))
