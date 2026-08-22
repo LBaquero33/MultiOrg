@@ -100,6 +100,25 @@ struct SDGameCalendarItem: Identifiable, Codable, Equatable, Sendable {
   var id: UUID { event.id }
 }
 
+enum SDCoachUpcomingEventFilter {
+  static func visibleEvents(
+    from events: [SDCanonicalEvent],
+    now: Date = Date(),
+    selectedTeamId: UUID?,
+    limit: Int = 6
+  ) -> [SDCanonicalEvent] {
+    let visible = events.filter { event in
+      let isUpcoming = event.scheduled_start >= now
+      let isActive = event.status != .canceled && event.canceled_at == nil
+      let isInTeamScope = selectedTeamId == nil
+        || event.team_id == nil
+        || event.team_id == selectedTeamId
+      return isUpcoming && isActive && isInTeamScope
+    }
+    return Array(visible.sorted { $0.scheduled_start < $1.scheduled_start }.prefix(max(0, limit)))
+  }
+}
+
 struct SDEventParticipant: Identifiable, Codable, Equatable, Sendable {
   let id: UUID
   let org_id: UUID

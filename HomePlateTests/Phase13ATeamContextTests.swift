@@ -227,15 +227,16 @@ struct Phase13ATeamContextTests {
     #expect(teamWorkspace.contains("preselectedTeamId: team.id"))
   }
 
-  @Test("Coach Today stays aggregated and independent from Team selector")
+  @Test("Coach Today uses canonical events and follows the global Team selector")
   func coachTodayScope() throws {
     let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     let today = try sourceSlice(source, from: "struct CoachTodayFoundationView", to: "struct CoachScheduleFoundationView")
     #expect(today.contains("All assigned teams"))
     #expect(today.contains("teamId: nil"))
     #expect(today.contains("all-assigned-teams"))
+    #expect(today.contains("listCanonicalEvents"))
+    #expect(today.contains("selectedTeamId: appState.selectedTeamId"))
     #expect(!today.contains("CoachTeamSelector"))
-    #expect(!today.contains("selectedTeamId"))
   }
 
   @Test("Player and Parent never receive the staff Team selector")

@@ -12,6 +12,7 @@ struct HPFormField: View {
   var helper: String? = nil
   var error: String? = nil
   var isEnabled: Bool = true
+  var minFieldHeight: CGFloat = 48
 
   @FocusState private var focused: Bool
 
@@ -32,7 +33,7 @@ struct HPFormField: View {
         .accessibilityHint(accessibilityHint)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(minHeight: 48)
+        .frame(minHeight: minFieldHeight, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous).fill(HP.Color.surfaceRaised))
         .overlay(
           RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)

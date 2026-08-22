@@ -145,6 +145,10 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertTrue(source.contains("private var mobileHeader"))
     XCTAssertTrue(source.contains("private var mobileMenu"))
     XCTAssertTrue(source.contains("private var mobileBottomBar"))
+    XCTAssertTrue(source.contains(".move(edge: .leading)"))
+    XCTAssertTrue(source.contains("DragGesture(minimumDistance: 12)"))
+    XCTAssertTrue(source.contains("value.translation.width < -50"))
+    XCTAssertTrue(source.contains(".onTapGesture { closeMobileMenu() }"))
     XCTAssertFalse(source.contains("compactNavigationBar"))
     XCTAssertFalse(source.contains("HPPageSwipeLock"))
   }

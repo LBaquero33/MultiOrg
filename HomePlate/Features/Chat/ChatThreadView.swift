@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ChatThreadView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   let channel: SDChatChannel
 
   @State private var messages: [SDChatMessage] = []
@@ -251,56 +252,32 @@ struct ChatThreadView: View {
           }
         }
 
-        let layout = dynamicTypeSize.isAccessibilitySize
+        let layout = usesCompactComposer
           ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
           : AnyLayout(HStackLayout(alignment: .bottom, spacing: HP.Space.sm))
         layout {
-          HStack(spacing: HP.Space.xs) {
-            PhotosPicker(selection: $photoPickerItem, matching: .images) {
-              Image(systemName: "photo")
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
-            }
-            .accessibilityLabel("Attach photo")
-            .onChange(of: photoPickerItem) { _, item in
-              guard let item else { return }
-              Task { await addPhoto(item) }
-            }
-            Button { isShowingFileImporter = true } label: {
-              Image(systemName: "paperclip")
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
-            }
-            .accessibilityLabel("Attach file")
+          if !usesCompactComposer {
+            attachmentButtons
           }
-          .buttonStyle(.plain)
-          .foregroundStyle(HP.Color.textMuted)
-          .disabled(!canSend || isSending)
 
           HPFormField(
             label: "Message",
             text: $composerText,
             kind: .multiline,
             placeholder: canSend ? "Write a message" : "Coaches only",
-            isEnabled: canSend && !isSending
+            isEnabled: canSend && !isSending,
+            minFieldHeight: usesCompactComposer ? 88 : 64
           )
 
-          HPButton(
-            title: "Send",
-            systemImage: "paperplane.fill",
-            variant: .primary,
-            size: .md,
-            isLoading: isSending,
-            fullWidth: dynamicTypeSize.isAccessibilitySize
-          ) {
-            Task { await send() }
+          if usesCompactComposer {
+            HStack(spacing: HP.Space.sm) {
+              attachmentButtons
+              Spacer(minLength: HP.Space.sm)
+              sendButton(fullWidth: false)
+            }
+          } else {
+            sendButton(fullWidth: false)
           }
-          .disabled(
-            !canSend
-              || isSending
-              || (composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                  && pendingAttachments.isEmpty)
-          )
         }
 
         if let sendErrorText {
@@ -322,6 +299,53 @@ struct ChatThreadView: View {
         }
       }
     }
+  }
+
+  private var usesCompactComposer: Bool {
+    horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
+  }
+
+  private var attachmentButtons: some View {
+    HStack(spacing: HP.Space.xs) {
+      PhotosPicker(selection: $photoPickerItem, matching: .images) {
+        Image(systemName: "photo")
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .accessibilityLabel("Attach photo")
+      .onChange(of: photoPickerItem) { _, item in
+        guard let item else { return }
+        Task { await addPhoto(item) }
+      }
+      Button { isShowingFileImporter = true } label: {
+        Image(systemName: "paperclip")
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .accessibilityLabel("Attach file")
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(HP.Color.textMuted)
+    .disabled(!canSend || isSending)
+  }
+
+  private func sendButton(fullWidth: Bool) -> some View {
+    HPButton(
+      title: "Send",
+      systemImage: "paperplane.fill",
+      variant: .primary,
+      size: .md,
+      isLoading: isSending,
+      fullWidth: fullWidth
+    ) {
+      Task { await send() }
+    }
+    .disabled(
+      !canSend
+        || isSending
+        || (composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && pendingAttachments.isEmpty)
+    )
   }
 
   private func sendFailureLabel(_ message: String) -> some View {

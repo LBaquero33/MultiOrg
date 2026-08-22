@@ -76,6 +76,7 @@ struct CoachTodayFoundationView: View {
   @Environment(\.scenePhase) private var scenePhase
   @State private var today: SDTodayResponse?
   @State private var events: [SDTeamEvent] = []
+  @State private var calendarEvents: [SDCanonicalEvent] = []
   @State private var loadError: String?
   @State private var loadToken: UUID?
   @State private var publishedContext: String?
@@ -114,7 +115,7 @@ struct CoachTodayFoundationView: View {
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
               HPSectionHeader("Coming up")
-              if let error = loadError, events.isEmpty {
+              if let error = loadError, calendarEvents.isEmpty {
                 HPErrorState(
                   title: "We couldn't load the schedule",
                   message: error,
@@ -135,9 +136,9 @@ struct CoachTodayFoundationView: View {
                         .foregroundStyle(HP.Color.text)
                         .lineLimit(1)
                       Spacer()
-                      HPStatusBadge(text: event.event_type.rawValue.replacingOccurrences(of: "_", with: " ").uppercased(), kind: .neutral)
+                      HPStatusBadge(text: event.event_type.label.uppercased(), kind: .neutral)
                     }
-                    Text(event.startDate.formatted(date: .abbreviated, time: .shortened))
+                    Text(event.scheduled_start.formatted(date: .abbreviated, time: .shortened))
                       .font(HP.Font.caption)
                       .foregroundStyle(HP.Color.textMuted)
                   }
@@ -194,8 +195,11 @@ struct CoachTodayFoundationView: View {
     return Set(players + coaches).count
   }
 
-  private var upcomingEvents: [SDTeamEvent] {
-    Array(events.filter { $0.startDate >= Date() }.sorted { $0.startDate < $1.startDate }.prefix(6))
+  private var upcomingEvents: [SDCanonicalEvent] {
+    SDCoachUpcomingEventFilter.visibleEvents(
+      from: calendarEvents,
+      selectedTeamId: appState.selectedTeamId
+    )
   }
 
   private var isOwnerOverview: Bool { appState.activeOrgMembership?.canAdministerOrganization == true }
@@ -374,19 +378,42 @@ struct CoachTodayFoundationView: View {
   }
 
   private func reloadToday() async {
-    guard let service = appState.supabase, let orgId = appState.activeOrgId else { today = nil; events = []; return }
+    guard let service = appState.supabase, let orgId = appState.activeOrgId else {
+      today = nil
+      events = []
+      calendarEvents = []
+      return
+    }
     let context = todayContextIdentity
     if publishedContext != context {
       today = nil
       events = []
+      calendarEvents = []
     }
     let token = UUID()
     loadToken = token
     loadError = nil
+    let start = Calendar.current.startOfDay(for: Date())
+    let end = Calendar.current.date(byAdding: .day, value: 30, to: start) ?? start
+
+    do {
+      let loadedCalendarEvents = try await service.listCanonicalEvents(
+        organizationId: orgId,
+        from: start,
+        through: end
+      )
+      guard acceptsToday(context: context, token: token) else { return }
+      calendarEvents = loadedCalendarEvents
+      publishedContext = context
+    } catch {
+      guard acceptsToday(context: context, token: token) else { return }
+      if let message = SDApplicationErrorClassifier.alertMessage(for: error) {
+        loadError = message
+      }
+    }
+
     do {
       let response = try await service.today(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: nil, contextToken: context)
-      let start = Calendar.current.startOfDay(for: Date())
-      let end = Calendar.current.date(byAdding: .day, value: 30, to: start) ?? start
       let routeEvents = try? await service.listTeamEvents(organizationId: orgId, seasonId: appState.selectedSeason?.id, teamId: nil, rangeStart: start, rangeEnd: end)
       guard acceptsToday(context: context, token: token) else { return }
       guard response.context.organization_id == orgId,
@@ -396,13 +423,15 @@ struct CoachTodayFoundationView: View {
       publishedContext = context
     } catch {
       guard acceptsToday(context: context, token: token) else { return }
-      guard let message = SDApplicationErrorClassifier.alertMessage(for: error) else { return }
+      guard calendarEvents.isEmpty,
+            let message = SDApplicationErrorClassifier.alertMessage(for: error) else { return }
       loadError = message
     }
   }
 
   private var todayContextIdentity: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.selectedSeason?.id.uuidString ?? "none"):all-assigned-teams:\(DateUtils.toISODate(Date())):\(TimeZone.current.identifier)"
+    let teamScope = appState.selectedTeamId?.uuidString.lowercased() ?? "all-assigned-teams"
+    return "\(appState.activeOrgAuthorizationKey):\(appState.selectedSeason?.id.uuidString ?? "none"):\(teamScope):\(DateUtils.toISODate(Date())):\(TimeZone.current.identifier)"
   }
 
   private func acceptsToday(context: String, token: UUID) -> Bool {

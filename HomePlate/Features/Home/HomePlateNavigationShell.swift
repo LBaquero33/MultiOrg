@@ -432,12 +432,29 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
             mobileHeader
           }
 
-          ZStack(alignment: .top) {
-            retainedDestinationHost
+          GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+              retainedDestinationHost
 
-            if !isRegular && menuIsOpen {
-              mobileMenu
-                .transition(.move(edge: .top).combined(with: .opacity))
+              if !isRegular && menuIsOpen {
+                Color.black.opacity(0.34)
+                  .ignoresSafeArea()
+                  .contentShape(Rectangle())
+                  .onTapGesture { closeMobileMenu() }
+                  .transition(.opacity)
+
+                mobileMenu
+                  .frame(width: min(proxy.size.width * 0.88, 380))
+                  .transition(.move(edge: .leading).combined(with: .opacity))
+                  .gesture(
+                    DragGesture(minimumDistance: 12)
+                      .onEnded { value in
+                        if value.translation.width < -50 {
+                          closeMobileMenu()
+                        }
+                      }
+                  )
+              }
             }
           }
 
@@ -480,6 +497,18 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
   private var mobileHeader: some View {
     HStack(spacing: HP.Space.sm) {
+      Button {
+        toggleMobileMenu()
+      } label: {
+        Image(systemName: menuIsOpen ? "xmark" : "line.3.horizontal")
+          .font(.system(size: 22, weight: .medium))
+          .foregroundStyle(HP.Color.text)
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(menuIsOpen ? "Close menu" : "Open menu")
+
       organizationBadge
       Text(branding.name)
         .font(HP.Font.headline)
@@ -489,19 +518,6 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
         teamScopeMenu(compact: true)
       }
       Spacer(minLength: HP.Space.xs)
-      if !usesBottomNavigation {
-        Button {
-          withAnimation(HP.Motion.quick) { menuIsOpen.toggle() }
-        } label: {
-          Image(systemName: menuIsOpen ? "xmark" : "line.3.horizontal")
-            .font(.system(size: 24, weight: .medium))
-            .foregroundStyle(HP.Color.text)
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(menuIsOpen ? "Close menu" : "Open menu")
-      }
     }
     .padding(.horizontal, HP.Space.md)
     .padding(.vertical, HP.Space.xs)
@@ -563,7 +579,7 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
         mobileBottomButton(item)
       }
       Button {
-        withAnimation(HP.Motion.quick) { menuIsOpen.toggle() }
+        toggleMobileMenu()
       } label: {
         VStack(spacing: 3) {
           Image(systemName: "ellipsis.circle")
@@ -608,6 +624,14 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
     }
     .buttonStyle(.plain)
     .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+  }
+
+  private func toggleMobileMenu() {
+    withAnimation(HP.Motion.quick) { menuIsOpen.toggle() }
+  }
+
+  private func closeMobileMenu() {
+    withAnimation(HP.Motion.quick) { menuIsOpen = false }
   }
 
   private var organizationSwitcher: some View {
