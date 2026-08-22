@@ -179,6 +179,53 @@ struct SDStrengthLog: Identifiable, Decodable, Equatable {
   let notes: String?
   let created_at: Date?
   let updated_at: Date?
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case org_id
+    case player_id
+    case log_date
+    case assignment_id
+    case template_id
+    case week
+    case day_index
+    case exercise_name
+    case no_weight
+    case set_weights_json
+    case result_values
+    case sets_completed
+    case notes
+    case created_at
+    case updated_at
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(UUID.self, forKey: .id)
+    org_id = try container.decodeIfPresent(UUID.self, forKey: .org_id)
+    player_id = try container.decode(UUID.self, forKey: .player_id)
+    log_date = try container.decode(String.self, forKey: .log_date)
+    assignment_id = try container.decodeIfPresent(UUID.self, forKey: .assignment_id)
+    template_id = try container.decodeIfPresent(UUID.self, forKey: .template_id)
+    week = try container.decodeIfPresent(Int.self, forKey: .week)
+    day_index = try container.decodeIfPresent(Int.self, forKey: .day_index)
+    exercise_name = try container.decode(String.self, forKey: .exercise_name)
+    no_weight = try container.decode(Bool.self, forKey: .no_weight)
+
+    if let stringWeights = try? container.decode([String].self, forKey: .set_weights_json) {
+      set_weights_json = stringWeights
+    } else if let legacyWeights = try? container.decode([SDJSONValue].self, forKey: .set_weights_json) {
+      set_weights_json = legacyWeights.compactMap(\.stringValue)
+    } else {
+      set_weights_json = nil
+    }
+
+    result_values = try container.decodeIfPresent([String: SDJSONValue].self, forKey: .result_values)
+    sets_completed = try container.decodeIfPresent(Int.self, forKey: .sets_completed)
+    notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    created_at = try container.decodeIfPresent(Date.self, forKey: .created_at)
+    updated_at = try container.decodeIfPresent(Date.self, forKey: .updated_at)
+  }
 }
 
 struct SDProgramSetMedia: Identifiable, Decodable, Equatable {

@@ -12,6 +12,7 @@ struct CoachProgramTrackerView: View {
   @State private var selectedDay: CoachProgramTrackerDay?
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var warningText: String?
 
   var body: some View {
     HPListScreenLayout {
@@ -191,6 +192,13 @@ struct CoachProgramTrackerView: View {
           }
         }
 
+        if let warningText {
+          Label(warningText, systemImage: "exclamationmark.triangle.fill")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.warning)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
         if isLoading {
           HPLoadingState(text: "Loading program history…")
         } else if selectedPlayer == nil {
@@ -324,6 +332,7 @@ struct CoachProgramTrackerView: View {
 
     isLoading = true
     errorText = nil
+    warningText = nil
     defer { isLoading = false }
     do {
       let loadedAssignments = try await supabase.fetchProgramAssignments(
@@ -364,7 +373,7 @@ struct CoachProgramTrackerView: View {
 
       let missingTemplates = Set(loadedAssignments.map(\.template_id)).subtracting(loadedTemplates.keys).count
       if missingTemplates > 0 || missingDayDetails > 0 || logsUnavailable {
-        errorText = logsUnavailable
+        warningText = logsUnavailable
           ? "Program assignments are visible, but submitted exercise results could not be refreshed. Please try again."
           : "Some older program details are unavailable, but every valid assignment and submission remains visible."
       }

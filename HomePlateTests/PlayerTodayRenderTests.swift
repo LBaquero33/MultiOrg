@@ -170,6 +170,40 @@ final class PlayerTodayRenderTests: XCTestCase {
 }
 
 final class ProgramVisibilityTests: XCTestCase {
+  func testStrengthLogDecodesLegacyNumericAndCurrentStringWeights() throws {
+    let numericJSON = """
+    {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "org_id": "20000000-0000-0000-0000-000000000002",
+      "player_id": "30000000-0000-0000-0000-000000000003",
+      "log_date": "2026-08-21",
+      "assignment_id": null,
+      "template_id": null,
+      "week": 1,
+      "day_index": 1,
+      "exercise_name": "Back Squat",
+      "no_weight": false,
+      "set_weights_json": [108, 113, 118],
+      "result_values": {"velocity": 82.5},
+      "sets_completed": 3,
+      "notes": null,
+      "created_at": null,
+      "updated_at": null
+    }
+    """
+    let stringJSON = numericJSON.replacingOccurrences(
+      of: "[108, 113, 118]",
+      with: "[\"108\", \"113\", \"118\"]"
+    )
+
+    let numericLog = try JSONDecoder().decode(SDStrengthLog.self, from: Data(numericJSON.utf8))
+    let stringLog = try JSONDecoder().decode(SDStrengthLog.self, from: Data(stringJSON.utf8))
+
+    XCTAssertEqual(numericLog.set_weights_json, ["108", "113", "118"])
+    XCTAssertEqual(stringLog.set_weights_json, ["108", "113", "118"])
+    XCTAssertEqual(numericLog.result_values?["velocity"]?.stringValue, "82.5")
+  }
+
   func testScheduledDateResolvesExactProgramSlot() throws {
     let assignment = makeAssignment(startDate: "2026-08-17")
     let template = makeTemplate(weeks: 4, weekdays: [1, 3, 5])
