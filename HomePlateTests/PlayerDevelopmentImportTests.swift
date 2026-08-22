@@ -686,7 +686,7 @@ private final class MockImportClient: PlayerDevelopmentImportClient {
   }
 
   func job(status: SDDevelopmentImportStatus, accepted: Int = 0, rejected: Int = 0) -> SDDevelopmentImportJob {
-    SDDevelopmentImportJob(id: jobId, organizationId: orgId, playerId: playerId, requestedBy: userId, provider: "generic_csv", fileName: "synthetic.csv", originalFileType: "csv", fileSHA256: String(repeating: "a", count: 64), fileSizeBytes: 100, parserVersion: "generic-csv.v1", mappingVersion: "mapping.v1", status: status, rowCount: max(accepted + rejected, 1), acceptedRows: accepted, rejectedRows: rejected, unmatchedPlayerRows: 0, warningCount: 0, safeErrorCode: nil, safeErrorSummary: nil, createdAt: "2026-07-15T12:00:00Z", completedAt: status.isFinished ? "2026-07-15T12:01:00Z" : nil, archivedAt: status == .archived ? "2026-07-15T12:02:00Z" : nil)
+    SDDevelopmentImportJob(id: jobId, organizationId: orgId, playerId: playerId, requestedBy: userId, provider: "generic_csv", fileName: "synthetic.csv", originalFileType: "csv", fileSHA256: String(repeating: "a", count: 64), fileSizeBytes: 100, parserVersion: "generic-csv.v1", mappingVersion: "mapping.v1", status: status, rowCount: max(accepted + rejected, 1), acceptedRows: accepted, rejectedRows: rejected, unmatchedPlayerRows: 0, warningCount: 0, safeErrorCode: nil, safeErrorSummary: nil, storageBucket: nil, storagePath: nil, createdAt: "2026-07-15T12:00:00Z", completedAt: status.isFinished ? "2026-07-15T12:01:00Z" : nil, archivedAt: status == .archived ? "2026-07-15T12:02:00Z" : nil)
   }
   func inspection() -> SDDevelopmentImportInspection {
     SDDevelopmentImportInspection(
