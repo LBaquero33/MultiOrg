@@ -10,6 +10,7 @@ export type OrganizationMembership = {
 
 export type PaymentRequestAuthorizationSource =
   | "organization_membership"
+  | "head_coach"
   | "platform_support";
 
 export type ParentPaymentLink = {
@@ -78,6 +79,7 @@ export type CreatePaymentRequestBatchInput = {
   due_date: string | null;
   idempotency_key: string;
   idempotency_operation: "create";
+  authorization_source: PaymentRequestAuthorizationSource;
 };
 
 export type CreatePaymentRequestResponse = {
@@ -140,6 +142,7 @@ export type CreatePaymentRequestBatchResult =
   }
   | { kind: "idempotency_conflict" }
   | { kind: "active_player_membership_required" }
+  | { kind: "payment_request_access_denied" }
   | { kind: "organization_admin_required" }
   | { kind: "organization_inactive_or_missing" };
 
@@ -164,6 +167,7 @@ export interface PaymentRequestStore {
     userId: string,
   ): Promise<OrganizationMembership | null>;
   isPlatformAdmin(userId: string): Promise<boolean>;
+  headCoachPlayerIds(orgId: string, userId: string): Promise<Set<string>>;
   parentLinks(orgId: string, parentId: string): Promise<ParentPaymentLink[]>;
   eligiblePlayers(orgId: string): Promise<EligiblePaymentRequestRoster>;
   activePlayerIds(orgId: string, playerIds: string[]): Promise<Set<string>>;
@@ -182,6 +186,7 @@ export interface PaymentRequestStore {
     orgId: string,
     actorId: string,
     requestId: string,
+    authorizationSource: PaymentRequestAuthorizationSource,
   ): Promise<CancelPaymentRequestResult>;
 }
 
@@ -285,9 +290,14 @@ function isActiveAdmin(membership: OrganizationMembership | null): boolean {
 async function managementAuthorization(
   store: PaymentRequestStore,
   membership: OrganizationMembership | null,
+  orgId: string,
   actorId: string,
 ): Promise<PaymentRequestAuthorizationSource | null> {
   if (isActiveAdmin(membership)) return "organization_membership";
+  if (
+    membership?.status === "active" && membership.role === "coach" &&
+    (await store.headCoachPlayerIds(orgId, actorId)).size > 0
+  ) return "head_coach";
   if (await store.isPlatformAdmin(actorId)) return "platform_support";
   return null;
 }
@@ -446,12 +456,21 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         const authorizationSource = await managementAuthorization(
           store,
           actorMembership,
+          orgId,
           actorId,
         );
         if (!authorizationSource) {
           return errorResponse(403, "organization_admin_required");
         }
+        const managedPlayerIds = authorizationSource === "head_coach"
+          ? await store.headCoachPlayerIds(orgId, actorId)
+          : null;
         const roster = await store.eligiblePlayers(orgId);
+        if (managedPlayerIds) {
+          roster.players = roster.players.filter((player) =>
+            managedPlayerIds.has(player.user_id.toLowerCase())
+          );
+        }
         console.info(JSON.stringify({
           event: "payment_request_eligible_roster",
           org_id: orgId,
@@ -473,6 +492,7 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         const authorizationSource = await managementAuthorization(
           store,
           actorMembership,
+          orgId,
           actorId,
         );
         if (!authorizationSource) {
@@ -539,6 +559,12 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         if (playerIds.some((playerId) => !activePlayerIds.has(playerId))) {
           return errorResponse(400, "active_player_membership_required");
         }
+        if (authorizationSource === "head_coach") {
+          const managedPlayerIds = await store.headCoachPlayerIds(orgId, actorId);
+          if (playerIds.some((playerId) => !managedPlayerIds.has(playerId))) {
+            return errorResponse(403, "payment_request_access_denied");
+          }
+        }
 
         const result = await store.createPaymentRequestBatch({
           org_id: orgId,
@@ -551,6 +577,7 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
           due_date: dueDate,
           idempotency_key: idempotencyKey,
           idempotency_operation: "create",
+          authorization_source: authorizationSource,
         });
 
         if (result.kind === "idempotency_conflict") {
@@ -558,6 +585,9 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         }
         if (result.kind === "active_player_membership_required") {
           return errorResponse(400, "active_player_membership_required");
+        }
+        if (result.kind === "payment_request_access_denied") {
+          return errorResponse(403, "payment_request_access_denied");
         }
         if (result.kind === "organization_admin_required") {
           return errorResponse(403, "organization_admin_required");
@@ -581,6 +611,7 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         const authorizationSource = await managementAuthorization(
           store,
           actorMembership,
+          orgId,
           actorId,
         );
         if (!authorizationSource) {
@@ -590,11 +621,21 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         if (!validUuid(requestId)) {
           return errorResponse(400, "invalid_payment_request");
         }
+        if (authorizationSource === "head_coach") {
+          const [record, managedPlayerIds] = await Promise.all([
+            store.paymentRequest(orgId, requestId),
+            store.headCoachPlayerIds(orgId, actorId),
+          ]);
+          if (!record || !managedPlayerIds.has(record.child_id.toLowerCase())) {
+            return errorResponse(404, "payment_request_not_found");
+          }
+        }
 
         const result = await store.cancelOpenPaymentRequest(
           orgId,
           actorId,
           requestId,
+          authorizationSource,
         );
         if (result.kind === "success") {
           const cancelResponse: PaymentRequestSingleResponse = {
@@ -619,12 +660,16 @@ export function createPaymentRequestHandler(store: PaymentRequestStore) {
         const authorizationSource = await managementAuthorization(
           store,
           actorMembership,
+          orgId,
           actorId,
         );
         if (!authorizationSource) {
           return errorResponse(403, "organization_admin_required");
         }
-        const records = await store.paymentRequests(orgId);
+        const managedPlayerIds = authorizationSource === "head_coach"
+          ? Array.from(await store.headCoachPlayerIds(orgId, actorId))
+          : undefined;
+        const records = await store.paymentRequests(orgId, managedPlayerIds);
         const listResponse: PaymentRequestListResponse = {
           requests: records.map((record) => publicRequest(record, false)),
           authorization_source: authorizationSource,

@@ -46,6 +46,8 @@
 		25A41944DE99306959EA4CF3 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDBBED15F3D664E3E21F9B /* PlayerDetailView.swift */; };
 		26EF47A5086160FDE0F9BB70 /* SupabaseService+Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E702760A12CF6AC06C54361 /* SupabaseService+Games.swift */; };
 		273D035B6AF8AF23181B318F /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66242B84B03C4782FD08EB83 /* PaymentRequestCard.swift */; };
+		A12F45C721E6446BA35D9D01 /* CoachPaymentRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12F45C721E6446BA35D9D03 /* CoachPaymentRequestsView.swift */; };
+		A12F45C721E6446BA35D9D02 /* CoachPaymentRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12F45C721E6446BA35D9D03 /* CoachPaymentRequestsView.swift */; };
 		27B5899059641EEB39F402F5 /* EditFacilityBookingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E917162230396AE988223A2 /* EditFacilityBookingSheet.swift */; };
 		289667BA4B65317848F0E676 /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9D2A11773CCB0DF3F6E87C /* PlayerDevelopmentAIModels.swift */; };
 		28CCC515EA7990A45B058133 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9742DBB26F38077DBBBD4168 /* Assets.xcassets */; };
@@ -476,6 +478,7 @@
 		6240F7532EF0415572840B6F /* DateUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtils.swift; sourceTree = "<group>"; };
 		635A704482959DA04BD5CD59 /* HPStructuralTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPStructuralTemplateTests.swift; sourceTree = "<group>"; };
 		66242B84B03C4782FD08EB83 /* PaymentRequestCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRequestCard.swift; sourceTree = "<group>"; };
+		A12F45C721E6446BA35D9D03 /* CoachPaymentRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPaymentRequestsView.swift; sourceTree = "<group>"; };
 		667FDE39C5403A533B3BCBB5 /* HPWorkspaceHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceHeader.swift; sourceTree = "<group>"; };
 		66E84A5784430097D8A05ECB /* HPCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPCard.swift; sourceTree = "<group>"; };
 		66F40313C3AE3AE87DE1F8B3 /* HPLoadingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPLoadingState.swift; sourceTree = "<group>"; };
@@ -760,6 +763,7 @@
 		692A34D1F69638159019438C /* Payments */ = {
 			isa = PBXGroup;
 			children = (
+				A12F45C721E6446BA35D9D03 /* CoachPaymentRequestsView.swift */,
 				66242B84B03C4782FD08EB83 /* PaymentRequestCard.swift */,
 			);
 			path = Payments;
@@ -1278,6 +1282,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12F45C721E6446BA35D9D01 /* CoachPaymentRequestsView.swift in Sources */,
 				6D2AF73F824336836B40DEE9 /* AccessRequiredView.swift in Sources */,
 				81F7B8AB77DFA5ED81582D72 /* AccountView.swift in Sources */,
 				8209676DA3515F847F3D8865 /* AppState.swift in Sources */,
@@ -1438,6 +1443,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12F45C721E6446BA35D9D02 /* CoachPaymentRequestsView.swift in Sources */,
 				81A3212E7B3FDF00773E2019 /* AccessRequiredView.swift in Sources */,
 				4751B5CE96BAE73F470B9487 /* AccountView.swift in Sources */,
 				5BB36069D0F4D5A5F502C6E8 /* AppState.swift in Sources */,

@@ -31,6 +31,7 @@ enum SDPaymentRequestStatus: String, Codable, CaseIterable, Sendable {
 
 enum SDPaymentRequestAuthorizationSource: String, Decodable, Equatable, Sendable {
   case organizationMembership = "organization_membership"
+  case headCoach = "head_coach"
   case platformSupport = "platform_support"
 }
 

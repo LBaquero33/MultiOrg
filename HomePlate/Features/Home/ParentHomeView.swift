@@ -64,7 +64,6 @@ struct ParentHomeView: View {
           ScrollView {
             VStack(spacing: HP.Space.md) {
               parentTodayCard
-              RegistrationFamilySummaryCard(audience: .parent, players: children)
               AccountView().environmentObject(appState)
             }
             .padding(HP.Space.md)
@@ -100,7 +99,6 @@ struct ParentHomeView: View {
           )
         } supporting: {
           parentTodayCard
-          RegistrationFamilySummaryCard(audience: .parent, players: children)
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
               HPSectionHeader("Children") {
@@ -191,7 +189,7 @@ struct ParentHomeView: View {
   private var parentTodayCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Today’s Baseball Missions") {
+        HPSectionHeader("Upcoming Schedule") {
           HPStatusBadge(text: "\(todayMissions.count)", kind: todayMissions.isEmpty ? .neutral : .info)
         }
         if let todayServiceError {
@@ -210,7 +208,7 @@ struct ParentHomeView: View {
           }
         }
         if todayMissions.isEmpty {
-          HPEmptyState(title: "No child events today", message: "Visible events for linked children appear here.", systemImage: "calendar")
+          HPEmptyState(title: "No upcoming events", message: "The next team event and game for each child will appear here.", systemImage: "calendar")
         } else {
           if hasHouseholdConflict {
             Label("Household timing conflict: linked children have overlapping events.", systemImage: "exclamationmark.triangle")
@@ -302,7 +300,7 @@ struct ParentHomeView: View {
             .buttonStyle(.bordered)
           }
         }
-        Text("Parents declare availability; official attendance and roster control remain with authorized team staff.")
+        Text("Respond for each child here; coaches retain official attendance and roster control.")
           .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
       }
     }
@@ -459,8 +457,8 @@ struct ParentHomeView: View {
   }
 
   private func reloadTodayMissions(supabase: SupabaseService, organizationId: UUID) async {
-    let start = Calendar.current.startOfDay(for: Date())
-    let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+    let start = Date()
+    let end = Calendar.current.date(byAdding: .day, value: 60, to: start)!
     var missions: [ParentTodayMission] = []
     for child in children {
       do {
@@ -471,7 +469,10 @@ struct ParentHomeView: View {
           rangeStart: start,
           rangeEnd: end
         ).filter { $0.status != .draft }
-        for event in events {
+        let ordered = events.sorted { $0.startDate < $1.startDate }
+        let nextEvent = ordered.first
+        let nextGame = ordered.first { $0.event_type == .game && $0.id != nextEvent?.id }
+        for event in [nextEvent, nextGame].compactMap({ $0 }) {
           let detail: SDEventOperationDetailResponse
           do {
             detail = try await supabase.eventOperation(

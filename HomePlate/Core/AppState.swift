@@ -192,6 +192,18 @@ final class AppState: ObservableObject {
     activeOrgMembership?.isStaff == true
   }
 
+  var canManagePaymentRequests: Bool {
+    if canAdminActiveOrg { return true }
+    guard let userId = myProfile?.id, let organizationId = activeOrgId else { return false }
+    return teamOperationsContext?.coach_assignments.contains {
+      $0.coach_id == userId &&
+        $0.organization_id == organizationId &&
+        $0.active &&
+        $0.ended_at == nil &&
+        $0.responsibilities.contains(.headCoach)
+    } == true
+  }
+
   var isPlayerDevelopmentCopilotEnabled: Bool {
     SDPlatformFeatureGate.playerDevelopmentCopilotEnabled(
       in: platformFeatureFlags

@@ -12,6 +12,7 @@ struct SDParentBillingView: View {
   @State private var errorText: String?
   @State private var checkoutState = SDPaymentCheckoutState.idle
   @State private var checkoutConfirmationRequest: SDPaymentRequest?
+  @State private var isOpeningSubscriptionPortal = false
 
   var body: some View {
     HPListScreenLayout {
@@ -26,15 +27,40 @@ struct SDParentBillingView: View {
         }
       }
     } controls: {
-      HPCard {
-        VStack(alignment: .leading, spacing: HP.Space.sm) {
-          Label("Secure payments through Stripe", systemImage: "lock.shield")
-            .font(HP.Font.headline)
-            .foregroundStyle(HP.Color.text)
-          Text("Pay Now is available only when your organization link allows payment for this child.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
+      VStack(spacing: HP.Space.md) {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            Label("Secure payments through Stripe", systemImage: "lock.shield")
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+            Text("Pay Now is available only when your organization link allows payment for this child.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        HPCard {
+          HStack(spacing: HP.Space.md) {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              Text("Player Subscription")
+                .font(HP.Font.headline)
+              Text("Update the payment method, view invoices, or cancel a Stripe subscription.")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+            }
+            Spacer()
+            Button {
+              Task { await openSubscriptionPortal() }
+            } label: {
+              if isOpeningSubscriptionPortal {
+                HPProgressIndicator(style: .spinner)
+              } else {
+                Label("Manage", systemImage: "creditcard")
+              }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isOpeningSubscriptionPortal)
+          }
         }
       }
     } results: { context in
@@ -153,6 +179,21 @@ struct SDParentBillingView: View {
       }
     } catch {
       checkoutState.fail(requestId: request.id, message: error.localizedDescription)
+    }
+  }
+
+  private func openSubscriptionPortal() async {
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
+    isOpeningSubscriptionPortal = true
+    defer { isOpeningSubscriptionPortal = false }
+    do {
+      let url = try await supabase.createPlayerBillingPortal(orgId: orgId, playerId: child.id)
+      let opened: Bool = await withCheckedContinuation { continuation in
+        openURL(url) { continuation.resume(returning: $0) }
+      }
+      if !opened { errorText = "Stripe's subscription manager could not be opened." }
+    } catch {
+      errorText = "This subscription cannot be managed from this parent account. (error.localizedDescription)"
     }
   }
 

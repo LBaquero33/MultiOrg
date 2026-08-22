@@ -1798,6 +1798,17 @@ final class SupabaseService: ObservableObject {
     return try validatedStripeHostedURL(response.url)
   }
 
+  func createPlayerBillingPortal(orgId: UUID, playerId: UUID) async throws -> URL {
+    let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
+      "create-player-billing-portal",
+      body: [
+        "org_id": orgId.uuidString,
+        "player_id": playerId.uuidString,
+      ]
+    )
+    return try validatedStripeHostedURL(response.url)
+  }
+
   func createStripeConnectOnboardingLink(orgId: UUID) async throws -> URL {
     let response: StripeConnectOnboardingResponse = try await invokeAuthenticatedFunction(
       "create-stripe-connect-onboarding-link",

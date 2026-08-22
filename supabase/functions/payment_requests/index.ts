@@ -79,7 +79,8 @@ function isStatus(value: unknown): value is PaymentRequestStatus {
 function isAuthorizationSource(
   value: unknown,
 ): value is PaymentRequestAuthorizationSource {
-  return value === "organization_membership" || value === "platform_support";
+  return value === "organization_membership" || value === "head_coach" ||
+    value === "platform_support";
 }
 
 function parseDatabasePaymentRequest(value: unknown): DatabasePaymentRequest {
@@ -153,6 +154,9 @@ function rpcFailure(message: string): CreatePaymentRequestBatchResult | null {
   }
   if (message.includes("active_player_membership_required")) {
     return { kind: "active_player_membership_required" };
+  }
+  if (message.includes("payment_request_access_denied")) {
+    return { kind: "payment_request_access_denied" };
   }
   if (message.includes("organization_admin_required")) {
     return { kind: "organization_admin_required" };
@@ -246,6 +250,45 @@ function makeStore(): PaymentRequestStore {
         .maybeSingle();
       if (error) throw new Error("platform_admin_lookup_failed");
       return data?.user_id === userId;
+    },
+
+    async headCoachPlayerIds(orgId, userId) {
+      const { data: assignments, error: assignmentError } = await admin
+        .from("sd_coach_team_assignments")
+        .select("id,team_id")
+        .eq("organization_id", orgId)
+        .eq("coach_id", userId)
+        .eq("active", true)
+        .is("ended_at", null);
+      if (assignmentError) throw new Error("head_coach_assignment_lookup_failed");
+      const assignmentIds = (assignments ?? []).map((row) => row.id);
+      if (!assignmentIds.length) return new Set<string>();
+      const { data: responsibilities, error: responsibilityError } = await admin
+        .from("sd_coach_team_responsibilities")
+        .select("assignment_id")
+        .eq("responsibility", "head_coach")
+        .in("assignment_id", assignmentIds);
+      if (responsibilityError) {
+        throw new Error("head_coach_responsibility_lookup_failed");
+      }
+      const headCoachAssignmentIds = new Set(
+        (responsibilities ?? []).map((row) => row.assignment_id),
+      );
+      const teamIds = Array.from(new Set(
+        (assignments ?? [])
+          .filter((row) => headCoachAssignmentIds.has(row.id))
+          .map((row) => row.team_id),
+      ));
+      if (!teamIds.length) return new Set<string>();
+      const { data: memberships, error: membershipError } = await admin
+        .from("sd_player_team_memberships")
+        .select("player_id")
+        .eq("organization_id", orgId)
+        .eq("active", true)
+        .is("ended_at", null)
+        .in("team_id", teamIds);
+      if (membershipError) throw new Error("head_coach_player_lookup_failed");
+      return new Set((memberships ?? []).map((row) => row.player_id.toLowerCase()));
     },
 
     async parentLinks(orgId, parentId) {
@@ -353,7 +396,9 @@ function makeStore(): PaymentRequestStore {
 
     async createPaymentRequestBatch(input: CreatePaymentRequestBatchInput) {
       const { data, error } = await admin.rpc(
-        "sd_create_payment_request_batch",
+        input.authorization_source === "head_coach"
+          ? "sd_create_head_coach_payment_request_batch"
+          : "sd_create_payment_request_batch",
         {
           p_org_id: input.org_id,
           p_actor_id: input.actor_id,
@@ -386,12 +431,17 @@ function makeStore(): PaymentRequestStore {
       };
     },
 
-    async cancelOpenPaymentRequest(orgId, actorId, requestId) {
-      const { data, error } = await admin.rpc("sd_cancel_payment_request", {
+    async cancelOpenPaymentRequest(orgId, actorId, requestId, authorizationSource) {
+      const { data, error } = await admin.rpc(
+        authorizationSource === "head_coach"
+          ? "sd_cancel_head_coach_payment_request"
+          : "sd_cancel_payment_request",
+        {
         p_org_id: orgId,
         p_actor_id: actorId,
         p_request_id: requestId,
-      });
+        },
+      );
       if (error) {
         const recognized = cancelRPCFailure(error.message);
         if (recognized) return recognized;

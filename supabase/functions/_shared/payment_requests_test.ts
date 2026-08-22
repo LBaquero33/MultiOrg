@@ -48,6 +48,7 @@ class FakeStore implements PaymentRequestStore {
     { input: CreatePaymentRequestBatchInput; records: PaymentRequestRecord[] }
   >();
   platformAdmins = new Set<string>();
+  headCoachPlayers = new Map<string, Set<string>>();
   auditRecords: Array<{
     actorId: string;
     orgId: string;
@@ -108,6 +109,9 @@ class FakeStore implements PaymentRequestStore {
   }
   async isPlatformAdmin(user: string) {
     return this.platformAdmins.has(user);
+  }
+  async headCoachPlayerIds(org: string, user: string) {
+    return this.headCoachPlayers.get(`${org}:${user}`) ?? new Set<string>();
   }
   async parentLinks(org: string, parent: string) {
     return this.links.get(`${org}:${parent}`) ?? [];
@@ -229,7 +233,12 @@ class FakeStore implements PaymentRequestStore {
       authorizationSource,
     };
   }
-  async cancelOpenPaymentRequest(org: string, actor: string, id: string) {
+  async cancelOpenPaymentRequest(
+    org: string,
+    actor: string,
+    id: string,
+    authorizationSource: "organization_membership" | "head_coach" | "platform_support",
+  ) {
     const record = this.records.get(id);
     if (!record || record.org_id !== org) {
       return { kind: "payment_request_not_found" as const };
@@ -245,7 +254,6 @@ class FakeStore implements PaymentRequestStore {
     }
     const canceled = { ...record, status: "canceled" as const };
     this.records.set(id, canceled);
-    const authorizationSource = this.authorizationSource(org, actor);
     if (this.platformAdmins.has(actor)) {
       this.auditRecords.push({
         actorId: actor,
@@ -260,10 +268,15 @@ class FakeStore implements PaymentRequestStore {
 
   private authorizationSource(org: string, actor: string) {
     const membership = this.memberships.get(`${org}:${actor}`);
-    return membership?.status === "active" &&
-        ["owner", "admin"].includes(membership.role)
-      ? "organization_membership" as const
-      : "platform_support" as const;
+    if (
+      membership?.status === "active" &&
+      ["owner", "admin"].includes(membership.role)
+    ) return "organization_membership" as const;
+    if (
+      membership?.status === "active" && membership.role === "coach" &&
+      (this.headCoachPlayers.get(`${org}:${actor}`)?.size ?? 0) > 0
+    ) return "head_coach" as const;
+    return "platform_support" as const;
   }
 }
 
@@ -578,6 +591,63 @@ Deno.test("active organization admin can load the payment roster", async () => {
     org_id: orgId,
   });
   assertEqual(result.response.status, 200, "status");
+});
+
+Deno.test("active head coach loads only players on teams they lead", async () => {
+  const store = new FakeStore();
+  store.actorId = coachId;
+  store.setMembership(orgId, coachId, "coach");
+  store.setMembership(orgId, otherPlayerId, "player");
+  store.headCoachPlayers.set(`${orgId}:${coachId}`, new Set([playerId]));
+  const result = await call(store, {
+    action: "list_eligible_players",
+    org_id: orgId,
+  });
+  const players = jsonArray(result.json.players, "head coach players");
+  assertEqual(result.response.status, 200, "status");
+  assertEqual(result.json.authorization_source, "head_coach", "authorization source");
+  assertEqual(players.length, 1, "scoped player count");
+  assertEqual(players[0].user_id, playerId, "managed player");
+});
+
+Deno.test("active head coach creates for a managed player only", async () => {
+  const store = new FakeStore();
+  store.actorId = coachId;
+  store.setMembership(orgId, coachId, "coach");
+  store.headCoachPlayers.set(`${orgId}:${coachId}`, new Set([playerId]));
+  const result = await call(store, createBody());
+  assertEqual(result.response.status, 201, "status");
+  assertEqual(result.json.authorization_source, "head_coach", "authorization source");
+  assertEqual(jsonArray(result.json.requests, "requests").length, 1, "request count");
+});
+
+Deno.test("head coach cannot create for a player outside their teams", async () => {
+  const store = new FakeStore();
+  store.actorId = coachId;
+  store.setMembership(orgId, coachId, "coach");
+  store.setMembership(orgId, otherPlayerId, "player");
+  store.headCoachPlayers.set(`${orgId}:${coachId}`, new Set([playerId]));
+  const result = await call(
+    store,
+    createBody({ player_ids: [otherPlayerId] }),
+  );
+  assertEqual(result.response.status, 403, "status");
+  assertEqual(result.json.error, "payment_request_access_denied", "error");
+  assertEqual(store.batchCallCount, 0, "batch calls");
+});
+
+Deno.test("head coach management list excludes requests for unmanaged players", async () => {
+  const store = new FakeStore();
+  store.actorId = coachId;
+  store.setMembership(orgId, coachId, "coach");
+  store.headCoachPlayers.set(`${orgId}:${coachId}`, new Set([playerId]));
+  store.addRecord("open", playerId, requestId);
+  store.addRecord("open", otherPlayerId, keyId);
+  const result = await call(store, { action: "list_manage", org_id: orgId });
+  const requests = jsonArray(result.json.requests, "managed requests");
+  assertEqual(result.response.status, 200, "status");
+  assertEqual(requests.length, 1, "scoped request count");
+  assertEqual(requests[0].player_id, playerId, "managed player request");
 });
 
 for (
@@ -1333,11 +1403,16 @@ Deno.test("production adapter verifies JWT, uses the batch RPC, and has no Strip
     source.includes('.from("sd_platform_admins")'),
     "authoritative platform grant lookup",
   );
+  assert(source.includes('"sd_create_payment_request_batch"'), "batch RPC");
   assert(
-    /rpc\(\s*"sd_create_payment_request_batch"/.test(source),
-    "batch RPC",
+    source.includes('"sd_create_head_coach_payment_request_batch"'),
+    "head coach batch RPC",
   );
-  assert(/rpc\(\s*"sd_cancel_payment_request"/.test(source), "cancel RPC");
+  assert(source.includes('"sd_cancel_payment_request"'), "cancel RPC");
+  assert(
+    source.includes('"sd_cancel_head_coach_payment_request"'),
+    "head coach cancel RPC",
+  );
   assert(
     !source.includes('.from("sd_payment_requests")\n        .insert'),
     "no best-effort direct inserts",

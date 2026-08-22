@@ -225,21 +225,6 @@ struct ChatThreadView: View {
   private var composer: some View {
     HPCard(style: .flat) {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HStack(spacing: HP.Space.xs) {
-          PhotosPicker(selection: $photoPickerItem, matching: .images) {
-            Label("Photo", systemImage: "photo.badge.plus")
-          }
-          .onChange(of: photoPickerItem) { _, item in
-            guard let item else { return }
-            Task { await addPhoto(item) }
-          }
-          Button { isShowingFileImporter = true } label: {
-            Label("File", systemImage: "paperclip")
-          }
-        }
-        .buttonStyle(.bordered)
-        .disabled(!canSend || isSending)
-
         if !pendingAttachments.isEmpty {
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HP.Space.xs) {
@@ -270,6 +255,28 @@ struct ChatThreadView: View {
           ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
           : AnyLayout(HStackLayout(alignment: .bottom, spacing: HP.Space.sm))
         layout {
+          HStack(spacing: HP.Space.xs) {
+            PhotosPicker(selection: $photoPickerItem, matching: .images) {
+              Image(systemName: "photo")
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Attach photo")
+            .onChange(of: photoPickerItem) { _, item in
+              guard let item else { return }
+              Task { await addPhoto(item) }
+            }
+            Button { isShowingFileImporter = true } label: {
+              Image(systemName: "paperclip")
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Attach file")
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(HP.Color.textMuted)
+          .disabled(!canSend || isSending)
+
           HPFormField(
             label: "Message",
             text: $composerText,

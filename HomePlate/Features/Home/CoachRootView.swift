@@ -87,6 +87,7 @@ struct CoachRootView: View {
       facilitiesEnabled: feature("facilities"),
       chatEnabled: feature("chat"),
       programsEnabled: feature("programs"),
+      paymentsEnabled: appState.canManagePaymentRequests,
       canAdministerOrganization: false,
       isPlatformAdmin: appState.isPlatformAdmin
     )
@@ -157,6 +158,8 @@ struct CoachRootView: View {
 #else
         NavigationStack { financeView(organizationId: organizationId) }
 #endif
+      } else if appState.canManagePaymentRequests {
+        CoachPaymentRequestsView()
       } else {
         accessDeniedView("Payments")
       }

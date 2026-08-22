@@ -64,7 +64,7 @@ final class UniversalNavigationShellTests: XCTestCase {
       coach.regularItems.map(\.destination),
       [
         .coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities,
-        .coachPlayers, .games, .chat, .payments, .platformAdmin, .account,
+        .games, .chat, .platformAdmin, .account,
       ]
     )
     XCTAssertFalse(coach.regularItems.contains { $0.destination == .organizationAdmin })
@@ -75,7 +75,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertEqual(coach.compactTabCountIncludingDirectory, 5)
     XCTAssertEqual(
       coach.directoryItems.map(\.destination),
-      [.coachFacilities, .coachPlayers, .games, .chat, .payments, .platformAdmin, .account]
+      [.coachFacilities, .games, .chat, .platformAdmin, .account]
     )
   }
 
@@ -103,7 +103,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     XCTAssertEqual(owner.compactTabCountIncludingDirectory, 5)
     XCTAssertEqual(
       owner.directoryItems.map(\.destination),
-      [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account]
+      [.coachFacilities, .games, .chat, .payments, .organizationAdmin, .account]
     )
   }
 

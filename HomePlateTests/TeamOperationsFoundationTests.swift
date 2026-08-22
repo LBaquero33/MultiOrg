@@ -76,10 +76,10 @@ struct TeamOperationsFoundationTests {
       isPlatformAdmin: false
     )
     #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
-    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .account])
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .account])
+    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .games, .chat, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .games, .chat, .account])
     #expect(inventory.defaultDestination == .coachToday)
-    #expect(inventory.regularItems.contains(where: { $0.destination == .coachPlayers }))
+    #expect(!inventory.regularItems.contains(where: { $0.destination == .coachPlayers }))
   }
 
   @Test("team selector is a label for one team and a compact menu for multiple teams")
@@ -394,8 +394,8 @@ struct TeamOperationsFoundationTests {
       canAdministerOrganization: false,
       isPlatformAdmin: false
     )
-    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Account"])
-    #expect(coach.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
+    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Account"])
+    #expect(coach.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs & Player Development"])
 
     let owner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities",
@@ -405,8 +405,8 @@ struct TeamOperationsFoundationTests {
       programsEnabled: true,
       isPlatformAdmin: false
     )
-    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Organization Settings", "Account"])
-    #expect(owner.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
+    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Payments", "Organization Settings", "Account"])
+    #expect(owner.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs & Player Development"])
     #expect(owner.defaultDestination == .coachToday)
     #expect(owner.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
     #expect(owner.regularItems.contains(where: { $0.destination == .coachToday }))
@@ -415,7 +415,7 @@ struct TeamOperationsFoundationTests {
     #expect(!owner.regularItems.contains(where: { $0.title == "Current Team" }))
     #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
     #expect(owner.regularItems.contains(where: { $0.destination == .organizationAdmin }))
-    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
+    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .games, .chat, .payments, .organizationAdmin, .account])
     #expect(!owner.regularItems.contains(where: { $0.destination == .platformAdmin }))
     #expect(owner.regularSections.map(\.title) == ["Daily Work", "Team Operations", "Communication", "Administration"])
 

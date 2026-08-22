@@ -262,7 +262,7 @@ struct Phase13ATeamContextTests {
     #expect(!owner.regularItems.contains(where: { $0.title == "Team Management" }))
     #expect(owner.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
     #expect(owner.defaultDestination == .coachToday)
-    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
+    #expect(owner.directoryItems.map(\.destination) == [.coachFacilities, .games, .chat, .payments, .organizationAdmin, .account])
   }
 
   @Test("superseded or cross-context team responses cannot publish")

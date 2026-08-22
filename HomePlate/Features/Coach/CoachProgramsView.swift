@@ -23,7 +23,7 @@ struct CoachProgramsView: View {
       workspacePicker
       workspaceContent
     }
-    .navigationTitle(selectedWorkspace == .templates ? (selectedTemplate?.name ?? "Program Templates") : "Player Program Tracker")
+    .navigationTitle(workspaceTitle)
     .task { await reload() }
     .toolbar {
       ToolbarItem(placement: .automatic) {
@@ -50,7 +50,7 @@ struct CoachProgramsView: View {
         workspacePicker
         workspaceContent
       }
-      .navigationTitle("Programs")
+      .navigationTitle("Programs & Player Development")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") { dismiss() }
@@ -77,6 +77,15 @@ struct CoachProgramsView: View {
   private enum Workspace: String, CaseIterable, Hashable {
     case templates = "Templates"
     case tracker = "Player Program Tracker"
+    case development = "Testing & Development"
+  }
+
+  private var workspaceTitle: String {
+    switch selectedWorkspace {
+    case .templates: "Program Templates"
+    case .tracker: "Player Program Tracker"
+    case .development: "Testing & Development"
+    }
   }
 
   private var workspacePicker: some View {
@@ -106,6 +115,8 @@ struct CoachProgramsView: View {
       #endif
     case .tracker:
       CoachProgramTrackerView()
+    case .development:
+      CoachHomeView()
     }
   }
 

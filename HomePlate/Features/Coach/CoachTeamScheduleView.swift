@@ -375,7 +375,11 @@ struct CoachTeamScheduleView: View {
   private var creationTeams: [SDTeamOperationsTeam] {
     appState.canAdminActiveOrg
       ? appState.authorizedScheduleTeams
-      : appState.authorizedScheduleTeams.filter { $0.capabilitySet.contains(.createTeamEvent) }
+      : appState.authorizedScheduleTeams.filter(canCreateEvent)
+  }
+
+  private func canCreateEvent(in team: SDTeamOperationsTeam) -> Bool {
+    team.capabilitySet.contains(.createTeamEvent) || team.capabilitySet.contains(.manageSchedule)
   }
 
   private func canMutate(_ event: SDTeamEvent) -> Bool {
@@ -396,7 +400,7 @@ struct CoachTeamScheduleView: View {
   }
 
   private func canDuplicate(_ event: SDTeamEvent) -> Bool {
-    appState.canAdminActiveOrg || team(for: event.team_id)?.capabilitySet.contains(.createTeamEvent) == true
+    appState.canAdminActiveOrg || team(for: event.team_id).map(canCreateEvent) == true
   }
 
   private func canCancel(_ event: SDTeamEvent) -> Bool {

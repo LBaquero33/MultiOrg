@@ -95,7 +95,7 @@ struct EventOperationsTests {
     #expect(player.contains("Not Coming"))
     #expect(parent.contains("Household timing conflict"))
     #expect(parent.contains("ForEach(children)"))
-    #expect(parent.contains("Parents declare availability; official attendance"))
+    #expect(parent.contains("coaches retain official attendance"))
     #expect(!player.contains("private_notes"))
     #expect(!parent.contains("attendance_notes"))
   }
@@ -157,8 +157,8 @@ struct EventOperationsTests {
       isPlatformAdmin: false
     )
     #expect(inventory.compactItems.map(\.destination) == [.coachToday, .coachTeams, .coachCalendar, .coachPrograms])
-    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
+    #expect(inventory.directoryItems.map(\.destination) == [.coachFacilities, .games, .chat, .organizationAdmin, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .games, .chat, .organizationAdmin, .account])
   }
 
   private func sourceFile(_ path: String) throws -> String {
@@ -353,7 +353,7 @@ struct GameOperationsTests {
     #expect(admin.contains("Game plan inspection"))
     #expect(admin.contains("Reopen Completed Game Plan"))
     let inventory = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: true, isPlatformAdmin: false)
-    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .coachPlayers, .games, .chat, .payments, .organizationAdmin, .account])
+    #expect(inventory.regularItems.map(\.destination) == [.coachToday, .coachCalendar, .coachTeams, .coachPrograms, .coachFacilities, .games, .chat, .organizationAdmin, .account])
   }
 
   @Test("players and parents do not expose internal game-plan details")
@@ -589,9 +589,9 @@ struct CompleteTodayExperienceTests {
     let player = HPAppNavigationInventory.player(chatEnabled: true, facilitiesEnabled: true, testingEnabled: true, analysisEnabled: true, facilitiesTitle: "Facilities", testingTitle: "Testing")
     #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
     let coach = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: false, isPlatformAdmin: false)
-    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Account"])
+    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Account"])
     let owner = HPAppNavigationInventory.owner(facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, isPlatformAdmin: false)
-    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Player Development", "Games", "Messages", "Payments", "Organization Settings", "Account"])
+    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Payments", "Organization Settings", "Account"])
     #expect(owner.defaultDestination == .coachToday)
   }
 

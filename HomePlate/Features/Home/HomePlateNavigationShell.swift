@@ -241,6 +241,7 @@ struct HPAppNavigationInventory: Equatable {
     facilitiesEnabled: Bool,
     chatEnabled: Bool,
     programsEnabled: Bool,
+    paymentsEnabled: Bool = false,
     canAdministerOrganization: Bool,
     isPlatformAdmin: Bool
   ) -> Self {
@@ -249,17 +250,16 @@ struct HPAppNavigationInventory: Equatable {
     let teams = item(.coachTeams, "Teams", "person.3")
     let facilities = item(.coachFacilities, facilitiesTitle, "building.2")
     let payments = item(.payments, "Payments", "creditcard")
-    let programs = item(.coachPrograms, "Programs", "list.clipboard")
-    let development = item(.coachPlayers, "Player Development", "figure.baseball")
+    let programs = item(.coachPrograms, "Programs & Player Development", "list.clipboard")
     let games = item(.games, "Games", "trophy")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let organization = item(.organizationAdmin, "Organization Settings", "gearshape")
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
     let account = item(.account, "Account", "person.crop.circle")
     let compactItems = [home, teams, calendar] + (programsEnabled ? [programs] : [])
-    let teamOperations = (facilitiesEnabled ? [facilities] : []) + [development, games]
+    let teamOperations = (facilitiesEnabled ? [facilities] : []) + [games]
     let communication = chatEnabled ? [chat] : []
-    let administration = [payments]
+    let administration = (paymentsEnabled ? [payments] : [])
       + (canAdministerOrganization ? [organization] : [])
       + (isPlatformAdmin ? [platform] : [])
       + [account]
@@ -301,6 +301,7 @@ struct HPAppNavigationInventory: Equatable {
       facilitiesEnabled: facilitiesEnabled,
       chatEnabled: chatEnabled,
       programsEnabled: programsEnabled,
+      paymentsEnabled: true,
       canAdministerOrganization: true,
       isPlatformAdmin: isPlatformAdmin
     )
