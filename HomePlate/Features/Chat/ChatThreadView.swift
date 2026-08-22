@@ -20,6 +20,7 @@ struct ChatThreadView: View {
   @State private var sendOperation = ChatSendOperationState()
   @State private var attachmentsByMessage: [UUID: [SDChatAttachment]] = [:]
   @State private var signedAttachmentURLs: [UUID: URL] = [:]
+  @State private var reactionsByMessage: [UUID: [SDChatMessageReaction]] = [:]
   @State private var pendingAttachments: [PendingChatAttachment] = []
   @State private var photoPickerItem: PhotosPickerItem?
   @State private var isShowingFileImporter = false
@@ -56,7 +57,10 @@ struct ChatThreadView: View {
                 attachments: attachmentsByMessage[message.id] ?? [],
                 attachmentURLs: signedAttachmentURLs,
                 showSender: shouldShowSender(for: message, previous: previous),
-                showTimestamp: shouldShowTimestamp(for: message, previous: previous)
+                showTimestamp: shouldShowTimestamp(for: message, previous: previous),
+                reactions: reactionsByMessage[message.id] ?? [],
+                myId: myId,
+                onReact: { emoji in Task { await toggleReaction(messageId: message.id, emoji: emoji) } }
               )
               .id(message.id)
             }
@@ -401,6 +405,10 @@ struct ChatThreadView: View {
       guard accepts(organizationId: organizationId, token: token) else { return }
       messages = msgs
 
+      let loadedReactions = try await supabase.listChatMessageReactions(messageIds: msgs.map(\.id))
+      guard accepts(organizationId: organizationId, token: token) else { return }
+      reactionsByMessage = Dictionary(grouping: loadedReactions, by: \.message_id)
+
       let loadedAttachments = try await supabase.listChatAttachments(messageIds: msgs.map(\.id))
       guard accepts(organizationId: organizationId, token: token) else { return }
       attachmentsByMessage = Dictionary(grouping: loadedAttachments, by: \.message_id)
@@ -610,6 +618,17 @@ struct ChatThreadView: View {
       // safely retry the exact authoritative read boundary.
     }
   }
+
+  private func toggleReaction(messageId: UUID, emoji: String) async {
+    guard let supabase = appState.supabase else { return }
+    do {
+      _ = try await supabase.toggleChatMessageReaction(messageId: messageId, emoji: emoji)
+      let loaded = try await supabase.listChatMessageReactions(messageIds: [messageId])
+      reactionsByMessage[messageId] = loaded
+    } catch {
+      sendErrorText = "That reaction could not be saved."
+    }
+  }
 }
 
 private struct MessageRow: View {
@@ -622,6 +641,11 @@ private struct MessageRow: View {
   let attachmentURLs: [UUID: URL]
   let showSender: Bool
   let showTimestamp: Bool
+  let reactions: [SDChatMessageReaction]
+  let myId: UUID?
+  let onReact: (String) -> Void
+
+  private let reactionOptions = ["👍", "❤️", "😂", "😮", "😢", "🎉", "👏", "🔥"]
 
   var body: some View {
     VStack(spacing: 5) {
@@ -663,6 +687,16 @@ private struct MessageRow: View {
               )
               .fill(isMe ? HP.Color.accent : HP.Color.surfaceRaised)
             )
+            .overlay(
+              UnevenRoundedRectangle(
+                topLeadingRadius: HP.Radius.md,
+                bottomLeadingRadius: isMe ? HP.Radius.md : HP.Radius.sm,
+                bottomTrailingRadius: isMe ? HP.Radius.sm : HP.Radius.md,
+                topTrailingRadius: HP.Radius.md
+              )
+              .strokeBorder(isMe ? .clear : HP.Color.border, lineWidth: 1)
+              .allowsHitTesting(false)
+            )
 
           ForEach(attachments) { attachment in
             if let url = attachmentURLs[attachment.id] {
@@ -693,16 +727,28 @@ private struct MessageRow: View {
               }
             }
           }
-            .overlay(
-              UnevenRoundedRectangle(
-                topLeadingRadius: HP.Radius.md,
-                bottomLeadingRadius: isMe ? HP.Radius.md : HP.Radius.sm,
-                bottomTrailingRadius: isMe ? HP.Radius.sm : HP.Radius.md,
-                topTrailingRadius: HP.Radius.md
-              )
-              .strokeBorder(isMe ? .clear : HP.Color.border, lineWidth: 1)
-              .allowsHitTesting(false)
-            )
+          HStack(spacing: 5) {
+            ForEach(groupedReactions, id: \.emoji) { reaction in
+              Button { onReact(reaction.emoji) } label: {
+                Text("\(reaction.emoji) \(reaction.count)")
+                  .font(HP.Font.caption)
+                  .padding(.horizontal, 7)
+                  .padding(.vertical, 3)
+                  .background(reaction.mine ? HP.Color.accent.opacity(0.16) : HP.Color.surfaceRaised)
+                  .clipShape(Capsule())
+                  .overlay(Capsule().strokeBorder(reaction.mine ? HP.Color.accent : HP.Color.border, lineWidth: 1))
+              }
+              .buttonStyle(.plain)
+            }
+            Menu {
+              ForEach(reactionOptions, id: \.self) { emoji in
+                Button(emoji) { onReact(emoji) }
+              }
+            } label: {
+              Image(systemName: "face.smiling")
+                .frame(width: 30, height: 30)
+            }
+          }
         }
         .frame(maxWidth: 560, alignment: isMe ? .trailing : .leading)
 
@@ -718,6 +764,12 @@ private struct MessageRow: View {
     let message = "\(isMe ? "You" : senderName): \(text)"
     guard showTimestamp else { return message }
     return "\(createdAt.formatted(date: .abbreviated, time: .shortened)). \(message)"
+  }
+
+  private var groupedReactions: [(emoji: String, count: Int, mine: Bool)] {
+    Dictionary(grouping: reactions, by: \.emoji)
+      .map { emoji, rows in (emoji, rows.count, rows.contains { $0.user_id == myId }) }
+      .sorted { $0.emoji < $1.emoji }
   }
 }
 

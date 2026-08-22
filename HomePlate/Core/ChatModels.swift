@@ -77,6 +77,15 @@ struct SDChatAttachment: Identifiable, Decodable, Equatable, Sendable {
   var isImage: Bool { attachment_kind == "image" || mime_type.hasPrefix("image/") }
 }
 
+struct SDChatMessageReaction: Identifiable, Decodable, Equatable, Sendable {
+  var id: String { "\(message_id.uuidString):\(user_id.uuidString):\(emoji)" }
+  let message_id: UUID
+  let channel_id: UUID
+  let user_id: UUID
+  let emoji: String
+  let created_at: Date
+}
+
 struct SDChatLastMessageRow: Identifiable, Decodable, Equatable, Sendable {
   var id: UUID { channel_id }
   let channel_id: UUID

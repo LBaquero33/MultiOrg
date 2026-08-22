@@ -2204,6 +2204,33 @@ final class SupabaseService: ObservableObject {
     return channelId
   }
 
+  func getOrCreateTeamChat(teamId: UUID, orgId: UUID) async throws -> UUID {
+    struct Params: Encodable { let p_org_id: UUID; let p_team_id: UUID }
+    return try await client
+      .rpc("sd_get_or_create_team_chat", params: Params(p_org_id: orgId, p_team_id: teamId))
+      .execute()
+      .value
+  }
+
+  func listChatMessageReactions(messageIds: [UUID]) async throws -> [SDChatMessageReaction] {
+    guard !messageIds.isEmpty else { return [] }
+    return try await client
+      .from("sd_chat_message_reactions")
+      .select("message_id,channel_id,user_id,emoji,created_at")
+      .in("message_id", values: messageIds.map(\.uuidString))
+      .order("created_at", ascending: true)
+      .execute()
+      .value
+  }
+
+  func toggleChatMessageReaction(messageId: UUID, emoji: String) async throws -> Bool {
+    struct Params: Encodable { let p_message_id: UUID; let p_emoji: String }
+    return try await client
+      .rpc("sd_toggle_chat_message_reaction", params: Params(p_message_id: messageId, p_emoji: emoji))
+      .execute()
+      .value
+  }
+
   func listChatMessages(
     channelId: UUID,
     organizationId: UUID,
@@ -4953,6 +4980,52 @@ final class SupabaseService: ObservableObject {
       .limit(limit)
       .execute()
       .value
+  }
+
+  func listProgramSetMedia(playerId: UUID, assignmentId: UUID, dateISO: String) async throws -> [SDProgramSetMedia] {
+    try await client
+      .from("sd_program_set_media")
+      .select()
+      .eq("player_id", value: playerId.uuidString)
+      .eq("assignment_id", value: assignmentId.uuidString)
+      .eq("log_date", value: dateISO)
+      .order("exercise_name", ascending: true)
+      .order("set_number", ascending: true)
+      .execute()
+      .value
+  }
+
+  func uploadProgramSetVideo(
+    _ data: Data,
+    organizationId: UUID,
+    playerId: UUID,
+    assignmentId: UUID,
+    dateISO: String,
+    fileExtension: String,
+    contentType: String
+  ) async throws -> String {
+    let ext = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(assignmentId.uuidString.lowercased())/\(dateISO)/\(UUID().uuidString.lowercased()).\(ext)"
+    _ = try await client.storage.from("program-set-videos").upload(
+      path,
+      data: data,
+      options: FileOptions(contentType: contentType, upsert: false)
+    )
+    return path
+  }
+
+  func upsertProgramSetMedia(_ row: SDProgramSetMediaWrite) async throws -> SDProgramSetMedia {
+    try await client
+      .from("sd_program_set_media")
+      .upsert(row, onConflict: "org_id,player_id,assignment_id,log_date,exercise_name,set_number")
+      .select()
+      .single()
+      .execute()
+      .value
+  }
+
+  func signedProgramSetVideoURL(path: String) async throws -> URL {
+    try await client.storage.from("program-set-videos").createSignedURL(path: path, expiresIn: 600)
   }
 
   // MARK: - Testing

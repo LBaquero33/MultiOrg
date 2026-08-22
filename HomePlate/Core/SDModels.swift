@@ -181,6 +181,39 @@ struct SDStrengthLog: Identifiable, Decodable, Equatable {
   let updated_at: Date?
 }
 
+struct SDProgramSetMedia: Identifiable, Decodable, Equatable {
+  let id: UUID
+  let org_id: UUID
+  let player_id: UUID
+  let assignment_id: UUID
+  let template_id: UUID?
+  let log_date: String
+  let exercise_name: String
+  let set_number: Int
+  let storage_path: String
+  let file_name: String
+  let mime_type: String
+  let byte_size: Int
+  let uploaded_by: UUID
+  let created_at: Date
+  let updated_at: Date
+}
+
+struct SDProgramSetMediaWrite: Encodable {
+  let org_id: UUID
+  let player_id: UUID
+  let assignment_id: UUID
+  let template_id: UUID?
+  let log_date: String
+  let exercise_name: String
+  let set_number: Int
+  let storage_path: String
+  let file_name: String
+  let mime_type: String
+  let byte_size: Int
+  let uploaded_by: UUID
+}
+
 enum SDTestingFieldValueType: String, Codable, CaseIterable, Identifiable {
   case number
   case text

@@ -7,6 +7,7 @@ struct ChatCreateView: View {
   enum Mode: String, CaseIterable, Identifiable {
     case dm = "New DM"
     case group = "New Group"
+    case team = "Team"
     var id: String { rawValue }
   }
 
@@ -17,6 +18,7 @@ struct ChatCreateView: View {
   @State private var query = ""
   @State private var groupTitle = ""
   @State private var selected: Set<UUID> = []
+  @State private var selectedTeamId: UUID?
 
   @State private var isLoading = false
   @State private var errorText: String?
@@ -34,7 +36,7 @@ struct ChatCreateView: View {
         "New chat",
         context: mode == .dm
           ? "Choose one person for a direct message."
-          : "Choose at least two people for a group."
+          : mode == .group ? "Choose at least two people for a group." : "Open a conversation for an active team roster."
       )
     } sections: { context in
       VStack(alignment: .leading, spacing: HP.Space.md) {
@@ -58,9 +60,20 @@ struct ChatCreateView: View {
                 placeholder: "e.g. 14U coaches"
               )
             }
+
+            if mode == .team {
+              Picker("Team", selection: $selectedTeamId) {
+                Text("Choose a team").tag(Optional<UUID>.none)
+                ForEach(availableTeams) { team in
+                  Text(team.name).tag(Optional(team.id))
+                }
+              }
+              .pickerStyle(.menu)
+            }
           }
         }
 
+        if mode != .team {
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             HPSectionHeader("Users") {
@@ -88,6 +101,7 @@ struct ChatCreateView: View {
               }
             }
           }
+        }
         }
       }
     } primaryAction: { context in
@@ -219,6 +233,7 @@ struct ChatCreateView: View {
     switch mode {
     case .dm: return selected.count == 1
     case .group: return selected.count >= 2
+    case .team: return selectedTeamId != nil
     }
   }
 
@@ -236,6 +251,8 @@ struct ChatCreateView: View {
       }
     case .group:
       if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+    case .team:
+      break
     }
   }
 
@@ -273,6 +290,9 @@ struct ChatCreateView: View {
           memberIds: Array(selected),
           orgId: appState.activeOrgId
         )
+      case .team:
+        guard let organizationId = appState.activeOrgId, let selectedTeamId else { return }
+        channelId = try await supabase.getOrCreateTeamChat(teamId: selectedTeamId, orgId: organizationId)
       }
       guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       onCreated(channelId)
@@ -281,6 +301,20 @@ struct ChatCreateView: View {
       guard context == chatCreateContextIdentity, !Task.isCancelled else { return }
       errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
+  }
+
+  private var availableTeams: [SDTeamOperationsTeam] {
+    guard let context = appState.teamOperationsContext else { return [] }
+    if appState.canAdminActiveOrg { return context.teams.filter(\.is_active) }
+    guard let myId else { return [] }
+    let playerTeamIds = Set(context.player_memberships.filter {
+      $0.player_id == myId && $0.active && $0.ended_at == nil
+    }.map(\.team_id))
+    let coachTeamIds = Set(context.coach_assignments.filter {
+      $0.coach_id == myId && $0.active && $0.ended_at == nil
+    }.map(\.team_id))
+    let allowed = playerTeamIds.union(coachTeamIds)
+    return context.teams.filter { $0.is_active && allowed.contains($0.id) }
   }
 
   private var defaultGroupTitle: String {

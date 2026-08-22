@@ -184,7 +184,9 @@ private struct PlayerTodayLiveControlsHarness: View {
         weights: $weights,
         noWeight: $noWeight,
         setsCompleted: $setsCompleted,
-        notes: $notes
+        notes: $notes,
+        hasVideo: { _ in false },
+        onVideoSelected: { _, _ in }
       )
     }
     .padding(HP.Space.md)
@@ -347,7 +349,9 @@ struct PlayerTodayHarness: View {
             weights: .constant(weights(for: idx)),
             noWeight: .constant(ex.unit == "bw"),
             setsCompleted: .constant(setsCompleted(for: idx, ex: ex)),
-            notes: .constant(notes(for: idx))
+            notes: .constant(notes(for: idx)),
+            hasVideo: { _ in false },
+            onVideoSelected: { _, _ in }
           )
         }
       }

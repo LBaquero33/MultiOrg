@@ -182,15 +182,26 @@ struct CoachTodayFoundationView: View {
   }
 
   private var activeTeamCount: Int {
-    appState.teamOperationsContext?.teams.filter(\.is_active).count ?? 0
+    guard appState.selectedTeamId == nil else { return appState.selectedTeam?.is_active == true ? 1 : 0 }
+    if appState.canAdminActiveOrg {
+      return appState.teamOperationsContext?.teams.filter(\.is_active).count ?? 0
+    }
+    return appState.authorizedCoachTeams.filter(\.is_active).count
   }
 
   private var activeMemberCount: Int {
+    let selectedTeamId = appState.selectedTeamId
     let players = appState.teamOperationsContext?.player_memberships
-      .filter { $0.active && $0.ended_at == nil }
+      .filter { membership in
+        membership.active && membership.ended_at == nil
+          && (selectedTeamId == nil || membership.team_id == selectedTeamId)
+      }
       .map(\.player_id) ?? []
     let coaches = appState.teamOperationsContext?.coach_assignments
-      .filter { $0.active && $0.ended_at == nil }
+      .filter { assignment in
+        assignment.active && assignment.ended_at == nil
+          && (selectedTeamId == nil || assignment.team_id == selectedTeamId)
+      }
       .map(\.coach_id) ?? []
     return Set(players + coaches).count
   }
@@ -206,6 +217,7 @@ struct CoachTodayFoundationView: View {
   private var screenTitle: String { isOwnerOverview ? "Overview" : "Today" }
 
   private var contextLabel: String {
+    if let selectedTeam = appState.selectedTeam { return selectedTeam.name }
     if isOwnerOverview { return "Organization-wide" }
     if appState.authorizedCoachTeams.count == 1 { return appState.authorizedCoachTeams[0].name }
     return appState.authorizedCoachTeams.isEmpty ? "No assigned teams" : "All assigned teams"

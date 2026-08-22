@@ -1,4 +1,12 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
+
+private struct PendingProgramSetVideo {
+  let data: Data
+  let fileExtension: String
+  let mimeType: String
+}
 
 struct SDPlayerTodayView: View {
   var body: some View {
@@ -32,6 +40,8 @@ struct SDPlayerTodayViewInternal: View {
   @State private var noWeight: [String: Bool] = [:]
   @State private var setsCompleted: [String: Int] = [:]
   @State private var perExerciseNotes: [String: String] = [:]
+  @State private var programSetMedia: [String: SDProgramSetMedia] = [:]
+  @State private var pendingSetVideoData: [String: PendingProgramSetVideo] = [:]
 
   @State private var isLoading = false
   @State private var isSaving = false
@@ -351,7 +361,14 @@ struct SDPlayerTodayViewInternal: View {
                 setsCompleted: Binding(get: { setsCompleted[ex.name] ?? (ex.sets ?? 0) },
                                        set: { setsCompleted[ex.name] = $0 }),
                 notes: Binding(get: { perExerciseNotes[ex.name] ?? "" },
-                               set: { perExerciseNotes[ex.name] = $0 })
+                               set: { perExerciseNotes[ex.name] = $0 }),
+                hasVideo: { setNumber in
+                  programSetMedia[setVideoKey(exerciseName: ex.name, setNumber: setNumber)] != nil
+                    || pendingSetVideoData[setVideoKey(exerciseName: ex.name, setNumber: setNumber)] != nil
+                },
+                onVideoSelected: { setNumber, item in
+                  Task { await prepareSetVideo(item, exerciseName: ex.name, setNumber: setNumber) }
+                }
               )
             }
           }
@@ -469,6 +486,31 @@ struct SDPlayerTodayViewInternal: View {
     noWeight = nw
     setsCompleted = sc
     perExerciseNotes = notes
+  }
+
+  private func setVideoKey(exerciseName: String, setNumber: Int) -> String {
+    "\(exerciseName)\u{1f}\(setNumber)"
+  }
+
+  private func prepareSetVideo(_ item: PhotosPickerItem, exerciseName: String, setNumber: Int) async {
+    do {
+      guard let data = try await item.loadTransferable(type: Data.self) else {
+        errorText = "That set video could not be loaded."
+        return
+      }
+      guard data.count <= 262_144_000 else {
+        errorText = "Set videos must be 250 MB or smaller."
+        return
+      }
+      let type = item.supportedContentTypes.first(where: { $0.conforms(to: .movie) }) ?? .quickTimeMovie
+      pendingSetVideoData[setVideoKey(exerciseName: exerciseName, setNumber: setNumber)] = PendingProgramSetVideo(
+        data: data,
+        fileExtension: type.preferredFilenameExtension ?? "mov",
+        mimeType: type.preferredMIMEType ?? "video/quicktime"
+      )
+    } catch {
+      errorText = "That set video could not be prepared."
+    }
   }
 
   private func reloadAll() async {
@@ -614,6 +656,19 @@ struct SDPlayerTodayViewInternal: View {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
       strengthLogs = try await supabase.fetchStrengthLogs(playerId: uid, dateISO: dateISO)
+      if let assignment {
+        let media = try await supabase.listProgramSetMedia(
+          playerId: uid,
+          assignmentId: assignment.id,
+          dateISO: dateISO
+        )
+        programSetMedia = Dictionary(uniqueKeysWithValues: media.map {
+          (setVideoKey(exerciseName: $0.exercise_name, setNumber: $0.set_number), $0)
+        })
+      } else {
+        programSetMedia = [:]
+      }
+      pendingSetVideoData = [:]
 
       if let assignment, let template {
         let ctx = SDProgramSchedule.context(for: date, assignment: assignment, template: template)
@@ -674,9 +729,10 @@ struct SDPlayerTodayViewInternal: View {
 
           let nw = noWeight[name] ?? false
           let note = perExerciseNotes[name]?.trimmingCharacters(in: .whitespacesAndNewlines)
+          let hasPendingVideo = pendingSetVideoData.keys.contains { $0.hasPrefix("\(name)\u{1f}") }
           if nw {
             let completed = max(0, setsCompleted[name] ?? 0)
-            if completed == 0 && (note ?? "").isEmpty { continue }
+            if completed == 0 && (note ?? "").isEmpty && !hasPendingVideo { continue }
             _ = try await supabase.upsertStrengthLog(
               playerId: uid,
               dateISO: dateISO,
@@ -687,14 +743,14 @@ struct SDPlayerTodayViewInternal: View {
               exerciseName: name,
               noWeight: true,
               setWeights: nil,
-              setsCompleted: completed,
+              setsCompleted: max(completed, hasPendingVideo ? 1 : 0),
               notes: (note ?? "").isEmpty ? nil : note,
               orgId: appState.activeOrgId
             )
           } else {
             let weights = (weightEntries[name] ?? defaultWeights(for: ex)).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             let nonEmptyCount = weights.filter { !$0.isEmpty }.count
-            if nonEmptyCount == 0 && (note ?? "").isEmpty { continue }
+            if nonEmptyCount == 0 && (note ?? "").isEmpty && !hasPendingVideo { continue }
             _ = try await supabase.upsertStrengthLog(
               playerId: uid,
               dateISO: dateISO,
@@ -705,11 +761,42 @@ struct SDPlayerTodayViewInternal: View {
               exerciseName: name,
               noWeight: false,
               setWeights: nonEmptyCount == 0 ? nil : weights,
-              setsCompleted: nonEmptyCount,
+              setsCompleted: max(nonEmptyCount, hasPendingVideo ? 1 : 0),
               notes: (note ?? "").isEmpty ? nil : note,
               orgId: appState.activeOrgId
             )
           }
+        }
+        if let organizationId = appState.activeOrgId {
+          for (key, pendingVideo) in pendingSetVideoData {
+            let parts = key.components(separatedBy: "\u{1f}")
+            guard parts.count == 2, let setNumber = Int(parts[1]) else { continue }
+            let exerciseName = parts[0]
+            let path = try await supabase.uploadProgramSetVideo(
+              pendingVideo.data,
+              organizationId: organizationId,
+              playerId: uid,
+              assignmentId: assignment.id,
+              dateISO: dateISO,
+              fileExtension: pendingVideo.fileExtension,
+              contentType: pendingVideo.mimeType
+            )
+            _ = try await supabase.upsertProgramSetMedia(SDProgramSetMediaWrite(
+              org_id: organizationId,
+              player_id: uid,
+              assignment_id: assignment.id,
+              template_id: template.id,
+              log_date: dateISO,
+              exercise_name: exerciseName,
+              set_number: setNumber,
+              storage_path: path,
+              file_name: "Set-\(setNumber).\(pendingVideo.fileExtension)",
+              mime_type: pendingVideo.mimeType,
+              byte_size: pendingVideo.data.count,
+              uploaded_by: uid
+            ))
+          }
+          pendingSetVideoData = [:]
         }
       }
 
@@ -832,6 +919,8 @@ struct StrengthExerciseLogger: View {
   @Binding var noWeight: Bool
   @Binding var setsCompleted: Int
   @Binding var notes: String
+  let hasVideo: (Int) -> Bool
+  let onVideoSelected: (Int, PhotosPickerItem) -> Void
 
   var body: some View {
     HPCard(style: .flat) {
@@ -880,16 +969,24 @@ struct StrengthExerciseLogger: View {
               .font(HP.Font.callout)
               .foregroundStyle(HP.Color.text)
           }
+          ForEach(1...max(1, exercise.sets ?? setsCompleted), id: \.self) { setNumber in
+            ProgramSetVideoPicker(
+              setNumber: setNumber,
+              hasVideo: hasVideo(setNumber),
+              onVideoSelected: onVideoSelected
+            )
+          }
         } else {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
             ForEach(Array(weights.indices), id: \.self) { idx in
-              HPFormField(
-                label: "Set \(idx + 1) weight",
-                text: Binding(
+              SetInputWithVideo(
+                setNumber: idx + 1,
+                weight: Binding(
                   get: { weights[idx] },
                   set: { weights[idx] = $0 }
                 ),
-                placeholder: "Weight"
+                hasVideo: hasVideo(idx + 1),
+                onVideoSelected: onVideoSelected
               )
             }
             ViewThatFits(in: .horizontal) {
@@ -933,5 +1030,52 @@ struct StrengthExerciseLogger: View {
       return "\(s) x \(r)"
     }
     return "\(s) x \(r) • \(u)"
+  }
+}
+
+private struct SetInputWithVideo: View {
+  let setNumber: Int
+  @Binding var weight: String
+  let hasVideo: Bool
+  let onVideoSelected: (Int, PhotosPickerItem) -> Void
+  @State private var item: PhotosPickerItem?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      HPFormField(label: "Set \(setNumber) weight", text: $weight, placeholder: "Weight")
+      PhotosPicker(selection: $item, matching: .videos) {
+        Label(hasVideo ? "Video attached" : "Add set video", systemImage: hasVideo ? "checkmark.circle.fill" : "video.badge.plus")
+          .font(HP.Font.caption.weight(.semibold))
+          .foregroundStyle(hasVideo ? HP.Color.success : HP.Color.accent)
+          .frame(minHeight: 36)
+      }
+      .onChange(of: item) { _, selected in
+        guard let selected else { return }
+        onVideoSelected(setNumber, selected)
+      }
+    }
+  }
+}
+
+private struct ProgramSetVideoPicker: View {
+  let setNumber: Int
+  let hasVideo: Bool
+  let onVideoSelected: (Int, PhotosPickerItem) -> Void
+  @State private var item: PhotosPickerItem?
+
+  var body: some View {
+    PhotosPicker(selection: $item, matching: .videos) {
+      Label(
+        hasVideo ? "Set \(setNumber) video attached" : "Add set \(setNumber) video",
+        systemImage: hasVideo ? "checkmark.circle.fill" : "video.badge.plus"
+      )
+      .font(HP.Font.caption.weight(.semibold))
+      .foregroundStyle(hasVideo ? HP.Color.success : HP.Color.accent)
+      .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+    }
+    .onChange(of: item) { _, selected in
+      guard let selected else { return }
+      onVideoSelected(setNumber, selected)
+    }
   }
 }
