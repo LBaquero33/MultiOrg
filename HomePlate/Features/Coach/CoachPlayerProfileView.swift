@@ -492,12 +492,13 @@ private struct CoachPlayerProgramAssignerView: View {
     defer { isWorking = false }
     do {
       coachTemplates = try await supabase.listMyCoachTemplates()
-      activeAssignments = try await supabase.fetchActiveAssignments(playerId: player.id)
-      var templates: [UUID: SDProgramTemplate] = [:]
-      for assignment in activeAssignments {
-        templates[assignment.template_id] = try await supabase.fetchTemplate(id: assignment.template_id)
-      }
-      activeTemplates = templates
+      activeAssignments = try await supabase.fetchActiveAssignments(
+        playerId: player.id,
+        orgId: appState.activeOrgId
+      )
+      activeTemplates = Dictionary(uniqueKeysWithValues: try await supabase
+        .fetchProgramTemplates(ids: activeAssignments.map(\.template_id))
+        .map { ($0.id, $0) })
       parentInvites = try await supabase.coachListParentInvites(childId: player.id)
       parentLinks = try await supabase.coachListParentLinks(childId: player.id)
       if appState.canAdminActiveOrg, let orgId = appState.activeOrgId {

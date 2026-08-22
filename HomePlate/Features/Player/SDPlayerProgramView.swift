@@ -3,17 +3,35 @@ import SwiftUI
 struct SDPlayerProgramView: View {
   @EnvironmentObject private var appState: AppState
 
-  @State private var activePrograms: [PlayerActiveProgram] = []
+  @State private var programs: [PlayerProgramRecord] = []
   @State private var selectedProgramId: UUID?
   @State private var days: [SDProgramDay] = []
   @State private var selectedWeek = 1
   @State private var selectedDay = 1
+  @State private var logTarget: PlayerProgramLogTarget?
   @State private var isLoading = false
   @State private var errorText: String?
 
-  private var selectedProgram: PlayerActiveProgram? {
+  private var selectedProgram: PlayerProgramRecord? {
     guard let selectedProgramId else { return nil }
-    return activePrograms.first { $0.id == selectedProgramId }
+    return programs.first { $0.id == selectedProgramId }
+  }
+
+  private var availableWeeks: [Int] {
+    guard let program = selectedProgram else { return [1] }
+    let configured = Array(1...max(1, program.template.weeks))
+    return Array(Set(configured + days.map(\.week))).sorted()
+  }
+
+  private var availableDays: [Int] {
+    let configuredDays = days.filter { $0.week == selectedWeek }.map(\.day_index)
+    if !configuredDays.isEmpty { return Array(Set(configuredDays)).sorted() }
+    let fallbackCount = max(1, selectedProgram?.template.lift_weekdays.count ?? 1)
+    return Array(1...fallbackCount)
+  }
+
+  private var selectedProgramDay: SDProgramDay? {
+    days.first { $0.week == selectedWeek && $0.day_index == selectedDay }
   }
 
   var body: some View {
@@ -22,76 +40,87 @@ struct SDPlayerProgramView: View {
         HPWorkspaceHeader(
           "Programs",
           context: selectedProgram.map { "\($0.template.kind.title) • \($0.template.name)" }
-            ?? "Your active development plans"
+            ?? "Your assigned development plans"
         )
       } metrics: {
         EmptyView()
       } details: {
         HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Active programs")
-
-            if isLoading {
-              HPLoadingState(text: "Loading programs…")
+          VStack(alignment: .leading, spacing: HP.Space.md) {
+            HPSectionHeader("Assigned programs") {
+              if !programs.isEmpty {
+                HPStatusBadge(text: "\(programs.filter(\.isActive).count) active", kind: .success)
+              }
             }
 
-            if activePrograms.isEmpty {
+            if isLoading && programs.isEmpty {
+              HPLoadingState(text: "Loading programs…")
+            } else if programs.isEmpty {
               HPEmptyState(
-                title: "No active programs",
-                message: "Your coach can assign S&C, hitting, and pitching programs independently.",
+                title: "No programs assigned",
+                message: "Your coach can assign S&C, hitting, and pitching programs here.",
                 systemImage: "figure.strengthtraining.traditional"
               )
             } else {
               Picker("Program", selection: $selectedProgramId) {
-                ForEach(activePrograms) { program in
-                  Label(program.label, systemImage: program.template.kind.systemImage)
-                    .tag(Optional(program.id))
+                ForEach(programs) { program in
+                  Text(program.pickerLabel).tag(Optional(program.id))
                 }
               }
               .pickerStyle(.menu)
               .tint(HP.Color.accent)
 
               if let program = selectedProgram {
-                Text(program.template.name)
-                  .font(HP.Font.headline)
-                  .foregroundStyle(HP.Color.text)
-                Text("\(program.template.kind.title) • Starts \(program.assignment.start_date) • \(program.template.weeks) weeks")
-                  .font(HP.Font.caption)
-                  .foregroundStyle(HP.Color.textMuted)
-                  .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: HP.Space.xs) {
+                  HStack(alignment: .top, spacing: HP.Space.sm) {
+                    Label(program.template.name, systemImage: program.template.kind.systemImage)
+                      .font(HP.Font.headline)
+                      .foregroundStyle(HP.Color.text)
+                      .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: HP.Space.sm)
+                    HPStatusBadge(
+                      text: program.isActive ? "Active" : "Ended",
+                      kind: program.isActive ? .success : .neutral
+                    )
+                  }
+                  Text(program.detailLine)
+                    .font(HP.Font.caption)
+                    .foregroundStyle(HP.Color.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Divider().overlay(HP.Color.border)
-
-                HPSectionHeader("Browse \(program.template.kind.title) plan")
-                Picker("Week", selection: $selectedWeek) {
-                  ForEach(1...program.template.weeks, id: \.self) { Text("Week \($0)").tag($0) }
-                }
-                .pickerStyle(.menu)
-                .tint(HP.Color.accent)
-                Picker("Day", selection: $selectedDay) {
-                  ForEach(1...max(1, program.template.lift_weekdays.count), id: \.self) {
-                    Text("Day \($0)").tag($0)
+                HPSectionHeader("Program schedule")
+                HStack(spacing: HP.Space.sm) {
+                  Picker("Week", selection: $selectedWeek) {
+                    ForEach(availableWeeks, id: \.self) { Text("Week \($0)").tag($0) }
                   }
+                  .pickerStyle(.menu)
+                  .tint(HP.Color.accent)
+
+                  Picker("Day", selection: $selectedDay) {
+                    ForEach(availableDays, id: \.self) { Text("Day \($0)").tag($0) }
+                  }
+                  .pickerStyle(.menu)
+                  .tint(HP.Color.accent)
                 }
-                .pickerStyle(.menu)
-                .tint(HP.Color.accent)
               }
             }
           }
         }
       } related: { _ in
-        if let template = selectedProgram?.template {
+        if let program = selectedProgram {
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.sm) {
-              HPSectionHeader(template.kind == .strength ? "Exercises" : "Drills")
-              let exercises = days.first(where: {
-                $0.week == selectedWeek && $0.day_index == selectedDay
-              })?.exercises ?? []
+              HPSectionHeader(program.template.kind == .strength ? "Exercises" : "Drills") {
+                HPStatusBadge(text: "Week \(selectedWeek) • Day \(selectedDay)", kind: .neutral)
+              }
+              let exercises = selectedProgramDay?.exercises ?? []
               if exercises.isEmpty {
                 HPEmptyState(
-                  title: "No items yet",
-                  message: "No items are set for this day yet.",
-                  systemImage: template.kind.systemImage
+                  title: "No items for this day",
+                  message: "This assigned program day does not contain any exercises yet.",
+                  systemImage: program.template.kind.systemImage
                 )
               } else {
                 ForEach(exercises, id: \.id) { exercise in
@@ -118,7 +147,29 @@ struct SDPlayerProgramView: View {
           }
         }
       } primaryAction: {
-        EmptyView()
+        if let program = selectedProgram,
+           program.isActive,
+           let scheduledDate = SDProgramSchedule.scheduledDate(
+             week: selectedWeek,
+             dayIndex: selectedDay,
+             assignment: program.assignment,
+             template: program.template
+           ) {
+          HPCard {
+            HPButton(
+              title: "Open and log this day",
+              systemImage: "square.and.pencil",
+              variant: .primary,
+              size: .lg,
+              fullWidth: true
+            ) {
+              logTarget = PlayerProgramLogTarget(
+                assignmentId: program.assignment.id,
+                date: scheduledDate
+              )
+            }
+          }
+        }
       }
       .navigationTitle("Programs")
       .toolbar {
@@ -127,14 +178,29 @@ struct SDPlayerProgramView: View {
         }
       }
       .onChange(of: selectedProgramId) { _, _ in
-        Task { await loadSelectedProgramDays() }
+        Task { await loadSelectedProgramDays(resetSelection: true) }
       }
-      .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
+      .onChange(of: selectedWeek) { _, _ in repairDaySelection() }
+      .sheet(item: $logTarget) { target in
+        NavigationStack {
+          SDPlayerTodayViewInternal(
+            initialDate: target.date,
+            preferredAssignmentId: target.assignmentId
+          )
+          .environmentObject(appState)
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { logTarget = nil }
+            }
+          }
+        }
+      }
+      .alert("Programs", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
         Button("OK", role: .cancel) {}
       } message: {
         Text(errorText ?? "")
       }
-      .task { await reload() }
+      .task(id: appState.activeOrgAuthorizationKey) { await reload() }
     }
   }
 
@@ -144,35 +210,58 @@ struct SDPlayerProgramView: View {
     defer { isLoading = false }
     do {
       let session = try await supabase.client.auth.session
-      let assignments = try await supabase.fetchActiveAssignments(playerId: session.user.id)
-      var resolved: [PlayerActiveProgram] = []
-      for assignment in assignments {
-        let template = try await supabase.fetchTemplate(id: assignment.template_id)
-        resolved.append(PlayerActiveProgram(assignment: assignment, template: template))
+      let assignments = try await supabase.fetchProgramAssignments(
+        playerId: session.user.id,
+        orgId: appState.activeOrgId
+      )
+      let loadedTemplates = try await supabase.fetchProgramTemplates(ids: assignments.map(\.template_id))
+      let templatesById = Dictionary(uniqueKeysWithValues: loadedTemplates.map { ($0.id, $0) })
+      let resolved = assignments.compactMap { assignment -> PlayerProgramRecord? in
+        guard let template = templatesById[assignment.template_id] else { return nil }
+        return PlayerProgramRecord(assignment: assignment, template: template)
       }
-      activePrograms = resolved.sorted { lhs, rhs in
-        lhs.template.kind.rawValue < rhs.template.kind.rawValue
+      programs = resolved.sorted { lhs, rhs in
+        if lhs.isActive != rhs.isActive { return lhs.isActive }
+        return lhs.assignment.start_date > rhs.assignment.start_date
       }
-      if selectedProgramId == nil || !activePrograms.contains(where: { $0.id == selectedProgramId }) {
-        selectedProgramId = activePrograms.first?.id
+      if selectedProgramId == nil || !programs.contains(where: { $0.id == selectedProgramId }) {
+        selectedProgramId = programs.first?.id
       }
-      await loadSelectedProgramDays()
+      if resolved.count != assignments.count {
+        errorText = "Some older program records reference a template that is no longer available. Every valid program is still shown."
+      }
+      await loadSelectedProgramDays(resetSelection: false)
     } catch {
-      errorText = error.localizedDescription
+      let message = SDApplicationErrorClassifier.alertMessage(for: error) ?? "Please try again."
+      errorText = "Programs could not be refreshed. Previously loaded programs remain visible. \(message)"
     }
   }
 
-  private func loadSelectedProgramDays() async {
+  private func loadSelectedProgramDays(resetSelection: Bool) async {
     guard let supabase = appState.supabase, let program = selectedProgram else {
       days = []
       return
     }
     do {
-      days = try await supabase.fetchProgramDays(templateId: program.template.id)
-      selectedWeek = min(max(1, selectedWeek), program.template.weeks)
-      selectedDay = min(max(1, selectedDay), max(1, program.template.lift_weekdays.count))
+      let loadedDays = try await supabase.fetchProgramDays(templateId: program.template.id)
+      guard selectedProgram?.id == program.id else { return }
+      days = loadedDays
+      if resetSelection {
+        selectedWeek = availableWeeks.first ?? 1
+        selectedDay = availableDays.first ?? 1
+      } else {
+        selectedWeek = availableWeeks.contains(selectedWeek) ? selectedWeek : (availableWeeks.first ?? 1)
+        repairDaySelection()
+      }
     } catch {
-      errorText = error.localizedDescription
+      let message = SDApplicationErrorClassifier.alertMessage(for: error) ?? "Please try again."
+      errorText = "This program's days could not be refreshed. Previously loaded details remain visible. \(message)"
+    }
+  }
+
+  private func repairDaySelection() {
+    if !availableDays.contains(selectedDay) {
+      selectedDay = availableDays.first ?? 1
     }
   }
 
@@ -184,9 +273,20 @@ struct SDPlayerProgramView: View {
   }
 }
 
-private struct PlayerActiveProgram: Identifiable {
+private struct PlayerProgramRecord: Identifiable {
   let assignment: SDProgramAssignment
   let template: SDProgramTemplate
   var id: UUID { assignment.id }
-  var label: String { "\(template.kind.title): \(template.name)" }
+  var isActive: Bool { assignment.ended_at == nil }
+  var pickerLabel: String { "\(isActive ? "Active" : "Ended") • \(template.name)" }
+  var detailLine: String {
+    let endText = assignment.ended_at.map { " • Ended \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
+    return "\(template.kind.title) • Starts \(assignment.start_date) • \(template.weeks) weeks\(endText)"
+  }
+}
+
+private struct PlayerProgramLogTarget: Identifiable {
+  let assignmentId: UUID
+  let date: Date
+  var id: String { "\(assignmentId.uuidString):\(DateUtils.toISODate(date))" }
 }

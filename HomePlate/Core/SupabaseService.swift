@@ -4764,27 +4764,59 @@ final class SupabaseService: ObservableObject {
       .execute()
   }
 
-  func fetchActiveAssignment(playerId: UUID) async throws -> SDProgramAssignment? {
-    try await fetchActiveAssignments(playerId: playerId).first
+  func fetchActiveAssignment(
+    playerId: UUID,
+    orgId: UUID? = nil,
+    preferredAssignmentId: UUID? = nil
+  ) async throws -> SDProgramAssignment? {
+    let assignments = try await fetchActiveAssignments(playerId: playerId, orgId: orgId)
+    if let preferredAssignmentId,
+       let preferred = assignments.first(where: { $0.id == preferredAssignmentId }) {
+      return preferred
+    }
+    return assignments.first
   }
 
-  func fetchActiveAssignments(playerId: UUID) async throws -> [SDProgramAssignment] {
-    try await client
+  func fetchActiveAssignments(playerId: UUID, orgId: UUID? = nil) async throws -> [SDProgramAssignment] {
+    var query = client
       .from("sd_program_assignments")
       .select()
       .eq("player_id", value: playerId.uuidString)
       .is("ended_at", value: nil)
+
+    if let orgId {
+      query = query.eq("org_id", value: orgId.uuidString)
+    }
+
+    return try await query
       .order("created_at", ascending: false)
       .execute()
       .value
   }
 
-  func fetchProgramAssignments(playerId: UUID) async throws -> [SDProgramAssignment] {
-    try await client
+  func fetchProgramAssignments(playerId: UUID, orgId: UUID? = nil) async throws -> [SDProgramAssignment] {
+    var query = client
       .from("sd_program_assignments")
       .select()
       .eq("player_id", value: playerId.uuidString)
+
+    if let orgId {
+      query = query.eq("org_id", value: orgId.uuidString)
+    }
+
+    return try await query
       .order("start_date", ascending: false)
+      .execute()
+      .value
+  }
+
+  func fetchProgramTemplates(ids: [UUID]) async throws -> [SDProgramTemplate] {
+    let uniqueIds = Array(Set(ids))
+    guard !uniqueIds.isEmpty else { return [] }
+    return try await client
+      .from("sd_program_templates")
+      .select()
+      .in("id", values: uniqueIds.map(\.uuidString))
       .execute()
       .value
   }

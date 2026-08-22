@@ -229,7 +229,10 @@ struct SDPlayerCalendarView: View {
     do {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
-      let loadedAssignment = try await supabase.fetchActiveAssignment(playerId: uid)
+      let loadedAssignment = try await supabase.fetchActiveAssignment(
+        playerId: uid,
+        orgId: appState.activeOrgId
+      )
       let loadedTemplate: SDProgramTemplate? = if let loadedAssignment {
         try await supabase.fetchTemplate(id: loadedAssignment.template_id)
       } else {

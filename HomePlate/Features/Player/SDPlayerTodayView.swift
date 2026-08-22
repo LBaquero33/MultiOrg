@@ -21,6 +21,7 @@ struct SDPlayerTodayViewInternal: View {
   @Environment(\.scenePhase) private var scenePhase
 
   let initialDate: Date
+  let preferredAssignmentId: UUID?
   @State private var date: Date
   @State private var assignment: SDProgramAssignment?
   @State private var template: SDProgramTemplate?
@@ -50,8 +51,9 @@ struct SDPlayerTodayViewInternal: View {
 
   @State private var isStrengthExpanded = true
 
-  init(initialDate: Date) {
+  init(initialDate: Date, preferredAssignmentId: UUID? = nil) {
     self.initialDate = initialDate
+    self.preferredAssignmentId = preferredAssignmentId
     _date = State(initialValue: initialDate)
   }
 
@@ -121,7 +123,7 @@ struct SDPlayerTodayViewInternal: View {
 
   private var dateISO: String { DateUtils.toISODate(date) }
   private var todayContextIdentity: String {
-    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(appState.selectedSeason?.id.uuidString ?? "none"):\(dateISO):\(TimeZone.current.identifier)"
+    "\(appState.activeOrgAuthorizationKey):\(appState.myProfile?.id.uuidString ?? "none"):\(appState.selectedSeason?.id.uuidString ?? "none"):\(preferredAssignmentId?.uuidString ?? "auto"):\(dateISO):\(TimeZone.current.identifier)"
   }
 
   private var playerBaseballDayCard: some View {
@@ -634,12 +636,28 @@ struct SDPlayerTodayViewInternal: View {
     do {
       let session = try await supabase.client.auth.session
       let uid = session.user.id
-      assignment = try await supabase.fetchActiveAssignment(playerId: uid)
-      if let assignment {
-        template = try await supabase.fetchTemplate(id: assignment.template_id)
-      } else {
-        template = nil
-      }
+      let activeAssignments = try await supabase.fetchActiveAssignments(
+        playerId: uid,
+        orgId: appState.activeOrgId
+      )
+      let loadedTemplates = try await supabase.fetchProgramTemplates(
+        ids: activeAssignments.map(\.template_id)
+      )
+      let templatesById = Dictionary(uniqueKeysWithValues: loadedTemplates.map { ($0.id, $0) })
+
+      let selectedAssignment = preferredAssignmentId.flatMap { preferredId in
+        activeAssignments.first(where: { $0.id == preferredId })
+      } ?? activeAssignments.first(where: { candidate in
+        guard let candidateTemplate = templatesById[candidate.template_id] else { return false }
+        return SDProgramSchedule.context(
+          for: date,
+          assignment: candidate,
+          template: candidateTemplate
+        ).isScheduled
+      }) ?? activeAssignments.first(where: { templatesById[$0.template_id] != nil })
+
+      assignment = selectedAssignment
+      template = selectedAssignment.flatMap { templatesById[$0.template_id] }
     } catch {
       errorText = SDApplicationErrorClassifier.alertMessage(
         for: error,

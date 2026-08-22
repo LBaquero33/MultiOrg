@@ -214,7 +214,10 @@ struct CoachPlayerCalendarView: View {
     isLoading = true
     defer { isLoading = false }
     do {
-      assignment = try await supabase.fetchActiveAssignment(playerId: player.id)
+      assignment = try await supabase.fetchActiveAssignment(
+        playerId: player.id,
+        orgId: appState.activeOrgId
+      )
       if let assignment {
         template = try await supabase.fetchTemplate(id: assignment.template_id)
       } else {

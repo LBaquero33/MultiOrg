@@ -61,10 +61,6 @@ struct CoachProgramTrackerView: View {
     .onChange(of: selectedPlayerId) { _, _ in
       Task { await reloadPlayerData() }
     }
-    .sheet(item: $selectedDay) { day in
-      CoachProgramDayDetailView(day: day)
-        .environmentObject(appState)
-    }
     .sheet(isPresented: Binding(
       get: { selectedPlayerId != nil },
       set: { if !$0 { selectedPlayerId = nil } }
@@ -80,6 +76,10 @@ struct CoachProgramTrackerView: View {
           ToolbarItem(placement: .cancellationAction) {
             Button("Close") { selectedPlayerId = nil }
           }
+        }
+        .sheet(item: $selectedDay) { day in
+          CoachProgramDayDetailView(day: day)
+            .environmentObject(appState)
         }
       }
     }
@@ -296,7 +296,9 @@ struct CoachProgramTrackerView: View {
   }
 
   private func reloadPlayerData() async {
-    guard let playerId = selectedPlayerId, let supabase = appState.supabase else {
+    guard let playerId = selectedPlayerId,
+          let organizationId = appState.activeOrgId,
+          let supabase = appState.supabase else {
       assignments = []
       templates = [:]
       programDays = [:]
@@ -307,13 +309,22 @@ struct CoachProgramTrackerView: View {
     isLoading = true
     defer { isLoading = false }
     do {
-      let loadedAssignments = try await supabase.fetchProgramAssignments(playerId: playerId)
-      var loadedTemplates: [UUID: SDProgramTemplate] = [:]
+      let loadedAssignments = try await supabase.fetchProgramAssignments(
+        playerId: playerId,
+        orgId: organizationId
+      )
+      let templateRows = try await supabase.fetchProgramTemplates(
+        ids: loadedAssignments.map(\.template_id)
+      )
+      let loadedTemplates = Dictionary(uniqueKeysWithValues: templateRows.map { ($0.id, $0) })
       var loadedDays: [UUID: [SDProgramDay]] = [:]
-      for templateId in Set(loadedAssignments.map(\.template_id)) {
-        let template = try await supabase.fetchTemplate(id: templateId)
-        loadedTemplates[templateId] = template
-        loadedDays[templateId] = try await supabase.fetchProgramDays(templateId: templateId)
+      var missingDayDetails = 0
+      for templateId in loadedTemplates.keys {
+        do {
+          loadedDays[templateId] = try await supabase.fetchProgramDays(templateId: templateId)
+        } catch {
+          missingDayDetails += 1
+        }
       }
       let loadedLogs = try await supabase.listStrengthLogs(playerId: playerId)
 
@@ -322,8 +333,13 @@ struct CoachProgramTrackerView: View {
       templates = loadedTemplates
       programDays = loadedDays
       strengthLogs = loadedLogs
+      let missingTemplates = Set(loadedAssignments.map(\.template_id)).subtracting(loadedTemplates.keys).count
+      if missingTemplates > 0 || missingDayDetails > 0 {
+        errorText = "Some older program details are unavailable, but every valid assignment and submission remains visible."
+      }
     } catch {
-      errorText = "The latest program activity could not be loaded. Existing results remain visible. \(SDApplicationErrorClassifier.alertMessage(for: error))"
+      let message = SDApplicationErrorClassifier.alertMessage(for: error) ?? "Please try again."
+      errorText = "The latest program activity could not be loaded. Existing results remain visible. \(message)"
     }
   }
 

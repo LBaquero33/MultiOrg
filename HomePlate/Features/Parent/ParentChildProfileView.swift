@@ -188,7 +188,10 @@ private struct ParentChildProgramView: View {
     isLoading = true
     defer { isLoading = false }
     do {
-      assignment = try await supabase.fetchActiveAssignment(playerId: child.id)
+      assignment = try await supabase.fetchActiveAssignment(
+        playerId: child.id,
+        orgId: appState.activeOrgId
+      )
       if let assignment {
         template = try await supabase.fetchTemplate(id: assignment.template_id)
       } else {

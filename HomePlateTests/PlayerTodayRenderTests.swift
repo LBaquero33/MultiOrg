@@ -169,6 +169,99 @@ final class PlayerTodayRenderTests: XCTestCase {
   #endif
 }
 
+final class ProgramVisibilityTests: XCTestCase {
+  func testScheduledDateResolvesExactProgramSlot() throws {
+    let assignment = makeAssignment(startDate: "2026-08-17")
+    let template = makeTemplate(weeks: 4, weekdays: [1, 3, 5])
+
+    let date = try XCTUnwrap(SDProgramSchedule.scheduledDate(
+      week: 2,
+      dayIndex: 2,
+      assignment: assignment,
+      template: template
+    ))
+
+    XCTAssertEqual(DateUtils.toISODate(date), "2026-08-26")
+    let context = SDProgramSchedule.context(for: date, assignment: assignment, template: template)
+    XCTAssertTrue(context.isScheduled)
+    XCTAssertEqual(context.week, 2)
+    XCTAssertEqual(context.dayIndex, 2)
+  }
+
+  func testScheduleNormalizesInvalidAndDuplicateWeekdays() throws {
+    let assignment = makeAssignment(startDate: "2026-08-17")
+    let template = makeTemplate(weeks: 1, weekdays: [0, 1, 1, 8, 3])
+
+    let first = try XCTUnwrap(SDProgramSchedule.scheduledDate(
+      week: 1,
+      dayIndex: 1,
+      assignment: assignment,
+      template: template
+    ))
+    let second = try XCTUnwrap(SDProgramSchedule.scheduledDate(
+      week: 1,
+      dayIndex: 2,
+      assignment: assignment,
+      template: template
+    ))
+
+    XCTAssertEqual(DateUtils.toISODate(first), "2026-08-17")
+    XCTAssertEqual(DateUtils.toISODate(second), "2026-08-19")
+    XCTAssertNil(SDProgramSchedule.scheduledDate(
+      week: 1,
+      dayIndex: 3,
+      assignment: assignment,
+      template: template
+    ))
+  }
+
+  func testScheduleRejectsTemplateWithoutValidWeekdays() {
+    let assignment = makeAssignment(startDate: "2026-08-17")
+    let template = makeTemplate(weeks: 4, weekdays: [])
+
+    XCTAssertNil(SDProgramSchedule.scheduledDate(
+      week: 1,
+      dayIndex: 1,
+      assignment: assignment,
+      template: template
+    ))
+    XCTAssertFalse(SDProgramSchedule.context(
+      for: DateUtils.fromISODate("2026-08-17")!,
+      assignment: assignment,
+      template: template
+    ).isScheduled)
+  }
+
+  private func makeAssignment(startDate: String) -> SDProgramAssignment {
+    SDProgramAssignment(
+      id: UUID(),
+      org_id: UUID(),
+      player_id: UUID(),
+      coach_id: UUID(),
+      template_id: UUID(),
+      start_date: startDate,
+      ended_at: nil,
+      notes: nil,
+      created_at: nil,
+      updated_at: nil
+    )
+  }
+
+  private func makeTemplate(weeks: Int, weekdays: [Int]) -> SDProgramTemplate {
+    SDProgramTemplate(
+      id: UUID(),
+      org_id: UUID(),
+      coach_id: UUID(),
+      name: "Program",
+      program_kind: "strength",
+      weeks: weeks,
+      lift_weekdays: weekdays,
+      created_at: nil,
+      updated_at: nil
+    )
+  }
+}
+
 #if canImport(UIKit)
 private struct PlayerTodayLiveControlsHarness: View {
   @State private var weights = ["135", "", ""]

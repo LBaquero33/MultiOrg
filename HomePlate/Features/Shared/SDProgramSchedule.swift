@@ -20,7 +20,11 @@ struct SDProgramSchedule {
       return DayContext(isScheduled: false, week: nil, dayIndex: nil, nextLiftDateISO: nextISO, isInProgramWindow: false)
     }
 
-    let daysPerWeek = max(1, template.lift_weekdays.count)
+    let weekdays = scheduledWeekdays(for: template)
+    guard !weekdays.isEmpty else {
+      return DayContext(isScheduled: false, week: nil, dayIndex: nil, nextLiftDateISO: nil, isInProgramWindow: false)
+    }
+    let daysPerWeek = weekdays.count
     let maxLifts = template.weeks * daysPerWeek
 
     // Count scheduled lifts from start0 to date0 (inclusive).
@@ -28,7 +32,7 @@ struct SDProgramSchedule {
     var d = start0
     while d <= date0 {
       let wd = DateUtils.weekdayIndexMonToSun(d)
-      if template.lift_weekdays.contains(wd) {
+      if weekdays.contains(wd) {
         liftNumber += 1
       }
       guard let next = DateUtils.calendarET.date(byAdding: .day, value: 1, to: d) else { break }
@@ -36,7 +40,7 @@ struct SDProgramSchedule {
     }
 
     let wdToday = DateUtils.weekdayIndexMonToSun(date0)
-    let isLiftWeekday = template.lift_weekdays.contains(wdToday)
+    let isLiftWeekday = weekdays.contains(wdToday)
     let inWindow = liftNumber <= maxLifts
 
     if isLiftWeekday, liftNumber >= 1, inWindow {
@@ -52,12 +56,44 @@ struct SDProgramSchedule {
       guard let next = DateUtils.calendarET.date(byAdding: .day, value: 1, to: nextDate) else { break }
       nextDate = next
       let wd = DateUtils.weekdayIndexMonToSun(nextDate)
-      if template.lift_weekdays.contains(wd) {
+      if weekdays.contains(wd) {
         liftCountSoFar += 1
         return DayContext(isScheduled: false, week: nil, dayIndex: nil, nextLiftDateISO: DateUtils.toISODate(nextDate), isInProgramWindow: true)
       }
     }
 
     return DayContext(isScheduled: false, week: nil, dayIndex: nil, nextLiftDateISO: nil, isInProgramWindow: false)
+  }
+
+  static func scheduledDate(
+    week: Int,
+    dayIndex: Int,
+    assignment: SDProgramAssignment,
+    template: SDProgramTemplate
+  ) -> Date? {
+    guard week >= 1,
+          dayIndex >= 1,
+          let start = DateUtils.fromISODate(assignment.start_date) else { return nil }
+    let weekdays = scheduledWeekdays(for: template)
+    guard dayIndex <= weekdays.count, week <= max(1, template.weeks) else { return nil }
+
+    let targetSlot = ((week - 1) * weekdays.count) + dayIndex
+    var cursor = DateUtils.startOfDayET(start)
+    var matchedSlots = 0
+    var safety = 0
+    while safety < 500 {
+      if weekdays.contains(DateUtils.weekdayIndexMonToSun(cursor)) {
+        matchedSlots += 1
+        if matchedSlots == targetSlot { return cursor }
+      }
+      guard let next = DateUtils.calendarET.date(byAdding: .day, value: 1, to: cursor) else { return nil }
+      cursor = next
+      safety += 1
+    }
+    return nil
+  }
+
+  private static func scheduledWeekdays(for template: SDProgramTemplate) -> [Int] {
+    Array(Set(template.lift_weekdays.filter { (1...7).contains($0) })).sorted()
   }
 }
