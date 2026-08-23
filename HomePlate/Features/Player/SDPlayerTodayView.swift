@@ -505,13 +505,17 @@ struct SDPlayerTodayViewInternal: View {
         return
       }
       let type = item.supportedContentTypes.first(where: { $0.conforms(to: .movie) }) ?? .quickTimeMovie
+      let compatibleData = try await CompatibleVideoTranscoder.mp4Data(
+        from: data,
+        sourceExtension: type.preferredFilenameExtension ?? "mov"
+      )
       pendingSetVideoData[setVideoKey(exerciseName: exerciseName, setNumber: setNumber)] = PendingProgramSetVideo(
-        data: data,
-        fileExtension: type.preferredFilenameExtension ?? "mov",
-        mimeType: type.preferredMIMEType ?? "video/quicktime"
+        data: compatibleData,
+        fileExtension: "mp4",
+        mimeType: "video/mp4"
       )
     } catch {
-      errorText = "That set video could not be prepared."
+      errorText = error.localizedDescription
     }
   }
 

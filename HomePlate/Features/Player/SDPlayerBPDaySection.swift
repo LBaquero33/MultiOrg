@@ -308,16 +308,18 @@ struct SDPlayerBPDaySection: View {
           userInfo: [NSLocalizedDescriptionKey: "Videos must be 250 MB or smaller."]
         )
       }
-      let data = try Data(contentsOf: url)
-      let fileExtension = url.pathExtension.lowercased() == "mov" ? "mov" : "mp4"
-      let contentType = fileExtension == "mov" ? "video/quicktime" : "video/mp4"
+      let sourceData = try Data(contentsOf: url)
+      let data = try await CompatibleVideoTranscoder.mp4Data(
+        from: sourceData,
+        sourceExtension: url.pathExtension.lowercased()
+      )
       let playerId = try await supabase.client.auth.session.user.id
       let path = try await supabase.uploadPlayerSessionVideo(
         data,
         organizationId: organizationId,
         playerId: playerId,
-        fileExtension: fileExtension,
-        contentType: contentType
+        fileExtension: "mp4",
+        contentType: "video/mp4"
       )
       session = try await supabase.upsertBPSession(
         playerId: playerId,

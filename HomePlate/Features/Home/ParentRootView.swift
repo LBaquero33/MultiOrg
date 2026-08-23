@@ -52,6 +52,8 @@ struct ParentRootView: View {
       ParentHomeView()
     case .parentCalendar:
       GameCalendarView()
+    case .playerProgram:
+      UnifiedPlayerDevelopmentWorkspaceView()
     case .chat:
       if feature("chat") {
         ChatChannelListView()

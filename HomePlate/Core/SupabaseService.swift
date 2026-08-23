@@ -1739,6 +1739,86 @@ final class SupabaseService: ObservableObject {
     }
   }
 
+  func listDevelopmentWorkspacePlayers(
+    orgId: UUID,
+    teamId: UUID?
+  ) async throws -> [SDDevelopmentPlayer] {
+    let response: SDDevelopmentPlayerListResponse = try await invokeAuthenticatedFunction(
+      "player-development-workspace",
+      body: SDPlayerDevelopmentWorkspaceRequest(
+        action: "list_players",
+        org_id: orgId,
+        player_id: nil,
+        team_id: teamId,
+        start_date: nil,
+        end_date: nil,
+        media_id: nil
+      )
+    )
+    return response.players
+  }
+
+  func fetchDevelopmentWorkspace(
+    orgId: UUID,
+    playerId: UUID,
+    teamId: UUID?,
+    startDate: String,
+    endDate: String
+  ) async throws -> SDPlayerDevelopmentWorkspace {
+    try await invokeAuthenticatedFunction(
+      "player-development-workspace",
+      body: SDPlayerDevelopmentWorkspaceRequest(
+        action: "get_workspace",
+        org_id: orgId,
+        player_id: playerId,
+        team_id: teamId,
+        start_date: startDate,
+        end_date: endDate,
+        media_id: nil
+      )
+    )
+  }
+
+  func fetchDevelopmentDayDetail(
+    orgId: UUID,
+    playerId: UUID,
+    teamId: UUID?,
+    date: String
+  ) async throws -> SDDevelopmentDay? {
+    let response: SDDevelopmentDayDetailResponse = try await invokeAuthenticatedFunction(
+      "player-development-workspace",
+      body: SDPlayerDevelopmentWorkspaceRequest(
+        action: "get_day_detail",
+        org_id: orgId,
+        player_id: playerId,
+        team_id: teamId,
+        start_date: date,
+        end_date: date,
+        media_id: nil
+      )
+    )
+    return response.day
+  }
+
+  func developmentMediaPlaybackURL(
+    orgId: UUID,
+    teamId: UUID?,
+    mediaId: UUID
+  ) async throws -> SDDevelopmentPlaybackResponse {
+    try await invokeAuthenticatedFunction(
+      "player-development-workspace",
+      body: SDPlayerDevelopmentWorkspaceRequest(
+        action: "get_video_playback",
+        org_id: orgId,
+        player_id: nil,
+        team_id: teamId,
+        start_date: nil,
+        end_date: nil,
+        media_id: mediaId
+      )
+    )
+  }
+
   private struct OrgBillingURLResponse: Decodable {
     let url: String
   }

@@ -11,7 +11,7 @@ struct CoachProgramsView: View {
   @State private var showCreate = false
   @State private var query = ""
   @State private var selectedKind: SDProgramKind = .strength
-  @State private var selectedWorkspace: Workspace = .tracker
+  @State private var selectedWorkspace: Workspace = .workspace
 
 #if os(macOS)
   @State private var selectedTemplateId: UUID?
@@ -75,16 +75,16 @@ struct CoachProgramsView: View {
   }
 
   private enum Workspace: String, CaseIterable, Hashable {
+    case workspace = "Player Hub"
     case templates = "Templates"
-    case tracker = "Player Program Tracker"
-    case development = "Testing & Development"
+    case testingSetup = "Testing Setup"
   }
 
   private var workspaceTitle: String {
     switch selectedWorkspace {
+    case .workspace: "Programs & Development"
     case .templates: "Program Templates"
-    case .tracker: "Player Program Tracker"
-    case .development: "Testing & Development"
+    case .testingSetup: "Testing Setup"
     }
   }
 
@@ -101,6 +101,8 @@ struct CoachProgramsView: View {
   @ViewBuilder
   private var workspaceContent: some View {
     switch selectedWorkspace {
+    case .workspace:
+      UnifiedPlayerDevelopmentWorkspaceView()
     case .templates:
       #if os(macOS)
       HSplitView {
@@ -113,10 +115,8 @@ struct CoachProgramsView: View {
       #else
       templateListLayout
       #endif
-    case .tracker:
-      CoachProgramTrackerView()
-    case .development:
-      CoachHomeView()
+    case .testingSetup:
+      TestingSetupWorkspaceView()
     }
   }
 

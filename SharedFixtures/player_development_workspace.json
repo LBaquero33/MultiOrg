@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "organization_id": "11111111-1111-4111-8111-111111111111",
+  "generated_at": "2026-08-23T12:00:00.000Z",
+  "sections": [
+    "Player Hub",
+    "Calendar",
+    "Programs",
+    "Testing",
+    "Sessions & Data",
+    "Media",
+    "Templates",
+    "Testing Setup"
+  ],
+  "player": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Parity Player",
+    "avatar_path": "avatars/parity-player.jpg",
+    "bio": "Two-way player",
+    "instagram_url": "https://instagram.com/parityplayer",
+    "perfect_game_url": "https://www.perfectgame.org/Players/Playerprofile.aspx?ID=1",
+    "team_ids": ["33333333-3333-4333-8333-333333333333"]
+  },
+  "assignments": [
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "template_id": "55555555-5555-4555-8555-555555555555",
+      "template_name": "Four Week Strength",
+      "program_kind": "strength",
+      "start_date": "2026-08-17",
+      "end_date": "2026-09-13",
+      "status": "active",
+      "notes": "Complete before practice."
+    },
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "template_id": "77777777-7777-4777-8777-777777777777",
+      "template_name": "Summer Hitting",
+      "program_kind": "hitting",
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "status": "ended",
+      "notes": null
+    }
+  ],
+  "days": [
+    {
+      "date": "2026-08-23",
+      "status": "submitted",
+      "scheduled": true,
+      "activity_count": 2,
+      "media_count": 2,
+      "activities": [
+        {
+          "id": "activity-program-1",
+          "date": "2026-08-23",
+          "kind": "program",
+          "source": "program",
+          "title": "Back Squat",
+          "subtitle": "3 sets",
+          "details": {
+            "sets": 3,
+            "reps": 5,
+            "weight": 225,
+            "result_one": "7.5",
+            "notes": "Moved well"
+          },
+          "warning": null
+        },
+        {
+          "id": "activity-testing-1",
+          "date": "2026-08-23",
+          "kind": "testing",
+          "source": "manual",
+          "title": "60 Yard Dash",
+          "subtitle": "6.82 sec",
+          "details": {
+            "field": "60 Yard Dash",
+            "value": 6.82,
+            "unit": "sec"
+          },
+          "warning": null
+        }
+      ],
+      "media": [
+        {
+          "id": "88888888-8888-4888-8888-888888888888",
+          "date": "2026-08-23",
+          "kind": "program_set_video",
+          "title": "Back Squat set 3",
+          "file_name": "back-squat-set-3.mp4",
+          "mime_type": "video/mp4",
+          "source": "program",
+          "playback_status": "ready"
+        },
+        {
+          "id": "99999999-9999-4999-8999-999999999999",
+          "date": "2026-08-23",
+          "kind": "testing_field_video",
+          "title": "60 Yard Dash video",
+          "file_name": "60-yard.mp4",
+          "mime_type": "video/mp4",
+          "source": "testing",
+          "playback_status": "ready"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-22",
+      "status": "submitted",
+      "scheduled": false,
+      "activity_count": 0,
+      "media_count": 1,
+      "activities": [],
+      "media": [
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "date": "2026-08-22",
+          "kind": "session_video",
+          "title": "Bullpen video",
+          "file_name": "bullpen.mp4",
+          "mime_type": "video/mp4",
+          "source": "video",
+          "playback_status": "ready"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-21",
+      "status": "submitted",
+      "scheduled": false,
+      "activity_count": 2,
+      "media_count": 1,
+      "activities": [
+        {
+          "id": "activity-provider-1",
+          "date": "2026-08-21",
+          "kind": "provider_import",
+          "source": "trackman",
+          "title": "TrackMan hitting session",
+          "subtitle": "24 swings",
+          "details": {
+            "exit_velocity": 96.4,
+            "launch_angle": 18.2,
+            "status": "partial"
+          },
+          "warning": "Some source columns could not be parsed."
+        },
+        {
+          "id": "activity-provider-metric-1",
+          "date": "2026-08-21",
+          "kind": "provider_metric",
+          "source": "hittrax",
+          "title": "HitTrax max exit velocity",
+          "subtitle": "94.1 mph",
+          "details": {
+            "metric": "max_exit_velocity",
+            "value": 94.1,
+            "unit": "mph"
+          },
+          "warning": null
+        }
+      ],
+      "media": [
+        {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "date": "2026-08-21",
+          "kind": "import_file",
+          "title": "TrackMan source file",
+          "file_name": "trackman-session.csv",
+          "mime_type": "text/csv",
+          "source": "trackman",
+          "playback_status": "ready"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-20",
+      "status": "missed",
+      "scheduled": true,
+      "activity_count": 0,
+      "media_count": 0,
+      "activities": [],
+      "media": []
+    },
+    {
+      "date": "2026-08-25",
+      "status": "upcoming",
+      "scheduled": true,
+      "activity_count": 0,
+      "media_count": 0,
+      "activities": [],
+      "media": []
+    },
+    {
+      "date": "2026-08-19",
+      "status": "submitted",
+      "scheduled": false,
+      "activity_count": 1,
+      "media_count": 1,
+      "activities": [
+        {
+          "id": "activity-rapsodo-1",
+          "date": "2026-08-19",
+          "kind": "session",
+          "source": "rapsodo",
+          "title": "Rapsodo bullpen",
+          "subtitle": "18 pitches",
+          "details": {
+            "activity_type": "bullpen",
+            "velocity": 84.7,
+            "spin_rate": 2310
+          },
+          "warning": null
+        }
+      ],
+      "media": [
+        {
+          "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "date": "2026-08-19",
+          "kind": "session_video",
+          "title": "Bullpen video",
+          "file_name": "legacy-bullpen.mov",
+          "mime_type": "video/quicktime",
+          "source": "rapsodo",
+          "playback_status": "needs_conversion"
+        }
+      ]
+    }
+  ],
+  "provider_sessions": [
+    {
+      "id": "provider-trackman-1",
+      "date": "2026-08-21",
+      "provider": "trackman",
+      "activity_type": "hitting",
+      "status": "partial",
+      "metric_count": 12,
+      "has_file": true,
+      "has_video": false
+    },
+    {
+      "id": "provider-rapsodo-1",
+      "date": "2026-08-19",
+      "provider": "rapsodo",
+      "activity_type": "bullpen",
+      "status": "completed",
+      "metric_count": 8,
+      "has_file": false,
+      "has_video": true
+    }
+  ]
+}

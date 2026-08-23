@@ -123,6 +123,8 @@ targets:
       - path: HomePlateTests
       - path: SharedFixtures/apple_player_purchase_context_vectors.json
         buildPhase: resources
+      - path: SharedFixtures/player_development_workspace.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.tests

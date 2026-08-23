@@ -182,7 +182,7 @@ struct HPAppNavigationInventory: Equatable {
   ) -> Self {
     let today = item(.playerToday, "Today", "sun.max")
     let calendar = item(.playerCalendar, "Calendar", "calendar")
-    let program = item(.playerProgram, "Program", "square.stack.3d.up.fill")
+    let program = item(.playerProgram, "Programs & Development", "square.stack.3d.up.fill")
     let trends = item(.playerTrends, "Progress", "chart.line.uptrend.xyaxis")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let facilities = item(.playerFacilities, facilitiesTitle, "building.2")
@@ -206,10 +206,11 @@ struct HPAppNavigationInventory: Equatable {
     let home = item(.parentHome, "Home", "house")
     let children = item(.parentChildren, childrenTitle, "person.2")
     let calendar = item(.parentCalendar, "Calendar", "calendar")
+    let development = item(.playerProgram, "Programs & Development", "square.stack.3d.up.fill")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let payments = item(.payments, "Payments", "creditcard")
     let account = item(.account, "Account", "person.crop.circle")
-    let websiteItems = [home, children, calendar, payments]
+    let websiteItems = [home, children, calendar, development, payments]
       + (chatEnabled ? [chat] : [])
       + [account]
     return Self(

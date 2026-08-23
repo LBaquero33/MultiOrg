@@ -608,13 +608,15 @@ private struct TestingFieldVideoPicker: View {
         return
       }
       let type = item.supportedContentTypes.first(where: { $0.conforms(to: .movie) })
-      let isQuickTime = type?.conforms(to: .quickTimeMovie) == true
-      let ext = isQuickTime ? "mov" : "mp4"
+      let compatibleData = try await CompatibleVideoTranscoder.mp4Data(
+        from: data,
+        sourceExtension: type?.preferredFilenameExtension ?? "mov"
+      )
       pending = PendingTestingVideo(
-        data: data,
-        fileName: "\(fieldLabel)-video.\(ext)",
-        fileExtension: ext,
-        contentType: isQuickTime ? "video/quicktime" : "video/mp4"
+        data: compatibleData,
+        fileName: "\(fieldLabel)-video.mp4",
+        fileExtension: "mp4",
+        contentType: "video/mp4"
       )
     } catch {
       onError("That video could not be prepared. Try another clip.")

@@ -173,7 +173,7 @@ struct PlayerHomeView: View {
     case .playerCalendar:
       PlayerUnifiedCalendarView()
     case .playerProgram:
-      SDPlayerProgramView()
+      UnifiedPlayerDevelopmentWorkspaceView()
     case .chat:
       ChatChannelListView()
     case .playerFacilities:
