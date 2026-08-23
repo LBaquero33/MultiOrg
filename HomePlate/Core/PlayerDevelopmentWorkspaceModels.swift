@@ -140,4 +140,25 @@ struct SDPlayerDevelopmentWorkspaceRequest: Encodable {
   let start_date: String?
   let end_date: String?
   let media_id: UUID?
+
+  private enum CodingKeys: String, CodingKey {
+    case action
+    case org_id
+    case player_id
+    case team_id
+    case start_date
+    case end_date
+    case media_id
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(action, forKey: .action)
+    try container.encode(org_id.uuidString.lowercased(), forKey: .org_id)
+    try container.encodeIfPresent(player_id?.uuidString.lowercased(), forKey: .player_id)
+    try container.encodeIfPresent(team_id?.uuidString.lowercased(), forKey: .team_id)
+    try container.encodeIfPresent(start_date, forKey: .start_date)
+    try container.encodeIfPresent(end_date, forKey: .end_date)
+    try container.encodeIfPresent(media_id?.uuidString.lowercased(), forKey: .media_id)
+  }
 }

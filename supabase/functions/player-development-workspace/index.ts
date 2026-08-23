@@ -11,6 +11,7 @@ import {
   type DevelopmentMedia,
   PLAYER_DEVELOPMENT_SECTIONS,
   PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION,
+  normalizeWorkspaceUuid,
   type PlayerDevelopmentWorkspace,
   type ProgramAssignmentSummary,
   type ProviderSessionSummary,
@@ -118,7 +119,7 @@ async function authenticatedActor(request: Request): Promise<string> {
   if (error || !data.user?.id) {
     throw new WorkspaceError("not_authenticated", 401);
   }
-  return data.user.id;
+  return normalizeWorkspaceUuid(data.user.id) ?? data.user.id.toLowerCase();
 }
 
 async function membershipFor(
@@ -770,7 +771,7 @@ Deno.serve(async (request) => {
   try {
     const actorId = await authenticatedActor(request);
     const body = await request.json() as JsonBody;
-    const orgId = stringValue(body.org_id);
+    const orgId = normalizeWorkspaceUuid(body.org_id);
     if (!orgId) throw new WorkspaceError("organization_required");
     const admin = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -779,7 +780,7 @@ Deno.serve(async (request) => {
       admin,
       orgId,
       actorId,
-      stringValue(body.team_id),
+      normalizeWorkspaceUuid(body.team_id),
     );
 
     if (body.action === "list_players") {
@@ -791,7 +792,7 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === "get_workspace" || body.action === "get_day_detail") {
-      const playerId = stringValue(body.player_id);
+      const playerId = normalizeWorkspaceUuid(body.player_id);
       if (!playerId || !scope.playerIds.has(playerId)) {
         throw new WorkspaceError("player_not_authorized", 403);
       }
@@ -825,14 +826,14 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === "get_video_playback") {
-      const mediaId = stringValue(body.media_id);
+      const mediaId = normalizeWorkspaceUuid(body.media_id);
       if (!mediaId) throw new WorkspaceError("media_id_required");
       return response(await playback(admin, scope, mediaId));
     }
 
     if (body.action === "create_video_upload") {
       const context = body.context ?? {};
-      const playerId = stringValue(context.player_id);
+      const playerId = normalizeWorkspaceUuid(context.player_id);
       const kind = stringValue(context.kind);
       if (!playerId || !scope.playerIds.has(playerId)) {
         throw new WorkspaceError("player_not_authorized", 403);

@@ -13,6 +13,14 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
   @State private var isLoadingPlayers = false
   @State private var isLoadingWorkspace = false
   @State private var errorText: String?
+  @State private var playersRequestToken = UUID()
+  @State private var workspaceRequestToken = UUID()
+
+  private struct LoadContext: Equatable {
+    let organizationId: UUID
+    let teamId: UUID?
+    let token: UUID
+  }
 
   private let visibleSections = [
     "Player Hub",
@@ -136,7 +144,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
             ForEach(filteredPlayers) { player in
               Button {
                 selectedPlayerId = player.id
-                Task { await reloadWorkspace(playerId: player.id) }
+                Task { await reloadWorkspace(playerId: player.id, context: loadContext) }
               } label: {
                 HStack(spacing: HP.Space.xs) {
                   HPAvatar(
@@ -176,7 +184,9 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
           title: "Showing saved results",
           message: errorText,
           retryTitle: "Refresh",
-          onRetry: { Task { await reloadWorkspace(playerId: workspace.player.id) } }
+          onRetry: {
+            Task { await reloadWorkspace(playerId: workspace.player.id, context: loadContext) }
+          }
         )
       }
       switch selectedSection {
@@ -194,7 +204,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
     } else if let errorText {
       HPErrorState(message: errorText, onRetry: {
         guard let selectedPlayerId else { return }
-        Task { await reloadWorkspace(playerId: selectedPlayerId) }
+        Task { await reloadWorkspace(playerId: selectedPlayerId, context: loadContext) }
       })
     }
   }
@@ -318,56 +328,93 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
 
   @MainActor
   private func reloadPlayers() async {
+    let requestToken = UUID()
+    playersRequestToken = requestToken
     selectedSection = initialSection
     players = []
     workspace = nil
     selectedPlayerId = nil
     errorText = nil
-    guard let service = appState.supabase, let orgId = appState.activeOrgId else {
+    guard let service = appState.supabase, let context = loadContext else {
       errorText = "Choose an organization to view player development."
       return
     }
     isLoadingPlayers = true
-    defer { isLoadingPlayers = false }
+    defer {
+      if playersRequestToken == requestToken {
+        isLoadingPlayers = false
+      }
+    }
     do {
       let loaded = try await service.listDevelopmentWorkspacePlayers(
-        orgId: orgId,
-        teamId: appState.selectedTeamId
+        orgId: context.organizationId,
+        teamId: context.teamId
       )
-      guard appState.activeOrgId == orgId else { return }
+      guard !Task.isCancelled,
+            playersRequestToken == requestToken,
+            loadContext == context else { return }
       players = loaded
       if let first = loaded.first {
         selectedPlayerId = first.id
-        await reloadWorkspace(playerId: first.id)
+        await reloadWorkspace(playerId: first.id, context: context)
       }
     } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ), playersRequestToken == requestToken, loadContext == context else { return }
       errorText = "Player development could not be loaded. Check your access and try again."
     }
   }
 
   @MainActor
-  private func reloadWorkspace(playerId: UUID) async {
+  private func reloadWorkspace(playerId: UUID, context: LoadContext?) async {
+    guard let context else { return }
+    let requestToken = UUID()
+    workspaceRequestToken = requestToken
     errorText = nil
-    guard let service = appState.supabase, let orgId = appState.activeOrgId else { return }
+    guard let service = appState.supabase else { return }
     isLoadingWorkspace = true
-    defer { isLoadingWorkspace = false }
+    defer {
+      if workspaceRequestToken == requestToken {
+        isLoadingWorkspace = false
+      }
+    }
     let calendar = Calendar(identifier: .gregorian)
     let now = Date()
     let start = calendar.date(byAdding: .year, value: -1, to: now) ?? now
     let end = calendar.date(byAdding: .year, value: 1, to: now) ?? now
     do {
       let loaded = try await service.fetchDevelopmentWorkspace(
-        orgId: orgId,
+        orgId: context.organizationId,
         playerId: playerId,
-        teamId: appState.selectedTeamId,
+        teamId: context.teamId,
         startDate: Self.isoDate(start),
         endDate: Self.isoDate(end)
       )
-      guard appState.activeOrgId == orgId, selectedPlayerId == playerId else { return }
+      guard !Task.isCancelled,
+            workspaceRequestToken == requestToken,
+            loadContext == context,
+            selectedPlayerId == playerId else { return }
       workspace = loaded
     } catch {
+      guard !SDApplicationErrorClassifier.isCancellation(
+        error,
+        taskIsCancelled: Task.isCancelled
+      ), workspaceRequestToken == requestToken,
+         loadContext == context,
+         selectedPlayerId == playerId else { return }
       errorText = "The latest player results could not be refreshed."
     }
+  }
+
+  private var loadContext: LoadContext? {
+    guard let organizationId = appState.activeOrgId else { return nil }
+    return LoadContext(
+      organizationId: organizationId,
+      teamId: appState.selectedTeamId,
+      token: appState.teamContextToken
+    )
   }
 
   private static func isoDate(_ date: Date) -> String {

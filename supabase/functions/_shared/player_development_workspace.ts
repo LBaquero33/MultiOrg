@@ -1,5 +1,16 @@
 export const PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION = 1;
 
+export function normalizeWorkspaceUuid(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      .test(normalized)
+    ? normalized
+    : null;
+}
+
 export const PLAYER_DEVELOPMENT_SECTIONS = [
   "Player Hub",
   "Calendar",

@@ -53,6 +53,25 @@ struct PlayerDevelopmentWorkspaceContractTests {
     #expect(media.contains { $0.kind == .testingFieldVideo })
     #expect(media.contains { $0.kind == .programSetVideo })
   }
+
+  @Test("Workspace requests encode UUIDs in canonical lowercase")
+  func requestUUIDNormalization() throws {
+    let request = SDPlayerDevelopmentWorkspaceRequest(
+      action: "get_workspace",
+      org_id: try #require(UUID(uuidString: "800E22AE-2A9D-4109-9E11-1360EEAA8EA7")),
+      player_id: try #require(UUID(uuidString: "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE")),
+      team_id: try #require(UUID(uuidString: "11111111-2222-4333-8444-555555555555")),
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+      media_id: nil
+    )
+    let object = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+    )
+    #expect(object["org_id"] as? String == "800e22ae-2a9d-4109-9e11-1360eeaa8ea7")
+    #expect(object["player_id"] as? String == "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    #expect(object["team_id"] as? String == "11111111-2222-4333-8444-555555555555")
+  }
 }
 
 private final class PlayerDevelopmentFixtureBundleMarker {}

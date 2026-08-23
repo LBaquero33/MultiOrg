@@ -1717,6 +1717,11 @@ final class SupabaseService: ObservableObject {
             )
           }
           let decoded = SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+          #if DEBUG
+          print(
+            "edge_function_rejected function=\(name) status=\(statusCode) code=\(decoded.code)"
+          )
+          #endif
           if ["unknown_action", "unsupported_action"].contains(decoded.code) {
             throw SDServiceError(
               category: .unsupportedAction,

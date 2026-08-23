@@ -3,9 +3,23 @@ import {
   canUseOrganizationMembership,
   canUseStaffSections,
   completionStatus,
+  normalizeWorkspaceUuid,
   scheduledDates,
   videoPlaybackStatus,
 } from "./player_development_workspace.ts";
+
+Deno.test("workspace UUID normalization makes Swift UUID casing safe", () => {
+  assertEquals(
+    normalizeWorkspaceUuid("800E22AE-2A9D-4109-9E11-1360EEAA8EA7"),
+    "800e22ae-2a9d-4109-9e11-1360eeaa8ea7",
+    "uppercase UUID normalized",
+  );
+  assertEquals(
+    normalizeWorkspaceUuid("not-a-uuid"),
+    null,
+    "invalid UUID rejected",
+  );
+});
 
 Deno.test("video playback compatibility handles legacy objects consistently", () => {
   assertEquals(
