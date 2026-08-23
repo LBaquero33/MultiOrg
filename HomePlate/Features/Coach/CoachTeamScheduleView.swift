@@ -8,6 +8,9 @@ struct CoachTeamScheduleView: View {
   }
 
   @EnvironmentObject private var appState: AppState
+#if os(iOS)
+  @StateObject private var appleCalendar = AppleCalendarSyncManager.shared
+#endif
   @State private var mode: SDTeamScheduleMode = .upcoming
   @State private var calendarContent: CalendarContent = .events
   @State private var filter: SDTeamScheduleFilter = .all
@@ -43,6 +46,24 @@ struct CoachTeamScheduleView: View {
               newEventMenu
             }
           }
+#if os(iOS)
+          HStack {
+            Button {
+              Task { await syncAppleCalendar() }
+            } label: {
+              Label(
+                appleCalendar.hasExternalChanges ? "Review Calendar Changes" : "Sync Apple Calendar",
+                systemImage: "calendar.badge.checkmark"
+              )
+            }
+            .buttonStyle(HPButtonStyle(variant: .secondary, size: .md))
+            .frame(minHeight: 44)
+            Spacer()
+            Text(appleCalendar.statusText)
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+#endif
           Picker("View", selection: $mode) {
             ForEach(SDTeamScheduleMode.allCases) { Text($0.rawValue).tag($0) }
           }
@@ -120,6 +141,11 @@ struct CoachTeamScheduleView: View {
         }
       }
       .task(id: reloadKey) { await reload() }
+#if os(iOS)
+      .task(id: "apple-calendar:\(reloadKey)") {
+        if appleCalendar.hasFullAccess { await syncAppleCalendar(silent: true) }
+      }
+#endif
       .task(id: appState.activeOrgId) { await loadFacilities() }
       .refreshable { await reload() }
       .sheet(item: $editor) { presentation in
@@ -694,6 +720,83 @@ struct CoachTeamScheduleView: View {
     do { facilities = try await service.listFacilities(orgId: organizationId) }
     catch { facilities = [] }
   }
+
+#if os(iOS)
+  private func syncAppleCalendar(silent: Bool = false) async {
+    guard let service = appState.supabase,
+          let organizationId = appState.activeOrgId else { return }
+    do {
+      let calendar = Calendar.current
+      let start = calendar.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+      let end = calendar.date(byAdding: .year, value: 1, to: Date()) ?? Date().addingTimeInterval(31_536_000)
+      var syncEvents = try await service.listTeamEvents(
+        organizationId: organizationId,
+        seasonId: nil,
+        teamId: nil,
+        rangeStart: start,
+        rangeEnd: end,
+        diagnosticScreen: "Apple Calendar Sync",
+        actorRole: appState.activeOrgMembership?.role,
+        capabilityResolved: true
+      )
+      let syncBookings = try await service.listFacilityBookings(
+        rangeStart: start,
+        rangeEnd: end,
+        orgId: organizationId
+      )
+
+      let localEdits = appleCalendar.pendingEventEdits(
+        events: syncEvents,
+        organizationId: organizationId,
+        canEdit: canEdit
+      )
+      for edit in localEdits {
+        guard let event = syncEvents.first(where: { $0.id == edit.eventId }), canEdit(event) else { continue }
+        var draft = SDTeamEventDraft(event: event)
+        draft.title = edit.title
+        draft.startAt = edit.startAt
+        draft.endAt = edit.endAt
+        draft.address = edit.location ?? ""
+        draft.description = edit.notes ?? ""
+        _ = try await service.saveTeamEvent(
+          organizationId: event.organization_id,
+          seasonId: event.season_id,
+          teamId: event.team_id,
+          eventId: event.id,
+          draft: draft,
+          publish: event.status != .draft,
+          coachIds: event.sd_team_event_coaches?.map(\.coach_id) ?? [],
+          actionOverride: "update"
+        )
+      }
+      if !localEdits.isEmpty {
+        syncEvents = try await service.listTeamEvents(
+          organizationId: organizationId,
+          seasonId: nil,
+          teamId: nil,
+          rangeStart: start,
+          rangeEnd: end,
+          diagnosticScreen: "Apple Calendar Sync Refresh",
+          actorRole: appState.activeOrgMembership?.role,
+          capabilityResolved: true
+        )
+      }
+      try await appleCalendar.synchronize(
+        events: syncEvents,
+        bookings: syncBookings,
+        organizationId: organizationId,
+        facilityName: facilityName
+      )
+      if !silent {
+        errorText = nil
+        await reload()
+      }
+    } catch {
+      guard !silent else { return }
+      errorText = error.localizedDescription
+    }
+  }
+#endif
 
   private func mutate(_ event: SDTeamEvent, action: String, status: SDTeamEventStatus? = nil) async {
     guard let service = appState.supabase else { return }

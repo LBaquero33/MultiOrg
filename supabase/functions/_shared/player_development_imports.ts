@@ -21,6 +21,7 @@ export const IMPORT_MAPPING_VERSION = "player-development-mapping.v1";
 export const VENDOR_ADAPTER_VERSIONS = {
   rapsodo_hitting: "rapsodo-hitting.v1",
   rapsodo_pitching: "rapsodo-pitching.v1",
+  hittrax_hitting: "hittrax-hitting.v1",
   trackman_radar: "trackman-radar.v1",
   generic_csv: IMPORT_PARSER_VERSION,
 } as const;
@@ -156,7 +157,42 @@ export const PROVIDER_ADAPTERS: Record<ProviderKey, ProviderAdapter> = {
     contextFieldAliases: {},
     fixtureRequirements: [],
   },
-  hittrax: inactive("hittrax"),
+  hittrax: {
+    providerKey: "hittrax",
+    parserVersion: VENDOR_ADAPTER_VERSIONS.hittrax_hitting,
+    productionActive: true,
+    recognizedFileSignatures: ["hittrax-hitting.v1"],
+    headerAliases: {
+      player_external_id: ["HitTrax Player ID"],
+      player_name: ["Player Name"],
+      observation_timestamp: ["Session Date"],
+      source_event_id: ["Hit ID"],
+    },
+    dateAliases: ["Session Date"],
+    playerIdentifierAliases: {
+      external: ["HitTrax Player ID"],
+      name: ["Player Name"],
+    },
+    metricAliases: {
+      "Exit Velocity": "hitting.exit_velocity",
+      "Launch Angle": "hitting.launch_angle",
+      "Horizontal Angle": "hitting.exit_direction",
+      Distance: "hitting.distance",
+      "Pitch Velocity": "hitting.pitch_velocity_seen",
+    },
+    defaultUnitHints: {
+      "Exit Velocity": "mph",
+      "Launch Angle": "deg",
+      "Horizontal Angle": "deg",
+      Distance: "ft",
+      "Pitch Velocity": "mph",
+    },
+    contextFieldAliases: {
+      result: ["Play Outcome"],
+      session: ["Session ID"],
+    },
+    fixtureRequirements: [],
+  },
   trackman: {
     providerKey: "trackman",
     parserVersion: VENDOR_ADAPTER_VERSIONS.trackman_radar,
@@ -193,7 +229,7 @@ export type ParsedDelimitedFile = {
 };
 
 export type ProviderDetection = {
-  providerKey: "generic_csv" | "rapsodo" | "trackman";
+  providerKey: "generic_csv" | "rapsodo" | "hittrax" | "trackman";
   exportType: DetectedExportType;
   adapterVersion: string;
   confidence: DetectionConfidence;
@@ -690,6 +726,56 @@ export function detectProvider(parsed: ParsedDelimitedFile): ProviderDetection {
     };
   }
 
+  const hittraxRequired = [
+    "HitTrax Player ID",
+    "Player Name",
+    "Session ID",
+    "Hit ID",
+    "Session Date",
+    "Exit Velocity",
+    "Launch Angle",
+  ];
+  const hittraxMatched = signaturesPresent(headers, hittraxRequired);
+  if (hittraxMatched.length === hittraxRequired.length) {
+    return {
+      providerKey: "hittrax",
+      exportType: "hittrax_hitting",
+      adapterVersion: VENDOR_ADAPTER_VERSIONS.hittrax_hitting,
+      confidence: "high",
+      matchedRequiredSignatures: hittraxMatched,
+      matchedOptionalSignatures: signaturesPresent(headers, [
+        "Horizontal Angle",
+        "Distance",
+        "Pitch Velocity",
+        "Play Outcome",
+      ]),
+      missingSignatures: [],
+      warnings: ["timezone_confirmation_required"],
+      automaticMappingSafe: true,
+      protectedColumns: signaturesPresent(headers, [
+        "HitTrax Player ID",
+        "Session ID",
+        "Hit ID",
+      ]),
+      unsupportedColumns: [],
+      providerPlayerId: null,
+      providerPlayerName: null,
+    };
+  }
+  if (hittraxMatched.length >= 5) {
+    return {
+      ...genericDetection(["hittrax_schema_confirmation_required"]),
+      providerKey: "hittrax",
+      exportType: "hittrax_hitting",
+      adapterVersion: VENDOR_ADAPTER_VERSIONS.hittrax_hitting,
+      confidence: "medium",
+      matchedRequiredSignatures: hittraxMatched,
+      missingSignatures: hittraxRequired.filter((header) =>
+        !headers.has(normalizeHeader(header))
+      ),
+    };
+  }
+
   const trackmanRequiredGroups = [
     ["PitchNo"],
     ["PitchUID"],
@@ -905,6 +991,13 @@ const AUTO_METRICS: Record<
     ["Vertical Approach Angle", "pitching.vertical_approach_angle", "deg"],
     ["Release Extension (ft)", "pitching.extension", "ft"],
   ],
+  hittrax_hitting: [
+    ["Exit Velocity", "hitting.exit_velocity", "mph"],
+    ["Launch Angle", "hitting.launch_angle", "deg"],
+    ["Horizontal Angle", "hitting.exit_direction", "deg"],
+    ["Distance", "hitting.distance", "ft"],
+    ["Pitch Velocity", "hitting.pitch_velocity_seen", "mph"],
+  ],
   trackman_radar: [
     ["RelSpeed", "pitching.velocity", "velocity"],
     ["SpinRate", "pitching.spin_rate", "rpm"],
@@ -958,6 +1051,12 @@ export function recommendedMapping(
     columns.source_event_id = detection.exportType === "rapsodo_hitting"
       ? "HitID"
       : "Pitch ID";
+  } else if (detection.providerKey === "hittrax") {
+    columns.player_external_id = "HitTrax Player ID";
+    columns.player_name = "Player Name";
+    columns.observation_timestamp = "Session Date";
+    columns.session_identifier = "Session ID";
+    columns.source_event_id = "Hit ID";
   } else {
     columns.pitcher_external_id = has("PitcherId") ? "PitcherId" : undefined;
     columns.pitcher_name = has("Pitcher") ? "Pitcher" : undefined;
@@ -974,6 +1073,8 @@ export function recommendedMapping(
     ? ["Session Name", "BatName"].filter(has)
     : detection.exportType === "rapsodo_pitching"
     ? ["Pitch Type", "Intent Type", "Session Name"].filter(has)
+    : detection.exportType === "hittrax_hitting"
+    ? ["Play Outcome", "Session ID"].filter(has)
     : ["TaggedPitchType", "AutoPitchType"].filter(has);
   return {
     shape: "wide",

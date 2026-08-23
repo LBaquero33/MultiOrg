@@ -1,0 +1,4 @@
+HitTrax Player ID,Player Name,Session ID,Hit ID,Session Date,Exit Velocity,Launch Angle,Horizontal Angle,Distance,Pitch Velocity,Play Outcome
+fictional-player-202,Fictional Avery,session-demo-1,hit-demo-1,2026-01-10T18:00:00Z,101.2,28,4.5,357,43,Home Run
+fictional-player-202,Fictional Avery,session-demo-1,hit-demo-2,2026-01-10T18:01:00Z,94.8,15,-2.1,248,44,Double
+fictional-player-202,Fictional Avery,session-demo-1,hit-demo-3,2026-01-10T18:02:00Z,89.4,7,12.5,178,42,Single

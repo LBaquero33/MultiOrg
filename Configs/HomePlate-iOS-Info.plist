@@ -47,6 +47,8 @@
 	<string>$(DHD_SUPPORT_EMAIL)</string>
 	<key>DHD_WEBSITE_HOST</key>
 	<string>$(DHD_WEBSITE_HOST)</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Home Plate uses calendar access to keep your approved team events and facility bookings synchronized.</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_HOST</key>

@@ -25,6 +25,7 @@ import {
   sha256Hex,
   stableObservationUUID,
 } from "../_shared/player_development_imports.ts";
+import { summarizeProviderSession } from "../_shared/player_development_provider_analytics.ts";
 
 const BUCKET = "player-development-imports";
 const IMPORT_LEASE_MS = 15 * 60_000;
@@ -869,6 +870,10 @@ async function handleAction(
           provider_player_name: detection.providerPlayerName,
         },
         suggested_mapping: automaticMapping,
+        provider_session_analytics: summarizeProviderSession(
+          authoritative.parsed,
+          detection,
+        ),
       },
     };
   }

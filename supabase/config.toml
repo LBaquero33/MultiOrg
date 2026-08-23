@@ -44,6 +44,11 @@ verify_jwt = true
 [functions.player-development-imports]
 verify_jwt = true
 
+# Handles authenticated Google Calendar actions plus validated OAuth callback,
+# Google watch notifications, and the secret-authenticated sync worker.
+[functions.calendar-integrations]
+verify_jwt = false
+
 [functions.notification-center]
 verify_jwt = true
 

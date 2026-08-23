@@ -656,13 +656,13 @@ Deno.test("stable observation identity is deterministic for file and row idempot
   );
 });
 
-Deno.test("Rapsodo and TrackMan adapters are active while HitTrax remains fixture-gated", () => {
+Deno.test("Rapsodo, HitTrax, and TrackMan adapters are active from sanitized fixtures", () => {
   equal(PROVIDER_ADAPTERS.generic_csv.productionActive, true, "generic active");
   equal(PROVIDER_ADAPTERS.rapsodo.productionActive, true, "Rapsodo active");
+  equal(PROVIDER_ADAPTERS.hittrax.productionActive, true, "HitTrax active");
   equal(PROVIDER_ADAPTERS.trackman.productionActive, true, "TrackMan active");
   for (
     const key of [
-      "hittrax",
       "blast",
       "pocket_radar",
       "strength_testing",
@@ -670,6 +670,49 @@ Deno.test("Rapsodo and TrackMan adapters are active while HitTrax remains fixtur
   ) {
     equal(PROVIDER_ADAPTERS[key].productionActive, false, `${key} inactive`);
   }
+});
+
+Deno.test("HitTrax strong signature detects and maps measured hitting data", () => {
+  const parsed = parseImportText(
+    fixture("hittrax_hitting_sanitized.csv"),
+    "csv",
+  );
+  const detection = detectProvider(parsed);
+  equal(detection.providerKey, "hittrax", "HitTrax provider");
+  equal(detection.exportType, "hittrax_hitting", "HitTrax export");
+  equal(detection.confidence, "high", "HitTrax confidence");
+  const mapping = recommendedMapping(
+    parsed,
+    detection,
+    "America/New_York",
+  );
+  equal(mapping?.columns.player_external_id, "HitTrax Player ID", "player ID");
+  equal(mapping?.columns.source_event_id, "Hit ID", "source event");
+  assert(
+    mapping?.wideMetrics?.some((metric) =>
+      metric.metricKey === "hitting.exit_velocity" &&
+      metric.sourceUnit === "mph"
+    ) === true,
+    "exit velocity mapping",
+  );
+  assert(
+    mapping?.wideMetrics?.some((metric) =>
+      metric.metricKey === "hitting.launch_angle" &&
+      metric.sourceUnit === "deg"
+    ) === true,
+    "launch angle mapping",
+  );
+});
+
+Deno.test("partial HitTrax-like files require schema confirmation", () => {
+  const parsed = parseDelimitedText(
+    "HitTrax Player ID,Player Name,Session ID,Hit ID,Exit Velocity\n1,A,s1,h1,90\n",
+  );
+  const detection = detectProvider(parsed);
+  equal(detection.providerKey, "hittrax", "HitTrax candidate");
+  equal(detection.confidence, "medium", "medium confidence");
+  equal(detection.automaticMappingSafe, false, "manual confirmation");
+  assert(detection.missingSignatures.includes("Session Date"), "missing date");
 });
 
 Deno.test("uppercase request UUIDs produce a lowercase storage path accepted by the database contract", () => {
