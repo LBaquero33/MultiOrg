@@ -1,4 +1,4 @@
-export const PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION = 1;
+export const PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION = 2;
 
 export function normalizeWorkspaceUuid(
   value: unknown,
@@ -58,6 +58,18 @@ export type WorkspacePlayer = {
   instagram_url: string | null;
   perfect_game_url: string | null;
   team_ids: string[];
+  team_names?: string[];
+  active_program_count?: number;
+  next_due_date?: string | null;
+  latest_activity_date?: string | null;
+  summary_status?: DevelopmentStatus | "no_activity";
+};
+
+export type DevelopmentField = {
+  key: string;
+  label: string;
+  value: string;
+  unit: string | null;
 };
 
 export type ProgramAssignmentSummary = {
@@ -79,6 +91,8 @@ export type DevelopmentActivity = {
   title: string;
   subtitle: string | null;
   details: Record<string, unknown>;
+  fields?: DevelopmentField[];
+  notes?: string | null;
   warning: string | null;
 };
 

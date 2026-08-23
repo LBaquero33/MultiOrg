@@ -11,7 +11,7 @@ enum SDDevelopmentStatus: String, Codable, Sendable {
     switch self {
     case .submitted: .success
     case .missed: .danger
-    case .upcoming: .info
+    case .upcoming: .warning
     }
   }
 }
@@ -45,6 +45,18 @@ struct SDDevelopmentPlayer: Identifiable, Codable, Equatable, Sendable {
   let instagram_url: String?
   let perfect_game_url: String?
   let team_ids: [UUID]
+  let team_names: [String]?
+  let active_program_count: Int?
+  let next_due_date: String?
+  let latest_activity_date: String?
+  let summary_status: String?
+}
+
+struct SDDevelopmentField: Codable, Equatable, Sendable {
+  let key: String
+  let label: String
+  let value: String
+  let unit: String?
 }
 
 struct SDProgramAssignmentSummary: Identifiable, Codable, Equatable, Sendable {
@@ -66,6 +78,8 @@ struct SDDevelopmentActivity: Identifiable, Codable, Equatable, Sendable {
   let title: String
   let subtitle: String?
   let details: [String: SDJSONValue]
+  let fields: [SDDevelopmentField]?
+  let notes: String?
   let warning: String?
 }
 

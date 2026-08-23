@@ -381,7 +381,7 @@ struct TeamOperationsFoundationTests {
       facilitiesTitle: "Facilities",
       testingTitle: "Testing"
     )
-    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
+    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Programs & Development", "Progress", "Messages", "Account"])
     #expect(player.compactItems.isEmpty)
 
     let coach = HPAppNavigationInventory.staff(

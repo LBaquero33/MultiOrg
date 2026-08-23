@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "organization_id": "11111111-1111-4111-8111-111111111111",
   "generated_at": "2026-08-23T12:00:00.000Z",
   "sections": [
@@ -65,6 +65,13 @@
             "result_one": "7.5",
             "notes": "Moved well"
           },
+          "fields": [
+            {"key": "sets", "label": "Sets", "value": "3", "unit": null},
+            {"key": "reps", "label": "Reps", "value": "5", "unit": null},
+            {"key": "weight", "label": "Weight", "value": "225", "unit": "lb"},
+            {"key": "result_one", "label": "Velocity", "value": "7.5", "unit": "mph"}
+          ],
+          "notes": "Moved well",
           "warning": null
         },
         {
@@ -79,6 +86,10 @@
             "value": 6.82,
             "unit": "sec"
           },
+          "fields": [
+            {"key": "value", "label": "60 Yard Dash", "value": "6.82", "unit": "sec"}
+          ],
+          "notes": null,
           "warning": null
         }
       ],

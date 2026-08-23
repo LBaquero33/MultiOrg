@@ -8,6 +8,7 @@ import {
   canUseStaffSections,
   dateOnly,
   type DevelopmentActivity,
+  type DevelopmentField,
   type DevelopmentMedia,
   PLAYER_DEVELOPMENT_SECTIONS,
   PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION,
@@ -104,8 +105,90 @@ function activity(
     title,
     subtitle,
     details: row,
+    fields: normalizedActivityFields(row),
+    notes: stringValue(row.notes) ?? stringValue(row.comments),
     warning,
   };
+}
+
+const hiddenActivityFields = new Set([
+  "id",
+  "org_id",
+  "organization_id",
+  "player_id",
+  "user_id",
+  "coach_id",
+  "template_id",
+  "assignment_id",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "archived_at",
+  "storage_bucket",
+  "storage_path",
+  "video_path",
+  "avatar_path",
+  "notes",
+  "comments",
+]);
+
+function fieldLabel(key: string): string {
+  const labels: Record<string, string> = {
+    sets_completed: "Sets completed",
+    exercise_name: "Exercise",
+    log_date: "Date",
+    entry_date: "Date",
+    session_date: "Date",
+    day_index: "Program day",
+    week: "Program week",
+    activity_type: "Activity",
+    file_name: "Source file",
+    accepted_rows: "Imported rows",
+    rejected_rows: "Rejected rows",
+    metric_name: "Metric",
+    numeric_value: "Result",
+    canonical_unit: "Unit",
+  };
+  if (labels[key]) return labels[key];
+  return key.split("_").filter(Boolean).map((part) =>
+    part.charAt(0).toUpperCase() + part.slice(1)
+  ).join(" ");
+}
+
+function fieldText(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) {
+    const items = value.map(fieldText).filter((item): item is string => !!item);
+    return items.length ? items.join(", ") : null;
+  }
+  return null;
+}
+
+function normalizedActivityFields(row: Row): DevelopmentField[] {
+  const output: DevelopmentField[] = [];
+  const append = (key: string, value: unknown, unit: string | null = null) => {
+    const text = fieldText(value);
+    if (!text || hiddenActivityFields.has(key)) return;
+    output.push({ key, label: fieldLabel(key), value: text, unit });
+  };
+  for (const [key, value] of Object.entries(row)) {
+    if (key === "result_values" || key === "values" || key === "results") {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        for (const [nestedKey, nestedValue] of Object.entries(value as Row)) {
+          append(nestedKey, nestedValue);
+        }
+      }
+      continue;
+    }
+    append(
+      key,
+      value,
+      key === "numeric_value" ? stringValue(row.canonical_unit) : null,
+    );
+  }
+  return output.slice(0, 18);
 }
 
 async function authenticatedActor(request: Request): Promise<string> {
@@ -259,6 +342,8 @@ async function resolveScope(
 async function workspacePlayers(
   admin: SupabaseClient,
   scope: Scope,
+  orgId?: string,
+  includeSummaries = false,
 ): Promise<WorkspacePlayer[]> {
   const ids = [...scope.playerIds];
   if (ids.length === 0) return [];
@@ -277,7 +362,23 @@ async function workspacePlayers(
     if (!teamMap.has(playerId)) teamMap.set(playerId, new Set());
     teamMap.get(playerId)!.add(teamId);
   }
-  return profiles.map((profile) => ({
+  const teamRows = scope.teamIds.size
+    ? await queryRows(
+      admin.from("sd_teams").select("id,name").in("id", [...scope.teamIds]),
+      "team_name_lookup_failed",
+    )
+    : [];
+  const teamNames = new Map(
+    teamRows.map((row) => [stringValue(row.id)!, stringValue(row.name) ?? "Team"]),
+  );
+  const summaries = includeSummaries && orgId
+    ? await playerRosterSummaries(admin, orgId, ids)
+    : new Map<string, PlayerRosterSummary>();
+  return profiles.map((profile) => {
+    const playerId = stringValue(profile.id)!;
+    const teamIds = [...(teamMap.get(playerId) ?? [])].sort();
+    const summary = summaries.get(playerId);
+    return {
     id: stringValue(profile.id)!,
     name: stringValue(profile.full_name) ?? stringValue(profile.display_name) ??
       "Player",
@@ -285,8 +386,129 @@ async function workspacePlayers(
     bio: stringValue(profile.bio),
     instagram_url: stringValue(profile.instagram_url),
     perfect_game_url: stringValue(profile.perfect_game_url),
-    team_ids: [...(teamMap.get(stringValue(profile.id)!) ?? [])].sort(),
-  })).sort((a, b) => a.name.localeCompare(b.name));
+    team_ids: teamIds,
+    team_names: teamIds.map((teamId) => teamNames.get(teamId) ?? "Team"),
+    active_program_count: summary?.activeProgramCount ?? 0,
+    next_due_date: summary?.nextDueDate ?? null,
+    latest_activity_date: summary?.latestActivityDate ?? null,
+    summary_status: summary?.status ?? "no_activity",
+  };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+type PlayerRosterSummary = {
+  activeProgramCount: number;
+  nextDueDate: string | null;
+  latestActivityDate: string | null;
+  status: "submitted" | "missed" | "upcoming" | "no_activity";
+};
+
+async function playerRosterSummaries(
+  admin: SupabaseClient,
+  orgId: string,
+  playerIds: string[],
+): Promise<Map<string, PlayerRosterSummary>> {
+  const [assignmentRows, dailyRows, strengthRows, testingRows, sessionRows, importRows, mediaRows] =
+    await Promise.all([
+      queryRows(
+        admin.from("sd_program_assignments")
+          .select("player_id,template_id,start_date,ended_at")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_program_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_daily_logs").select("player_id,log_date")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_daily_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_strength_logs").select("player_id,log_date")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_strength_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_testing_entries").select("player_id,entry_date")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_testing_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_bp_sessions").select("player_id,session_date")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_session_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_development_import_jobs")
+          .select("player_id,completed_at,created_at")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_import_summary_failed",
+      ),
+      queryRows(
+        admin.from("sd_program_set_media").select("player_id,log_date")
+          .eq("org_id", orgId).in("player_id", playerIds),
+        "roster_media_summary_failed",
+      ),
+    ]);
+  const templateIds = [...new Set(assignmentRows.map((row) => stringValue(row.template_id)).filter(
+    (id): id is string => !!id,
+  ))];
+  const templateRows = templateIds.length
+    ? await queryRows(
+      admin.from("sd_program_templates").select("id,weeks,lift_weekdays").in("id", templateIds),
+      "roster_template_summary_failed",
+    )
+    : [];
+  const templates = new Map(templateRows.map((row) => [stringValue(row.id)!, row]));
+  const activityDates = new Map<string, Set<string>>();
+  const addActivity = (row: Row, key: string) => {
+    const playerId = stringValue(row.player_id);
+    const date = dateOnly(row[key]);
+    if (!playerId || !date) return;
+    if (!activityDates.has(playerId)) activityDates.set(playerId, new Set());
+    activityDates.get(playerId)!.add(date);
+  };
+  dailyRows.forEach((row) => addActivity(row, "log_date"));
+  strengthRows.forEach((row) => addActivity(row, "log_date"));
+  testingRows.forEach((row) => addActivity(row, "entry_date"));
+  sessionRows.forEach((row) => addActivity(row, "session_date"));
+  mediaRows.forEach((row) => addActivity(row, "log_date"));
+  importRows.forEach((row) => {
+    addActivity({ ...row, import_date: row.completed_at ?? row.created_at }, "import_date");
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const output = new Map<string, PlayerRosterSummary>();
+  for (const playerId of playerIds) {
+    const playerAssignments = assignmentRows.filter((row) => stringValue(row.player_id) === playerId);
+    const scheduled = playerAssignments.flatMap((row) => {
+      const template = templates.get(stringValue(row.template_id) ?? "") ?? {};
+      return scheduledDates({
+        start_date: dateOnly(row.start_date) ?? today,
+        end_date: dateOnly(row.ended_at),
+        weeks: Math.max(1, numberValue(template.weeks)),
+        lift_weekdays: Array.isArray(template.lift_weekdays)
+          ? template.lift_weekdays.filter((value): value is number => typeof value === "number")
+          : [],
+      });
+    });
+    const actual = activityDates.get(playerId) ?? new Set<string>();
+    const latestActivityDate = [...actual].sort().at(-1) ?? null;
+    const nextDueDate = scheduled.filter((date) => date >= today).sort()[0] ?? null;
+    const latestPastScheduled = scheduled.filter((date) => date < today).sort().at(-1) ?? null;
+    const status = latestPastScheduled && !actual.has(latestPastScheduled)
+      ? "missed"
+      : latestActivityDate
+      ? "submitted"
+      : nextDueDate
+      ? "upcoming"
+      : "no_activity";
+    output.set(playerId, {
+      activeProgramCount: playerAssignments.filter((row) => !row.ended_at).length,
+      nextDueDate,
+      latestActivityDate,
+      status,
+    });
+  }
+  return output;
 }
 
 function range(body: JsonBody): { start: string; end: string } {
@@ -787,7 +1009,7 @@ Deno.serve(async (request) => {
       return response({
         schema_version: PLAYER_DEVELOPMENT_WORKSPACE_SCHEMA_VERSION,
         organization_id: orgId,
-        players: await workspacePlayers(admin, scope),
+        players: await workspacePlayers(admin, scope, orgId, true),
       });
     }
 

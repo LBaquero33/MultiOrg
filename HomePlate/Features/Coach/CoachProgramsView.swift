@@ -47,13 +47,45 @@ struct CoachProgramsView: View {
 #else
     NavigationStack {
       VStack(spacing: 0) {
-        workspacePicker
+        if selectedWorkspace != .workspace {
+          HStack {
+            Button {
+              selectedWorkspace = .workspace
+            } label: {
+              Label("Player Roster", systemImage: "chevron.left")
+            }
+            .buttonStyle(.bordered)
+            Spacer()
+            Text(workspaceTitle)
+              .font(HP.Font.headline)
+              .foregroundStyle(HP.Color.text)
+          }
+          .padding(.horizontal, HP.Space.md)
+          .padding(.vertical, HP.Space.sm)
+          .background(HP.Color.bg)
+        }
         workspaceContent
       }
       .navigationTitle("Programs & Player Development")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") { dismiss() }
+        }
+        ToolbarItem(placement: .primaryAction) {
+          Menu {
+            Button {
+              selectedWorkspace = .templates
+            } label: {
+              Label("Templates", systemImage: "list.clipboard")
+            }
+            Button {
+              selectedWorkspace = .testingSetup
+            } label: {
+              Label("Testing Setup", systemImage: "slider.horizontal.3")
+            }
+          } label: {
+            Label("Manage", systemImage: "ellipsis.circle")
+          }
         }
       }
       .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {

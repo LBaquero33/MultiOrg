@@ -587,7 +587,7 @@ struct CompleteTodayExperienceTests {
   @Test("role navigation matches the website menus")
   func roleNavigation() {
     let player = HPAppNavigationInventory.player(chatEnabled: true, facilitiesEnabled: true, testingEnabled: true, analysisEnabled: true, facilitiesTitle: "Facilities", testingTitle: "Testing")
-    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"])
+    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Programs & Development", "Progress", "Messages", "Account"])
     let coach = HPAppNavigationInventory.staff(playersTitle: "Players", facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, canAdministerOrganization: false, isPlatformAdmin: false)
     #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Account"])
     let owner = HPAppNavigationInventory.owner(facilitiesTitle: "Facilities", programsTitle: "Programs", facilitiesEnabled: true, chatEnabled: true, programsEnabled: true, isPlatformAdmin: false)

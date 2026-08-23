@@ -44,7 +44,7 @@ struct CrossPlatformOperationsClosureTests {
     let tracker = try sourceFile("HomePlate/Features/Coach/CoachProgramTrackerView.swift")
 
     #expect(programs.contains("Templates"))
-    #expect(programs.contains("Player Program Tracker"))
+    #expect(programs.contains("UnifiedPlayerDevelopmentWorkspaceView"))
     for text in ["All players", "Active", "Ended", "Submitted", "Upcoming", "No Submission"] {
       #expect(tracker.contains(text))
     }

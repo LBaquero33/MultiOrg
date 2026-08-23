@@ -10,11 +10,20 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
   @State private var selectedSection = "Player Hub"
   @State private var selectedDay: SDDevelopmentDay?
   @State private var searchText = ""
+  @State private var rosterStatus = "All"
   @State private var isLoadingPlayers = false
   @State private var isLoadingWorkspace = false
   @State private var errorText: String?
   @State private var playersRequestToken = UUID()
   @State private var workspaceRequestToken = UUID()
+
+  private let visibleSections = [
+    "Player Hub", "Calendar", "Programs", "Testing", "Sessions & Data", "Media",
+  ]
+
+  private var initialSection: String {
+    appState.myProfile?.isPlayer == true || appState.myProfile?.isParent == true ? "Calendar" : "Player Hub"
+  }
 
   private struct LoadContext: Equatable {
     let organizationId: UUID
@@ -22,39 +31,97 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
     let token: UUID
   }
 
-  private let visibleSections = [
-    "Player Hub",
-    "Calendar",
-    "Programs",
-    "Testing",
-    "Sessions & Data",
-    "Media",
-  ]
-
   var body: some View {
+    Group {
+      if isCurrentUserPlayer {
+        selfPlayerWorkspace
+      } else {
+        rosterWorkspace
+      }
+    }
+    .task(id: contextKey) { await reloadPlayers() }
+    .fullScreenCover(item: selectedPlayerBinding) { player in
+      DevelopmentPlayerWorkspaceScreen(
+        player: player,
+        workspace: $workspace,
+        isLoading: isLoadingWorkspace,
+        errorText: errorText,
+        onRetry: {
+          Task { await reloadWorkspace(playerId: player.id, context: loadContext) }
+        }
+      )
+      .environmentObject(appState)
+    }
+  }
+
+  private var isCurrentUserPlayer: Bool {
+    appState.myProfile?.isPlayer == true
+  }
+
+  private var selectedPlayerBinding: Binding<SDDevelopmentPlayer?> {
+    Binding(
+      get: {
+        guard !isCurrentUserPlayer, let selectedPlayerId else { return nil }
+        return players.first(where: { $0.id == selectedPlayerId })
+      },
+      set: { value in
+        if value == nil {
+          selectedPlayerId = nil
+          workspace = nil
+          errorText = nil
+        }
+      }
+    )
+  }
+
+  private var rosterWorkspace: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: HP.Space.md) {
         HPWorkspaceHeader(
-          "Programs & Development",
+          "Player Roster",
           orgLabel: organizationName,
-          context: "The same programs, results, sessions, and media shown on the website."
+          context: "Select a player to review their calendar, programs, testing, sessions, and media."
         )
-
-        sectionPicker
+        HPCard {
+          VStack(spacing: HP.Space.sm) {
+            HPSearchBar(text: $searchText, placeholder: "Search players")
+            Picker("Status", selection: $rosterStatus) {
+              ForEach(["All", "Submitted", "Missed", "Upcoming", "No Activity"], id: \.self) {
+                Text($0).tag($0)
+              }
+            }
+            .pickerStyle(.segmented)
+          }
+        }
 
         if isLoadingPlayers && players.isEmpty {
           HPLoadingState(text: "Loading players…")
         } else if let errorText, players.isEmpty {
           HPErrorState(message: errorText, onRetry: { Task { await reloadPlayers() } })
-        } else if players.isEmpty {
+        } else if filteredPlayers.isEmpty {
           HPEmptyState(
-            title: "No players available",
-            message: "Your organization and team access determine which players appear here.",
+            title: "No players match",
+            message: "Adjust the team, status, or player search.",
             systemImage: "person.3"
           )
         } else {
-          playerSelector
-          workspaceContent
+          HPCard {
+            VStack(spacing: 0) {
+              ForEach(Array(filteredPlayers.enumerated()), id: \.element.id) { index, player in
+                Button {
+                  selectedPlayerId = player.id
+                  workspace = nil
+                  Task { await reloadWorkspace(playerId: player.id, context: loadContext) }
+                } label: {
+                  rosterRow(player)
+                }
+                .buttonStyle(.plain)
+                if index < filteredPlayers.count - 1 {
+                  Divider().overlay(HP.Color.border)
+                }
+              }
+            }
+          }
         }
       }
       .padding(HP.Space.md)
@@ -62,25 +129,30 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
       .frame(maxWidth: .infinity, alignment: .center)
     }
     .background(HP.Color.bg)
-    .task(id: contextKey) { await reloadPlayers() }
-    .sheet(item: $selectedDay) { day in
-      DevelopmentDayDetailSheet(
-        playerName: workspace?.player.name ?? "Player",
-        day: day
+  }
+
+  @ViewBuilder
+  private var selfPlayerWorkspace: some View {
+    if let player = players.first {
+      DevelopmentPlayerWorkspaceScreen(
+        player: player,
+        workspace: $workspace,
+        isLoading: isLoadingWorkspace,
+        errorText: errorText,
+        onRetry: { Task { await reloadWorkspace(playerId: player.id, context: loadContext) } }
       )
       .environmentObject(appState)
+    } else if isLoadingPlayers {
+      HPLoadingState(text: "Loading your development workspace…")
+    } else if let errorText {
+      HPErrorState(message: errorText, onRetry: { Task { await reloadPlayers() } })
+    } else {
+      HPEmptyState(title: "Player workspace unavailable", systemImage: "person.crop.circle.badge.exclamationmark")
     }
   }
 
   private var contextKey: String {
     "\(appState.activeOrgId?.uuidString ?? "none"):\(appState.selectedTeamId?.uuidString ?? "all"):\(appState.teamContextToken.uuidString)"
-  }
-
-  private var initialSection: String {
-    if appState.myProfile?.isPlayer == true || appState.myProfile?.isParent == true {
-      return "Calendar"
-    }
-    return "Player Hub"
   }
 
   private var organizationName: String {
@@ -95,8 +167,50 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
 
   private var filteredPlayers: [SDDevelopmentPlayer] {
     let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return players }
-    return players.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    return players.filter { player in
+      let matchesSearch = query.isEmpty || player.name.localizedCaseInsensitiveContains(query)
+      let summary = player.summary_status?.replacingOccurrences(of: "_", with: " ").capitalized
+        ?? "No Activity"
+      return matchesSearch && (rosterStatus == "All" || summary == rosterStatus)
+    }
+  }
+
+  private func rosterRow(_ player: SDDevelopmentPlayer) -> some View {
+    HStack(spacing: HP.Space.sm) {
+      HPAvatar(
+        name: player.name,
+        size: .md,
+        imageURL: player.avatar_path.flatMap { appState.supabase?.publicAvatarURL(path: $0) }
+      )
+      VStack(alignment: .leading, spacing: 4) {
+        Text(player.name)
+          .font(HP.Font.body.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+        Text(player.team_names?.isEmpty == false ? player.team_names!.joined(separator: " · ") : "No team")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+        Text("\(player.active_program_count ?? 0) active · Next \(player.next_due_date ?? "Not scheduled")")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+      }
+      Spacer()
+      HPStatusBadge(
+        text: player.summary_status?.replacingOccurrences(of: "_", with: " ").capitalized ?? "No Activity",
+        kind: rosterBadge(player.summary_status)
+      )
+      Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
+    }
+    .padding(.vertical, HP.Space.sm)
+    .contentShape(Rectangle())
+  }
+
+  private func rosterBadge(_ status: String?) -> HPStatusKind {
+    switch status {
+    case "submitted": .success
+    case "missed": .danger
+    case "upcoming": .warning
+    default: .neutral
+    }
   }
 
   private var sectionPicker: some View {
@@ -354,7 +468,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
             playersRequestToken == requestToken,
             loadContext == context else { return }
       players = loaded
-      if let first = loaded.first {
+      if isCurrentUserPlayer, let first = loaded.first {
         selectedPlayerId = first.id
         await reloadWorkspace(playerId: first.id, context: context)
       }
@@ -415,6 +529,478 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
       teamId: appState.selectedTeamId,
       token: appState.teamContextToken
     )
+  }
+
+  private static func isoDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.string(from: date)
+  }
+}
+
+private struct DevelopmentPlayerWorkspaceScreen: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var appState: AppState
+
+  let player: SDDevelopmentPlayer
+  @Binding var workspace: SDPlayerDevelopmentWorkspace?
+  let isLoading: Bool
+  let errorText: String?
+  let onRetry: () -> Void
+
+  @State private var selectedTab: Tab = .calendar
+  @State private var selectedDay: SDDevelopmentDay?
+  @State private var month = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+  @State private var timelineFilter: TimelineFilter = .all
+  @State private var focusedDay: SDDevelopmentDay?
+  @State private var showPlayerManagement = false
+
+  private enum Tab: String, CaseIterable, Identifiable {
+    case calendar = "Calendar"
+    case timeline = "Timeline"
+    case programs = "Programs"
+    case profile = "Profile"
+    var id: String { rawValue }
+  }
+
+  private enum TimelineFilter: String, CaseIterable, Identifiable {
+    case all = "All Activity"
+    case programs = "Programs"
+    case testing = "Testing"
+    case sessions = "Sessions & Data"
+    case media = "Media"
+    var id: String { rawValue }
+  }
+
+  private var canManage: Bool {
+    ["owner", "admin", "coach"].contains(appState.activeOrgMembership?.normalizedRole ?? "")
+  }
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: 0) {
+        playerHeader
+        HPSegmentedControl(
+          options: Tab.allCases.map { (value: $0, label: $0.rawValue) },
+          selection: $selectedTab
+        )
+        .padding(.horizontal, HP.Space.md)
+        .padding(.vertical, HP.Space.sm)
+        .background(HP.Color.bg)
+
+        Group {
+          if isLoading && workspace == nil {
+            HPLoadingState(text: "Loading \(player.name)…")
+          } else if let errorText, workspace == nil {
+            HPErrorState(message: errorText, onRetry: onRetry)
+          } else if let workspace {
+            workspaceContent(workspace)
+          } else {
+            HPEmptyState(title: "Player workspace unavailable", systemImage: "person.crop.circle.badge.exclamationmark")
+          }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+      .background(HP.Color.bg)
+      .toolbar(.hidden, for: .navigationBar)
+    }
+    .onChange(of: workspace?.player.id) { _, _ in
+      guard let workspace else { return }
+      selectedDay = initialDay(workspace)
+      if let selectedDay, let date = Self.date(selectedDay.date) {
+        month = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: date)) ?? date
+      }
+    }
+    .sheet(item: $focusedDay) { day in
+      DevelopmentDayDetailSheet(playerName: player.name, day: day)
+        .environmentObject(appState)
+    }
+    .sheet(isPresented: $showPlayerManagement) {
+      CoachPlayerProfileView(
+        player: Profile(id: player.id, role: "player", full_name: player.name, avatar_path: player.avatar_path)
+      )
+      .environmentObject(appState)
+    }
+  }
+
+  private var playerHeader: some View {
+    HStack(spacing: HP.Space.sm) {
+      HPAvatar(
+        name: player.name,
+        size: .md,
+        imageURL: player.avatar_path.flatMap { appState.supabase?.publicAvatarURL(path: $0) }
+      )
+      VStack(alignment: .leading, spacing: 3) {
+        Text(player.name).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+        Text((player.team_names ?? []).joined(separator: " · "))
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .lineLimit(1)
+      }
+      Spacer()
+      if let workspace {
+        VStack(alignment: .trailing, spacing: 2) {
+          Text("\(workspace.assignments.filter { $0.status == "active" }.count) active")
+            .font(HP.Font.caption.weight(.semibold))
+          Text("\(completionPercent(workspace))% complete")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
+      }
+      if canManage {
+        Button {
+          showPlayerManagement = true
+        } label: {
+          Image(systemName: "plus")
+            .frame(width: 40, height: 40)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityLabel("Assign program")
+      }
+      Button {
+        dismiss()
+      } label: {
+        Image(systemName: "xmark").frame(width: 40, height: 40)
+      }
+      .buttonStyle(.bordered)
+      .accessibilityLabel("Close player workspace")
+    }
+    .padding(HP.Space.md)
+    .background(HP.Color.surface)
+    .overlay(alignment: .bottom) { Divider().overlay(HP.Color.border) }
+  }
+
+  @ViewBuilder
+  private func workspaceContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    switch selectedTab {
+    case .calendar:
+      ScrollView {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          calendar(workspace)
+          if let selectedDay {
+            daySummary(selectedDay)
+          } else {
+            HPEmptyState(title: "Select a date", message: "Choose a colored day to inspect its work and results.", systemImage: "calendar")
+          }
+        }
+        .padding(HP.Space.md)
+      }
+    case .timeline:
+      timeline(workspace)
+    case .programs:
+      programAssignments(workspace)
+    case .profile:
+      profile(workspace)
+    }
+  }
+
+  private func calendar(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HStack {
+        Button { changeMonth(-1) } label: { Image(systemName: "chevron.left") }
+          .buttonStyle(.bordered)
+        Spacer()
+        Text(month.formatted(.dateTime.month(.wide).year()))
+          .font(HP.Font.title.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+        Spacer()
+        Button { changeMonth(1) } label: { Image(systemName: "chevron.right") }
+          .buttonStyle(.bordered)
+      }
+
+      HStack(spacing: HP.Space.sm) {
+        legend("Submitted", color: HP.Color.success)
+        legend("Missed", color: HP.Color.danger)
+        legend("Scheduled", color: HP.Color.warning)
+      }
+
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: 7), spacing: 5) {
+        ForEach(Calendar.current.shortWeekdaySymbols, id: \.self) { weekday in
+          Text(weekday).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+        }
+        ForEach(Array(monthCells(workspace).enumerated()), id: \.offset) { _, cell in
+          if let cell {
+            dayCell(cell)
+          } else {
+            Color.clear.aspectRatio(1, contentMode: .fit)
+          }
+        }
+      }
+    }
+  }
+
+  private func legend(_ title: String, color: Color) -> some View {
+    HStack(spacing: 4) {
+      Circle().fill(color).frame(width: 7, height: 7)
+      Text(title).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+    }
+  }
+
+  private func dayCell(_ cell: (date: Date, day: SDDevelopmentDay?)) -> some View {
+    let selected = selectedDay?.date == Self.isoDate(cell.date)
+    let color = dayColor(cell.day)
+    return Button {
+      selectedDay = cell.day
+    } label: {
+      ZStack(alignment: .topTrailing) {
+        Text(cell.date.formatted(.dateTime.day()))
+          .font(HP.Font.body.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .padding(7)
+        if let day = cell.day, day.media_count > 0 {
+          Image(systemName: "camera.fill")
+            .font(.caption2)
+            .foregroundStyle(color)
+            .padding(6)
+        }
+      }
+      .aspectRatio(1, contentMode: .fit)
+      .background(color.opacity(cell.day == nil ? 0.03 : 0.18))
+      .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous)
+          .strokeBorder(selected ? HP.Color.accent : color.opacity(cell.day == nil ? 0.15 : 0.75), lineWidth: selected ? 2 : 1)
+      }
+    }
+    .buttonStyle(.plain)
+    .disabled(cell.day == nil)
+  }
+
+  private func daySummary(_ day: SDDevelopmentDay) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HStack {
+        Text("\(day.date) · \(day.status.title)")
+          .font(HP.Font.title.weight(.semibold))
+          .foregroundStyle(HP.Color.text)
+        Spacer()
+        HPStatusBadge(text: day.status.title, kind: day.status.badgeKind)
+      }
+      ForEach(dayGroups(day), id: \.title) { group in
+        VStack(alignment: .leading, spacing: HP.Space.xs) {
+          Text(group.title.uppercased())
+            .font(HP.Font.eyebrow)
+            .tracking(HP.Font.eyebrowTracking)
+            .foregroundStyle(HP.Color.textMuted)
+          if group.activities.isEmpty && group.media.isEmpty {
+            Text("No activity").font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
+          } else {
+            ForEach(group.activities) { activity in
+              Button { focusedDay = day } label: {
+                HStack {
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(activity.title).font(HP.Font.body.weight(.semibold)).foregroundStyle(HP.Color.text)
+                    Text(activity.subtitle ?? activity.source.capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                  }
+                  Spacer()
+                  Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
+                }
+                .padding(.vertical, 7)
+              }
+              .buttonStyle(.plain)
+            }
+            ForEach(group.media) { media in
+              Button { focusedDay = day } label: {
+                Label(media.title, systemImage: media.kind == .importFile ? "doc" : "play.rectangle")
+                  .font(HP.Font.body.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                  .padding(.vertical, 7)
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
+        .padding(.vertical, HP.Space.xs)
+        Divider().overlay(HP.Color.border)
+      }
+    }
+  }
+
+  private func timeline(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack {
+            ForEach(TimelineFilter.allCases) { filter in
+              Button {
+                timelineFilter = filter
+              } label: {
+                Text(filter.rawValue)
+                  .font(HP.Font.caption.weight(.semibold))
+                  .foregroundStyle(timelineFilter == filter ? HP.Color.bg : HP.Color.text)
+              }
+              .buttonStyle(.bordered)
+              .tint(timelineFilter == filter ? HP.Color.accent : HP.Color.border)
+            }
+          }
+        }
+        ForEach(filteredTimeline(workspace), id: \.day.id) { row in
+          Button { focusedDay = row.day } label: {
+            HStack(alignment: .top, spacing: HP.Space.sm) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(row.day.date).font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+                Text(row.title).font(HP.Font.body.weight(.semibold)).foregroundStyle(HP.Color.text)
+                Text(row.source).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer()
+              HPStatusBadge(text: row.day.status.title, kind: row.day.status.badgeKind)
+              if row.day.media_count > 0 { Image(systemName: "camera.fill").foregroundStyle(HP.Color.info) }
+            }
+            .padding(HP.Space.sm)
+            .background(HP.Color.surface)
+            .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      .padding(HP.Space.md)
+    }
+  }
+
+  private func programAssignments(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        ForEach(workspace.assignments.sorted { $0.status == "active" && $1.status != "active" }) { assignment in
+          HPCard {
+            VStack(alignment: .leading, spacing: HP.Space.xs) {
+              HStack {
+                Text(assignment.template_name).font(HP.Font.headline).foregroundStyle(HP.Color.text)
+                Spacer()
+                HPStatusBadge(text: assignment.status.capitalized, kind: assignment.status == "active" ? .success : .neutral)
+              }
+              Text("\(assignment.start_date) – \(assignment.end_date)")
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+              let scheduled = workspace.days.filter(\.scheduled)
+              let complete = scheduled.filter { $0.status == .submitted }.count
+              let missed = scheduled.filter { $0.status == .missed }.count
+              Text("\(complete) completed · \(missed) missed · \(max(0, scheduled.count - complete - missed)) upcoming")
+                .font(HP.Font.body)
+                .foregroundStyle(HP.Color.text)
+            }
+          }
+        }
+        if workspace.assignments.isEmpty {
+          HPEmptyState(title: "No assigned programs", systemImage: "list.clipboard")
+        }
+      }
+      .padding(HP.Space.md)
+    }
+  }
+
+  private func profile(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    ScrollView {
+      HPCard {
+        VStack(alignment: .leading, spacing: HP.Space.md) {
+          HPAvatar(
+            name: workspace.player.name,
+            size: .lg,
+            imageURL: workspace.player.avatar_path.flatMap { appState.supabase?.publicAvatarURL(path: $0) }
+          )
+          Text(workspace.player.name).font(HP.Font.title.weight(.bold)).foregroundStyle(HP.Color.text)
+          if let bio = workspace.player.bio, !bio.isEmpty {
+            Text(bio).font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
+          }
+          if let instagram = workspace.player.instagram_url, let url = URL(string: instagram) {
+            Link("Instagram", destination: url)
+          }
+          if let perfectGame = workspace.player.perfect_game_url, let url = URL(string: perfectGame) {
+            Link("Perfect Game", destination: url)
+          }
+        }
+      }
+      .padding(HP.Space.md)
+    }
+  }
+
+  private func completionPercent(_ workspace: SDPlayerDevelopmentWorkspace) -> Int {
+    let scheduled = workspace.days.filter(\.scheduled)
+    guard !scheduled.isEmpty else { return 0 }
+    return Int((Double(scheduled.filter { $0.status == .submitted }.count) / Double(scheduled.count) * 100).rounded())
+  }
+
+  private func initialDay(_ workspace: SDPlayerDevelopmentWorkspace) -> SDDevelopmentDay? {
+    let today = Self.isoDate(Date())
+    return workspace.days.first(where: { $0.date == today }) ?? workspace.days.sorted { $0.date > $1.date }.first
+  }
+
+  private func changeMonth(_ value: Int) {
+    month = Calendar.current.date(byAdding: .month, value: value, to: month) ?? month
+  }
+
+  private func monthCells(_ workspace: SDPlayerDevelopmentWorkspace) -> [(date: Date, day: SDDevelopmentDay?)?] {
+    let calendar = Calendar.current
+    guard let interval = calendar.dateInterval(of: .month, for: month),
+          let days = calendar.range(of: .day, in: .month, for: month) else { return [] }
+    let firstWeekday = calendar.component(.weekday, from: interval.start)
+    let byDate = Dictionary(uniqueKeysWithValues: workspace.days.map { ($0.date, $0) })
+    var cells: [(date: Date, day: SDDevelopmentDay?)?] = Array(repeating: nil, count: max(0, firstWeekday - 1))
+    for number in days {
+      if let date = calendar.date(bySetting: .day, value: number, of: interval.start) {
+        cells.append((date, byDate[Self.isoDate(date)]))
+      }
+    }
+    return cells
+  }
+
+  private func dayColor(_ day: SDDevelopmentDay?) -> Color {
+    guard let day else { return HP.Color.border }
+    switch day.status {
+    case .submitted: return HP.Color.success
+    case .missed: return HP.Color.danger
+    case .upcoming: return HP.Color.warning
+    }
+  }
+
+  private struct DayGroup {
+    let title: String
+    let activities: [SDDevelopmentActivity]
+    let media: [SDDevelopmentMedia]
+  }
+
+  private func dayGroups(_ day: SDDevelopmentDay) -> [DayGroup] {
+    [
+      DayGroup(title: "Program Work", activities: day.activities.filter { $0.kind == .program }, media: day.media.filter { $0.kind == .programSetVideo }),
+      DayGroup(title: "Testing", activities: day.activities.filter { $0.kind == .testing }, media: day.media.filter { $0.kind == .testingFieldVideo }),
+      DayGroup(title: "Sessions & Data", activities: day.activities.filter { [.session, .providerImport, .providerMetric].contains($0.kind) }, media: day.media.filter { [.sessionVideo, .importFile].contains($0.kind) }),
+      DayGroup(title: "Media & Files", activities: [], media: day.media),
+    ]
+  }
+
+  private struct TimelineRow {
+    let day: SDDevelopmentDay
+    let title: String
+    let source: String
+  }
+
+  private func filteredTimeline(_ workspace: SDPlayerDevelopmentWorkspace) -> [TimelineRow] {
+    workspace.days.sorted { $0.date > $1.date }.compactMap { day in
+      let activities: [SDDevelopmentActivity]
+      switch timelineFilter {
+      case .all: activities = day.activities
+      case .programs: activities = day.activities.filter { [.program, .dailyLog].contains($0.kind) }
+      case .testing: activities = day.activities.filter { $0.kind == .testing }
+      case .sessions: activities = day.activities.filter { [.session, .providerImport, .providerMetric].contains($0.kind) }
+      case .media: activities = day.media.isEmpty ? [] : day.activities
+      }
+      if let activity = activities.first {
+        return TimelineRow(day: day, title: activity.title, source: activity.source.capitalized)
+      }
+      if timelineFilter == .all || timelineFilter == .media, let media = day.media.first {
+        return TimelineRow(day: day, title: media.title, source: media.source.capitalized)
+      }
+      return nil
+    }
+  }
+
+  private static func date(_ value: String) -> Date? {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.date(from: value)
   }
 
   private static func isoDate(_ date: Date) -> String {
@@ -579,16 +1165,22 @@ private struct DevelopmentActivityCard: View {
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.warning)
         }
-        ForEach(activity.details.sorted(by: { $0.key < $1.key }).filter { !$0.value.compactText.isEmpty }, id: \.key) { key, value in
+        ForEach(activity.fields ?? [], id: \.key) { field in
           HStack(alignment: .top) {
-            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+            Text(field.label)
               .font(HP.Font.caption.weight(.semibold))
               .foregroundStyle(HP.Color.textMuted)
               .frame(maxWidth: 140, alignment: .leading)
-            Text(value.compactText)
+            Text([field.value, field.unit].compactMap { $0 }.joined(separator: " "))
               .font(HP.Font.body)
               .foregroundStyle(HP.Color.text)
               .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+        if let notes = activity.notes, !notes.isEmpty {
+          VStack(alignment: .leading, spacing: 3) {
+            Text("Notes").font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+            Text(notes).font(HP.Font.body).foregroundStyle(HP.Color.text)
           }
         }
       }

@@ -18,7 +18,7 @@ struct PlayerDevelopmentWorkspaceContractTests {
   @Test("Swift decodes every shared section and source")
   func decodesSharedContract() throws {
     let workspace = try fixture()
-    #expect(workspace.schema_version == 1)
+    #expect(workspace.schema_version == 2)
     #expect(workspace.player.name == "Parity Player")
     #expect(workspace.sections == [
       "Player Hub",
@@ -32,6 +32,12 @@ struct PlayerDevelopmentWorkspaceContractTests {
     ])
     #expect(Set(workspace.provider_sessions.map(\.provider)) == ["trackman", "rapsodo"])
     #expect(workspace.days.flatMap(\.activities).contains { $0.source == "hittrax" })
+    let squat = try #require(
+      workspace.days.flatMap(\.activities).first { $0.title == "Back Squat" }
+    )
+    #expect(squat.fields?.map(\.label) == ["Sets", "Reps", "Weight", "Velocity"])
+    #expect(squat.fields?.first { $0.label == "Weight" }?.unit == "lb")
+    #expect(squat.notes == "Moved well")
   }
 
   @Test("Video-only, missed, and upcoming statuses are authoritative")

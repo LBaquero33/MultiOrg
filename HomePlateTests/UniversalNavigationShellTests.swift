@@ -17,7 +17,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     )
     XCTAssertEqual(
       inventory.regularItems.map(\.title),
-      ["Today", "Calendar", "Facilities", "Program", "Progress", "Messages", "Account"]
+      ["Today", "Calendar", "Facilities", "Programs & Development", "Progress", "Messages", "Account"]
     )
     XCTAssertTrue(inventory.compactItems.isEmpty)
     XCTAssertTrue(inventory.directoryItems.isEmpty)
@@ -48,11 +48,11 @@ final class UniversalNavigationShellTests: XCTestCase {
 
     XCTAssertEqual(
       inventory.regularItems.map(\.destination),
-      [.parentHome, .parentChildren, .parentCalendar, .payments, .chat, .account]
+      [.parentHome, .parentChildren, .parentCalendar, .playerProgram, .payments, .chat, .account]
     )
     XCTAssertEqual(
       inventory.regularItems.map(\.title),
-      ["Home", "Children", "Calendar", "Payments", "Messages", "Account"]
+      ["Home", "Children", "Calendar", "Programs & Development", "Payments", "Messages", "Account"]
     )
     XCTAssertTrue(inventory.compactItems.isEmpty)
     XCTAssertTrue(inventory.directoryItems.isEmpty)
