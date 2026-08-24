@@ -60,6 +60,7 @@ hp_table <- function(id, title, data, description = NULL) {
 
 hp_chart <- function(id, title, type, data, x = NULL, y = NULL, series = NULL, description = NULL, options = list()) {
   rows <- if (is.data.frame(data)) unname(lapply(seq_len(nrow(data)), function(i) as.list(data[i, , drop = FALSE]))) else data
+  if (!length(options)) names(options) <- character()
   list(id = id, title = title, type = type, description = description, x = x, y = y, series = series, data = rows, options = options)
 }
 

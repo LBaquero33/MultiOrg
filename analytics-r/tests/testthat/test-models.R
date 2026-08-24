@@ -58,6 +58,7 @@ testthat::test_that("analysis JSON preserves object and array contract shapes", 
   testthat::expect_type(decoded$summary_metrics[[1]]$key, "character")
   testthat::expect_null(decoded$summary_metrics[[1]]$guidance)
   testthat::expect_null(decoded$source_coverage$models[[1]]$unavailable_reason)
+  testthat::expect_identical(names(decoded$charts[[1]]$options), character())
 })
 
 testthat::test_that("pitching overview and count topics expose every planned table", {
