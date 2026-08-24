@@ -264,7 +264,10 @@ async function resolveScope(
   let allowedPlayerIds = new Set<string>();
   if (role === "owner" || role === "admin") {
     allowedTeamIds = allTeamIds;
-    allowedPlayerIds = activeOrgPlayers;
+    allowedPlayerIds = new Set([
+      ...activeOrgPlayers,
+      ...allRosters.map((row) => stringValue(row.player_id)).filter((id): id is string => !!id),
+    ]);
   } else if (role === "coach") {
     const assignments = await queryRows(
       admin.from("sd_coach_team_assignments")

@@ -185,7 +185,7 @@ struct GameCalendarView: View {
   }
 
   private var canCreateEvents: Bool {
-    appState.activeOrgMembership?.isStaff == true
+    appState.canAdminActiveOrg || !appState.authorizedScheduleTeams.isEmpty
   }
 
   private func moveMonth(_ offset: Int) {
@@ -256,6 +256,9 @@ private struct CanonicalEventEditorView: View {
   @State private var locationName: String
   @State private var venueAddress: String
   @State private var selectedTeamId: UUID?
+  @State private var opponentName: String
+  @State private var gameSite: SDGameSite
+  @State private var scheduledInnings: Int
   @State private var isSaving = false
   @State private var errorText: String?
 
@@ -280,6 +283,9 @@ private struct CanonicalEventEditorView: View {
     _locationName = State(initialValue: event?.location_name ?? "")
     _venueAddress = State(initialValue: event?.venue_address ?? "")
     _selectedTeamId = State(initialValue: event?.team_id ?? teams.first?.id)
+    _opponentName = State(initialValue: event?.event_type == .game ? event?.title ?? "" : "")
+    _gameSite = State(initialValue: .home)
+    _scheduledInnings = State(initialValue: 7)
   }
 
   var body: some View {
@@ -288,7 +294,7 @@ private struct CanonicalEventEditorView: View {
         Section("Event") {
           TextField("Event name", text: $title)
           Picker("Type", selection: $eventType) {
-            ForEach(SDGameEventType.allCases, id: \.self) { type in
+            ForEach(SDGameEventType.allCases.filter { $0 != .facilityBooking }, id: \.self) { type in
               Text(eventTypeLabel(type)).tag(type)
             }
           }
@@ -301,6 +307,17 @@ private struct CanonicalEventEditorView: View {
             }
           }
           TextField("Description", text: $description, axis: .vertical)
+        }
+        if eventType == .game {
+          Section("Game details") {
+            TextField("Opponent", text: $opponentName)
+            Picker("Site", selection: $gameSite) {
+              ForEach(SDGameSite.allCases, id: \.self) { site in
+                Text(site.rawValue.capitalized).tag(site)
+              }
+            }
+            Stepper("Scheduled innings: \(scheduledInnings)", value: $scheduledInnings, in: 1...20)
+          }
         }
         Section("Date and time") {
           DatePicker("Starts", selection: $start)
@@ -351,7 +368,10 @@ private struct CanonicalEventEditorView: View {
       venueAddress: venueAddress,
       facilityId: event?.facility_id,
       teamId: selectedTeamId,
-      visibility: selectedTeamId == nil ? .organization : .team
+      visibility: selectedTeamId == nil ? .organization : .team,
+      opponentName: opponentName,
+      gameSite: gameSite,
+      scheduledInnings: scheduledInnings
     )
     do {
       if let event, !duplicatesEvent {

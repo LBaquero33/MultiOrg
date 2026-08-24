@@ -16,6 +16,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
   @State private var errorText: String?
   @State private var playersRequestToken = UUID()
   @State private var workspaceRequestToken = UUID()
+  @State private var showTemplateBuilder = false
 
   private let visibleSections = [
     "Player Hub", "Calendar", "Programs", "Testing", "Sessions & Data", "Media",
@@ -52,6 +53,10 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
       )
       .environmentObject(appState)
     }
+    .sheet(isPresented: $showTemplateBuilder) {
+      CoachProgramsView()
+        .environmentObject(appState)
+    }
   }
 
   private var isCurrentUserPlayer: Bool {
@@ -82,6 +87,16 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
           orgLabel: organizationName,
           context: "Select a player to review their calendar, programs, testing, sessions, and media."
         )
+        if appState.canAdminActiveOrg || appState.myProfile?.isCoach == true {
+          HPButton(
+            title: "Template Builder",
+            systemImage: "rectangle.stack.badge.plus",
+            variant: .primary,
+            size: .md
+          ) {
+            showTemplateBuilder = true
+          }
+        }
         HPCard {
           VStack(spacing: HP.Space.sm) {
             HPSearchBar(text: $searchText, placeholder: "Search players")

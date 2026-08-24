@@ -15,6 +15,11 @@ verify_jwt = false
 [functions.delete-account]
 verify_jwt = true
 
+# Public tryout/camp listing, registration status, and signed QR check-in.
+# This function derives organization scope from a published site or signed token.
+[functions.registration-public]
+verify_jwt = false
+
 # Stripe calls this endpoint directly, so it validates Stripe's signed payload
 # itself instead of requiring a Supabase user JWT.
 [functions.stripe-platform-webhook]

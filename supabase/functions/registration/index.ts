@@ -15,6 +15,7 @@ import {
   registrationIsOpen,
   sanitizeRegistration,
 } from "../_shared/organization_operations.ts";
+import { handleConnectedRegistrationAction } from "../_shared/registration_workspace.ts";
 
 Deno.serve(async (req) => {
   const preflight = corsPreflight(req);
@@ -23,6 +24,12 @@ Deno.serve(async (req) => {
     const payload = record(await req.json());
     const ctx = await organizationContext(req, payload);
     const action = text(payload.action);
+    const connectedResult = await handleConnectedRegistrationAction(
+      ctx,
+      payload,
+      action,
+    );
+    if (connectedResult) return ok(connectedResult);
     if (action === "offerings") {
       const query = ctx.admin.from("sd_registration_offerings").select(
         "*,requirements:sd_registration_offering_requirements(*,template:sd_registration_requirement_templates(*))",

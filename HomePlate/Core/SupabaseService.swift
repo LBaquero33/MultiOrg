@@ -1686,7 +1686,7 @@ final class SupabaseService: ObservableObject {
   /// Edge Functions do not automatically refresh the bearer token in every
   /// long-running desktop session. Refresh first, then explicitly install the
   /// current access token so authorized team/admin calls cannot drift into 401.
-  private func invokeAuthenticatedFunction<Response: Decodable, Body: Encodable>(
+  func invokeAuthenticatedFunction<Response: Decodable, Body: Encodable>(
     _ name: String,
     body: Body
   ) async throws -> Response {

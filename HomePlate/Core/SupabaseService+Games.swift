@@ -15,6 +15,9 @@ extension SupabaseService {
     var facilityId: UUID?
     var teamId: UUID?
     var visibility: SDEventVisibility
+    var opponentName: String = ""
+    var gameSite: SDGameSite = .home
+    var scheduledInnings: Int = 7
   }
 
   func listCanonicalEvents(
@@ -48,45 +51,16 @@ extension SupabaseService {
     organizationId: UUID,
     draft: SDCanonicalEventDraft
   ) async throws -> SDCanonicalEvent {
-    struct Insert: Encodable {
-      let org_id: UUID
-      let title: String
-      let event_type: String
-      let description: String?
-      let scheduled_start: Date
-      let scheduled_end: Date
-      let arrival_time: Date?
-      let timezone: String
-      let location_name: String?
-      let venue_address: String?
-      let facility_id: UUID?
-      let team_id: UUID?
-      let visibility: String
-      let status: String
-      let recurrence: [String: SDJSONValue]
-      let created_by: UUID
-      let updated_by: UUID
-    }
-    let userId = try await client.auth.session.user.id
-    return try await client.from("sd_events").insert(Insert(
-      org_id: organizationId,
-      title: draft.title,
-      event_type: draft.eventType.rawValue,
-      description: draft.description.sdNilIfBlank,
-      scheduled_start: draft.start,
-      scheduled_end: draft.end,
-      arrival_time: draft.arrival,
-      timezone: TimeZone.current.identifier,
-      location_name: draft.locationName.sdNilIfBlank,
-      venue_address: draft.venueAddress.sdNilIfBlank,
-      facility_id: draft.facilityId,
-      team_id: draft.teamId,
-      visibility: draft.teamId == nil ? SDEventVisibility.organization.rawValue : draft.visibility.rawValue,
-      status: SDGameLifecycle.scheduled.rawValue,
-      recurrence: [:],
-      created_by: userId,
-      updated_by: userId
-    )).select().single().execute().value
+    let response: SDCanonicalEventMutationResponse = try await invokeAuthenticatedFunction(
+      "web-operations",
+      body: canonicalEventMutationBody(
+        action: "create_event",
+        organizationId: organizationId,
+        eventId: nil,
+        draft: draft
+      )
+    )
+    return response.event
   }
 
   func updateCanonicalEvent(
@@ -94,52 +68,88 @@ extension SupabaseService {
     organizationId: UUID,
     draft: SDCanonicalEventDraft
   ) async throws -> SDCanonicalEvent {
-    struct Patch: Encodable {
-      let title: String
-      let event_type: String
-      let description: String?
-      let scheduled_start: Date
-      let scheduled_end: Date
-      let arrival_time: Date?
-      let timezone: String
-      let location_name: String?
-      let venue_address: String?
-      let facility_id: UUID?
-      let team_id: UUID?
-      let visibility: String
-      let updated_by: UUID
-    }
-    let userId = try await client.auth.session.user.id
-    return try await client.from("sd_events").update(Patch(
-      title: draft.title,
-      event_type: draft.eventType.rawValue,
-      description: draft.description.sdNilIfBlank,
-      scheduled_start: draft.start,
-      scheduled_end: draft.end,
-      arrival_time: draft.arrival,
-      timezone: TimeZone.current.identifier,
-      location_name: draft.locationName.sdNilIfBlank,
-      venue_address: draft.venueAddress.sdNilIfBlank,
-      facility_id: draft.facilityId,
-      team_id: draft.teamId,
-      visibility: draft.teamId == nil ? SDEventVisibility.organization.rawValue : draft.visibility.rawValue,
-      updated_by: userId
-    )).eq("id", value: id).eq("org_id", value: organizationId)
-      .select().single().execute().value
+    let response: SDCanonicalEventMutationResponse = try await invokeAuthenticatedFunction(
+      "web-operations",
+      body: canonicalEventMutationBody(
+        action: "update_event",
+        organizationId: organizationId,
+        eventId: id,
+        draft: draft
+      )
+    )
+    return response.event
   }
 
   func cancelCanonicalEvent(id: UUID, organizationId: UUID) async throws {
-    struct Patch: Encodable {
-      let status: String
-      let canceled_at: Date
-      let updated_by: UUID
-    }
-    let userId = try await client.auth.session.user.id
-    _ = try await client.from("sd_events").update(Patch(
-      status: SDGameLifecycle.canceled.rawValue,
-      canceled_at: Date(),
-      updated_by: userId
-    )).eq("id", value: id).eq("org_id", value: organizationId).execute()
+    let _: SDCanonicalEventCancellationResponse = try await invokeAuthenticatedFunction(
+      "web-operations",
+      body: SDCanonicalEventCancellationRequest(
+        action: "cancel_event",
+        organization_id: organizationId.uuidString.lowercased(),
+        event_id: id.uuidString.lowercased()
+      )
+    )
+  }
+
+  private struct SDCanonicalEventMutationResponse: Decodable {
+    let event: SDCanonicalEvent
+  }
+
+  private struct SDCanonicalEventCancellationResponse: Decodable {
+    let ok: Bool
+  }
+
+  private struct SDCanonicalEventCancellationRequest: Encodable {
+    let action: String
+    let organization_id: String
+    let event_id: String
+  }
+
+  private struct SDCanonicalEventMutationRequest: Encodable {
+    let action: String
+    let organization_id: String
+    let event_id: String?
+    let title: String
+    let event_type: String
+    let description: String?
+    let scheduled_start: String
+    let scheduled_end: String
+    let arrival_time: String?
+    let timezone: String
+    let location_name: String?
+    let venue_address: String?
+    let facility_id: String?
+    let team_id: String?
+    let opponent_name: String?
+    let site: String
+    let scheduled_innings: Int
+  }
+
+  private func canonicalEventMutationBody(
+    action: String,
+    organizationId: UUID,
+    eventId: UUID?,
+    draft: SDCanonicalEventDraft
+  ) -> SDCanonicalEventMutationRequest {
+    SDCanonicalEventMutationRequest(
+      action: action,
+      organization_id: organizationId.uuidString.lowercased(),
+      event_id: eventId?.uuidString.lowercased(),
+      title: draft.title,
+      event_type: draft.eventType.rawValue,
+      description: draft.description.sdNilIfBlank,
+      scheduled_start: ISO8601DateFormatter().string(from: draft.start),
+      scheduled_end: ISO8601DateFormatter().string(from: draft.end),
+      arrival_time: draft.arrival.map { ISO8601DateFormatter().string(from: $0) },
+      timezone: TimeZone.current.identifier,
+      location_name: draft.locationName.sdNilIfBlank,
+      venue_address: draft.venueAddress.sdNilIfBlank,
+      facility_id: draft.facilityId?.uuidString.lowercased(),
+      team_id: draft.teamId?.uuidString.lowercased(),
+      opponent_name: draft.opponentName.sdNilIfBlank,
+      site: draft.gameSite.rawValue,
+      scheduled_innings: draft.scheduledInnings
+    )
   }
 
   func listGames(organizationId: UUID, eventIds: [UUID]? = nil) async throws -> [SDGame] {
