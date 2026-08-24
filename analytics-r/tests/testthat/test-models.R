@@ -4,6 +4,18 @@ testthat::test_that("catalog exposes every planned topic", {
   testthat::expect_setequal(names(catalog$disciplines$hitting$topics), c("overview_quality", "contact_spray", "swing_decisions", "count_approach", "velocity_exposure", "zone_maps", "two_strikes"))
 })
 
+testthat::test_that("catalog JSON uses scalar labels and versions", {
+  encoded <- jsonlite::toJSON(hp_catalog(), auto_unbox = TRUE, na = "null")
+  decoded <- jsonlite::fromJSON(encoded, simplifyVector = FALSE)
+  testthat::expect_length(decoded$schema_version, 1)
+  testthat::expect_type(decoded$model_version, "character")
+  testthat::expect_length(decoded$model_version, 1)
+  testthat::expect_type(decoded$disciplines$hitting$topics$overview_quality$label, "character")
+  testthat::expect_length(decoded$disciplines$hitting$topics$overview_quality$label, 1)
+  testthat::expect_type(decoded$disciplines$pitching$topics$overview_arsenal$label, "character")
+  testthat::expect_length(decoded$disciplines$pitching$topics$overview_arsenal$label, 1)
+})
+
 testthat::test_that("every topic model has exactly one availability definition", {
   catalog <- hp_catalog()
   for (discipline in c("pitching", "hitting")) {

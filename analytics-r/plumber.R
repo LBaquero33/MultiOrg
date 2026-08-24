@@ -17,6 +17,7 @@ function() list(status = "ok", service = "homeplate-r-analytics", model_version 
 #* @get /readyz
 function() list(status = "ready", catalog_version = HP_SCHEMA_VERSION, disciplines = c("hitting", "pitching"))
 
+#* @serializer json list(na="null", auto_unbox=TRUE)
 #* @get /v1/catalog
 function() hp_catalog()
 
