@@ -17,11 +17,11 @@ function() list(status = "ok", service = "homeplate-r-analytics", model_version 
 #* @get /readyz
 function() list(status = "ready", catalog_version = HP_SCHEMA_VERSION, disciplines = c("hitting", "pitching"))
 
-#* @serializer json list(na="null", auto_unbox=TRUE)
+#* @serializer json list(na="null", null="null", auto_unbox=TRUE)
 #* @get /v1/catalog
 function() hp_catalog()
 
-#* @serializer json list(na="null", auto_unbox=TRUE)
+#* @serializer json list(na="null", null="null", auto_unbox=TRUE)
 #* @post /v1/analyze
 function(req, res) {
   payload <- tryCatch(jsonlite::fromJSON(req$postBody, simplifyVector = FALSE), error = function(e) NULL)
@@ -45,7 +45,7 @@ function(req, res) {
   })
 }
 
-#* @serializer json list(na="null", auto_unbox=TRUE)
+#* @serializer json list(na="null", null="null", auto_unbox=TRUE)
 #* @post /v1/precompute
 function(req, res) {
   payload <- tryCatch(jsonlite::fromJSON(req$postBody, simplifyVector = FALSE), error = function(e) NULL)
@@ -59,7 +59,7 @@ function(req, res) {
   list(model_version = HP_MODEL_VERSION, results = results)
 }
 
-#* @serializer json list(na="null", auto_unbox=TRUE)
+#* @serializer json list(na="null", null="null", auto_unbox=TRUE)
 #* @post /v1/benchmarks/build
 function(req, res) {
   payload <- tryCatch(jsonlite::fromJSON(req$postBody, simplifyVector = FALSE), error = function(e) NULL)
@@ -81,7 +81,7 @@ function(req, res) {
   })
 }
 
-#* @serializer json list(na="null", auto_unbox=TRUE)
+#* @serializer json list(na="null", null="null", auto_unbox=TRUE)
 #* @post /v1/cache/invalidate
 function(req, res) {
   payload <- tryCatch(jsonlite::fromJSON(req$postBody, simplifyVector = FALSE), error = function(e) NULL)

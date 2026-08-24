@@ -48,7 +48,7 @@ testthat::test_that("analysis JSON preserves object and array contract shapes", 
     list(discipline = "hitting", module = "contact_spray", provider = "trackman")
   )
   decoded <- jsonlite::fromJSON(
-    jsonlite::toJSON(result, auto_unbox = TRUE, na = "null"),
+    jsonlite::toJSON(result, auto_unbox = TRUE, na = "null", null = "null"),
     simplifyVector = FALSE
   )
   testthat::expect_identical(names(decoded$filters), character())
@@ -56,6 +56,8 @@ testthat::test_that("analysis JSON preserves object and array contract shapes", 
   testthat::expect_length(decoded$summary_metrics, 2)
   testthat::expect_named(decoded$summary_metrics[[1]])
   testthat::expect_type(decoded$summary_metrics[[1]]$key, "character")
+  testthat::expect_null(decoded$summary_metrics[[1]]$guidance)
+  testthat::expect_null(decoded$source_coverage$models[[1]]$unavailable_reason)
 })
 
 testthat::test_that("pitching overview and count topics expose every planned table", {
