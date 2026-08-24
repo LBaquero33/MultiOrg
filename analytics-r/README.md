@@ -40,3 +40,21 @@ secrets with the same HMAC value:
 The source applications under the external Marist and MLB Attack directories
 are reference implementations and are never modified or deployed with this
 service.
+
+## Synthetic player demo sources
+
+`scripts/seed_player_demo_sources.ts` creates one private, clearly labeled
+TrackMan demo source for every active player in a selected organization. It is
+idempotent and uses service-role access only while the script is running. Demo
+imports are marked synthetic and excluded from pooled benchmarks.
+
+```sh
+SUPABASE_URL=https://project-ref.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=... \
+HOME_PLATE_SEED_ORG_ID=... \
+HOME_PLATE_SEED_FIXTURE=/absolute/path/to/TestTrackMan.csv \
+deno run --allow-env --allow-net --allow-read \
+  scripts/seed_player_demo_sources.ts
+```
+
+Never commit the service-role key or copy it into a client configuration.
