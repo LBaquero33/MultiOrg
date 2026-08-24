@@ -3,6 +3,7 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
+  ANALYTICS_MODEL_VERSION,
   type AnalyticsDiscipline,
   type AnalyticsFilters,
   type AnalyticsRequest,
@@ -150,13 +151,19 @@ async function authorizePlayer(
       : Promise.resolve([]),
   ]);
   const playerTeamIds = new Set(
-    playerRosters.map((row) => stringValue(row.team_id)).filter((value): value is string => !!value),
+    playerRosters.map((row) => stringValue(row.team_id)).filter((
+      value,
+    ): value is string => !!value),
   );
   const coachTeamIds = new Set(
-    coachAssignments.map((row) => stringValue(row.team_id)).filter((value): value is string => !!value),
+    coachAssignments.map((row) => stringValue(row.team_id)).filter((
+      value,
+    ): value is string => !!value),
   );
   const linkedChildIds = new Set(
-    parentLinks.map((row) => stringValue(row.child_id)).filter((value): value is string => !!value),
+    parentLinks.map((row) => stringValue(row.child_id)).filter((
+      value,
+    ): value is string => !!value),
   );
   const organizationWide = coachAssignments.some((row) =>
     boolValue(row.organization_wide_access)
@@ -260,7 +267,9 @@ async function resolveImport(
     .not("storage_bucket", "is", null).not("storage_path", "is", null);
   if (requestedId) query = query.eq("id", requestedId);
   if (requestedProvider) query = query.eq("provider", requestedProvider);
-  const { data, error } = await query.order("completed_at", { ascending: false })
+  const { data, error } = await query.order("completed_at", {
+    ascending: false,
+  })
     .order("created_at", { ascending: false }).limit(1);
   if (error) throw new AnalyticsError("analytics_source_lookup_failed", 500);
   const job = rows(data)[0];
@@ -335,7 +344,7 @@ async function analysisPayload(
     module: request.module,
     provider: stringValue(job.provider) ?? "trackman",
     filters,
-    model_version: "homeplate-r-analytics.v1",
+    model_version: ANALYTICS_MODEL_VERSION,
     benchmark_version: "homeplate-trackman-age-bands.v1",
   });
   const cacheKey = await sha256(cacheMaterial);
@@ -384,9 +393,11 @@ Deno.serve(async (request) => {
       playerId,
     );
     if (action === "invalidate_player_cache") {
-      return json(await callAnalytics("/v1/cache/invalidate", "POST", {
-        cache_key: cacheKey,
-      }));
+      return json(
+        await callAnalytics("/v1/cache/invalidate", "POST", {
+          cache_key: cacheKey,
+        }),
+      );
     }
     if (action !== "run_analysis" && action !== "get_cached_analysis") {
       throw new AnalyticsError("invalid_action", 400);

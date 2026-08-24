@@ -1,4 +1,5 @@
-export const ANALYTICS_SCHEMA_VERSION = 1;
+export const ANALYTICS_SCHEMA_VERSION = 2;
+export const ANALYTICS_MODEL_VERSION = "homeplate-r-analytics.v2";
 
 export const ANALYTICS_DISCIPLINES = ["hitting", "pitching"] as const;
 export type AnalyticsDiscipline = typeof ANALYTICS_DISCIPLINES[number];
@@ -36,8 +37,12 @@ export type AnalyticsFilters = {
 };
 
 export type AnalyticsRequest = {
-  action?: "get_catalog" | "list_sources" | "run_analysis" | "get_cached_analysis" |
-    "invalidate_player_cache";
+  action?:
+    | "get_catalog"
+    | "list_sources"
+    | "run_analysis"
+    | "get_cached_analysis"
+    | "invalidate_player_cache";
   org_id?: string;
   player_id?: string;
   import_job_id?: string;
@@ -145,9 +150,11 @@ export function stableStringify(value: unknown): string {
     return `[${value.map((item) => stableStringify(item)).join(",")}]`;
   }
   const object = value as Record<string, unknown>;
-  return `{${Object.keys(object).sort().map((key) =>
-    `${JSON.stringify(key)}:${stableStringify(object[key])}`
-  ).join(",")}}`;
+  return `{${
+    Object.keys(object).sort().map((key) =>
+      `${JSON.stringify(key)}:${stableStringify(object[key])}`
+    ).join(",")
+  }}`;
 }
 
 export function canAccessPlayer(
