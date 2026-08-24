@@ -1,0 +1,5 @@
+.git
+.Rhistory
+.Rproj.user
+renv/library
+tests/testthat/fixtures/*.csv

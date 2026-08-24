@@ -1,0 +1,12 @@
+Package: homeplateanalytics
+Type: Package
+Title: Home Plate Player Development Analytics
+Version: 0.1.0
+Authors@R: person("Home Plate", "Engineering", email = "support@homeplateapps.com", role = c("aut", "cre"))
+Description: Pure, versioned TrackMan, HitTrax, and Rapsodo analytics used by the Home Plate API.
+License: Proprietary
+Encoding: UTF-8
+Depends: R (>= 4.3.0)
+Imports: digest, jsonlite, plumber
+Suggests: testthat
+Config/testthat/edition: 3

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: homeplate-r-analytics
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /readyz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: HOME_PLATE_ANALYTICS_HMAC_SECRET
+        sync: false
