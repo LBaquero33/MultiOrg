@@ -42,6 +42,22 @@ testthat::test_that("all pitching and hitting topics return the shared contract"
   }
 })
 
+testthat::test_that("analysis JSON preserves object and array contract shapes", {
+  result <- hp_analyze(
+    make_trackman_fixture(),
+    list(discipline = "hitting", module = "contact_spray", provider = "trackman")
+  )
+  decoded <- jsonlite::fromJSON(
+    jsonlite::toJSON(result, auto_unbox = TRUE, na = "null"),
+    simplifyVector = FALSE
+  )
+  testthat::expect_identical(names(decoded$filters), character())
+  testthat::expect_null(names(decoded$summary_metrics))
+  testthat::expect_length(decoded$summary_metrics, 2)
+  testthat::expect_named(decoded$summary_metrics[[1]])
+  testthat::expect_type(decoded$summary_metrics[[1]]$key, "character")
+})
+
 testthat::test_that("pitching overview and count topics expose every planned table", {
   fixture <- hp_prepare(make_trackman_fixture())
   overview <- hp_pitching_analysis(fixture, "overview_arsenal")

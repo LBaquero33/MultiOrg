@@ -33,6 +33,8 @@ hp_analyze <- function(data, request) {
   if (!nrow(filtered)) stop("no_rows_for_filters")
   availability <- hp_catalog_for_source(discipline, provider, names(filtered))
   result <- if (discipline == "pitching") hp_pitching_analysis(filtered, topic) else hp_hitting_analysis(filtered, topic, request$benchmarks %||% list())
+  filters <- request$filters %||% setNames(list(), character())
+  if (!length(filters)) names(filters) <- character()
   list(
     schema_version = HP_SCHEMA_VERSION,
     model_version = HP_MODEL_VERSION,
@@ -40,7 +42,7 @@ hp_analyze <- function(data, request) {
     generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     discipline = discipline,
     module = topic,
-    filters = request$filters %||% list(),
+    filters = filters,
     sample_summary = list(rows = nrow(filtered), dates = if (".date" %in% names(filtered)) length(unique(filtered$.date)) else NULL, provider = provider),
     source_coverage = list(columns = names(filtered), models = availability),
     benchmark_summary = request$benchmark_summary %||% list(status = "building", cohort = request$age_cohort %||% "unknown"),

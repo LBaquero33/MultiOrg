@@ -230,7 +230,7 @@ hp_pitching_analysis <- function(data, topic) {
     overview_arsenal = {
       metrics <- hp_pitch_metrics(data)
       list(
-        metrics = c(hp_metric("pitches", "Pitches", nrow(data)), hp_metric("pitch_types", "Pitch types", nrow(metrics))),
+        metrics = list(hp_metric("pitches", "Pitches", nrow(data)), hp_metric("pitch_types", "Pitch types", nrow(metrics))),
         tables = hp_compact(list(
           hp_table("pitch_metrics", "Pitch Metrics by Pitch Type", metrics),
           if (hp_has(data, c("TaggedPitchType", "RelSpeed", "SpinRate"))) hp_table("bauer_grades", "Bauer Grades", hp_bauer_grades(data)),
@@ -246,7 +246,7 @@ hp_pitching_analysis <- function(data, topic) {
       hp_require(data, c("TaggedPitchType", "RelSpeed"))
       metrics <- hp_pitch_metrics(data)
       list(
-        metrics = c(
+        metrics = list(
           hp_metric("avg_velocity", "Average velocity", hp_round(hp_mean(data$RelSpeed)), "mph"),
           hp_metric("max_velocity", "Maximum velocity", hp_round(if (any(is.finite(data$RelSpeed))) max(data$RelSpeed, na.rm = TRUE) else NA), "mph"),
           hp_metric("avg_extension", "Average extension", if ("Extension" %in% names(data)) hp_round(hp_mean(data$Extension), 2) else NA, "ft")
@@ -263,7 +263,7 @@ hp_pitching_analysis <- function(data, topic) {
       metrics <- hp_pitch_metrics(data)
       trajectory_columns <- c("TaggedPitchType", "PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2")
       list(
-        metrics = c(hp_metric("pitch_types", "Pitch types", nrow(metrics))),
+        metrics = list(hp_metric("pitch_types", "Pitch types", nrow(metrics))),
         tables = list(hp_table("pitch_shape_averages", "Average Pitch Shape", metrics[, c("pitch_type", "pitches", "induced_vertical_break", "horizontal_break", "avg_velocity", "avg_spin"), drop = FALSE])),
         charts = hp_compact(list(
           hp_chart("pitch_shape", "Pitch Break & Shape", "scatter", data.frame(pitch_type = data$TaggedPitchType, horizontal_break = data$HorzBreak, induced_vertical_break = data$InducedVertBreak), "horizontal_break", "induced_vertical_break", "pitch_type"),
@@ -276,7 +276,7 @@ hp_pitching_analysis <- function(data, topic) {
       release_columns <- c("TaggedPitchType", "RelSide", "RelHeight")
       if (!hp_has(data, location_columns) && !hp_has(data, release_columns)) hp_require(data, location_columns)
       list(
-        metrics = c(hp_metric("zone_pct", "Zone rate", if (hp_has(data, location_columns)) hp_round(100 * mean(data$.in_zone, na.rm = TRUE)) else NA, "%")),
+        metrics = list(hp_metric("zone_pct", "Zone rate", if (hp_has(data, location_columns)) hp_round(100 * mean(data$.in_zone, na.rm = TRUE)) else NA, "%")),
         tables = hp_compact(list(
           if (hp_has(data, c(location_columns, "PitchCall"))) hp_table("command", "Command Table", hp_command(data))
         )),
@@ -287,7 +287,7 @@ hp_pitching_analysis <- function(data, topic) {
       )
     },
     counts_finish = list(
-      metrics = c(hp_metric("two_strike_pitches", "Two-strike pitches", sum(data$Strikes == 2, na.rm = TRUE))),
+      metrics = list(hp_metric("two_strike_pitches", "Two-strike pitches", sum(data$Strikes == 2, na.rm = TRUE))),
       tables = list(
         hp_table("count_performance", "Count Performance", hp_count_performance(data)),
         hp_table("count_usage", "Pitch Usage by Count", hp_count_usage(data)),
@@ -295,7 +295,7 @@ hp_pitching_analysis <- function(data, topic) {
       ),
       charts = list(hp_chart("count_heatmap", "Count Performance", "heatmap", hp_count_performance(data), "count", "whiff_pct"))
     ),
-    pitch_log = list(metrics = c(hp_metric("pitches", "Pitches", nrow(data))), tables = list(hp_table("pitch_log", "Pitch Log", hp_pitch_log(data))), charts = list()),
+    pitch_log = list(metrics = list(hp_metric("pitches", "Pitches", nrow(data))), tables = list(hp_table("pitch_log", "Pitch Log", hp_pitch_log(data))), charts = list()),
     stop("unsupported_pitching_topic")
   )
 }

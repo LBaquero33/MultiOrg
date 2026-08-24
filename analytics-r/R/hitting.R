@@ -192,7 +192,7 @@ hp_hitting_analysis <- function(data, topic, benchmark = list()) {
     overview_quality = {
       quality <- hp_quality_scores(data, benchmark)
       list(
-        metrics = c(hp_metric("qab", "Quality of At Bat", quality$qab$score, "/100", quality$qab$grade, quality$qab$provisional), hp_metric("qoc", "Quality of Contact", quality$qoc$score, "/100", quality$qoc$grade, quality$qoc$provisional), hp_metric("pitches", "Pitches", summary$pitches), hp_metric("batted_balls", "Batted balls", summary$batted_balls)),
+        metrics = list(hp_metric("qab", "Quality of At Bat", quality$qab$score, "/100", quality$qab$grade, quality$qab$provisional), hp_metric("qoc", "Quality of Contact", quality$qoc$score, "/100", quality$qoc$grade, quality$qoc$provisional), hp_metric("pitches", "Pitches", summary$pitches), hp_metric("batted_balls", "Batted balls", summary$batted_balls)),
         tables = list(hp_table("hitting_summary", "Hitting Summary", summary), hp_table("quality_components", "Quality Score Components", data.frame(metric = names(quality$raw), value = hp_round(unlist(quality$raw), 3)))),
         charts = list(), warnings = unique(c(if (!quality$qab$available) "Insufficient benchmark or sample data for HP-QAB." else NULL, if (!quality$qoc$available) "Insufficient benchmark or sample data for HP-QOC." else NULL))
       )
@@ -201,7 +201,7 @@ hp_hitting_analysis <- function(data, topic, benchmark = list()) {
       hp_require(data, c("ExitSpeed", "Angle"))
       contact_result <- if ("PlayResult" %in% names(data)) data$PlayResult else rep("Contact", nrow(data))
       list(
-        metrics = c(hp_metric("avg_exit_velocity", "Average exit velocity", summary$avg_exit_velocity, "mph"), hp_metric("max_exit_velocity", "Maximum exit velocity", summary$max_exit_velocity, "mph")),
+        metrics = list(hp_metric("avg_exit_velocity", "Average exit velocity", summary$avg_exit_velocity, "mph"), hp_metric("max_exit_velocity", "Maximum exit velocity", summary$max_exit_velocity, "mph")),
         tables = list(),
         charts = hp_compact(list(
           hp_chart("contact_quality", "Contact Quality", "scatter", data.frame(exit_velocity = data$ExitSpeed, launch_angle = data$Angle, result = contact_result), "launch_angle", "exit_velocity", "result"),
@@ -209,14 +209,14 @@ hp_hitting_analysis <- function(data, topic, benchmark = list()) {
         ))
       )
     },
-    swing_decisions = list(metrics = c(hp_metric("chase_pct", "Chase rate", summary$chase_pct, "%"), hp_metric("whiff_pct", "Whiff rate", summary$whiff_pct, "%")), tables = list(hp_table("swing_matrix", "Swing Decision Matrix", hp_swing_matrix(data))), charts = list(hp_chart("chase_profile", "Chase Profile", "bar", hp_chase_profile(data), "direction", "chase_pct"), hp_chart("swing_matrix", "Swing Decision Matrix", "heatmap", hp_swing_matrix(data), "count", "pitch_type", "swing_pct"))),
-    count_approach = list(metrics = c(hp_metric("pitches", "Pitches", nrow(data))), tables = list(hp_table("approach_by_count", "Approach by Count", hp_approach_by_count(data)), hp_table("pitch_type_trust", "Pitch Type Trust", hp_pitch_type_trust(data))), charts = list()),
-    velocity_exposure = { exposure <- hp_velocity_exposure(data); list(metrics = c(hp_metric("avg_velocity", "Average pitch velocity", hp_round(hp_mean(data$RelSpeed)), "mph")), tables = list(hp_table("velocity_exposure", "Velocity Exposure", exposure)), charts = list(hp_chart("velocity_exposure", "Velocity Exposure", "bar", exposure, "velocity_band", "pitches"))) },
+    swing_decisions = list(metrics = list(hp_metric("chase_pct", "Chase rate", summary$chase_pct, "%"), hp_metric("whiff_pct", "Whiff rate", summary$whiff_pct, "%")), tables = list(hp_table("swing_matrix", "Swing Decision Matrix", hp_swing_matrix(data))), charts = list(hp_chart("chase_profile", "Chase Profile", "bar", hp_chase_profile(data), "direction", "chase_pct"), hp_chart("swing_matrix", "Swing Decision Matrix", "heatmap", hp_swing_matrix(data), "count", "pitch_type", "swing_pct"))),
+    count_approach = list(metrics = list(hp_metric("pitches", "Pitches", nrow(data))), tables = list(hp_table("approach_by_count", "Approach by Count", hp_approach_by_count(data)), hp_table("pitch_type_trust", "Pitch Type Trust", hp_pitch_type_trust(data))), charts = list()),
+    velocity_exposure = { exposure <- hp_velocity_exposure(data); list(metrics = list(hp_metric("avg_velocity", "Average pitch velocity", hp_round(hp_mean(data$RelSpeed)), "mph")), tables = list(hp_table("velocity_exposure", "Velocity Exposure", exposure)), charts = list(hp_chart("velocity_exposure", "Velocity Exposure", "bar", exposure, "velocity_band", "pitches"))) },
     zone_maps = {
       zones <- hp_zone_maps(data)
       zones$whiff_barrel_index <- hp_round(zones$barrel_pct - zones$whiff_pct)
       list(
-        metrics = c(hp_metric("located_pitches", "Located pitches", sum(zones$pitches))),
+        metrics = list(hp_metric("located_pitches", "Located pitches", sum(zones$pitches))),
         tables = list(hp_table("zone_maps", "Zone Map Values", zones)),
         charts = list(
           hp_chart("zone_whiff", "Whiff Rate", "zone_grid", zones, "zone_x", "zone_y", "whiff_pct"),
