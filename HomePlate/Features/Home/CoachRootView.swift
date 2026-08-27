@@ -70,6 +70,14 @@ struct CoachRootView: View {
   }
 
   private var navigationInventory: HPAppNavigationInventory {
+    if let experience = appState.activeOrganizationExperience,
+       experience.isTrainingOrganization {
+      return .trainingStaff(
+        navigationIds: experience.navigation_ids,
+        canAdministerOrganization: appState.canAdminActiveOrg,
+        isPlatformAdmin: appState.isPlatformAdmin
+      )
+    }
     if appState.canAdminActiveOrg {
       return HPAppNavigationInventory.owner(
         facilitiesTitle: term("facilities", fallback: "Facilities"),
@@ -104,7 +112,9 @@ struct CoachRootView: View {
     switch appState.activeOrgMembership?.normalizedRole {
     case "owner": "Owner workspace"
     case "admin": "Organization admin workspace"
-    default: "Coach workspace"
+    default: appState.activeOrganizationExperience?.isTrainingOrganization == true
+      ? "Trainer workspace"
+      : "Coach workspace"
     }
   }
 
@@ -151,6 +161,18 @@ struct CoachRootView: View {
       }
     case .games:
       GameCalendarView()
+    case .athletes:
+      WARTrainingOperationsView(mode: .athletes)
+    case .trainers:
+      WARTrainingOperationsView(mode: .trainers)
+    case .lessons:
+      WARTrainingOperationsView(mode: .lessons)
+    case .testing:
+      WARTrainingOperationsView(mode: .testing)
+    case .dataLab:
+      WARTrainingOperationsView(mode: .dataLab)
+    case .bookSession:
+      WARTrainingOperationsView(mode: .lessons)
     case .payments:
       if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
 #if os(macOS)

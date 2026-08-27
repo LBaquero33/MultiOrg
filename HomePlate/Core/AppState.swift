@@ -37,6 +37,7 @@ final class AppState: ObservableObject {
   @Published private(set) var myOrgMemberships: [SDOrgMembership] = []
   @Published private(set) var availableOrganizations: [SDOrg] = []
   @Published private(set) var activeOrgSettings: SDOrgSettings?
+  @Published private(set) var activeOrganizationExperience: SDOrganizationExperience?
   @Published var showOnboardingEditor: Bool = false
   @Published var globalToastText: String?
   @Published var chatLastInsert: SupabaseService.ChatMessageInsert?
@@ -287,6 +288,7 @@ final class AppState: ObservableObject {
     myOrgMemberships = []
     availableOrganizations = []
     activeOrgSettings = nil
+    activeOrganizationExperience = nil
     isPlatformAdmin = false
     platformFeatureFlags = []
     teamOperationsContext = nil
@@ -426,6 +428,7 @@ final class AppState: ObservableObject {
       myOrgMemberships = []
       availableOrganizations = []
       activeOrgSettings = nil
+      activeOrganizationExperience = nil
       chatListenerStarted = false
       chatListenerOrganizationId = nil
       clearChatContext()
@@ -462,8 +465,10 @@ final class AppState: ObservableObject {
       } catch {
         activeOrgSettings = nil
       }
+      activeOrganizationExperience = try? await supabase.resolveOrganizationExperience(orgId: activeOrgId)
     } else {
       activeOrgSettings = nil
+      activeOrganizationExperience = nil
     }
 
     if previousOrganizationId != activeOrgId, chatListenerStarted {
@@ -507,12 +512,15 @@ final class AppState: ObservableObject {
     chatListenerOrganizationId = nil
     clearChatContext()
     activeOrgId = orgId
+    activeOrganizationExperience = nil
     do {
       activeOrgSettings = try await supabase?.fetchOrgSettings(orgId: orgId)
+      activeOrganizationExperience = try await supabase?.resolveOrganizationExperience(orgId: orgId)
       let name = availableOrganizations.first(where: { $0.id == orgId })?.displayName ?? "Organization"
       globalToastText = "Switched to \(name)."
     } catch {
       activeOrgSettings = nil
+      activeOrganizationExperience = nil
       globalToastText = "Organization settings could not be loaded: \(error.localizedDescription)"
     }
     await refreshTeamOperationsContext()

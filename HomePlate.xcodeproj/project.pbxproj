@@ -114,6 +114,7 @@
 		564D213C61852495E131676A /* HPLoadingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F40313C3AE3AE87DE1F8B3 /* HPLoadingState.swift */; };
 		5652ED9003174211AC167A23 /* PlayerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDBBED15F3D664E3E21F9B /* PlayerDetailView.swift */; };
 		56584C80DFB9391DD99D3CB1 /* PlotlyChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25277DA689B8022777193CD0 /* PlotlyChartView.swift */; };
+		584439510CC442520157FCB1 /* WARTrainingOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00DD5B8BF6D21566FCDCE4E /* WARTrainingOperationsView.swift */; };
 		58B526BD191B0CB03B0B45E5 /* AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34AEFCD89FB9B1D4198F8AEE /* AppleSignIn.swift */; };
 		58DB6FB04CFC783C2B2E6F5B /* TeamOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A332076872AD232EBC6F338 /* TeamOperationsModels.swift */; };
 		58DCC55DE009421BCD26EC93 /* SDProgramSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564660DD2DDC8E888EDEE373 /* SDProgramSchedule.swift */; };
@@ -216,6 +217,7 @@
 		9E3F6CFE9F110BC974CDE787 /* GameOfficialScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */; };
 		9F002B90DFB19725BAACC3C8 /* HPBuildDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF446CF26DD44622D949478 /* HPBuildDiagnostics.swift */; };
 		A02992CFCCC9FF8D0188D8AB /* HPFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B63A39D1A9247B5F3523408 /* HPFilterBar.swift */; };
+		A0C2FD8153640F3600AF2951 /* WARTrainingOperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00DD5B8BF6D21566FCDCE4E /* WARTrainingOperationsView.swift */; };
 		A0E8A44F45C721D11F2DE845 /* PlayerDevelopmentAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B088EE205A484298C9A509A /* PlayerDevelopmentAIView.swift */; };
 		A121EB197D816303AF4188A6 /* OrgModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E315E38F774318A51B73179F /* OrgModels.swift */; };
 		A17234921CECFB20F97B46C4 /* GameRuleset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AD734C083E3A1CDCFA4410 /* GameRuleset.swift */; };
@@ -561,6 +563,7 @@
 		AB48300C372414559F172467 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
 		AF05E1DAA4151B198774209C /* ExpenseManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseManagementTests.swift; sourceTree = "<group>"; };
 		AF2D5F4F45E026B951BF02D4 /* HPFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPFont.swift; sourceTree = "<group>"; };
+		B00DD5B8BF6D21566FCDCE4E /* WARTrainingOperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARTrainingOperationsView.swift; sourceTree = "<group>"; };
 		B13169768C063423AB974229 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
 		B2F17A7316D32D40922D230E /* HPProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgressIndicator.swift; sourceTree = "<group>"; };
 		B3EAA8D4525DB5705E469EB9 /* HPListScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPListScreenTemplate.swift; sourceTree = "<group>"; };
@@ -654,6 +657,7 @@
 				0BBDBBED15F3D664E3E21F9B /* PlayerDetailView.swift */,
 				354EEB0C5AEB28721A0C11BE /* PlayerHomeView.swift */,
 				C25E1C675F91CA7819DE0760 /* PlayerSubscriptionPaywall.swift */,
+				B00DD5B8BF6D21566FCDCE4E /* WARTrainingOperationsView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -1473,6 +1477,7 @@
 				0BA285A343DBD70FBB52607D /* TeamSchedulingModels.swift in Sources */,
 				E06F78B84AF26E573FDFB6B5 /* TwoAxisScrollView.swift in Sources */,
 				FE32CD25CA7E9FAA8EFD434C /* UnifiedPlayerDevelopmentWorkspaceView.swift in Sources */,
+				584439510CC442520157FCB1 /* WARTrainingOperationsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1648,6 +1653,7 @@
 				5B483215DD07D3A0BF2EA779 /* TeamSchedulingModels.swift in Sources */,
 				DD036E5846CCA5F34E607579 /* TwoAxisScrollView.swift in Sources */,
 				D071FE1459ED5C634C20DD38 /* UnifiedPlayerDevelopmentWorkspaceView.swift in Sources */,
+				A0C2FD8153640F3600AF2951 /* WARTrainingOperationsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

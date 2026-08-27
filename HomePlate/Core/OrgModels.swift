@@ -8,6 +8,38 @@ struct SDOrg: Identifiable, Decodable, Equatable, Hashable, Sendable {
   var displayName: String { name }
 }
 
+enum SDOrganizationType: String, Codable, Sendable {
+  case teamProgram = "team_program"
+  case trainingFacility = "training_facility"
+  case independentTrainer = "independent_trainer"
+  case hybridAcademy = "hybrid_academy"
+}
+
+struct SDOrganizationTerm: Codable, Equatable, Sendable {
+  let singular: String
+  let plural: String
+}
+
+struct SDOrganizationExperience: Codable, Equatable, Sendable {
+  let organization_id: UUID
+  let organization_type: SDOrganizationType
+  let enabled_modules: [String]
+  let terminology: [String: SDOrganizationTerm]
+  let current_role: String
+  let capabilities: [String]
+  let navigation_ids: [String]
+  let configuration_version: Int
+
+  var usesTeamOperations: Bool { organization_type == .teamProgram }
+  var isTrainingOrganization: Bool { !usesTeamOperations }
+  func hasModule(_ id: String) -> Bool { enabled_modules.contains(id) }
+  func can(_ capability: String) -> Bool { capabilities.contains(capability) }
+  func term(_ key: String, plural: Bool = false, fallback: String) -> String {
+    guard let value = terminology[key] else { return fallback }
+    return plural ? value.plural : value.singular
+  }
+}
+
 /// Server-synchronized organization software subscription state. Timestamps
 /// remain strings because PostgREST can return fractional PostgreSQL times.
 struct SDOrgSubscription: Identifiable, Decodable, Equatable, Sendable {

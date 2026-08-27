@@ -34,6 +34,12 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
   case coachTeams
   case coachPrograms
   case games
+  case athletes
+  case trainers
+  case lessons
+  case testing
+  case dataLab
+  case bookSession
 
   case chat
   case payments
@@ -59,7 +65,8 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
       .allAssignedTeams
     case .coachTeam:
       .selectedTeam
-    case .coachPlayers, .coachTeams, .coachPrograms, .games, .chat, .payments, .finance,
+    case .coachPlayers, .coachTeams, .coachPrograms, .games, .athletes, .trainers,
+         .lessons, .testing, .dataLab, .bookSession, .chat, .payments, .finance,
          .organizationAdmin:
       .organization
     case .platformAdmin:
@@ -68,7 +75,25 @@ enum HPAppNavigationDestination: String, CaseIterable, Hashable, Identifiable {
   }
 
   static func routeDestination(for key: String) -> Self? {
-    if ["currentteam", "current_team", "current-team"].contains(key.lowercased()) {
+    let normalized = key.lowercased()
+    let serverRoutes: [String: Self] = [
+      "home": .coachToday,
+      "calendar": .coachCalendar,
+      "athletes": .athletes,
+      "trainers": .trainers,
+      "lessons": .lessons,
+      "testing": .testing,
+      "data_lab": .dataLab,
+      "book_session": .bookSession,
+      "programs": .coachPrograms,
+      "facilities": .coachFacilities,
+      "payments": .payments,
+      "messages": .chat,
+      "settings": .organizationAdmin,
+      "account": .account,
+    ]
+    if let destination = serverRoutes[normalized] { return destination }
+    if ["currentteam", "current_team", "current-team"].contains(normalized) {
       return .coachTeam
     }
     return Self(rawValue: key)
@@ -283,6 +308,55 @@ struct HPAppNavigationInventory: Equatable {
       compactItems: compactItems,
       directorySections: directorySections,
       regularSections: regularSections,
+      defaultDestination: .coachToday
+    )
+  }
+
+  static func trainingStaff(
+    navigationIds: [String],
+    canAdministerOrganization: Bool,
+    isPlatformAdmin: Bool
+  ) -> Self {
+    let registry: [String: HPAppNavigationItem] = [
+      "home": item(.coachToday, "Home", "house"),
+      "calendar": item(.coachCalendar, "Calendar", "calendar"),
+      "athletes": item(.athletes, "Athletes", "figure.run"),
+      "programs": item(.coachPrograms, "Programs", "list.clipboard"),
+      "testing": item(.testing, "Testing", "testtube.2"),
+      "data_lab": item(.dataLab, "WAR Data Lab", "chart.xyaxis.line"),
+      "trainers": item(.trainers, "Trainers", "person.2.badge.gearshape"),
+      "lessons": item(.lessons, "Lessons & Sessions", "calendar.badge.clock"),
+      "facilities": item(.coachFacilities, "Facilities", "building.2"),
+      "payments": item(.payments, "Payments", "creditcard"),
+      "messages": item(.chat, "Messages", "bubble.left.and.bubble.right"),
+      "settings": item(.organizationAdmin, "Settings", "gearshape"),
+      "account": item(.account, "Account", "person.crop.circle"),
+    ]
+    let allowed = navigationIds.compactMap { registry[$0] }
+    let byId = Dictionary(uniqueKeysWithValues: allowed.map { ($0.destination, $0) })
+    let items: ([HPAppNavigationDestination]) -> [HPAppNavigationItem] = { destinations in
+      destinations.compactMap { byId[$0] }
+    }
+    let daily = items([.coachToday, .coachCalendar])
+    let development = items([.athletes, .coachPrograms, .testing, .dataLab])
+    let operations = items([.trainers, .lessons, .coachFacilities])
+    var business = items([.payments])
+    if canAdministerOrganization { business += items([.organizationAdmin]) }
+    let communication = items([.chat])
+    var account = items([.account])
+    if isPlatformAdmin { account.append(item(.platformAdmin, "Platform Admin", "building.2.crop.circle")) }
+    let sections = [
+      HPAppNavigationSection(title: "Daily Work", items: daily),
+      HPAppNavigationSection(title: "Athlete Development", items: development),
+      HPAppNavigationSection(title: "Training Operations", items: operations),
+      HPAppNavigationSection(title: "Business", items: business),
+      HPAppNavigationSection(title: "Communication", items: communication),
+      HPAppNavigationSection(title: "Account", items: account),
+    ].filter { !$0.items.isEmpty }
+    return Self(
+      compactItems: items([.coachToday, .coachCalendar, .athletes, .dataLab]),
+      directorySections: Array(sections.dropFirst()),
+      regularSections: sections,
       defaultDestination: .coachToday
     )
   }

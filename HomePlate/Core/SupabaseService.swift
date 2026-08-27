@@ -456,6 +456,15 @@ final class SupabaseService: ObservableObject {
     return rows.first
   }
 
+  func resolveOrganizationExperience(orgId: UUID) async throws -> SDOrganizationExperience {
+    struct Parameters: Encodable { let p_org_id: UUID }
+    return try await client
+      .rpc("sd_resolve_organization_experience", params: Parameters(p_org_id: orgId))
+      .single()
+      .execute()
+      .value
+  }
+
   /// The Stripe webhook is the writer for this table. The client only reads
   /// its latest synchronized state for the active organization.
   func fetchLatestOrgSubscription(orgId: UUID) async throws -> SDOrgSubscription? {
