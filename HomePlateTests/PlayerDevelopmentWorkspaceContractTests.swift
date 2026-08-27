@@ -80,4 +80,72 @@ struct PlayerDevelopmentWorkspaceContractTests {
   }
 }
 
+@Suite("WAR operations workspace contract")
+struct WAROperationsWorkspaceContractTests {
+  @Test("Partial WAR sources remain usable and keep diagnostics")
+  func decodesPartialWorkspace() throws {
+    let json = """
+    {
+      "access": {"is_admin": true, "staff_kind": "owner"},
+      "athletes": [{"id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "display_name": "WAR Athlete"}],
+      "staff": [],
+      "profiles": [],
+      "assignments": [],
+      "services": [],
+      "service_trainers": [],
+      "availability": [],
+      "availability_exceptions": [],
+      "appointments": [],
+      "participants": [],
+      "outcomes": [],
+      "packages": [],
+      "ledger": [],
+      "testing_templates": [],
+      "testing_sessions": [],
+      "testing_results": [],
+      "locations": [],
+      "resources": [],
+      "imports": [],
+      "site": null,
+      "public_profiles": [],
+      "source_diagnostics": {"unavailable_sources": ["provider imports"]}
+    }
+    """
+
+    let workspace = try JSONDecoder().decode(SDWARWorkspace.self, from: Data(json.utf8))
+    #expect(workspace.isManager)
+    #expect(workspace.athletes.first?.warRecordID == "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    #expect(workspace.athletes.first?.warDisplay("display_name") == "WAR Athlete")
+    #expect(workspace.unavailableSources == ["provider imports"])
+  }
+
+  @Test("WAR Data Lab response decodes version and source coverage")
+  func decodesAnalyticsResponse() throws {
+    let json = """
+    {
+      "schema_version": 1,
+      "model_version": "war-performance.v1",
+      "benchmark_version": null,
+      "discipline": "performance",
+      "module": "athlete_overview",
+      "sample_summary": {"sessions": 3},
+      "source_coverage": {"blast": true, "rapsodo": false},
+      "summary_metrics": [{"label": "Bat Speed", "value": 68.4, "unit": "mph"}],
+      "tables": [{"id": "sessions", "title": "Sessions", "description": null, "columns": [{"key": "date", "label": "Date"}], "rows": [{"date": "2026-08-27"}]}],
+      "charts": [],
+      "guidance": {"summary": "Bat speed is trending upward."},
+      "warnings": ["Rapsodo data is unavailable."],
+      "unavailable_reasons": [{"provider": "rapsodo", "reason": "No source file"}]
+    }
+    """
+
+    let response = try JSONDecoder().decode(SDWARAnalyticsResponse.self, from: Data(json.utf8))
+    #expect(response.model_version == "war-performance.v1")
+    #expect(response.module == "athlete_overview")
+    #expect(response.sample_summary.warInt("sessions") == 3)
+    #expect(response.tables.first?.rows.first?.warString("date") == "2026-08-27")
+    #expect(response.unavailable_reasons.first?.warString("provider") == "rapsodo")
+  }
+}
+
 private final class PlayerDevelopmentFixtureBundleMarker {}
