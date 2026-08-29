@@ -52,6 +52,8 @@ export type DevelopmentMediaKind =
 export type WorkspaceMembership = { role: string; status: string };
 export type WorkspacePlayer = {
   id: string;
+  linked_user_id?: string | null;
+  subject_type?: "team_player" | "facility_athlete";
   name: string;
   avatar_path: string | null;
   bio: string | null;
