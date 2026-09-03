@@ -9,7 +9,6 @@ enum SDOrgAdminAction: String, CaseIterable, Codable, Sendable {
   case unassignPlayerTeam = "unassign_player_team"
   case assignCoachTeam = "assign_coach_team"
   case getPlayerAccess = "get_player_access"
-  case setPlayerAccess = "set_player_access"
   case listMembers = "list_members"
   case createUser = "create_user"
   case updateMember = "update_member"

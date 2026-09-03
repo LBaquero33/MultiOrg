@@ -7,7 +7,7 @@
 // - update_member
 // - set_username
 // - list_teams / create_team / update_team / assign_team_member / remove_team_member
-// - get_player_access / set_player_access
+// - get_player_access (read-only; purchase authorities own activation)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
@@ -681,7 +681,7 @@ Deno.serve(async (req) => {
     return json(200, { assignment });
   }
 
-  if (action === "get_player_access" || action === "set_player_access") {
+  if (action === "get_player_access") {
     let playerId: string;
     try {
       playerId = requireUuid(payload.player_id, "player_id");
@@ -704,28 +704,6 @@ Deno.serve(async (req) => {
     }
     if (!playerMembership) {
       return json(404, { error: "player_not_in_organization" });
-    }
-
-    if (action === "set_player_access") {
-      const normalized = String(payload.is_active ?? "").trim().toLowerCase();
-      if (!["true", "false"].includes(normalized)) {
-        return json(400, { error: "invalid_access_state" });
-      }
-      const isActive = normalized === "true";
-      const { error: upsertErr } = await admin
-        .from("sd_access_entitlements")
-        .upsert({
-          org_id: orgId,
-          user_id: playerId,
-          is_active: isActive,
-          source: "org_admin_override",
-        }, { onConflict: "user_id" });
-      if (upsertErr) {
-        return json(500, {
-          error: "player_access_update_failed",
-          message: upsertErr.message,
-        });
-      }
     }
 
     const { data: entitlement, error: entitlementErr } = await admin
@@ -846,6 +824,24 @@ Deno.serve(async (req) => {
     if (!username) return json(400, { error: "invalid_username" });
     if (password.length < 8) return json(400, { error: "password_too_short" });
 
+    let organizationSponsored = false;
+    if (role === "player") {
+      const { data: organizationSubscriptions, error: subscriptionLookupErr } =
+        await admin
+          .from("sd_org_subscriptions")
+          .select("id")
+          .eq("org_id", orgId)
+          .in("status", ["active", "trialing"])
+          .limit(1);
+      if (subscriptionLookupErr) {
+        return json(500, {
+          error: "organization_subscription_lookup_failed",
+          message: subscriptionLookupErr.message,
+        });
+      }
+      organizationSponsored = (organizationSubscriptions ?? []).length > 0;
+    }
+
     const { data: existingUsername, error: usernameLookupErr } = await admin
       .from("sd_org_usernames")
       .select("user_id")
@@ -925,8 +921,10 @@ Deno.serve(async (req) => {
       await admin.from("sd_access_entitlements").upsert({
         org_id: orgId,
         user_id: userId,
-        is_active: true,
-        source: "org_admin",
+        is_active: organizationSponsored,
+        source: organizationSponsored
+          ? "organization_sponsored"
+          : "pending_apple_purchase",
       }, { onConflict: "user_id" });
 
       const parentCode = crypto.randomUUID().slice(0, 8).toUpperCase();

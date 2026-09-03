@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Parent-facing organization payment requests and Stripe-hosted Checkout.
+/// Parent-facing payment requests for real-world baseball services.
 struct SDParentBillingView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.openURL) private var openURL
@@ -12,7 +12,6 @@ struct SDParentBillingView: View {
   @State private var errorText: String?
   @State private var checkoutState = SDPaymentCheckoutState.idle
   @State private var checkoutConfirmationRequest: SDPaymentRequest?
-  @State private var isOpeningSubscriptionPortal = false
 
   var body: some View {
     HPListScreenLayout {
@@ -40,26 +39,13 @@ struct SDParentBillingView: View {
           }
         }
         HPCard {
-          HStack(spacing: HP.Space.md) {
-            VStack(alignment: .leading, spacing: HP.Space.xs) {
-              Text("Player Subscription")
-                .font(HP.Font.headline)
-              Text("Update the payment method, view invoices, or cancel a Stripe subscription.")
-                .font(HP.Font.caption)
-                .foregroundStyle(HP.Color.textMuted)
-            }
-            Spacer()
-            Button {
-              Task { await openSubscriptionPortal() }
-            } label: {
-              if isOpeningSubscriptionPortal {
-                HPProgressIndicator(style: .spinner)
-              } else {
-                Label("Manage", systemImage: "creditcard")
-              }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isOpeningSubscriptionPortal)
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            Text("About These Payments")
+              .font(HP.Font.headline)
+            Text("Organization payment requests cover baseball services delivered outside the app. They are separate from Apple In-App Purchase and never unlock Home Plate digital access.")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
       }
@@ -179,21 +165,6 @@ struct SDParentBillingView: View {
       }
     } catch {
       checkoutState.fail(requestId: request.id, message: error.localizedDescription)
-    }
-  }
-
-  private func openSubscriptionPortal() async {
-    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
-    isOpeningSubscriptionPortal = true
-    defer { isOpeningSubscriptionPortal = false }
-    do {
-      let url = try await supabase.createPlayerBillingPortal(orgId: orgId, playerId: child.id)
-      let opened: Bool = await withCheckedContinuation { continuation in
-        openURL(url) { continuation.resume(returning: $0) }
-      }
-      if !opened { errorText = "Stripe's subscription manager could not be opened." }
-    } catch {
-      errorText = "This subscription cannot be managed from this parent account. (error.localizedDescription)"
     }
   }
 

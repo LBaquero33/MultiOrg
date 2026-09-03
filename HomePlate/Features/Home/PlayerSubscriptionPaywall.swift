@@ -89,7 +89,7 @@ struct PlayerSubscriptionPaywall: View {
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityAddTraits(.isHeader)
 
-      Text("This player account needs an active Home Plate subscription or organization-granted access.")
+      Text("Individual and family player access is available through Apple In-App Purchase. Eligible organization-sponsored accounts may also receive access under a separate organization agreement.")
         .font(HP.Font.callout)
         .foregroundStyle(HP.Color.textMuted)
         .fixedSize(horizontal: false, vertical: true)

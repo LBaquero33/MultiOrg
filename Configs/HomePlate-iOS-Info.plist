@@ -41,8 +41,6 @@
 	<string>$(DHD_ENABLE_ENTITLEMENT_TEST)</string>
 	<key>DHD_LEGACY_EMAIL_DOMAIN</key>
 	<string>$(DHD_LEGACY_EMAIL_DOMAIN)</string>
-	<key>DHD_STRIPE_SUBSCRIBE_URL</key>
-	<string>$(DHD_STRIPE_SUBSCRIBE_URL)</string>
 	<key>DHD_SUPPORT_EMAIL</key>
 	<string>$(DHD_SUPPORT_EMAIL)</string>
 	<key>DHD_WEBSITE_HOST</key>

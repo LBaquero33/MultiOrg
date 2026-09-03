@@ -58,7 +58,6 @@ targets:
         DHD_LEGACY_EMAIL_DOMAIN: $(DHD_LEGACY_EMAIL_DOMAIN)
         DHD_BYPASS_ACCESS: $(DHD_BYPASS_ACCESS)
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
-        DHD_STRIPE_SUBSCRIBE_URL: $(DHD_STRIPE_SUBSCRIBE_URL)
         DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
         NSCalendarsFullAccessUsageDescription: Home Plate uses calendar access to keep your approved team events and facility bookings synchronized.
         UIAppFonts:

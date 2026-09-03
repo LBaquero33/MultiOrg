@@ -734,6 +734,7 @@ struct SDPlatformAuditResponse: Decodable, Sendable {
   let entries: [SDPlatformAuditEntry]
 }
 
+#if os(macOS)
 struct SDPlatformOrganizationCreatePayload: Encodable, Equatable, Sendable {
   let action = "create_organization"
   let name: String
@@ -742,6 +743,7 @@ struct SDPlatformOrganizationCreatePayload: Encodable, Equatable, Sendable {
   let billing_email: String?
   let max_members: Int?
 }
+#endif
 
 enum SDJSONValue: Codable, Equatable, Hashable, Sendable {
   case string(String)

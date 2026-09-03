@@ -7,7 +7,6 @@ export const ORG_ADMIN_ACTIONS = [
   "unassign_player_team",
   "assign_coach_team",
   "get_player_access",
-  "set_player_access",
   "list_members",
   "create_user",
   "update_member",

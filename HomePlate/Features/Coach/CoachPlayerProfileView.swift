@@ -128,7 +128,6 @@ private struct CoachPlayerProgramAssignerView: View {
   @State private var parentInvites: [SDParentInvite] = []
   @State private var parentLinks: [SDParentChildLink] = []
   @State private var playerAccess: SDAdminPlayerAccess?
-  @State private var accessActionInFlight = false
 
   var body: some View {
     HPDetailScreenLayout {
@@ -314,25 +313,10 @@ private struct CoachPlayerProgramAssignerView: View {
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
 
-        ViewThatFits(in: .horizontal) {
-          HStack(spacing: HP.Space.sm) {
-            grantAccessButton(fullWidth: false)
-            requirePaymentButton(fullWidth: false)
-            if accessActionInFlight {
-              HPProgressIndicator(style: .spinner)
-                .accessibilityLabel("Updating player access")
-            }
-            Spacer(minLength: 0)
-          }
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            grantAccessButton(fullWidth: true)
-            requirePaymentButton(fullWidth: true)
-            if accessActionInFlight {
-              HPProgressIndicator(style: .spinner)
-                .accessibilityLabel("Updating player access")
-            }
-          }
-        }
+        Text("Individual player access is activated through Apple In-App Purchase. Organization-sponsored access requires a separately verified platform sponsorship and cannot be granted from this screen.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
 
         if let updated = playerAccess?.updated_at, !updated.isEmpty {
           Text("Last changed \(updated)")
@@ -341,30 +325,6 @@ private struct CoachPlayerProgramAssignerView: View {
         }
       }
     }
-  }
-
-  private func grantAccessButton(fullWidth: Bool) -> some View {
-    HPButton(
-      title: "Grant access",
-      systemImage: "lock.open.fill",
-      variant: .secondary,
-      size: .md,
-      fullWidth: fullWidth,
-      action: { Task { await setPlayerAccess(true) } }
-    )
-    .disabled(accessActionInFlight || playerAccess?.is_active == true)
-  }
-
-  private func requirePaymentButton(fullWidth: Bool) -> some View {
-    HPButton(
-      title: "Require payment",
-      systemImage: "lock.fill",
-      variant: .destructive,
-      size: .md,
-      fullWidth: fullWidth,
-      action: { Task { await setPlayerAccess(false) } }
-    )
-    .disabled(accessActionInFlight || playerAccess?.is_active == false)
   }
 
   private var assignProgramCard: some View {
@@ -504,25 +464,6 @@ private struct CoachPlayerProgramAssignerView: View {
       if appState.canAdminActiveOrg, let orgId = appState.activeOrgId {
         playerAccess = try await supabase.adminFetchPlayerAccess(orgId: orgId, playerId: player.id)
       }
-    } catch {
-      errorText = error.localizedDescription
-    }
-  }
-
-  private func setPlayerAccess(_ isActive: Bool) async {
-    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else {
-      errorText = "Choose an organization before changing player access."
-      return
-    }
-    accessActionInFlight = true
-    defer { accessActionInFlight = false }
-    do {
-      playerAccess = try await supabase.adminSetPlayerAccess(
-        orgId: orgId,
-        playerId: player.id,
-        isActive: isActive
-      )
-      toastText = isActive ? "Access granted to \(player.displayName)." : "Payment is now required for \(player.displayName)."
     } catch {
       errorText = error.localizedDescription
     }

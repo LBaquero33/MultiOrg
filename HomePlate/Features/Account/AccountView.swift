@@ -699,7 +699,7 @@ struct AccountView: View {
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)
         } else if appState.myProfile?.isCoach == true {
-          Text("Player access is managed individually from Players → Program. Organization owners and platform administrators can grant access or require payment.")
+          Text("Individual player access is activated through Apple In-App Purchase. Verified organization-sponsored access is managed by the Home Plate platform.")
             .font(HP.Font.callout)
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)
@@ -743,7 +743,7 @@ struct AccountView: View {
           }
         }
 
-        Text("Organization payment requests are separate from your Apple player subscription.")
+        Text("Organization payment requests are for baseball services delivered outside the app. They are separate from your Apple player subscription and never unlock Home Plate digital access.")
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)

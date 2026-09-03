@@ -1332,6 +1332,7 @@ struct PaymentRequestFoundationTests {
   }
 }
 
+#if os(macOS)
 @Suite("Platform organization creation workflow")
 @MainActor
 struct PlatformOrganizationCreationWorkflowTests {
@@ -1468,3 +1469,4 @@ struct PlatformOrganizationCreationWorkflowTests {
     #expect(object["owner_user_id"] == nil)
   }
 }
+#endif

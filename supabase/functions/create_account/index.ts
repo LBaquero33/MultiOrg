@@ -350,9 +350,10 @@ Deno.serve(async (req) => {
       .from("sd_access_entitlements")
       .upsert(
         {
+          org_id: orgRow.id,
           user_id: userId,
           is_active: false,
-          source: "stripe",
+          source: "pending_apple_purchase",
         },
         { onConflict: "user_id" },
       );

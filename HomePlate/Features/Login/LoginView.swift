@@ -6,10 +6,13 @@ struct LoginView: View {
 
   enum Mode: String, CaseIterable, Identifiable {
     case email = "Sign in"
+    #if os(macOS)
     case create = "Create account"
+    #endif
     var id: String { rawValue }
   }
 
+  #if os(macOS)
   enum AccountType: String, CaseIterable, Identifiable {
     case player = "Player"
     case parent = "Parent or guardian"
@@ -23,22 +26,27 @@ struct LoginView: View {
       }
     }
   }
+  #endif
 
   @State private var mode: Mode = .email
   @State private var orgSlug = ""
   @State private var email = ""
   @State private var password = ""
+  #if os(macOS)
   @State private var fullName = ""
   @State private var accountType: AccountType = .player
   @State private var parentCode = ""
   @State private var relationship = ""
   @State private var coachCode = ""
-  @State private var isSubmitting = false
   @State private var publicMenuOpen = false
+  #endif
+  @State private var isSubmitting = false
 
   var body: some View {
     VStack(spacing: 0) {
+      #if os(macOS)
       publicHeader
+      #endif
 
       ScrollView {
         VStack(spacing: 0) {
@@ -58,8 +66,9 @@ struct LoginView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.vertical, 48)
-
+        #if os(macOS)
         publicFooter
+        #endif
       }
       .background(HP.Color.bg)
       #if os(iOS)
@@ -73,6 +82,7 @@ struct LoginView: View {
     }
   }
 
+  #if os(macOS)
   private var publicHeader: some View {
     VStack(spacing: 0) {
       HStack(spacing: 16) {
@@ -253,6 +263,7 @@ struct LoginView: View {
       ("Support", "/support")
     ]
   }
+  #endif
 
   private var brand: some View {
     HStack(spacing: 10) {
@@ -271,7 +282,7 @@ struct LoginView: View {
 
   private var signInPanel: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text(mode == .create ? "Create your account" : "Sign in")
+      Text(panelTitle)
         .font(.custom("Archivo", size: 24, relativeTo: .title2).weight(.bold))
         .foregroundStyle(HP.Color.text)
         .accessibilityAddTraits(.isHeader)
@@ -282,7 +293,9 @@ struct LoginView: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.top, 6)
 
+      #if os(macOS)
       modeTabs.padding(.top, 20)
+      #endif
 
       VStack(alignment: .leading, spacing: 16) {
         if let invitation = appState.pendingInvitation {
@@ -295,6 +308,7 @@ struct LoginView: View {
           )
         }
 
+        #if os(macOS)
         if mode == .create {
           HPFormField(label: "Organization code", text: $orgSlug, placeholder: "your-organization")
             #if os(iOS)
@@ -302,6 +316,7 @@ struct LoginView: View {
             #endif
             .autocorrectionDisabled()
         }
+        #endif
 
         switch mode {
         case .email:
@@ -311,8 +326,10 @@ struct LoginView: View {
             .keyboardType(.emailAddress)
             #endif
             .autocorrectionDisabled()
+        #if os(macOS)
         case .create:
           createAccountFields
+        #endif
         }
 
         HPFormField(label: "Password", text: $password, kind: .secure)
@@ -322,7 +339,7 @@ struct LoginView: View {
         }
 
         HPButton(
-          title: isSubmitting ? "Please wait…" : (mode == .create ? "Create account" : "Sign in"),
+          title: isSubmitting ? "Please wait…" : submitTitle,
           variant: .primary,
           size: .lg,
           isLoading: isSubmitting,
@@ -352,6 +369,23 @@ struct LoginView: View {
     #endif
   }
 
+  private var panelTitle: String {
+    #if os(macOS)
+    return mode == .create ? "Create your account" : "Sign in"
+    #else
+    return "Sign in"
+    #endif
+  }
+
+  private var submitTitle: String {
+    #if os(macOS)
+    return mode == .create ? "Create account" : "Sign in"
+    #else
+    return "Sign in"
+    #endif
+  }
+
+  #if os(macOS)
   private var modeTabs: some View {
     LazyVGrid(columns: tabColumns, spacing: 8) {
       ForEach(Mode.allCases) { item in
@@ -425,23 +459,32 @@ struct LoginView: View {
       HPFormField(label: "Coach code", text: $coachCode)
     }
   }
+  #endif
 
   private var subtitle: String {
+    #if os(macOS)
     switch mode {
     case .email: "Use the email and password on your account."
     case .create: "Ask your organization for its code before you start."
     }
+    #else
+    return "Use the email and password provided through your organization."
+    #endif
   }
 
   private var isSubmitDisabled: Bool {
-    let cleanOrg = normalized(orgSlug)
     let cleanEmail = normalized(email)
+    #if os(macOS)
+    let cleanOrg = normalized(orgSlug)
     return isSubmitting
       || password.count < 6
       || (mode == .create && cleanOrg.isEmpty)
       || (mode == .email && !cleanEmail.contains("@"))
       || (mode == .create && !cleanEmail.contains("@"))
       || (mode == .create && appState.pendingInvitation == nil && accountType == .parent && normalized(parentCode).isEmpty)
+    #else
+    return isSubmitting || password.count < 6 || !cleanEmail.contains("@")
+    #endif
   }
 
   private func submit() async {
@@ -451,6 +494,7 @@ struct LoginView: View {
     switch mode {
     case .email:
       await appState.signIn(email: normalized(email), password: password)
+    #if os(macOS)
     case .create:
       await appState.signUp(
         orgSlug: normalized(orgSlug),
@@ -463,6 +507,7 @@ struct LoginView: View {
         coachCode: coachCode,
         invitationToken: appState.pendingInvitationToken
       )
+    #endif
     }
   }
 
@@ -471,6 +516,7 @@ struct LoginView: View {
   }
 
   private func applyInvitationContext() async {
+    #if os(macOS)
     guard let invitation = appState.pendingInvitation else { return }
     mode = .create
     accountType = invitation.invitation_context == .family ? .parent : .coach
@@ -479,6 +525,7 @@ struct LoginView: View {
     if let org = organizations?.first(where: { $0.id == invitation.organization_id }) {
       orgSlug = org.slug
     }
+    #endif
   }
 
   private func retryInvitation() {
@@ -534,9 +581,13 @@ struct LoginView: View {
     if value.contains("not configured") {
       return "Sign-in is unavailable in this build. Contact support."
     }
+    #if os(macOS)
     return mode == .create
       ? "Home Plate couldn’t create your account. Check the details and try again."
       : "Home Plate couldn’t sign you in. Check your details and try again."
+    #else
+    return "Home Plate couldn’t sign you in. Check your details and try again."
+    #endif
   }
 
   private var supportURL: URL {
@@ -551,6 +602,7 @@ struct LoginView: View {
     DHDAppConfig.supportEmail ?? "support@homeplateapp.com"
   }
 
+  #if os(macOS)
   private func websiteURL(path: String) -> URL {
     let configured = DHDAppConfig.websiteHost?.trimmingCharacters(in: .whitespacesAndNewlines)
     let rawBase: String
@@ -571,8 +623,10 @@ struct LoginView: View {
     return URL(string: path, relativeTo: URL(string: rawBase))?.absoluteURL
       ?? URL(string: "https://homeplateapp.com")!
   }
+  #endif
 }
 
+#if os(macOS)
 private struct HPOutlineButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
@@ -588,3 +642,4 @@ private struct HPOutlineButtonStyle: ButtonStyle {
       .opacity(configuration.isPressed ? 0.78 : 1)
   }
 }
+#endif

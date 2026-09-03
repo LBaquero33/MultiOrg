@@ -64,7 +64,9 @@ struct OrgAdminConsoleView: View {
   @State private var settingsSaveErrorText: String?
   @State private var editingFacility: FacilityDraft?
   @State private var facilityPendingDeletion: SDFacility?
+  #if os(macOS)
   @State private var isShowingCreateMember = false
+  #endif
   @State private var editingMember: MemberDraft?
 
   // Branding/settings
@@ -557,6 +559,7 @@ struct OrgAdminConsoleView: View {
 
   private var memberPresentation: AnyView {
     AnyView(facilityPresentation
+    #if os(macOS)
     .sheet(isPresented: $isShowingCreateMember) {
       CreateOrgMemberSheet { draft in
         Task { await createMember(draft) }
@@ -565,6 +568,7 @@ struct OrgAdminConsoleView: View {
       .frame(minWidth: 560, minHeight: 520)
       #endif
     }
+    #endif
     .sheet(item: $editingMember) { draft in
       EditOrgMemberSheet(draft: draft) { saved in
         Task { await updateMember(saved) }
@@ -713,9 +717,11 @@ struct OrgAdminConsoleView: View {
             ? AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
             : AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
           actions {
+            #if os(macOS)
             HPButton(title: "Add Member", systemImage: "person.badge.plus", variant: .primary, fullWidth: !context.isExpanded) {
               isShowingCreateMember = true
             }
+            #endif
             HPButton(title: "Create Team", systemImage: "plus", variant: .secondary, fullWidth: !context.isExpanded) {
               teamOperationsLaunchAction = .createTeam
               selectAdminTab(.teams)
@@ -755,9 +761,13 @@ struct OrgAdminConsoleView: View {
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           HPSectionHeader("People") {
+            #if os(macOS)
             HPButton(title: "Add Member", systemImage: "person.badge.plus", variant: .primary, size: .sm) {
               isShowingCreateMember = true
             }
+            #else
+            EmptyView()
+            #endif
           }
           HPSearchBar(text: $peopleSearch, placeholder: "Search people")
           Picker("People group", selection: $peopleSegment) {
@@ -1468,9 +1478,15 @@ struct OrgAdminConsoleView: View {
             Text("Home Plate Organization")
               .font(HP.Font.headline)
               .foregroundStyle(HP.Color.text)
+            #if os(macOS)
             Text("$200/month")
               .font(HP.Font.number(.callout))
               .foregroundStyle(HP.Color.textMuted)
+            #else
+            Text("Organization plan status")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+            #endif
           }
           Spacer()
           if let subscription = organizationSubscription {
@@ -1521,6 +1537,7 @@ struct OrgAdminConsoleView: View {
             .foregroundStyle(HP.Color.textMuted)
         }
 
+        #if os(macOS)
         let actionLayout = context.isAccessibilitySize
           ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
           : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
@@ -1552,6 +1569,12 @@ struct OrgAdminConsoleView: View {
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
+        #else
+        Text("Organization subscription enrollment and billing management are not offered in the iOS app.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        #endif
       }
     }
   }
@@ -1626,6 +1649,7 @@ struct OrgAdminConsoleView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
 
+        #if os(macOS)
         if connectStatus?.status != .ready {
           HPButton(
             title: connectAction == .onboarding ? "Opening Stripe…" : connectOnboardingButtonTitle,
@@ -1643,6 +1667,12 @@ struct OrgAdminConsoleView: View {
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
+        #else
+        Text("Customer-payment account enrollment is managed outside the iOS app. The status shown here is read-only.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        #endif
 
         Divider().overlay(HP.Color.border)
         paymentRequestsSection(context)
@@ -1960,13 +1990,22 @@ struct OrgAdminConsoleView: View {
             HPButton(title: "Refresh", systemImage: "arrow.clockwise", variant: .secondary, size: .sm) {
               Task { await reload() }
             }
+            #if os(macOS)
             HPButton(title: "Create User", systemImage: "person.badge.plus", variant: .primary, size: .sm) {
               isShowingCreateMember = true
             }
+            #endif
           }
         }
 
-        Text("Create organization-specific accounts, assign roles, disable access, and update the username used by the org login screen.")
+        let membershipGuidance = {
+          #if os(macOS)
+          "Create organization-specific accounts, assign roles, disable access, and update the username used by the org login screen."
+          #else
+          "Review organization memberships, assign roles, disable access, and update organization usernames. New account provisioning is not offered in the iOS app."
+          #endif
+        }()
+        Text(membershipGuidance)
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
@@ -2230,7 +2269,9 @@ struct OrgAdminConsoleView: View {
     connectErrorText = nil
     editingFacility = nil
     editingMember = nil
+    #if os(macOS)
     isShowingCreateMember = false
+    #endif
   }
 
   private func transitionPaymentRequestRoster(to organizationId: UUID?) {
@@ -2581,6 +2622,7 @@ struct OrgAdminConsoleView: View {
     return date.formatted(date: .abbreviated, time: .omitted)
   }
 
+  #if os(macOS)
   private func beginConnectOnboarding() async {
     guard appState.canAdminActiveOrg,
           let supabase = appState.supabase,
@@ -2643,12 +2685,9 @@ struct OrgAdminConsoleView: View {
   }
 
   private func openBillingURL(_ url: URL) {
-    #if os(iOS)
-    UIApplication.shared.open(url)
-    #elseif os(macOS)
     NSWorkspace.shared.open(url)
-    #endif
   }
+  #endif
 
   private func applySettingsToFields(_ settings: SDOrgSettings?) {
     isApplyingSettings = true
@@ -2799,6 +2838,7 @@ struct OrgAdminConsoleView: View {
     }
   }
 
+  #if os(macOS)
   private func createMember(_ draft: CreateMemberDraft) async {
     guard let supabase = appState.supabase else { return }
     guard let orgId = appState.activeOrgId else {
@@ -2824,6 +2864,7 @@ struct OrgAdminConsoleView: View {
       errorText = SDApplicationErrorClassifier.alertMessage(for: error)
     }
   }
+  #endif
 
   private func updateMember(_ draft: MemberDraft) async {
     guard let supabase = appState.supabase else { return }
@@ -3530,6 +3571,7 @@ private struct FacilityAdminEditorSheet: View {
 private let orgRoleOptions = ["owner", "admin", "coach", "player", "parent"]
 private let orgStatusOptions = ["active", "invited", "disabled", "suspended"]
 
+#if os(macOS)
 struct CreateMemberDraft: Equatable {
   var fullName = ""
   var email = ""
@@ -3543,6 +3585,7 @@ struct CreateMemberDraft: Equatable {
     && password.count >= 8
   }
 }
+#endif
 
 struct MemberDraft: Identifiable, Equatable {
   var id: UUID { userId }
@@ -3563,6 +3606,7 @@ struct MemberDraft: Identifiable, Equatable {
   }
 }
 
+#if os(macOS)
 private struct CreateOrgMemberSheet: View {
   @Environment(\.dismiss) private var dismiss
   @State private var draft = CreateMemberDraft()
@@ -3663,6 +3707,7 @@ private struct CreateOrgMemberSheet: View {
     }
   }
 }
+#endif
 
 private struct EditOrgMemberSheet: View {
   @Environment(\.dismiss) private var dismiss

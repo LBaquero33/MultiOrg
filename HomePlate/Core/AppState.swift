@@ -834,6 +834,7 @@ final class AppState: ObservableObject {
     }
   }
 
+  #if os(macOS)
   func signUp(
     orgSlug: String,
     email: String,
@@ -895,6 +896,7 @@ final class AppState: ObservableObject {
       clearOrgContext()
     }
   }
+  #endif
 
   func signInWithApple(idToken: String, nonce: String, fullName: String?) async {
     authError = nil

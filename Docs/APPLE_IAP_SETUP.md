@@ -19,3 +19,6 @@ Local `.storekit` transactions use the `Xcode` environment and are not accepted
 by a backend configured for Apple Sandbox. Use a development-signed app with no
 StoreKit configuration attached, or TestFlight, for the end-to-end Sandbox
 backend test.
+
+For the App Store commerce boundary, deployment order, review-account path, and
+suggested reviewer response, see `APP_STORE_REVIEW_REMEDIATION.md`.

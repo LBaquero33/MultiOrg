@@ -520,6 +520,7 @@ final class SupabaseService: ObservableObject {
     return response.members
   }
 
+  #if os(macOS)
   func adminCreateOrgUser(orgId: UUID,
                           email: String,
                           username: String,
@@ -543,6 +544,7 @@ final class SupabaseService: ObservableObject {
     )
     return response.user_id
   }
+  #endif
 
   func adminUpdateOrgMember(orgId: UUID, userId: UUID, role: String, status: String) async throws {
     let _: OrgAdminOKResponse = try await client.functions.invoke(
@@ -1672,17 +1674,6 @@ final class SupabaseService: ObservableObject {
     return response.entitlement
   }
 
-  func adminSetPlayerAccess(orgId: UUID, playerId: UUID, isActive: Bool) async throws -> SDAdminPlayerAccess {
-    struct Response: Decodable { let entitlement: SDAdminPlayerAccess }
-    let response: Response = try await invokeAuthenticatedFunction("org_admin", body: [
-      "action": SDOrgAdminAction.setPlayerAccess.rawValue,
-      "org_id": orgId.uuidString,
-      "player_id": playerId.uuidString,
-      "is_active": isActive ? "true" : "false",
-    ])
-    return response.entitlement
-  }
-
   /// Edge Functions do not automatically refresh the bearer token in every
   /// long-running desktop session. Refresh first, then explicitly install the
   /// current access token so authorized team/admin calls cannot drift into 401.
@@ -1867,6 +1858,7 @@ final class SupabaseService: ObservableObject {
     }
   }
 
+  #if os(macOS)
   func createOrgSubscriptionCheckout(orgId: UUID) async throws -> URL {
     let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
       "create-org-subscription-checkout",
@@ -1879,17 +1871,6 @@ final class SupabaseService: ObservableObject {
     let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
       "create-org-billing-portal",
       body: ["org_id": orgId.uuidString]
-    )
-    return try validatedStripeHostedURL(response.url)
-  }
-
-  func createPlayerBillingPortal(orgId: UUID, playerId: UUID) async throws -> URL {
-    let response: OrgBillingURLResponse = try await invokeAuthenticatedFunction(
-      "create-player-billing-portal",
-      body: [
-        "org_id": orgId.uuidString,
-        "player_id": playerId.uuidString,
-      ]
     )
     return try validatedStripeHostedURL(response.url)
   }
@@ -1907,6 +1888,7 @@ final class SupabaseService: ObservableObject {
     }
     return url
   }
+  #endif
 
   func getStripeConnectAccountStatus(orgId: UUID) async throws -> StripeConnectAccountStatus {
     try await invokeAuthenticatedFunction(
@@ -1991,6 +1973,7 @@ final class SupabaseService: ObservableObject {
     )
   }
 
+  #if os(macOS)
   func platformCreateOrganization(
     name: String,
     slug: String,
@@ -2009,6 +1992,7 @@ final class SupabaseService: ObservableObject {
     let response: Response = try await invokeAuthenticatedFunction("platform_admin", body: payload)
     return response.organization
   }
+  #endif
 
   func platformUpdateOrganization(_ organization: SDPlatformOrganization) async throws {
     struct Response: Decodable { let organization: SDPlatformOrganization }
@@ -2127,9 +2111,11 @@ final class SupabaseService: ObservableObject {
     _ = try await client.auth.signIn(email: email, password: password)
   }
 
+  #if os(macOS)
   func signUp(email: String, password: String) async throws {
     _ = try await client.auth.signUp(email: email, password: password)
   }
+  #endif
 
   /// Ensures a `public.profiles` row exists for the current user.
   ///

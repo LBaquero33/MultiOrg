@@ -25,6 +25,7 @@
 		1259DA777D7F78E848194AB3 /* GameOfficialScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */; };
 		12A7F014AFF60B40C9B4778C /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F39D996B26497B21CEDD6 /* HPMetricCard.swift */; };
 		1359D9EDB769EEDEC13559D2 /* CrossPlatformOperationsClosureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CF4A503BF8E46E34AC03C8 /* CrossPlatformOperationsClosureTests.swift */; };
+		A90F7C6416D64E0F94AD87D1 /* AppStoreCommerceComplianceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90F7C6416D64E0F94AD87D0 /* AppStoreCommerceComplianceTests.swift */; };
 		14C4874BD8E2B89F8C82B52B /* GameScoringInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9CEA95B099629E8A5E82C0 /* GameScoringInteractionTests.swift */; };
 		14CABD42912C891BBF8F6D4D /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A7F7845301A36FFDF3D3E4 /* PlatformAdminDashboardView.swift */; };
 		155CCE81AF2E27B50A2FBA05 /* GameStatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D543DD89F540979729A4302 /* GameStatisticsView.swift */; };
@@ -459,6 +460,7 @@
 		3CF446CF26DD44622D949478 /* HPBuildDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPBuildDiagnostics.swift; sourceTree = "<group>"; };
 		3E917162230396AE988223A2 /* EditFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFacilityBookingSheet.swift; sourceTree = "<group>"; };
 		3EA8C7AC4332F87589D250F4 /* ApplePlayerSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlayerSubscriptionTests.swift; sourceTree = "<group>"; };
+		A90F7C6416D64E0F94AD87D0 /* AppStoreCommerceComplianceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreCommerceComplianceTests.swift; sourceTree = "<group>"; };
 		3FE3B69542B3F5E10B76444C /* CSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSV.swift; sourceTree = "<group>"; };
 		3FF49EFEC769F6B2497F2F6F /* ProgramDayEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDayEditorSheet.swift; sourceTree = "<group>"; };
 		41DCEE75F33C8C80F7F4BF24 /* FinanceDashboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardTests.swift; sourceTree = "<group>"; };
@@ -867,6 +869,7 @@
 		A314AAEBCEC9C6940E03AFDD /* HomePlateTests */ = {
 			isa = PBXGroup;
 			children = (
+				A90F7C6416D64E0F94AD87D0 /* AppStoreCommerceComplianceTests.swift */,
 				5765EAAAF45F96CDEB38B94C /* AppleCalendarSyncPolicyTests.swift */,
 				3EA8C7AC4332F87589D250F4 /* ApplePlayerSubscriptionTests.swift */,
 				B4CF4A503BF8E46E34AC03C8 /* CrossPlatformOperationsClosureTests.swift */,
@@ -1269,6 +1272,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A90F7C6416D64E0F94AD87D1 /* AppStoreCommerceComplianceTests.swift in Sources */,
 				286A683997AD4F1FFCB9BE99 /* AppleCalendarSyncPolicyTests.swift in Sources */,
 				ED55AC05F6C84C70E9A3FCFF /* ApplePlayerSubscriptionTests.swift in Sources */,
 				1359D9EDB769EEDEC13559D2 /* CrossPlatformOperationsClosureTests.swift in Sources */,

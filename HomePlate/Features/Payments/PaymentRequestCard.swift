@@ -85,7 +85,7 @@ struct PaymentRequestCard: View {
     switch SDPaymentRequestPayerAuthorization.action(for: request, context: context) {
     case .payNow:
       HPButton(
-        title: checkoutState.isOpening(request.id) ? "Opening Stripe Checkout…" : "Pay Now",
+        title: checkoutState.isOpening(request.id) ? "Opening Stripe Checkout…" : "Pay for Baseball Service",
         systemImage: "creditcard",
         variant: .secondary,
         size: .md,
@@ -131,7 +131,7 @@ struct PaymentCheckoutConfirmationSheet: View {
     NavigationStack {
       HPFormScreenLayout { _ in
         HPWorkspaceHeader(
-          "Open Stripe Checkout?",
+          "Pay for Baseball Service?",
           orgLabel: organizationName,
           context: playerName
         )
@@ -147,7 +147,7 @@ struct PaymentCheckoutConfirmationSheet: View {
         }
 
         HPCard {
-          Text("You will continue in Stripe’s hosted Checkout. Returning to Home Plate does not mark the request paid; payment is confirmed only after the server receives Stripe’s verified webhook.")
+          Text("This payment is for a baseball service delivered outside the app. It does not purchase or unlock Home Plate digital access. You will continue in Stripe’s hosted Checkout, and payment is confirmed only after the server receives Stripe’s verified webhook.")
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)
@@ -166,7 +166,7 @@ struct PaymentCheckoutConfirmationSheet: View {
       } secondaryAction: { _ in
         EmptyView()
       }
-      .navigationTitle("Open Stripe Checkout?")
+      .navigationTitle("Pay for Baseball Service?")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if os(macOS)
 @MainActor
 final class PlatformOrganizationCreationWorkflow: ObservableObject {
   @Published var isPresented = false
@@ -49,6 +50,7 @@ final class PlatformOrganizationCreationWorkflow: ObservableObject {
     }
   }
 }
+#endif
 
 /// Platform-wide controls. This is intentionally separate from Org Admin:
 /// it spans every organization and is only exposed after server authorization.
@@ -93,7 +95,9 @@ struct PlatformAdminDashboardView: View {
   @State private var auditEntries: [SDPlatformAuditEntry] = []
   @State private var pendingPlatformAdminChange: PlatformAdministratorChange?
   @State private var selectedSection: Section = .overview
+  #if os(macOS)
   @StateObject private var creationWorkflow = PlatformOrganizationCreationWorkflow()
+  #endif
 
   var body: some View {
     Group {
@@ -109,9 +113,11 @@ struct PlatformAdminDashboardView: View {
             orgLabel: "Home Plate Platform",
             context: "Organizations, access, and billing health across Home Plate."
           ) {
+            #if os(macOS)
             if context.isExpanded {
               newOrganizationButton(fullWidth: false)
             }
+            #endif
           }
         } sectionNavigation: { context in
           platformNavigationCard(context)
@@ -153,6 +159,7 @@ struct PlatformAdminDashboardView: View {
       .frame(minWidth: 520, minHeight: 470)
       #endif
     }
+    #if os(macOS)
     .sheet(isPresented: $creationWorkflow.isPresented, onDismiss: {
       creationWorkflow.dismiss()
     }) {
@@ -166,6 +173,7 @@ struct PlatformAdminDashboardView: View {
       .frame(minWidth: 520, minHeight: 430)
       #endif
     }
+    #endif
     .confirmationDialog(
       "Confirm Platform Administrator Change",
       isPresented: Binding(
@@ -239,7 +247,9 @@ struct PlatformAdminDashboardView: View {
           .buttonStyle(.plain)
 
           HStack(spacing: HP.Space.xs) {
+            #if os(macOS)
             newOrganizationButton(fullWidth: true)
+            #endif
             refreshButton(fullWidth: false)
           }
         }
@@ -247,6 +257,7 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
+  #if os(macOS)
   private func newOrganizationButton(fullWidth: Bool) -> some View {
     HPButton(
       title: "New Organization",
@@ -257,6 +268,7 @@ struct PlatformAdminDashboardView: View {
       action: { creationWorkflow.present() }
     )
   }
+  #endif
 
   private func refreshButton(fullWidth: Bool) -> some View {
     HPButton(
@@ -1031,6 +1043,7 @@ struct PlatformAdminDashboardView: View {
     }
   }
 
+  #if os(macOS)
   private func create(_ draft: PlatformOrganizationCreateDraft) async {
     let created = await creationWorkflow.submit(
       draft: draft,
@@ -1062,6 +1075,7 @@ struct PlatformAdminDashboardView: View {
       toastText = creationWorkflow.successText
     }
   }
+  #endif
 
   private func platformAdminMessage(for error: Error, fallback: String) -> String {
     let raw = error.localizedDescription
@@ -1075,6 +1089,7 @@ struct PlatformAdminDashboardView: View {
   }
 }
 
+#if os(macOS)
 struct PlatformOrganizationCreateDraft: Equatable {
   var name = ""
   var slug = ""
@@ -1097,6 +1112,7 @@ struct PlatformOrganizationCreateDraft: Equatable {
       && (maxMembers.isEmpty || (Int(maxMembers) ?? 0) > 0)
   }
 }
+#endif
 
 struct PlatformOrganizationDraft: Identifiable {
   let original: SDPlatformOrganization
@@ -1314,6 +1330,7 @@ private struct PlatformMembershipEditor: View {
   }
 }
 
+#if os(macOS)
 private struct PlatformOrganizationCreateEditor: View {
   @Environment(\.dismiss) private var dismiss
   @State private var draft = PlatformOrganizationCreateDraft()
@@ -1440,6 +1457,7 @@ private struct PlatformOrganizationCreateEditor: View {
       .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
   }
 }
+#endif
 
 private struct PlatformOrganizationEditor: View {
   @Environment(\.dismiss) private var dismiss
