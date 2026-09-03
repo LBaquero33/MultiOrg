@@ -67,8 +67,8 @@ order by source;
 - Migration `20260903180000_app_store_commerce_compliance.sql` was applied successfully. The 120 covered entitlements were audited and reclassified as `organization_sponsored`; zero active users were deactivated.
 - The legacy payment-request access trigger is absent, and `service_role` cannot execute the retired Stripe player-entitlement function.
 - Edge Functions `org_admin`, `create_account`, `stripe-webhook`, `create-player-subscription-checkout`, and `stripe-platform-webhook` were deployed and reported active.
-- The remediated website was deployed to production as Vercel deployment `dpl_DcqLVRV2CrNg26fGmyFoP5cYmELj`, and `www.homeplateapps.com` resolved to that ready deployment.
-- The iOS source and packaged simulator product contain no organization/account-creation, organization-checkout, organization-billing-management, or external player-subscription route. App Store upload and submission remain an App Store Connect task.
+- The remediated website was deployed to production as Vercel deployment `dpl_7YqDfx1jJxh2qnpYivT3TgrTnR8Z`. `www.homeplateapps.com` resolved to that ready deployment and returned release `184541689c649f502b875b0970fb7726655e6154`.
+- The iOS source, packaged simulator product, and arm64 device Release product contain no organization/account-creation, organization-checkout, organization-billing-management, or external player-subscription route. App Store archive upload and submission remain an App Store Connect task.
 
 ## App Review test path
 
