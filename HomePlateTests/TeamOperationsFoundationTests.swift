@@ -128,10 +128,12 @@ struct TeamOperationsFoundationTests {
     let swiftActions = Set(SDOrgAdminAction.allCases.map(\.rawValue))
     #expect(swiftActions.contains("create_season"))
     #expect(swiftActions.contains("update_season"))
-    #expect(swiftActions.count == 18)
+    #expect(swiftActions.count == 17)
     for action in swiftActions {
       #expect(backend.contains("\"\(action)\""))
     }
+    #expect(!swiftActions.contains("set_player_access"))
+    #expect(!backend.contains("\"set_player_access\""))
     #expect(!backend.contains("createSeason"))
   }
 
