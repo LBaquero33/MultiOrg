@@ -159,6 +159,16 @@ struct PlayerDevelopmentImportTests {
     #expect(model.inspection?.detection?.confidence == "high")
     #expect(model.inspection?.detection?.protectedColumns.contains("SO - latitude") == true)
     #expect(model.inspection?.suggestedMapping?.adapterVersion == "rapsodo-pitching.v1")
+    #expect(model.inspection?.sourcePlayerOptions?.first?.displayName == "Fictional Avery")
+    #expect(model.sourcePlayerChoice?.role == "pitcher")
+    await model.confirmSourcePlayer(
+      client: client,
+      organizationId: orgId,
+      userId: userId
+    )
+    #expect(client.sourcePlayerSelections == ["pitcher:external:fictional-player"])
+    #expect(model.job?.selectedSourcePlayerName == "Fictional Avery")
+    #expect(model.phase == .mapping)
   }
 
   @Test("Readable 409 state includes stable code and supports active/completed recovery")
@@ -607,6 +617,7 @@ private final class MockImportClient: PlayerDevelopmentImportClient {
   var validateJobIds: [UUID] = []
   var getJobIds: [UUID] = []
   var savedMappingCalls = 0
+  var sourcePlayerSelections: [String] = []
   var archiveCalls = 0
   var savedMappingName: String?
   var resolutions: [String: UUID] = [:]
@@ -640,6 +651,15 @@ private final class MockImportClient: PlayerDevelopmentImportClient {
       throw SDEdgeFunctionHTTPError(statusCode: 409, code: "upload_not_found", message: "The private upload could not be found.")
     }
     return SDDevelopmentImportInspectResponse(job: job(status: .mappingRequired), inspection: inspection())
+  }
+  func selectDevelopmentImportSourcePlayer(organizationId: UUID, jobId: UUID, sourceKey: String, role: String) async throws -> SDDevelopmentImportSourcePlayerResponse {
+    try failIfNeeded()
+    sourcePlayerSelections.append("\(role):\(sourceKey)")
+    let option = inspection().sourcePlayerOptions!.first!
+    return SDDevelopmentImportSourcePlayerResponse(
+      job: job(status: .validating, selectedSourcePlayer: option),
+      selectedSourcePlayer: option
+    )
   }
   func saveDevelopmentImportMapping(organizationId: UUID, jobId: UUID, mapping: SDDevelopmentImportMapping, mappingName: String?) async throws -> SDDevelopmentImportJob {
     try failIfNeeded(); savedMappingCalls += 1; savedMappingName = mappingName; return job(status: .validating)
@@ -685,8 +705,8 @@ private final class MockImportClient: PlayerDevelopmentImportClient {
     return mappingProfile()
   }
 
-  func job(status: SDDevelopmentImportStatus, accepted: Int = 0, rejected: Int = 0) -> SDDevelopmentImportJob {
-    SDDevelopmentImportJob(id: jobId, organizationId: orgId, playerId: playerId, requestedBy: userId, provider: "generic_csv", fileName: "synthetic.csv", originalFileType: "csv", fileSHA256: String(repeating: "a", count: 64), fileSizeBytes: 100, parserVersion: "generic-csv.v1", mappingVersion: "mapping.v1", status: status, rowCount: max(accepted + rejected, 1), acceptedRows: accepted, rejectedRows: rejected, unmatchedPlayerRows: 0, warningCount: 0, safeErrorCode: nil, safeErrorSummary: nil, storageBucket: nil, storagePath: nil, createdAt: "2026-07-15T12:00:00Z", completedAt: status.isFinished ? "2026-07-15T12:01:00Z" : nil, archivedAt: status == .archived ? "2026-07-15T12:02:00Z" : nil)
+  func job(status: SDDevelopmentImportStatus, accepted: Int = 0, rejected: Int = 0, selectedSourcePlayer: SDDevelopmentImportSourcePlayerOption? = nil) -> SDDevelopmentImportJob {
+    SDDevelopmentImportJob(id: jobId, organizationId: orgId, playerId: playerId, requestedBy: userId, provider: "generic_csv", fileName: "synthetic.csv", originalFileType: "csv", fileSHA256: String(repeating: "a", count: 64), fileSizeBytes: 100, parserVersion: "generic-csv.v1", selectedSourcePlayerKey: selectedSourcePlayer?.sourceKey, selectedSourcePlayerName: selectedSourcePlayer?.displayName, selectedSourcePlayerRole: selectedSourcePlayer?.role, mappingVersion: "mapping.v1", status: status, rowCount: max(accepted + rejected, 1), acceptedRows: accepted, rejectedRows: rejected, unmatchedPlayerRows: 0, warningCount: 0, safeErrorCode: nil, safeErrorSummary: nil, storageBucket: nil, storagePath: nil, createdAt: "2026-07-15T12:00:00Z", completedAt: status.isFinished ? "2026-07-15T12:01:00Z" : nil, archivedAt: status == .archived ? "2026-07-15T12:02:00Z" : nil)
   }
   func inspection() -> SDDevelopmentImportInspection {
     SDDevelopmentImportInspection(
@@ -727,7 +747,17 @@ private final class MockImportClient: PlayerDevelopmentImportClient {
         adapterVersion: "rapsodo-pitching.v1",
         detectedExportType: "rapsodo_pitching",
         unitSystem: nil
-      )
+      ),
+      sourcePlayerOptions: [
+        SDDevelopmentImportSourcePlayerOption(
+          sourceKey: "external:fictional-player",
+          displayName: "Fictional Avery",
+          role: "pitcher",
+          rowCount: 1
+        )
+      ],
+      sourcePlayerSelectionRequired: true,
+      suggestedSourcePlayer: nil
     )
   }
   func preview() -> SDDevelopmentImportPreviewResponse {

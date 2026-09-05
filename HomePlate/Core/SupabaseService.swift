@@ -3647,6 +3647,27 @@ final class SupabaseService: ObservableObject {
     return try await invokePlayerDevelopmentImports(Request(org_id: organizationId, job_id: jobId))
   }
 
+  func selectDevelopmentImportSourcePlayer(
+    organizationId: UUID,
+    jobId: UUID,
+    sourceKey: String,
+    role: String
+  ) async throws -> SDDevelopmentImportSourcePlayerResponse {
+    struct Request: Encodable {
+      let action = "select_source_player"
+      let org_id: UUID
+      let job_id: UUID
+      let source_key: String
+      let source_role: String
+    }
+    return try await invokePlayerDevelopmentImports(Request(
+      org_id: organizationId,
+      job_id: jobId,
+      source_key: sourceKey,
+      source_role: role
+    ))
+  }
+
   func saveDevelopmentImportMapping(
     organizationId: UUID,
     jobId: UUID,

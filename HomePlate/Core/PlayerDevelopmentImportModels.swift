@@ -90,6 +90,9 @@ struct SDDevelopmentImportJob: Identifiable, Codable, Equatable, Sendable {
   var detectionConfidence: String? = nil
   var unitSystem: String? = nil
   var importTimezone: String? = nil
+  var selectedSourcePlayerKey: String? = nil
+  var selectedSourcePlayerName: String? = nil
+  var selectedSourcePlayerRole: String? = nil
   let mappingVersion: String?
   let status: SDDevelopmentImportStatus
   let rowCount: Int
@@ -120,6 +123,9 @@ struct SDDevelopmentImportJob: Identifiable, Codable, Equatable, Sendable {
     case detectionConfidence = "detection_confidence"
     case unitSystem = "unit_system"
     case importTimezone = "import_timezone"
+    case selectedSourcePlayerKey = "selected_source_player_key"
+    case selectedSourcePlayerName = "selected_source_player_name"
+    case selectedSourcePlayerRole = "selected_source_player_role"
     case mappingVersion = "mapping_version"
     case rowCount = "row_count"
     case acceptedRows = "accepted_rows"
@@ -159,6 +165,9 @@ struct SDDevelopmentImportInspection: Codable, Equatable, Sendable {
   let providerAdapterActive: Bool
   var detection: SDDevelopmentImportDetection? = nil
   var suggestedMapping: SDDevelopmentImportMapping? = nil
+  var sourcePlayerOptions: [SDDevelopmentImportSourcePlayerOption]? = nil
+  var sourcePlayerSelectionRequired: Bool? = nil
+  var suggestedSourcePlayer: SDDevelopmentImportSourcePlayerOption? = nil
   enum CodingKeys: String, CodingKey {
     case headers, warnings
     case detectedFileType = "detected_file_type"
@@ -170,6 +179,25 @@ struct SDDevelopmentImportInspection: Codable, Equatable, Sendable {
     case providerAdapterActive = "provider_adapter_active"
     case detection
     case suggestedMapping = "suggested_mapping"
+    case sourcePlayerOptions = "source_player_options"
+    case sourcePlayerSelectionRequired = "source_player_selection_required"
+    case suggestedSourcePlayer = "suggested_source_player"
+  }
+}
+
+struct SDDevelopmentImportSourcePlayerOption: Codable, Equatable, Identifiable, Sendable {
+  let sourceKey: String
+  let displayName: String
+  let role: String
+  let rowCount: Int
+
+  var id: String { "\(role):\(sourceKey)" }
+
+  enum CodingKeys: String, CodingKey {
+    case role
+    case sourceKey = "source_key"
+    case displayName = "display_name"
+    case rowCount = "row_count"
   }
 }
 
@@ -413,6 +441,14 @@ struct SDDevelopmentImportInspectResponse: Codable, Sendable {
   let job: SDDevelopmentImportJob
   let inspection: SDDevelopmentImportInspection
 }
+struct SDDevelopmentImportSourcePlayerResponse: Codable, Sendable {
+  let job: SDDevelopmentImportJob
+  let selectedSourcePlayer: SDDevelopmentImportSourcePlayerOption
+  enum CodingKeys: String, CodingKey {
+    case job
+    case selectedSourcePlayer = "selected_source_player"
+  }
+}
 struct SDDevelopmentImportPreviewResponse: Codable, Sendable {
   let notice: String
   let status: String
@@ -510,6 +546,7 @@ protocol PlayerDevelopmentImportClient: AnyObject {
   func createDevelopmentImportJob(organizationId: UUID, playerId: UUID?, provider: SDDevelopmentImportProvider, fileName: String, idempotencyKey: UUID) async throws -> SDDevelopmentImportCreateResponse
   func uploadDevelopmentImportFile(_ data: Data, target: SDDevelopmentImportUploadTarget, fileType: String) async throws
   func inspectDevelopmentImport(organizationId: UUID, jobId: UUID) async throws -> SDDevelopmentImportInspectResponse
+  func selectDevelopmentImportSourcePlayer(organizationId: UUID, jobId: UUID, sourceKey: String, role: String) async throws -> SDDevelopmentImportSourcePlayerResponse
   func saveDevelopmentImportMapping(organizationId: UUID, jobId: UUID, mapping: SDDevelopmentImportMapping, mappingName: String?) async throws -> SDDevelopmentImportJob
   func validateDevelopmentImport(organizationId: UUID, jobId: UUID) async throws -> SDDevelopmentImportPreviewResponse
   func getDevelopmentImportJob(organizationId: UUID, jobId: UUID) async throws -> SDDevelopmentImportJob

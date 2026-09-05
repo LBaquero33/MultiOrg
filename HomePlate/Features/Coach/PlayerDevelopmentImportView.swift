@@ -11,6 +11,7 @@ final class PlayerDevelopmentImportWorkspaceModel: ObservableObject {
   @Published private(set) var phase: Phase = .idle
   @Published private(set) var job: SDDevelopmentImportJob?
   @Published private(set) var inspection: SDDevelopmentImportInspection?
+  @Published var sourcePlayerChoice: SDDevelopmentImportSourcePlayerOption?
   @Published private(set) var preview: SDDevelopmentImportPreviewResponse?
   @Published private(set) var history: [SDDevelopmentImportJob] = []
   @Published private(set) var profiles: [SDDevelopmentImportMappingProfile] = []
@@ -47,6 +48,7 @@ final class PlayerDevelopmentImportWorkspaceModel: ObservableObject {
     phase = .idle
     job = nil
     inspection = nil
+    sourcePlayerChoice = nil
     preview = nil
     history = []
     profiles = []
@@ -194,6 +196,10 @@ final class PlayerDevelopmentImportWorkspaceModel: ObservableObject {
       guard accepts(token) else { return }
       job = inspected.job
       inspection = inspected.inspection
+      sourcePlayerChoice = inspected.inspection.suggestedSourcePlayer
+        ?? (inspected.inspection.sourcePlayerOptions?.count == 1
+          ? inspected.inspection.sourcePlayerOptions?.first
+          : nil)
       phase = .mapping
       pendingCreateFingerprint = nil
       pendingCreateKey = nil
@@ -209,6 +215,35 @@ final class PlayerDevelopmentImportWorkspaceModel: ObservableObject {
         pendingCreateFingerprint = nil
         pendingCreateKey = nil
       }
+      present(error)
+    }
+  }
+
+  func confirmSourcePlayer(
+    client: any PlayerDevelopmentImportClient,
+    organizationId: UUID,
+    userId: UUID
+  ) async {
+    guard let job, let sourcePlayerChoice, !isWorking else { return }
+    let token = contextToken ?? beginContext(organizationId: organizationId, userId: userId)
+    phase = .validating
+    errorMessage = nil
+    do {
+      let response = try await client.selectDevelopmentImportSourcePlayer(
+        organizationId: organizationId,
+        jobId: job.id,
+        sourceKey: sourcePlayerChoice.sourceKey,
+        role: sourcePlayerChoice.role
+      )
+      guard accepts(token) else { return }
+      self.job = response.job
+      self.sourcePlayerChoice = response.selectedSourcePlayer
+      phase = .mapping
+    } catch is CancellationError {
+      return
+    } catch {
+      guard accepts(token) else { return }
+      phase = .mapping
       present(error)
     }
   }
@@ -695,7 +730,18 @@ struct PlayerDevelopmentImportWorkspaceView: View {
       } supporting: {
         selectCard(service: service, organizationId: organizationId, userId: userId)
         if let inspection = model.inspection { inspectionCard(inspection) }
-        if model.inspection != nil && model.phase != .completed {
+        if let inspection = model.inspection,
+           !(inspection.sourcePlayerOptions ?? []).isEmpty,
+           model.job?.selectedSourcePlayerKey == nil,
+           model.phase != .completed {
+          sourcePlayerCard(
+            inspection,
+            service: service,
+            organizationId: organizationId,
+            userId: userId
+          )
+        }
+        if model.inspection != nil && model.phase != .completed && !sourcePlayerSelectionPending {
           mappingCard(service: service, organizationId: organizationId, userId: userId)
             .id(WorkspaceAnchor.mapping)
         }
@@ -718,6 +764,72 @@ struct PlayerDevelopmentImportWorkspaceView: View {
         }
         guard let anchor else { return }
         withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+      }
+    }
+  }
+
+  private var sourcePlayerSelectionPending: Bool {
+    guard let inspection = model.inspection else { return false }
+    return !(inspection.sourcePlayerOptions ?? []).isEmpty
+      && model.job?.selectedSourcePlayerKey == nil
+  }
+
+  private func sourcePlayerCard(
+    _ inspection: SDDevelopmentImportInspection,
+    service: SupabaseService,
+    organizationId: UUID,
+    userId: UUID
+  ) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("3. Choose the player to parse")
+        Text("Select the hitter or pitcher whose rows belong to this Home Plate athlete. Only that name's rows will be parsed, validated, stored, and sent to Data Lab.")
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        ForEach(inspection.sourcePlayerOptions ?? []) { option in
+          Button {
+            model.sourcePlayerChoice = option
+          } label: {
+            HStack(spacing: HP.Space.sm) {
+              Image(systemName: model.sourcePlayerChoice?.id == option.id ? "largecircle.fill.circle" : "circle")
+                .foregroundStyle(HP.Color.accent)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(option.displayName)
+                  .font(HP.Font.callout.weight(.semibold))
+                  .foregroundStyle(HP.Color.text)
+                Text("\(option.role.capitalized) • \(option.rowCount) matching rows")
+                  .font(HP.Font.caption)
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+              Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("\(option.displayName), \(option.role), \(option.rowCount) matching rows")
+          .accessibilityAddTraits(model.sourcePlayerChoice?.id == option.id ? .isSelected : [])
+        }
+        HPButton(
+          title: model.phase == .validating ? "Confirming…" : "Parse selected player only",
+          systemImage: "person.crop.circle.badge.checkmark",
+          variant: .primary,
+          size: .lg,
+          isLoading: model.phase == .validating,
+          fullWidth: stacksControls,
+          action: {
+            operationTask?.cancel()
+            operationTask = Task {
+              await model.confirmSourcePlayer(
+                client: service,
+                organizationId: organizationId,
+                userId: userId
+              )
+            }
+          }
+        )
+        .disabled(model.sourcePlayerChoice == nil || model.isWorking)
       }
     }
   }
