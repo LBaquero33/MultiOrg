@@ -5,8 +5,29 @@ struct SDOrg: Identifiable, Decodable, Equatable, Hashable, Sendable {
   let slug: String
   let name: String
   var organization_type: String? = nil
+  var timezone: String? = nil
 
   var displayName: String { name }
+}
+
+enum HPTrainingCalendar {
+  static func calendar(timezone: String?) -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timezone.flatMap(TimeZone.init(identifier:)) ?? TimeZone(secondsFromGMT: 0)!
+    return calendar
+  }
+
+  static func isToday(_ date: Date, now: Date, timezone: String?) -> Bool {
+    calendar(timezone: timezone).isDate(date, inSameDayAs: now)
+  }
+
+  static func label(_ date: Date, timezone: String?) -> String {
+    let formatter = DateFormatter()
+    formatter.timeZone = calendar(timezone: timezone).timeZone
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter.string(from: date) + " " + (formatter.timeZone.abbreviation(for: date) ?? "UTC")
+  }
 }
 
 struct HPTrainingExperience: Decodable, Sendable {

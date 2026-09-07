@@ -301,14 +301,14 @@ private struct HPTrainingOperationsView: View {
           } else {
             Section(mode == .today ? "Today and needs closeout" : "Sessions") {
               let rows = workspace.appointments.filter { appointment in
-                mode == .sessions || date(appointment.starts_at).map { Calendar.current.isDateInToday($0) } == true ||
+                mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: Date(), timezone: organizationTimezone) } == true ||
                   (date(appointment.ends_at).map { $0 < Date() } == true && !terminal(appointment.status))
               }
               if rows.isEmpty { Text("No sessions in this view.") }
               ForEach(rows) { appointment in
                 VStack(alignment: .leading, spacing: 8) {
                   Text(workspace.services.first { $0.id == appointment.service_id }?.name ?? "Training session").font(.headline)
-                  Text(date(appointment.starts_at)?.formatted(date: .abbreviated, time: .shortened) ?? "Date unavailable").font(.subheadline)
+                  Text(date(appointment.starts_at).map { HPTrainingCalendar.label($0, timezone: organizationTimezone) } ?? "Date unavailable").font(.subheadline)
                   Text(appointment.status.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption)
                   ForEach(workspace.participants.filter { $0.appointment_id == appointment.id }, id: \.athlete_id) { participant in
                     Text(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete").font(.caption)
@@ -342,6 +342,9 @@ private struct HPTrainingOperationsView: View {
     }
   }
   private func terminal(_ status: String) -> Bool { ["completed", "cancelled", "no_show"].contains(status) }
+  private var organizationTimezone: String? {
+    appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.timezone
+  }
   private func date(_ value: String) -> Date? {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

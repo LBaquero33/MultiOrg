@@ -8,6 +8,14 @@ import UIKit
 
 @MainActor
 final class UniversalNavigationShellTests: XCTestCase {
+  func testTrainingDayUsesOrganizationTimezoneAcrossMidnight() throws {
+    let parser = ISO8601DateFormatter()
+    let now = try XCTUnwrap(parser.date(from: "2026-09-08T02:00:00Z"))
+    let session = try XCTUnwrap(parser.date(from: "2026-09-07T22:00:00Z"))
+    XCTAssertTrue(HPTrainingCalendar.isToday(session, now: now, timezone: "America/Chicago"))
+    XCTAssertFalse(HPTrainingCalendar.isToday(session, now: now, timezone: "UTC"))
+    XCTAssertEqual(HPTrainingCalendar.calendar(timezone: "invalid").timeZone.secondsFromGMT(), 0)
+  }
   func testTrainingNavigationUsesResolvedModulesWithoutInventingTeams() {
     let experience = HPTrainingExperience(organization_type: "independent_trainer",
       enabled_modules: ["athletes", "lessons", "messages"],
