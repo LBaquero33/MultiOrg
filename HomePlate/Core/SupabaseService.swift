@@ -415,7 +415,7 @@ final class SupabaseService: ObservableObject {
   func listOrgs() async throws -> [SDOrg] {
     try await client
       .from("sd_orgs")
-      .select("id, slug, name")
+      .select("id, slug, name, organization_type")
       .order("name", ascending: true)
       .execute()
       .value

@@ -827,8 +827,10 @@ final class AppState: ObservableObject {
       return
     }
     do {
-      try await supabase.client.auth.resetPasswordForEmail(email)
-      authError = "Password reset email sent (check spam)."
+      try await supabase.client.auth.resetPasswordForEmail(
+        email, redirectTo: URL(string: "https://www.homeplateapps.com/reset-password")
+      )
+      authError = "If an account matches that email, a recovery link is on its way. Check spam too."
     } catch {
       authError = error.localizedDescription
     }

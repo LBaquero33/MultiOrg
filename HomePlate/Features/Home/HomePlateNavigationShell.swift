@@ -308,6 +308,24 @@ struct HPAppNavigationInventory: Equatable {
     )
   }
 
+  static func training(experience: HPTrainingExperience?, canAdminister: Bool) -> Self {
+    let home = item(.coachToday, "Today", "house")
+    let athletes = item(.coachPlayers, "Athletes", "figure.run")
+    let sessions = item(.coachSchedule, "Sessions", "calendar")
+    let account = item(.account, "Account", "person.crop.circle")
+    let ids = Set(experience?.navigation_ids ?? [])
+    let daily = [home] + (ids.contains("athletes") ? [athletes] : [])
+      + (ids.contains("lessons") || ids.contains("calendar") ? [sessions] : [])
+    let extras = (ids.contains("programs") ? [item(.coachPrograms, "Programs & Development", "list.clipboard")] : [])
+      + (ids.contains("messages") ? [item(.chat, "Messages", "bubble.left.and.bubble.right")] : [])
+      + (ids.contains("payments") ? [item(.payments, "Payments", "creditcard")] : [])
+      + (canAdminister ? [item(.organizationAdmin, "Organization Settings", "gearshape")] : [])
+      + [account]
+    return Self(compactItems: daily, directorySections: [HPAppNavigationSection(title: "More", items: extras)],
+      regularSections: [HPAppNavigationSection(title: "Daily Work", items: daily), HPAppNavigationSection(title: "More", items: extras)],
+      defaultDestination: .coachToday)
+  }
+
   static func platformOnly() -> Self {
     let platform = item(.platformAdmin, "Platform Admin", "building.2.crop.circle")
     let account = item(.account, "Account", "gearshape")

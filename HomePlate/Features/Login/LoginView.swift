@@ -333,6 +333,19 @@ struct LoginView: View {
         }
 
         HPFormField(label: "Password", text: $password, kind: .secure)
+        if mode == .email {
+          Button("Forgot password?") {
+            Task {
+              isSubmitting = true
+              await appState.resetPassword(email: email.trimmingCharacters(in: .whitespacesAndNewlines))
+              isSubmitting = false
+            }
+          }
+          .disabled(isSubmitting || !email.contains("@"))
+          Text("For recovery, enter your account email rather than a username. Follow the email link to set a new password, then return here to sign in.")
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+        }
 
         if let error = appState.authError, !error.isEmpty {
           errorNotice(safeAuthMessage(error))

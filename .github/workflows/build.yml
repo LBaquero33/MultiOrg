@@ -14,6 +14,10 @@ jobs:
         run: cp Configs/Secrets.example.xcconfig Configs/Secrets.xcconfig
       - name: Build iOS simulator target
         run: xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlate -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Test native contracts
+        run: |
+          device_id=$(xcrun simctl list devices available -j | ruby -rjson -e 'd=JSON.parse(STDIN.read)["devices"].values.flatten.find { |x| x["name"].start_with?("iPhone") }; abort "No iPhone simulator available" unless d; puts d["udid"]')
+          xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlate -destination "platform=iOS Simulator,id=$device_id" -configuration Debug CODE_SIGNING_ALLOWED=NO test
 
   macos:
     runs-on: macos-latest

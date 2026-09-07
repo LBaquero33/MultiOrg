@@ -4,8 +4,64 @@ struct SDOrg: Identifiable, Decodable, Equatable, Hashable, Sendable {
   let id: UUID
   let slug: String
   let name: String
+  var organization_type: String? = nil
 
   var displayName: String { name }
+}
+
+struct HPTrainingExperience: Decodable, Sendable {
+  let organization_type: String
+  let enabled_modules: [String]
+  let navigation_ids: [String]
+  let capabilities: [String]
+}
+
+struct HPTrainingWorkspace: Decodable, Sendable {
+  struct Athlete: Decodable, Identifiable, Sendable {
+    let id: UUID
+    let display_name: String
+    let athlete_user_id: UUID?
+  }
+  struct Appointment: Decodable, Identifiable, Sendable {
+    let id: UUID
+    let service_id: UUID
+    let trainer_user_id: UUID?
+    let starts_at: String
+    let ends_at: String
+    let updated_at: String
+    let status: String
+  }
+  struct Service: Decodable, Identifiable, Sendable { let id: UUID; let name: String }
+  struct Participant: Decodable, Sendable {
+    let appointment_id: UUID
+    let athlete_id: UUID
+    let attendance_status: String
+  }
+  let access: [String: SDJSONValue]
+  let athletes: [Athlete]
+  let appointments: [Appointment]
+  let services: [Service]
+  let participants: [Participant]
+  let outcomes: [[String: SDJSONValue]]
+  let source_diagnostics: [String: [String]]
+}
+
+extension SupabaseService {
+  func trainingExperience(organizationId: UUID) async throws -> HPTrainingExperience {
+    try await client.rpc("sd_resolve_organization_experience", params: ["p_org_id": organizationId.uuidString])
+      .execute().value
+  }
+  func trainingWorkspace(organizationId: UUID) async throws -> HPTrainingWorkspace {
+    try await invokeAuthenticatedFunction("war-operations", body: [
+      "action": "get_workspace", "org_id": organizationId.uuidString, "scope": "all",
+    ])
+  }
+  func trainingAction(organizationId: UUID, action: String, payload: [String: SDJSONValue]) async throws {
+    var body = payload
+    body["org_id"] = .string(organizationId.uuidString)
+    body["action"] = .string(action)
+    let _: [String: SDJSONValue] = try await invokeAuthenticatedFunction("war-operations", body: body)
+  }
 }
 
 /// Server-synchronized organization software subscription state. Timestamps

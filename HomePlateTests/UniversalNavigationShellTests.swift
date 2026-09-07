@@ -8,6 +8,29 @@ import UIKit
 
 @MainActor
 final class UniversalNavigationShellTests: XCTestCase {
+  func testTrainingNavigationUsesResolvedModulesWithoutInventingTeams() {
+    let experience = HPTrainingExperience(organization_type: "independent_trainer",
+      enabled_modules: ["athletes", "lessons", "messages"],
+      navigation_ids: ["home", "athletes", "lessons", "messages", "account"], capabilities: [])
+    let inventory = HPAppNavigationInventory.training(experience: experience, canAdminister: false)
+    XCTAssertEqual(inventory.compactItems.map(\.destination), [.coachToday, .coachPlayers, .coachSchedule])
+    XCTAssertFalse(inventory.regularItems.contains { [.coachTeams, .games, .payments, .organizationAdmin].contains($0.destination) })
+    XCTAssertTrue(inventory.regularItems.contains { $0.destination == .chat })
+  }
+
+  func testTrainingNavigationFailsClosedWhileConfigurationIsUnavailable() {
+    let inventory = HPAppNavigationInventory.training(experience: nil, canAdminister: false)
+    XCTAssertEqual(inventory.regularItems.map(\.destination), [.coachToday, .account])
+  }
+
+  func testOrganizationArchetypeDecodesWithoutBreakingLegacyOrganizations() throws {
+    let id = UUID().uuidString
+    let training = try JSONDecoder().decode(SDOrg.self, from: Data("{\"id\":\"\(id)\",\"slug\":\"trainer\",\"name\":\"Trainer\",\"organization_type\":\"independent_trainer\"}".utf8))
+    XCTAssertEqual(training.organization_type, "independent_trainer")
+    let legacy = try JSONDecoder().decode(SDOrg.self, from: Data("{\"id\":\"\(id)\",\"slug\":\"team\",\"name\":\"Team\"}".utf8))
+    XCTAssertNil(legacy.organization_type)
+  }
+
   func testPlayerInventoryMatchesWebsiteMenu() {
     let inventory = playerInventory()
 

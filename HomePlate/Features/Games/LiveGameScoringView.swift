@@ -23,9 +23,15 @@ struct LiveGameScoringView: View {
     VStack(alignment: .leading, spacing: 12) {
       liveHeader
       scoreStrip
-      HStack(alignment: .top, spacing: 14) {
-        field
-        actionPanel
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .top, spacing: 14) {
+          field.frame(minWidth: 310)
+          actionPanel.frame(minWidth: 240, maxWidth: 280)
+        }
+        VStack(alignment: .leading, spacing: 14) {
+          field
+          actionPanel
+        }
       }
       .frame(maxWidth: .infinity, alignment: .top)
       if !canMutate {
@@ -133,7 +139,7 @@ struct LiveGameScoringView: View {
       baseTarget(1, alignment: .trailing)
       baseTarget(0, alignment: .bottom)
     }
-    .frame(minWidth: 310, idealWidth: 460, maxWidth: .infinity, minHeight: 340)
+    .frame(maxWidth: .infinity, minHeight: 300)
   }
 
   private func baseTarget(_ base: Int, alignment: Alignment) -> some View {
@@ -201,7 +207,7 @@ struct LiveGameScoringView: View {
       }
       .disabled(!canMutate)
     }
-    .frame(minWidth: 190, idealWidth: 240, maxWidth: 280)
+    .frame(maxWidth: .infinity)
   }
 
   private func actionGrid(
@@ -216,7 +222,7 @@ struct LiveGameScoringView: View {
           }
         } label: {
           Label(action.0, systemImage: action.1)
-            .frame(maxWidth: .infinity, minHeight: 34)
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .disabled(!canMutate)

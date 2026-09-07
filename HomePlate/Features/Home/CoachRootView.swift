@@ -5,6 +5,7 @@ import SwiftUI
 /// predate the Home Plate navigation presentation.
 struct CoachRootView: View {
   @EnvironmentObject private var appState: AppState
+  @State private var trainingExperience: HPTrainingExperience?
 
 #if os(macOS)
   @State private var selection: HPAppNavigationDestination = .coachToday
@@ -13,6 +14,7 @@ struct CoachRootView: View {
 #endif
 
   var body: some View {
+    Group {
 #if os(macOS)
     HPRegularApplicationShell(
       role: sidebarRole,
@@ -69,7 +71,24 @@ struct CoachRootView: View {
 #endif
   }
 
+    .task(id: appState.activeOrgAuthorizationKey) {
+      trainingExperience = nil
+      guard let service = appState.supabase, let organizationId = appState.activeOrgId else { return }
+      let loaded = try? await service.trainingExperience(organizationId: organizationId)
+      guard !Task.isCancelled, appState.activeOrgId == organizationId else { return }
+      trainingExperience = loaded
+    }
+  }
+
+  private var isTraining: Bool {
+    let kind = trainingExperience?.organization_type ?? appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.organization_type
+    return ["training_facility", "independent_trainer", "hybrid_academy"].contains(kind ?? "")
+  }
+
   private var navigationInventory: HPAppNavigationInventory {
+    if isTraining {
+      return .training(experience: trainingExperience, canAdminister: appState.canAdminActiveOrg)
+    }
     if appState.canAdminActiveOrg {
       return HPAppNavigationInventory.owner(
         facilitiesTitle: term("facilities", fallback: "Facilities"),
@@ -112,13 +131,13 @@ struct CoachRootView: View {
   private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
     switch destination {
     case .coachToday:
-      CoachTodayFoundationView()
+      if isTraining { HPTrainingOperationsView(mode: .today).id(appState.activeOrgAuthorizationKey) } else { CoachTodayFoundationView() }
     case .coachTeam:
       CoachTeamCommandCenterView()
     case .coachSchedule:
-      CoachScheduleFoundationView()
+      if isTraining { HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey) } else { CoachScheduleFoundationView() }
     case .coachPlayers:
-      CoachHomeView()
+      if isTraining { HPTrainingOperationsView(mode: .athletes).id(appState.activeOrgAuthorizationKey) } else { CoachHomeView() }
     case .coachCalendar:
       GameCalendarView()
     case .coachFacilities:
@@ -249,5 +268,175 @@ struct CoachRootView: View {
         )
       }
     }
+  }
+}
+
+private struct HPTrainingOperationsView: View {
+  enum Mode { case today, athletes, sessions }
+  @EnvironmentObject private var appState: AppState
+  @State private var workspace: HPTrainingWorkspace?
+  @State private var errorText: String?
+  @State private var busy = false
+  @State private var completion: HPTrainingWorkspace.Appointment?
+  let mode: Mode
+
+  var body: some View {
+    NavigationStack {
+      List {
+        if let errorText { Section { Text(errorText).foregroundStyle(.red); Button("Retry") { Task { await reload() } } } }
+        if let workspace {
+          if !(workspace.source_diagnostics["unavailable_sources"] ?? []).isEmpty {
+            Text("Some records could not be loaded. Missing information is not a zero or a completed task.").foregroundStyle(.orange)
+          }
+          if mode == .athletes {
+            Section("Athletes") {
+              if workspace.athletes.isEmpty { Text("No athletes are available to your current role.") }
+              ForEach(workspace.athletes) { athlete in
+                VStack(alignment: .leading) {
+                  Text(athlete.display_name).font(.headline)
+                  Text(athlete.athlete_user_id == nil ? "Staff-maintained record · Account not linked" : "Account linked").font(.caption)
+                }
+              }
+            }
+          } else {
+            Section(mode == .today ? "Today and needs closeout" : "Sessions") {
+              let rows = workspace.appointments.filter { appointment in
+                mode == .sessions || date(appointment.starts_at).map { Calendar.current.isDateInToday($0) } == true ||
+                  (date(appointment.ends_at).map { $0 < Date() } == true && !terminal(appointment.status))
+              }
+              if rows.isEmpty { Text("No sessions in this view.") }
+              ForEach(rows) { appointment in
+                VStack(alignment: .leading, spacing: 8) {
+                  Text(workspace.services.first { $0.id == appointment.service_id }?.name ?? "Training session").font(.headline)
+                  Text(date(appointment.starts_at)?.formatted(date: .abbreviated, time: .shortened) ?? "Date unavailable").font(.subheadline)
+                  Text(appointment.status.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption)
+                  ForEach(workspace.participants.filter { $0.appointment_id == appointment.id }, id: \.athlete_id) { participant in
+                    Text(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete").font(.caption)
+                  }
+                  if !terminal(appointment.status) {
+                    if canManage(appointment, workspace: workspace) {
+                      Button("Check in") { Task { await checkIn(appointment) } }.disabled(busy || appointment.status == "checked_in")
+                    }
+                    if canComplete(appointment, workspace: workspace) {
+                      Button("Complete roster") { completion = appointment }.disabled(busy)
+                    }
+                  }
+                }.padding(.vertical, 4)
+              }
+            }
+          }
+          Section("Organization tools") {
+            Link("Open booking, services and website tools", destination: URL(string: "https://www.homeplateapps.com/app/lessons")!)
+            Text("Web sign-in may be required. Choose the same organization before making changes.").font(.caption)
+          }
+        } else if errorText == nil { ProgressView("Loading training workspace…") }
+      }
+      .navigationTitle(mode == .athletes ? "Athletes" : mode == .sessions ? "Sessions" : "Training today")
+      .refreshable { await reload() }
+      .task { await reload() }
+      .sheet(item: $completion) { appointment in
+        if let workspace {
+          HPTrainingCompletionSheet(appointment: appointment, workspace: workspace) { await reload() }
+        }
+      }
+    }
+  }
+  private func terminal(_ status: String) -> Bool { ["completed", "cancelled", "no_show"].contains(status) }
+  private func date(_ value: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+  }
+  private func canComplete(_ appointment: HPTrainingWorkspace.Appointment, workspace: HPTrainingWorkspace) -> Bool {
+    if workspace.access["is_admin"]?.boolValue == true { return true }
+    guard let currentUserId = appState.myProfile?.id else { return false }
+    return appointment.trainer_user_id == currentUserId
+  }
+  private func canManage(_ appointment: HPTrainingWorkspace.Appointment, workspace: HPTrainingWorkspace) -> Bool {
+    canComplete(appointment, workspace: workspace) || workspace.access["staff_kind"]?.stringValue == "front_desk"
+  }
+  private func reload() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    do {
+      let loaded = try await service.trainingWorkspace(organizationId: org)
+      guard !Task.isCancelled, org == appState.activeOrgId else { return }
+      workspace = loaded; errorText = nil
+    } catch {
+      guard !Task.isCancelled, org == appState.activeOrgId else { return }
+      errorText = "Training records could not be refreshed. Please retry."
+    }
+  }
+  private func checkIn(_ appointment: HPTrainingWorkspace.Appointment) async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    busy = true; defer { busy = false }
+    do {
+      try await service.trainingAction(organizationId: org, action: "update_appointment", payload: [
+        "appointment_id": .string(appointment.id.uuidString), "status": .string("checked_in"),
+        "expected_updated_at": .string(appointment.updated_at),
+      ])
+      await reload()
+    } catch { errorText = "Check-in could not be confirmed. Refresh before trying again." }
+  }
+}
+
+private struct HPTrainingCompletionSheet: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  @State private var attendance: [UUID: String] = [:]
+  @State private var outcomes: [UUID: String] = [:]
+  @State private var shared: [UUID: Bool] = [:]
+  @State private var operationId = UUID()
+  @State private var busy = false
+  @State private var errorText: String?
+  let appointment: HPTrainingWorkspace.Appointment
+  let workspace: HPTrainingWorkspace
+  let onSaved: () async -> Void
+  private var roster: [HPTrainingWorkspace.Participant] { workspace.participants.filter { $0.appointment_id == appointment.id } }
+  var body: some View {
+    NavigationStack {
+      Form {
+        Text("Choose attendance for every athlete. Credits are not automatically deducted.")
+        ForEach(roster, id: \.athlete_id) { participant in
+          Section(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete") {
+            Picker("Attendance", selection: Binding(get: { attendance[participant.athlete_id] ?? "" }, set: { attendance[participant.athlete_id] = $0 })) {
+              Text("Select attendance").tag("")
+              Text("Attended").tag("completed")
+              Text("No-show").tag("no_show")
+              Text("Excused / cancelled").tag("cancelled")
+            }
+            TextField("Outcome", text: Binding(get: { outcomes[participant.athlete_id] ?? "" }, set: { outcomes[participant.athlete_id] = $0 }), axis: .vertical)
+            Toggle("Share outcome with athlete and family", isOn: Binding(get: { shared[participant.athlete_id] ?? false }, set: { shared[participant.athlete_id] = $0 }))
+          }
+        }
+        if let errorText { Text(errorText).foregroundStyle(.red) }
+      }
+      .navigationTitle("Complete roster")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Complete") { Task { await save() } }
+            .disabled(busy || roster.isEmpty || roster.contains { attendance[$0.athlete_id, default: ""].isEmpty })
+        }
+      }
+      .interactiveDismissDisabled(busy)
+    }
+  }
+  private func save() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    busy = true; defer { busy = false }
+    let rows: [SDJSONValue] = roster.map { participant in .object([
+      "athlete_id": .string(participant.athlete_id.uuidString.lowercased()),
+      "attendance_status": .string(attendance[participant.athlete_id, default: ""]),
+      "outcome": .string(outcomes[participant.athlete_id, default: ""]),
+      "private_note": .string(""),
+      "visible_to_athlete": .bool(shared[participant.athlete_id, default: false]),
+    ]) }
+    do {
+      try await service.trainingAction(organizationId: org, action: "complete_appointment", payload: [
+        "appointment_id": .string(appointment.id.uuidString), "operation_id": .string(operationId.uuidString),
+        "expected_updated_at": .string(appointment.updated_at), "participants": .array(rows),
+      ])
+      await onSaved(); dismiss()
+    } catch { errorText = "Completion could not be confirmed. Retry the same roster, or refresh if another staff member changed the session." }
   }
 }
