@@ -11,11 +11,15 @@ struct CoachProgramsView: View {
   @State private var showCreate = false
   @State private var query = ""
   @State private var selectedKind: SDProgramKind = .strength
-  @State private var selectedWorkspace: Workspace = .workspace
+  @State private var selectedWorkspace: Workspace
 
 #if os(macOS)
   @State private var selectedTemplateId: UUID?
 #endif
+
+  init(initialWorkspace: Workspace = .workspace) {
+    _selectedWorkspace = State(initialValue: initialWorkspace)
+  }
 
   var body: some View {
 #if os(macOS)
@@ -47,23 +51,7 @@ struct CoachProgramsView: View {
 #else
     NavigationStack {
       VStack(spacing: 0) {
-        if selectedWorkspace != .workspace {
-          HStack {
-            Button {
-              selectedWorkspace = .workspace
-            } label: {
-              Label("Player Roster", systemImage: "chevron.left")
-            }
-            .buttonStyle(.bordered)
-            Spacer()
-            Text(workspaceTitle)
-              .font(HP.Font.headline)
-              .foregroundStyle(HP.Color.text)
-          }
-          .padding(.horizontal, HP.Space.md)
-          .padding(.vertical, HP.Space.sm)
-          .background(HP.Color.bg)
-        }
+        workspacePicker
         workspaceContent
       }
       .navigationTitle("Programs & Player Development")
@@ -76,7 +64,7 @@ struct CoachProgramsView: View {
             Button {
               selectedWorkspace = .templates
             } label: {
-              Label("Templates", systemImage: "list.clipboard")
+              Label("Program Builder", systemImage: "list.clipboard")
             }
             Button {
               selectedWorkspace = .testingSetup
@@ -106,9 +94,9 @@ struct CoachProgramsView: View {
 #endif
   }
 
-  private enum Workspace: String, CaseIterable, Hashable {
+  enum Workspace: String, CaseIterable, Hashable {
     case workspace = "Player Hub"
-    case templates = "Templates"
+    case templates = "Program Builder"
     case testingSetup = "Testing Setup"
   }
 

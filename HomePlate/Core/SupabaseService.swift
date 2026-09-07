@@ -3585,6 +3585,53 @@ final class SupabaseService: ObservableObject {
     return formatter.string(from: date)
   }
 
+  // MARK: - Native Player Development Analytics
+
+  func listPlayerAnalyticsSources(
+    organizationId: UUID,
+    playerId: UUID
+  ) async throws -> SDPlayerAnalyticsSourcesResponse {
+    struct Request: Encodable {
+      let action = "list_sources"
+      let org_id: UUID
+      let player_id: UUID
+    }
+    return try await invokeAuthenticatedFunction(
+      "player-development-analytics",
+      body: Request(org_id: organizationId, player_id: playerId)
+    )
+  }
+
+  func runPlayerAnalytics(
+    organizationId: UUID,
+    playerId: UUID,
+    discipline: SDPlayerAnalyticsDiscipline,
+    module: String,
+    sourceIds: [UUID]
+  ) async throws -> SDPlayerAnalyticsResponse {
+    struct Filters: Encodable {}
+    struct Request: Encodable {
+      let action = "run_analysis"
+      let org_id: UUID
+      let player_id: UUID
+      let discipline: String
+      let module: String
+      let import_job_ids: [UUID]
+      let filters: Filters
+    }
+    return try await invokeAuthenticatedFunction(
+      "player-development-analytics",
+      body: Request(
+        org_id: organizationId,
+        player_id: playerId,
+        discipline: discipline.rawValue,
+        module: module,
+        import_job_ids: sourceIds,
+        filters: Filters()
+      )
+    )
+  }
+
   // MARK: - Player Development Imports (Phase 11B.1)
 
   private func invokePlayerDevelopmentImports<Request: Encodable, Response: Decodable>(

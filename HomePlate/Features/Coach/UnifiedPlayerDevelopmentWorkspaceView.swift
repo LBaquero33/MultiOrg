@@ -54,7 +54,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
       .environmentObject(appState)
     }
     .sheet(isPresented: $showTemplateBuilder) {
-      CoachProgramsView()
+      CoachProgramsView(initialWorkspace: .templates)
         .environmentObject(appState)
     }
   }
@@ -576,6 +576,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     case calendar = "Calendar"
     case timeline = "Timeline"
     case programs = "Programs"
+    case dataLab = "Data Lab"
     case profile = "Profile"
     var id: String { rawValue }
   }
@@ -706,6 +707,8 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       timeline(workspace)
     case .programs:
       programAssignments(workspace)
+    case .dataLab:
+      NativePlayerAnalyticsView(playerId: player.id, playerName: player.name)
     case .profile:
       profile(workspace)
     }

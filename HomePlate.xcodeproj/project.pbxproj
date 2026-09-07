@@ -25,6 +25,7 @@
 		1259DA777D7F78E848194AB3 /* GameOfficialScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE4761E3AC011B68BC1C760 /* GameOfficialScoring.swift */; };
 		12A7F014AFF60B40C9B4778C /* HPMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5F39D996B26497B21CEDD6 /* HPMetricCard.swift */; };
 		1359D9EDB769EEDEC13559D2 /* CrossPlatformOperationsClosureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CF4A503BF8E46E34AC03C8 /* CrossPlatformOperationsClosureTests.swift */; };
+		AA2000000000000000000005 /* PlayerDevelopmentAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000003 /* PlayerDevelopmentAnalyticsTests.swift */; };
 		A90F7C6416D64E0F94AD87D1 /* AppStoreCommerceComplianceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90F7C6416D64E0F94AD87D0 /* AppStoreCommerceComplianceTests.swift */; };
 		14C4874BD8E2B89F8C82B52B /* GameScoringInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9CEA95B099629E8A5E82C0 /* GameScoringInteractionTests.swift */; };
 		14CABD42912C891BBF8F6D4D /* PlatformAdminDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A7F7845301A36FFDF3D3E4 /* PlatformAdminDashboardView.swift */; };
@@ -184,8 +185,10 @@
 		847D53E3D2CE4B89D979CBF6 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5A444DD07515D1F06F88ABB2 /* LaunchScreen.storyboard */; };
 		84B9457D3CEB80F215B8798D /* EventOperationsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED368DA3D424F237A39C041F /* EventOperationsModels.swift */; };
 		84FC929842D06558B1C6664C /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCBD135D175A51E50B0C367 /* PlayerDevelopmentImportView.swift */; };
+		AA2000000000000000000004 /* NativePlayerAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* NativePlayerAnalyticsView.swift */; };
 		8546F8494F83308DAE495312 /* PushNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD55D8E76FD7B9301F263F2 /* PushNotificationModels.swift */; };
 		85D49BEAAF0BE56DA3935F1B /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3284AF35458FF21A97A10F2F /* PlayerDevelopmentImportModels.swift */; };
+		AA2000000000000000000002 /* PlayerDevelopmentAnalyticsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift */; };
 		8669E44922A8525EE1B9C383 /* TeamSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CC7AB2E7B0BFE5D0F6FC5E /* TeamSchedulingTests.swift */; };
 		88AA4AFD396DF53F0A509CFB /* InstrumentSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EDBBF4B707337919B3476549 /* InstrumentSans-Variable.ttf */; };
 		8910A1DAC24011588A19FA0E /* HPProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F17A7316D32D40922D230E /* HPProgressIndicator.swift */; };
@@ -197,6 +200,7 @@
 		8D9E41B0B906D2FC4F35EA2D /* Archivo-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 58AF803503B88699B4C37810 /* Archivo-Variable.ttf */; };
 		8DB38937486FBDF91610C8DA /* LiveGameScoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */; };
 		8EF89B0A2B1DCE03BF2E3585 /* PlayerDevelopmentImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3284AF35458FF21A97A10F2F /* PlayerDevelopmentImportModels.swift */; };
+		AA2000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift */; };
 		9191F19673745C9DE7B07FC9 /* Phase13BProjectRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB12E7BC8414BF5D061A2577 /* Phase13BProjectRuntimeTests.swift */; };
 		93C6A618D101DC8E33859E28 /* SDPlayerTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3255CF5B1618E9E7E2CCBB16 /* SDPlayerTrendsView.swift */; };
 		93D83D918FA66A8E65142A01 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07CAA152C49990747FFF4B67 /* SupabaseConfig.swift */; };
@@ -248,6 +252,7 @@
 		B11660F48DE41F88B93CBCB9 /* ChatChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A04A7BE51ED47DD24539EB /* ChatChannelListView.swift */; };
 		B218E6BF8ACC45A3F662B7E1 /* FinanceRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D85F2E81AA5A108CD3466DD /* FinanceRenderTests.swift */; };
 		B31A2E972F591FBC0A9503CA /* PlayerDevelopmentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCBD135D175A51E50B0C367 /* PlayerDevelopmentImportView.swift */; };
+		AA2000000000000000000003 /* NativePlayerAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* NativePlayerAnalyticsView.swift */; };
 		B3A309AB4214731980755C96 /* PlayerDevelopmentCopilotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E60863D5A3F1927BEC56934 /* PlayerDevelopmentCopilotModels.swift */; };
 		B40DA3FE1D1C63914B8BCB13 /* PaymentRequestCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66242B84B03C4782FD08EB83 /* PaymentRequestCard.swift */; };
 		B5800437B98CE05FA20F29D5 /* CoachPlayerOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA5FAB4B557B1F4CE094CA9 /* CoachPlayerOverviewView.swift */; };
@@ -449,6 +454,7 @@
 		2E3DAF943F939E0E970D9097 /* CoachTeamScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTeamScheduleView.swift; sourceTree = "<group>"; };
 		3255CF5B1618E9E7E2CCBB16 /* SDPlayerTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTrendsView.swift; sourceTree = "<group>"; };
 		3284AF35458FF21A97A10F2F /* PlayerDevelopmentImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportModels.swift; sourceTree = "<group>"; };
+		AA1000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAnalyticsModels.swift; sourceTree = "<group>"; };
 		32E12895133E9F77D4D3A98B /* HPTemplateRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPTemplateRenderTests.swift; sourceTree = "<group>"; };
 		33A1D9CA98F78A51C64B6232 /* HPDetailScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPDetailScreenTemplate.swift; sourceTree = "<group>"; };
 		33B5155B63F95D59145F79A8 /* HPWorkspaceScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPWorkspaceScreenTemplate.swift; sourceTree = "<group>"; };
@@ -567,12 +573,14 @@
 		B2F17A7316D32D40922D230E /* HPProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPProgressIndicator.swift; sourceTree = "<group>"; };
 		B3EAA8D4525DB5705E469EB9 /* HPListScreenTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPListScreenTemplate.swift; sourceTree = "<group>"; };
 		B4CF4A503BF8E46E34AC03C8 /* CrossPlatformOperationsClosureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossPlatformOperationsClosureTests.swift; sourceTree = "<group>"; };
+		AA1000000000000000000003 /* PlayerDevelopmentAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentAnalyticsTests.swift; sourceTree = "<group>"; };
 		B561DF08A64525CD37BBFC6F /* GameCalendarIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCalendarIntegrationTests.swift; sourceTree = "<group>"; };
 		B5C8D30109602B6CF075D9CB /* PlayerDevelopmentCopilotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentCopilotView.swift; sourceTree = "<group>"; };
 		B616330ED14566E8A968C1FC /* PushNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationTests.swift; sourceTree = "<group>"; };
 		B6A6BAA93B57A03AB5F0641F /* HPToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPToast.swift; sourceTree = "<group>"; };
 		B952247EE6B7561D87532B64 /* HPMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HPMetrics.swift; sourceTree = "<group>"; };
 		BCCBD135D175A51E50B0C367 /* PlayerDevelopmentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDevelopmentImportView.swift; sourceTree = "<group>"; };
+		AA1000000000000000000002 /* NativePlayerAnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePlayerAnalyticsView.swift; sourceTree = "<group>"; };
 		BD3895E4EA59610CDBA4E232 /* NewFacilityBookingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFacilityBookingSheet.swift; sourceTree = "<group>"; };
 		BDCFDC2DF691472331ED081D /* TwoAxisScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoAxisScrollView.swift; sourceTree = "<group>"; };
 		BE8A18D390EEF671D1FBAA5B /* FinanceDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceDashboardView.swift; sourceTree = "<group>"; };
@@ -723,6 +731,7 @@
 				2B088EE205A484298C9A509A /* PlayerDevelopmentAIView.swift */,
 				B5C8D30109602B6CF075D9CB /* PlayerDevelopmentCopilotView.swift */,
 				BCCBD135D175A51E50B0C367 /* PlayerDevelopmentImportView.swift */,
+				AA1000000000000000000002 /* NativePlayerAnalyticsView.swift */,
 				3FF49EFEC769F6B2497F2F6F /* ProgramDayEditorSheet.swift */,
 				DE92DA7E0954F746CB177308 /* ProgramTemplateEditorView.swift */,
 				2D24FD338A3917F2768C49C9 /* UnifiedPlayerDevelopmentWorkspaceView.swift */,
@@ -901,6 +910,7 @@
 				C5212F9F09AA9A20C75FFE6D /* PlayerDevelopmentCopilotResponseContractTests.swift */,
 				9B4C44F47A666149E461C2AE /* PlayerDevelopmentCopilotTests.swift */,
 				C670D1C2435DF072A6C5D067 /* PlayerDevelopmentImportTests.swift */,
+				AA1000000000000000000003 /* PlayerDevelopmentAnalyticsTests.swift */,
 				514747E584225B61D029AE05 /* PlayerDevelopmentWorkspaceContractTests.swift */,
 				539B471F6199305DEFEFC659 /* PlayerTodayRenderTests.swift */,
 				B616330ED14566E8A968C1FC /* PushNotificationTests.swift */,
@@ -1002,6 +1012,7 @@
 				9A9D2A11773CCB0DF3F6E87C /* PlayerDevelopmentAIModels.swift */,
 				5E60863D5A3F1927BEC56934 /* PlayerDevelopmentCopilotModels.swift */,
 				3284AF35458FF21A97A10F2F /* PlayerDevelopmentImportModels.swift */,
+				AA1000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift */,
 				6E84AF2E96826AC19C3227AC /* PlayerDevelopmentWorkspaceModels.swift */,
 				802C73358B5D206E70A7F5A4 /* PlayerSubscriptionStore.swift */,
 				25277DA689B8022777193CD0 /* PlotlyChartView.swift */,
@@ -1304,6 +1315,7 @@
 				783DDE68A0B38817338D7112 /* PlayerDevelopmentCopilotResponseContractTests.swift in Sources */,
 				3A9D5F398A415F953E06E68C /* PlayerDevelopmentCopilotTests.swift in Sources */,
 				C94B51BB3DB20B3CD008ECCC /* PlayerDevelopmentImportTests.swift in Sources */,
+				AA2000000000000000000005 /* PlayerDevelopmentAnalyticsTests.swift in Sources */,
 				CF5A8298275463F5C5516C16 /* PlayerDevelopmentWorkspaceContractTests.swift in Sources */,
 				E9F95AE64EF5092F71EB833A /* PlayerTodayRenderTests.swift in Sources */,
 				EDEB71BC207C656F879A1A14 /* PushNotificationTests.swift in Sources */,
@@ -1454,6 +1466,8 @@
 				46A71F82835841C200276A0C /* PlayerDevelopmentCopilotView.swift in Sources */,
 				85D49BEAAF0BE56DA3935F1B /* PlayerDevelopmentImportModels.swift in Sources */,
 				B31A2E972F591FBC0A9503CA /* PlayerDevelopmentImportView.swift in Sources */,
+				AA2000000000000000000002 /* PlayerDevelopmentAnalyticsModels.swift in Sources */,
+				AA2000000000000000000003 /* NativePlayerAnalyticsView.swift in Sources */,
 				EA158981326EEEC1F63639BC /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */,
 				0CB744E12E558E5B9D8205BA /* PlayerDevelopmentWorkspaceModels.swift in Sources */,
 				957AC6ACB8362CD4379DA4D3 /* PlayerHomeView.swift in Sources */,
@@ -1620,6 +1634,8 @@
 				69D0214FD61F95E317CB17A3 /* PlayerDevelopmentCopilotView.swift in Sources */,
 				8EF89B0A2B1DCE03BF2E3585 /* PlayerDevelopmentImportModels.swift in Sources */,
 				84FC929842D06558B1C6664C /* PlayerDevelopmentImportView.swift in Sources */,
+				AA2000000000000000000001 /* PlayerDevelopmentAnalyticsModels.swift in Sources */,
+				AA2000000000000000000004 /* NativePlayerAnalyticsView.swift in Sources */,
 				C3DC4AB11A8AEAA7E492852A /* PlayerDevelopmentPlayerWorkspaceView.swift in Sources */,
 				26CF25DD5F31CE39D06558F9 /* PlayerDevelopmentWorkspaceModels.swift in Sources */,
 				5C3BD75D440B54710934F2BC /* PlayerHomeView.swift in Sources */,

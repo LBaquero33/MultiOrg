@@ -42,9 +42,14 @@ struct CrossPlatformOperationsClosureTests {
   func programTrackerContract() throws {
     let programs = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
     let tracker = try sourceFile("HomePlate/Features/Coach/CoachProgramTrackerView.swift")
+    let workspace = try sourceFile("HomePlate/Features/Coach/UnifiedPlayerDevelopmentWorkspaceView.swift")
 
     #expect(programs.contains("Templates"))
     #expect(programs.contains("UnifiedPlayerDevelopmentWorkspaceView"))
+    #expect(programs.contains("init(initialWorkspace: Workspace = .workspace)"))
+    #expect(programs.contains("case templates = \"Program Builder\""))
+    #expect(workspace.contains("CoachProgramsView(initialWorkspace: .templates)"))
+    #expect(workspace.contains("NativePlayerAnalyticsView(playerId: player.id"))
     for text in ["All players", "Active", "Ended", "Submitted", "Upcoming", "No Submission"] {
       #expect(tracker.contains(text))
     }
