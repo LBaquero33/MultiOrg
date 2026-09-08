@@ -89,6 +89,7 @@ struct SDGame: Identifiable, Codable, Equatable, Sendable {
   let away_team_name: String
   let lineup_ready: Bool
   let game_version: Int
+  var scoring_schema_version: Int? = nil
   let finalized_at: Date?
   let created_at: Date?
   let updated_at: Date?

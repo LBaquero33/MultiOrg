@@ -281,6 +281,7 @@ struct HPTrainingOperationsView: View {
   @State private var booking = false
   @State private var credits = false
   @State private var now = Date()
+  @State private var trainerFilter = "all"
   let mode: Mode
 
   var body: some View {
@@ -302,10 +303,17 @@ struct HPTrainingOperationsView: View {
               }
             }
           } else {
+            if workspace.access["is_admin"]?.boolValue == true || workspace.access["staff_kind"]?.stringValue == "front_desk" {
+              Picker("Trainer", selection: $trainerFilter) {
+                Text("All authorized trainers").tag("all")
+                Text("My sessions").tag(appState.myProfile?.id.uuidString ?? "none")
+              }
+            }
             Section(mode == .today ? "Today and needs closeout" : "Sessions") {
               let rows = workspace.appointments.filter { appointment in
-                mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: now, timezone: organizationTimezone) } == true ||
-                  (date(appointment.ends_at).map { $0 < now } == true && !terminal(appointment.status))
+                (trainerFilter == "all" || appointment.trainer_user_id?.uuidString == trainerFilter) &&
+                (mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: now, timezone: organizationTimezone) } == true ||
+                  (date(appointment.ends_at).map { $0 < now } == true && !terminal(appointment.status)))
               }
               if rows.isEmpty { Text("No sessions in this view.") }
               ForEach(rows) { appointment in
@@ -324,11 +332,17 @@ struct HPTrainingOperationsView: View {
                       Button("Complete roster") { completion = appointment }.disabled(busy)
                     }
                   }
+                  if appointment.status == "completed" && canComplete(appointment, workspace: workspace) {
+                    Button("Correct attendance / report") { completion = appointment }.disabled(busy)
+                  }
                 }.padding(.vertical, 4)
               }
             }
           }
           Section("Organization tools") {
+            NavigationLink("Services, trainers and packages") {
+              HPTrainingCatalogView(workspace: workspace) { await reload() }
+            }
             Button("Book a session") { booking = true }
             Button("Package balances and credit decisions") { credits = true }
             Link("Open booking, services and website tools", destination: URL(string: "https://www.homeplateapps.com/app/lessons")!)
@@ -339,7 +353,16 @@ struct HPTrainingOperationsView: View {
               ForEach(Array(workspace.outcomes.enumerated()), id: \.offset) { _, report in
                 VStack(alignment: .leading) {
                   if case .object(let outcome) = report["development_outcome"] {
-                    Text(outcome["summary"]?.stringValue ?? "Session report")
+                    NavigationLink {
+                      ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                          Text("Shared session report").font(.title2.bold())
+                          Text(outcome["summary"]?.stringValue ?? "No summary recorded.")
+                            .textSelection(.enabled)
+                          Text("This report contains the outcome shared by staff. Attendance and package-credit decisions are separate.").font(.caption)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding()
+                      }.navigationTitle("Session report")
+                    } label: { Text(outcome["summary"]?.stringValue ?? "Session report").lineLimit(3) }
                   }
                   if let athlete = report["athlete_id"]?.stringValue {
                     Text(workspace.athletes.first { $0.id.uuidString.lowercased() == athlete.lowercased() }?.display_name ?? "Athlete").font(.caption)
@@ -414,6 +437,7 @@ private struct HPTrainingCompletionSheet: View {
   @State private var privateNotes: [UUID: String] = [:]
   @State private var shared: [UUID: Bool] = [:]
   @State private var operationId = UUID()
+  @State private var correctionReason = ""
   @State private var busy = false
   @State private var errorText: String?
   let appointment: HPTrainingWorkspace.Appointment
@@ -423,6 +447,12 @@ private struct HPTrainingCompletionSheet: View {
   var body: some View {
     NavigationStack {
       Form {
+        if appointment.status == "completed" {
+          Section("Reason for correction") {
+            TextField("Explain what needs correcting", text: $correctionReason, axis: .vertical)
+            Text("Previous attendance and reports remain in staff audit history. Credit decisions are separate.")
+          }
+        }
         Text("Choose attendance for every athlete. Package credits are used at booking confirmation, not charged again here. Staff review cancellation and no-show credits separately.")
         ForEach(roster, id: \.athlete_id) { participant in
           Section(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete") {
@@ -439,12 +469,21 @@ private struct HPTrainingCompletionSheet: View {
         }
         if let errorText { Text(errorText).foregroundStyle(.red) }
       }
-      .navigationTitle("Complete roster")
+      .navigationTitle(appointment.status == "completed" ? "Correct roster" : "Complete roster")
+      .onAppear {
+        guard appointment.status == "completed", attendance.isEmpty else { return }
+        for participant in roster {
+          attendance[participant.athlete_id] = participant.attendance_status
+          let report = workspace.outcomes.first { $0["appointment_id"]?.stringValue?.lowercased() == appointment.id.uuidString.lowercased() && $0["athlete_id"]?.stringValue?.lowercased() == participant.athlete_id.uuidString.lowercased() }
+          if case .object(let outcome) = report?["development_outcome"] { outcomes[participant.athlete_id] = outcome["summary"]?.stringValue }
+          shared[participant.athlete_id] = report?["visible_to_athlete"]?.boolValue ?? false
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
         ToolbarItem(placement: .confirmationAction) {
           Button("Complete") { Task { await save() } }
-            .disabled(busy || roster.isEmpty || roster.contains { attendance[$0.athlete_id, default: ""].isEmpty })
+            .disabled(busy || roster.isEmpty || (appointment.status == "completed" && correctionReason.trimmingCharacters(in: .whitespacesAndNewlines).count < 8) || roster.contains { attendance[$0.athlete_id, default: ""].isEmpty })
         }
       }
       .interactiveDismissDisabled(busy)
@@ -461,7 +500,8 @@ private struct HPTrainingCompletionSheet: View {
       "visible_to_athlete": .bool(shared[participant.athlete_id, default: false]),
     ]) }
     do {
-      try await service.trainingAction(organizationId: org, action: "complete_appointment", payload: [
+      try await service.trainingAction(organizationId: org, action: appointment.status == "completed" ? "correct_appointment" : "complete_appointment", payload: [
+        "reason": .string(correctionReason),
         "appointment_id": .string(appointment.id.uuidString), "operation_id": .string(operationId.uuidString),
         "expected_updated_at": .string(appointment.updated_at), "participants": .array(rows),
       ])
@@ -566,13 +606,25 @@ private struct HPTrainingCreditsView: View {
           Section("Ledger balances") {
             if data.balances.isEmpty { Text("No package ledger recorded for this view.") }
             ForEach(data.balances) { row in
-              VStack(alignment: .leading) { Text("\(row.display_name) · \(row.package_name)"); Text("\(row.credits) credits").font(.headline) }
+              VStack(alignment: .leading) {
+                Text("\(row.display_name) · \(row.package_name)")
+                Text("\(row.credits) available credits").font(.headline)
+                if let expired = row.expired_credits, expired > 0 { Text("\(expired) expired credits retained in history").font(.caption) }
+              }
             }
           }
           Section("Staff decisions needed") {
             if data.pending_decisions.isEmpty { Text("No pending decisions in your accessible records.") }
             ForEach(data.pending_decisions) { row in
               Button { selected = row } label: { VStack(alignment: .leading) { Text(row.display_name); Text(row.package_name).font(.caption) } }
+            }
+          }
+          if let reviews = data.payment_review, !reviews.isEmpty {
+            Section("Payments needing staff review") {
+              Text("A payment changed after credits were issued. Review the payment before making a reasoned credit adjustment. No credits were automatically removed.")
+              ForEach(reviews) { row in
+                VStack(alignment: .leading) { Text("\(row.display_name) · \(row.package_name)"); Text(row.reversed ? "Reversed" : row.has_refund ? "Refund recorded" : row.payment_status).font(.caption) }
+              }
             }
           }
         } else if errorText == nil { ProgressView("Loading credits…") }

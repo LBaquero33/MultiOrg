@@ -16,6 +16,9 @@ struct LiveGameScoringView: View {
   @State private var isLoading = true
   @State private var isSubmitting = false
   @State private var errorText: String?
+  @State private var pendingCommands: [SDNativeScoringCommand] = []
+  @State private var journalReady = false
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   private let deviceId = SDGameDeviceIdentity.current
 
@@ -23,6 +26,20 @@ struct LiveGameScoringView: View {
     VStack(alignment: .leading, spacing: 12) {
       liveHeader
       scoreStrip
+      if game.scoring_schema_version == 2 {
+        Text("This game uses the advanced scoring ledger. Open Game Hub on the web to score it; this screen remains view-only.")
+          .font(.callout)
+        Link("Open Game Hub", destination: URL(string: "https://www.homeplateapps.com/app/games/\(game.id.uuidString.lowercased())")!)
+      }
+      if !pendingCommands.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("A scoring action is saved on this device and awaiting confirmation. Resolve it before scoring another play.")
+          Button("Reconnect and reconcile saved action") { Task { await start(); await synchronizePending() } }
+            .disabled(isLoading || isSubmitting)
+        }
+        .font(.callout)
+        .accessibilityIdentifier("scoring.pendingRecovery")
+      }
       ViewThatFits(in: .horizontal) {
         HStack(alignment: .top, spacing: 14) {
           field.frame(minWidth: 310)
@@ -72,7 +89,12 @@ struct LiveGameScoringView: View {
     SDLiveScoringAccess.mutationEnabled(
       authorizationAllowsScoring: canScore,
       controlState: controlState
-    ) && !isSubmitting
+    ) && !isSubmitting && journalReady && pendingCommands.isEmpty && leaseIsCurrent && game.scoring_schema_version != 2
+  }
+
+  private var leaseIsCurrent: Bool {
+    if case .scorekeeper(let expiry) = controlState { return expiry.map { $0 > Date() } ?? false }
+    return false
   }
 
   private var liveHeader: some View {
@@ -213,11 +235,10 @@ struct LiveGameScoringView: View {
   private func actionGrid(
     _ actions: [(String, String, SDScoringEventType, [String: SDJSONValue])]
   ) -> some View {
-    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+    LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
       ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
         Button {
           Task {
-            await commit(.pitchThrown, payload: [:])
             await commit(action.2, payload: action.3)
           }
         } label: {
@@ -285,11 +306,17 @@ struct LiveGameScoringView: View {
 
   private func start() async {
     guard let service = appState.supabase, let orgId = appState.activeOrgId else { return }
+    isLoading = true
+    defer { isLoading = false }
+    journalReady = false
     rules = SDResolvedBaseballRules.resolve([game.ruleset_snapshot])
     do {
+      guard let account = appState.myProfile?.id else { return }
+      pendingCommands = try SDNativeScoringOutbox.application.load(account: account, org: orgId, game: game.id)
+      journalReady = true
       let events = try await service.listScoringEvents(gameId: game.id, organizationId: orgId)
       state = try SDGameReducer.replay(events, rules: rules)
-      if canScore {
+      if canScore && game.scoring_schema_version != 2 {
         let lease = try await service.acquireScorekeepingControl(
           gameId: game.id, deviceId: deviceId, sessionId: "authenticated-app-session"
         )
@@ -313,20 +340,44 @@ struct LiveGameScoringView: View {
   }
 
   private func commit(_ type: SDScoringEventType, payload: [String: SDJSONValue]) async {
-    guard canMutate, let service = appState.supabase, let token = controlToken else { return }
+    guard canMutate, let account = appState.myProfile?.id, let org = appState.activeOrgId else { return }
+    do {
+      var events: [SDNativeScoringCommand.Event] = []
+      if type == .pitchResultRecorded || type == .ballPutInPlay {
+        events.append(.init(id: UUID(), event_type: .pitchThrown, payload: [:]))
+      }
+      events.append(.init(id: UUID(), event_type: type, payload: payload))
+      let command = SDNativeScoringCommand(
+        id: UUID(), accountId: account, organizationId: org, gameId: game.id,
+        canonicalEventId: game.event_id, deviceId: deviceId, expectedVersion: state.version,
+        createdAt: Date(), events: events
+      )
+      try SDNativeScoringOutbox.application.save([command], account: account, org: org, game: game.id)
+      pendingCommands = [command]
+      await synchronizePending()
+    } catch {
+      errorText = "The action could not be saved on this device. No new action was sent. \(error.localizedDescription)"
+    }
+  }
+
+  private func synchronizePending() async {
+    guard !isSubmitting, canScore, leaseIsCurrent, let service = appState.supabase,
+      let token = controlToken, let command = pendingCommands.first,
+      command.accountId == appState.myProfile?.id, command.organizationId == appState.activeOrgId,
+      command.deviceId == deviceId else { return }
     isSubmitting = true
     defer { isSubmitting = false }
     do {
-      let id = UUID()
-      let event = try await service.appendScoringEvent(
-        game: game, scoringEventId: id, expectedVersion: state.version,
-        type: type, deviceId: deviceId, controlToken: token, payload: payload,
-        idempotencyKey: "\(game.id.uuidString.lowercased()):\(id.uuidString.lowercased())"
-      )
-      state = try SDGameReducer.apply(event, to: state, rules: rules)
+      let accepted = try await service.appendNativeScoringCommand(command, controlToken: token)
+      guard accepted.map(\.id) == command.events.map(\.id) else { throw CocoaError(.coderInvalidValue) }
+      // Persist the receipt before unlocking the next action. If saving fails,
+      // exact retries remain safe on the server.
+      try SDNativeScoringOutbox.application.save([], account: command.accountId, org: command.organizationId, game: command.gameId)
+      pendingCommands = []
+      await reloadEvents()
     } catch {
       await reloadEvents()
-      errorText = error.localizedDescription
+      errorText = "The action remains saved. Reconnect to retry it. If control or the game changed, it needs review; it will not be silently reapplied. \(error.localizedDescription)"
     }
   }
 

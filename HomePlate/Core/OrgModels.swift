@@ -55,6 +55,10 @@ struct HPTrainingWorkspace: Decodable, Sendable {
   struct Service: Decodable, Identifiable, Sendable {
     let id: UUID; let name: String
     var active: Bool? = nil
+    var description: String? = nil
+    var duration_minutes: Int? = nil
+    var capacity: Int? = nil
+    var public_booking_mode: String? = nil
   }
   struct Trainer: Decodable, Identifiable, Sendable {
     let id: UUID; let display_name: String; let staff_kind: String; let status: String
@@ -64,6 +68,8 @@ struct HPTrainingWorkspace: Decodable, Sendable {
   }
   struct Package: Decodable, Identifiable, Sendable {
     let id: UUID; let name: String; let active: Bool
+    var credits: Int? = nil
+    var validity_days: Int? = nil
   }
   var staff_directory: [Trainer]? = nil
   var trainer_offerings: [Offering]? = nil
@@ -94,6 +100,7 @@ struct HPTrainingCredits: Decodable, Sendable {
   struct Balance: Decodable, Identifiable, Sendable {
     let athlete_id: UUID; let display_name: String; let package_id: UUID; let package_name: String; let credits: Int
     var id: String { "\(athlete_id):\(package_id)" }
+    var expired_credits: Int? = nil
   }
   struct Decision: Decodable, Identifiable, Sendable {
     let appointment_id: UUID; let athlete_id: UUID; let display_name: String; let package_name: String; let starts_at: String
@@ -101,6 +108,12 @@ struct HPTrainingCredits: Decodable, Sendable {
   }
   let balances: [Balance]
   let pending_decisions: [Decision]
+  struct PaymentReview: Decodable, Identifiable, Sendable {
+    let ledger_id: UUID; let display_name: String; let package_name: String
+    let payment_status: String; let reversed: Bool; let has_refund: Bool
+    var id: UUID { ledger_id }
+  }
+  var payment_review: [PaymentReview]? = nil
 }
 
 extension SupabaseService {

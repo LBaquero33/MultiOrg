@@ -690,11 +690,17 @@ struct AccountView: View {
   private var accessCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Subscription / Access")
+        HPSectionHeader("Player Access & Subscription")
 
         if appState.myProfile?.isPlayer == true {
           entitlementSummary(entitlement: appState.myEntitlement)
-          Text("Access is managed by your organization. Contact an organization administrator if this status is incorrect.")
+          if let playerId = appState.myProfile?.id {
+            NavigationLink("View subscription, subscribe or restore purchases") {
+              PlayerSubscriptionPaywall(playerId: playerId)
+            }
+            .accessibilityIdentifier("account.playerSubscription")
+          }
+          Text("Apple purchases provide digital player access. Organization sponsorship may also cover access; baseball lesson payments are separate.")
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)

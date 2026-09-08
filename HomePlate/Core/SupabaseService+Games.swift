@@ -296,6 +296,19 @@ extension SupabaseService {
     )).single().execute().value
   }
 
+  func appendNativeScoringCommand(_ command: SDNativeScoringCommand, controlToken: String) async throws -> [SDScoringEvent] {
+    struct Parameters: Encodable {
+      let p_game_id: UUID; let p_canonical_event_id: UUID; let p_expected_version: Int
+      let p_actor_device_id: UUID; let p_control_token: String; let p_command_id: UUID
+      let p_events: [SDNativeScoringCommand.Event]
+    }
+    return try await client.rpc("sd_append_native_scoring_command", params: Parameters(
+      p_game_id: command.gameId, p_canonical_event_id: command.canonicalEventId,
+      p_expected_version: command.expectedVersion, p_actor_device_id: command.deviceId,
+      p_control_token: controlToken, p_command_id: command.id, p_events: command.events
+    )).execute().value
+  }
+
   func acquireScorekeepingControl(
     gameId: UUID, deviceId: UUID, sessionId: String
   ) async throws -> SDScorekeeperLease {
