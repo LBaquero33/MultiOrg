@@ -48,7 +48,7 @@ export function isSetupStep(value: unknown): value is SetupStep {
     (SETUP_STEPS as readonly string[]).includes(value);
 }
 
-export function setupReadiness(counts: SetupReadinessCounts) {
+export function setupReadiness(counts: SetupReadinessCounts, organizationType = "team_program") {
   const items: SetupReadinessItem[] = [
     {
       key: "organization",
@@ -121,9 +121,11 @@ export function setupReadiness(counts: SetupReadinessCounts) {
       route_step: "first_baseball_action",
     },
   ];
+  const applicable = ["training_facility", "independent_trainer"].includes(organizationType)
+    ? items.filter(item => !["season", "team", "players", "registration", "first_event"].includes(item.key)) : items;
   return {
-    ready: items.filter((item) => item.required).every((item) => item.complete),
-    items,
+    ready: applicable.filter((item) => item.required).every((item) => item.complete),
+    items: applicable,
   };
 }
 

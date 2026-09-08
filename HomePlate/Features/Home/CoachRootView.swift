@@ -271,13 +271,16 @@ struct CoachRootView: View {
   }
 }
 
-private struct HPTrainingOperationsView: View {
+struct HPTrainingOperationsView: View {
   enum Mode { case today, athletes, sessions }
   @EnvironmentObject private var appState: AppState
   @State private var workspace: HPTrainingWorkspace?
   @State private var errorText: String?
   @State private var busy = false
   @State private var completion: HPTrainingWorkspace.Appointment?
+  @State private var booking = false
+  @State private var credits = false
+  @State private var now = Date()
   let mode: Mode
 
   var body: some View {
@@ -301,8 +304,8 @@ private struct HPTrainingOperationsView: View {
           } else {
             Section(mode == .today ? "Today and needs closeout" : "Sessions") {
               let rows = workspace.appointments.filter { appointment in
-                mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: Date(), timezone: organizationTimezone) } == true ||
-                  (date(appointment.ends_at).map { $0 < Date() } == true && !terminal(appointment.status))
+                mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: now, timezone: organizationTimezone) } == true ||
+                  (date(appointment.ends_at).map { $0 < now } == true && !terminal(appointment.status))
               }
               if rows.isEmpty { Text("No sessions in this view.") }
               ForEach(rows) { appointment in
@@ -326,19 +329,40 @@ private struct HPTrainingOperationsView: View {
             }
           }
           Section("Organization tools") {
+            Button("Book a session") { booking = true }
+            Button("Package balances and credit decisions") { credits = true }
             Link("Open booking, services and website tools", destination: URL(string: "https://www.homeplateapps.com/app/lessons")!)
             Text("Web sign-in may be required. Choose the same organization before making changes.").font(.caption)
+          }
+          if !workspace.outcomes.isEmpty {
+            Section("Shared session reports") {
+              ForEach(Array(workspace.outcomes.enumerated()), id: \.offset) { _, report in
+                VStack(alignment: .leading) {
+                  if case .object(let outcome) = report["development_outcome"] {
+                    Text(outcome["summary"]?.stringValue ?? "Session report")
+                  }
+                  if let athlete = report["athlete_id"]?.stringValue {
+                    Text(workspace.athletes.first { $0.id.uuidString.lowercased() == athlete.lowercased() }?.display_name ?? "Athlete").font(.caption)
+                  }
+                }
+              }
+            }
           }
         } else if errorText == nil { ProgressView("Loading training workspace…") }
       }
       .navigationTitle(mode == .athletes ? "Athletes" : mode == .sessions ? "Sessions" : "Training today")
       .refreshable { await reload() }
       .task { await reload() }
+      .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
       .sheet(item: $completion) { appointment in
         if let workspace {
           HPTrainingCompletionSheet(appointment: appointment, workspace: workspace) { await reload() }
         }
       }
+      .sheet(isPresented: $booking) {
+        if let workspace { HPTrainingBookingSheet(workspace: workspace, timezone: organizationTimezone) { await reload() } }
+      }
+      .sheet(isPresented: $credits) { HPTrainingCreditsView() }
     }
   }
   private func terminal(_ status: String) -> Bool { ["completed", "cancelled", "no_show"].contains(status) }
@@ -387,6 +411,7 @@ private struct HPTrainingCompletionSheet: View {
   @Environment(\.dismiss) private var dismiss
   @State private var attendance: [UUID: String] = [:]
   @State private var outcomes: [UUID: String] = [:]
+  @State private var privateNotes: [UUID: String] = [:]
   @State private var shared: [UUID: Bool] = [:]
   @State private var operationId = UUID()
   @State private var busy = false
@@ -398,7 +423,7 @@ private struct HPTrainingCompletionSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        Text("Choose attendance for every athlete. Credits are not automatically deducted.")
+        Text("Choose attendance for every athlete. Package credits are used at booking confirmation, not charged again here. Staff review cancellation and no-show credits separately.")
         ForEach(roster, id: \.athlete_id) { participant in
           Section(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete") {
             Picker("Attendance", selection: Binding(get: { attendance[participant.athlete_id] ?? "" }, set: { attendance[participant.athlete_id] = $0 })) {
@@ -408,6 +433,7 @@ private struct HPTrainingCompletionSheet: View {
               Text("Excused / cancelled").tag("cancelled")
             }
             TextField("Outcome", text: Binding(get: { outcomes[participant.athlete_id] ?? "" }, set: { outcomes[participant.athlete_id] = $0 }), axis: .vertical)
+            TextField("Private staff note", text: Binding(get: { privateNotes[participant.athlete_id] ?? "" }, set: { privateNotes[participant.athlete_id] = $0 }), axis: .vertical)
             Toggle("Share outcome with athlete and family", isOn: Binding(get: { shared[participant.athlete_id] ?? false }, set: { shared[participant.athlete_id] = $0 }))
           }
         }
@@ -431,7 +457,7 @@ private struct HPTrainingCompletionSheet: View {
       "athlete_id": .string(participant.athlete_id.uuidString.lowercased()),
       "attendance_status": .string(attendance[participant.athlete_id, default: ""]),
       "outcome": .string(outcomes[participant.athlete_id, default: ""]),
-      "private_note": .string(""),
+      "private_note": .string(privateNotes[participant.athlete_id, default: ""]),
       "visible_to_athlete": .bool(shared[participant.athlete_id, default: false]),
     ]) }
     do {
@@ -441,5 +467,170 @@ private struct HPTrainingCompletionSheet: View {
       ])
       await onSaved(); dismiss()
     } catch { errorText = "Completion could not be confirmed. Retry the same roster, or refresh if another staff member changed the session." }
+  }
+}
+
+private struct HPTrainingBookingSheet: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  let workspace: HPTrainingWorkspace
+  let timezone: String?
+  let onSaved: () async -> Void
+  @State private var athleteId = ""
+  @State private var serviceId = ""
+  @State private var trainerId = ""
+  @State private var packageId = ""
+  @State private var locationId = ""
+  @State private var resourceIds: Set<UUID> = []
+  @State private var startsAt = Date().addingTimeInterval(3600)
+  @State private var requestId = UUID()
+  @State private var busy = false
+  @State private var errorText: String?
+  private var trainers: [HPTrainingWorkspace.Trainer] {
+    let eligible = Set((workspace.trainer_offerings ?? []).filter { $0.active && $0.service_id.uuidString == serviceId }.map(\.trainer_directory_id))
+    return (workspace.staff_directory ?? []).filter { $0.staff_kind == "trainer" && $0.status == "active" && eligible.contains($0.id) }
+  }
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Session") {
+          Picker("Athlete", selection: $athleteId) {
+            Text("Choose athlete").tag("")
+            ForEach(workspace.athletes) { Text($0.display_name).tag($0.id.uuidString) }
+          }
+          Picker("Service", selection: $serviceId) {
+            Text("Choose service").tag("")
+            ForEach(workspace.services.filter { $0.active != false }) { Text($0.name).tag($0.id.uuidString) }
+          }.onChange(of: serviceId) { _, _ in trainerId = "" }
+          Picker("Trainer", selection: $trainerId) {
+            Text("Choose trainer").tag("")
+            ForEach(trainers) { Text($0.display_name).tag($0.id.uuidString) }
+          }
+          DatePicker("Start", selection: $startsAt)
+            .environment(\.timeZone, HPTrainingCalendar.calendar(timezone: timezone).timeZone)
+          Text("Times use \(timezone ?? "UTC"). Working hours, permissions, and conflicts are checked when you confirm.").font(.caption)
+          Picker("Location", selection: $locationId) {
+            Text("No location selected").tag("")
+            ForEach((workspace.locations ?? []).filter { $0.is_active != false }) { Text($0.name).tag($0.id.uuidString) }
+          }.onChange(of: locationId) { _, _ in resourceIds.removeAll() }
+          ForEach((workspace.resources ?? []).filter { $0.is_active != false && (locationId.isEmpty || $0.location_id?.uuidString == locationId) }) { resource in
+            Toggle(resource.name, isOn: Binding(get: { resourceIds.contains(resource.id) }, set: { if $0 { resourceIds.insert(resource.id) } else { resourceIds.remove(resource.id) } }))
+          }
+        }
+        Section("Package funding") {
+          Picker("Package", selection: $packageId) {
+            Text("Do not use package credits").tag("")
+            ForEach((workspace.packages ?? []).filter(\.active)) { Text($0.name).tag($0.id.uuidString) }
+          }
+          Text("Selecting a package uses one existing credit when this booking is confirmed. An insufficient balance prevents the entire booking. No cash payment is collected here.").font(.caption)
+        }
+        if let errorText { Text(errorText).foregroundStyle(.red) }
+      }
+      .navigationTitle("Book a session")
+      .disabled(busy)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Confirm") { Task { await save() } }.disabled(busy || athleteId.isEmpty || serviceId.isEmpty || trainerId.isEmpty)
+        }
+      }.interactiveDismissDisabled(busy)
+    }
+  }
+  private func save() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    busy = true; defer { busy = false }; errorText = nil
+    do {
+      try await service.trainingAction(organizationId: org, action: "create_appointment", payload: [
+        "service_id": .string(serviceId), "trainer_directory_id": .string(trainerId),
+        "athlete_ids": .array([.string(athleteId)]), "starts_at": .string(ISO8601DateFormatter().string(from: startsAt)),
+        "package_id": .string(packageId), "idempotency_key": .string(requestId.uuidString),
+        "location_id": .string(locationId), "resource_ids": .array(resourceIds.sorted { $0.uuidString < $1.uuidString }.map { .string($0.uuidString) }),
+      ])
+      await onSaved(); dismiss()
+    } catch { errorText = "Booking could not be confirmed: \(error.localizedDescription). Check availability and package credits, then retry. If you change the request, close and reopen this form." }
+  }
+}
+
+private struct HPTrainingCreditsView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  @State private var data: HPTrainingCredits?
+  @State private var errorText: String?
+  @State private var selected: HPTrainingCredits.Decision?
+  var body: some View {
+    NavigationStack {
+      List {
+        Section { Text("Package credits are used at booking confirmation. Staff decide whether to keep or return the used credit after a cancellation or no-show.") }
+        if let errorText { Section { Text(errorText).foregroundStyle(.red); Button("Retry") { Task { await load() } } } }
+        if let data {
+          Section("Ledger balances") {
+            if data.balances.isEmpty { Text("No package ledger recorded for this view.") }
+            ForEach(data.balances) { row in
+              VStack(alignment: .leading) { Text("\(row.display_name) · \(row.package_name)"); Text("\(row.credits) credits").font(.headline) }
+            }
+          }
+          Section("Staff decisions needed") {
+            if data.pending_decisions.isEmpty { Text("No pending decisions in your accessible records.") }
+            ForEach(data.pending_decisions) { row in
+              Button { selected = row } label: { VStack(alignment: .leading) { Text(row.display_name); Text(row.package_name).font(.caption) } }
+            }
+          }
+        } else if errorText == nil { ProgressView("Loading credits…") }
+      }.navigationTitle("Package credits")
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        .task(id: appState.activeOrgAuthorizationKey) { await load() }
+        .refreshable { await load() }
+        .sheet(item: $selected) { row in HPTrainingCreditDecisionSheet(row: row) { await load() } }
+    }
+  }
+  private func load() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    data = nil; errorText = nil
+    do {
+      let result = try await service.trainingCredits(organizationId: org)
+      guard !Task.isCancelled, org == appState.activeOrgId else { return }; data = result
+    } catch { guard !Task.isCancelled, org == appState.activeOrgId else { return }; errorText = "Credit records could not be loaded." }
+  }
+}
+
+private struct HPTrainingCreditDecisionSheet: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  let row: HPTrainingCredits.Decision
+  let onSaved: () async -> Void
+  @State private var choice = ""
+  @State private var reason = ""
+  @State private var requestId = UUID()
+  @State private var busy = false
+  @State private var errorText: String?
+  var body: some View {
+    NavigationStack {
+      Form {
+        Text("\(row.display_name) · \(row.package_name). One credit was used when booked. Keeping it does not charge again. This decision is recorded once.")
+        Picker("Decision", selection: $choice) {
+          Text("Choose explicitly").tag(""); Text("Keep used credit").tag("keep"); Text("Return one credit").tag("return")
+        }
+        TextField("Reason for decision", text: $reason, axis: .vertical)
+        if let errorText { Text(errorText).foregroundStyle(.red) }
+      }.navigationTitle("Review credit")
+        .disabled(busy)
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
+          ToolbarItem(placement: .confirmationAction) {
+            Button("Save") { Task { await save() } }.disabled(busy || choice.isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
+          }
+        }.interactiveDismissDisabled(busy)
+    }
+  }
+  private func save() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    busy = true; defer { busy = false }
+    do {
+      try await service.trainingAction(organizationId: org, action: "decide_package_credit", payload: [
+        "appointment_id": .string(row.appointment_id.uuidString), "athlete_id": .string(row.athlete_id.uuidString),
+        "decision": .string(choice), "reason": .string(reason), "request_id": .string(requestId.uuidString),
+      ])
+      await onSaved(); dismiss()
+    } catch { errorText = "The decision could not be confirmed: \(error.localizedDescription)" }
   }
 }

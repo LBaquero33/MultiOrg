@@ -30,7 +30,7 @@ final class OrganizationSetupViewModel: ObservableObject {
       let response = try await service.organizationSetup(organizationId: organizationId)
       guard accepts(response: response, token: token, organizationId: organizationId) else { return }
       snapshot = response
-      selectedStep = Self.userFacingStep(response.session?.current_step ?? .basics)
+      selectedStep = Self.userFacingStep(response.session?.current_step ?? .basics, type: response.organization.organization_type)
     } catch {
       guard requestToken == token, self.organizationId == organizationId,
             !SDApplicationErrorClassifier.isCancellation(error, taskIsCancelled: Task.isCancelled) else { return }
@@ -72,7 +72,7 @@ final class OrganizationSetupViewModel: ObservableObject {
       guard accepts(response: response, token: token, organizationId: organizationId) else { return }
       snapshot = response
       pendingMutationRequestIds.removeValue(forKey: operationKey)
-      selectedStep = Self.userFacingStep(response.session?.current_step ?? selectedStep)
+      selectedStep = Self.userFacingStep(response.session?.current_step ?? selectedStep, type: response.organization.organization_type)
       toastText = successMessage
     } catch {
       guard requestToken == token, self.organizationId == organizationId,
@@ -106,8 +106,9 @@ final class OrganizationSetupViewModel: ObservableObject {
     ) && response.organization.id == organizationId
   }
 
-  private static func userFacingStep(_ step: SDOrganizationSetupStep) -> SDOrganizationSetupStep {
-    step == .season ? .teams : step
+  private static func userFacingStep(_ step: SDOrganizationSetupStep, type: String?) -> SDOrganizationSetupStep {
+    if ["training_facility", "independent_trainer"].contains(type ?? ""), [.season, .teams, .staff, .playersFamilies, .registrationFees, .firstBaseballAction].contains(step) { return step == .firstBaseballAction ? .reviewLaunch : .facilities }
+    return step == .season ? .teams : step
   }
 }
 
@@ -120,7 +121,7 @@ struct OrganizationSetupWizardView: View {
   @StateObject private var model = OrganizationSetupViewModel()
 
   @State private var name = ""
-  @State private var organizationType = "Travel Baseball"
+  @State private var organizationType = "team_program"
   @State private var timezone = TimeZone.current.identifier
   @State private var defaultLocation = ""
   @State private var phone = ""
@@ -338,7 +339,12 @@ struct OrganizationSetupWizardView: View {
   private var basicsStep: some View {
     setupCard("Organization identity", detail: "Used throughout schedules, communication, registration, and finance.") {
       HPFormField(label: "Organization name", text: $name, placeholder: "Example: Marist Red Foxes", error: name.sdNilIfBlank == nil ? "Enter an organization name." : nil)
-      HPFormField(label: "Organization type", text: $organizationType, placeholder: "Example: Travel baseball")
+      Picker("Organization type", selection: $organizationType) {
+        Text("Travel team organization").tag("team_program")
+        Text("Training facility").tag("training_facility")
+        Text("Independent trainer").tag("independent_trainer")
+        Text("Teams and training").tag("hybrid_academy")
+      }
       VStack(alignment: .leading, spacing: HP.Space.xs) {
         Text("TIMEZONE").font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)
         Picker("Timezone", selection: $timezone) {
@@ -816,7 +822,10 @@ struct OrganizationSetupWizardView: View {
   }
 
   private var visibleSetupSteps: [SDOrganizationSetupStep] {
-    SDOrganizationSetupStep.allCases.filter { $0 != .season }
+    let trainingOnly = ["training_facility", "independent_trainer"].contains(organizationType)
+    return SDOrganizationSetupStep.allCases.filter {
+      $0 != .season && (!trainingOnly || ![.teams, .staff, .playersFamilies, .registrationFees, .firstBaseballAction].contains($0))
+    }
   }
 
   private var previousVisibleStep: SDOrganizationSetupStep {
@@ -1076,7 +1085,7 @@ struct OrganizationSetupWizardView: View {
   private func resetLocalWizardState() {
     hydratedOrganizationId = nil
     name = ""
-    organizationType = "Travel Baseball"
+    organizationType = "team_program"
     timezone = TimeZone.current.identifier
     defaultLocation = ""
     phone = ""

@@ -51,7 +51,9 @@ struct ParentRootView: View {
     case .parentChildren:
       ParentHomeView()
     case .parentCalendar:
-      GameCalendarView()
+      if ["training_facility", "independent_trainer"].contains(appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? "") {
+        HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey)
+      } else { GameCalendarView().toolbar { NavigationLink("Training sessions") { HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey) } } }
     case .playerProgram:
       UnifiedPlayerDevelopmentWorkspaceView()
     case .chat:

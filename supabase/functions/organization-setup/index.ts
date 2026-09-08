@@ -125,8 +125,8 @@ async function readSetup(ctx: SetupContext) {
       p_organization_id: ctx.organizationId,
     }),
   ]);
-  if (readinessError) throw new ApiFailure(500, "setup_readiness_failed");
-  const readiness = setupReadiness(readinessData);
+  if (readinessError || !organization) throw new ApiFailure(500, "setup_readiness_failed");
+  const readiness = setupReadiness(readinessData, organization.organization_type);
   return {
     session,
     steps: steps ?? [],
@@ -384,10 +384,13 @@ Deno.serve(async (req) => {
       if (!name || !timezone) {
         throw new ApiFailure(422, "organization_name_and_timezone_required");
       }
+      const kind = cleanSetupString(basics.organization_type, 80);
+      if (!["team_program","training_facility","independent_trainer","hybrid_academy"].includes(kind)) throw new ApiFailure(422,"invalid_organization_type");
+      try { new Intl.DateTimeFormat("en-US", {timeZone:timezone}).format(); }
+      catch { throw new ApiFailure(422,"invalid_organization_timezone"); }
       const { error } = await ctx.admin.from("sd_orgs").update({
         name,
-        organization_type: cleanSetupString(basics.organization_type, 80) ||
-          null,
+        organization_type: kind,
         timezone,
         default_location: cleanSetupString(basics.default_location, 240) ||
           null,
@@ -400,7 +403,7 @@ Deno.serve(async (req) => {
       await markStep(ctx, "basics", requestId!);
       await moveSession(
         ctx,
-        { current_step: "season", status: "in_progress" },
+        { current_step: ["training_facility","independent_trainer"].includes(kind) ? "facilities" : "season", status: "in_progress" },
         expectedVersion,
       );
     } else if (action === "save_season") {

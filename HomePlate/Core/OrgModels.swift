@@ -52,7 +52,30 @@ struct HPTrainingWorkspace: Decodable, Sendable {
     let updated_at: String
     let status: String
   }
-  struct Service: Decodable, Identifiable, Sendable { let id: UUID; let name: String }
+  struct Service: Decodable, Identifiable, Sendable {
+    let id: UUID; let name: String
+    var active: Bool? = nil
+  }
+  struct Trainer: Decodable, Identifiable, Sendable {
+    let id: UUID; let display_name: String; let staff_kind: String; let status: String
+  }
+  struct Offering: Decodable, Sendable {
+    let service_id: UUID; let trainer_directory_id: UUID; let active: Bool
+  }
+  struct Package: Decodable, Identifiable, Sendable {
+    let id: UUID; let name: String; let active: Bool
+  }
+  var staff_directory: [Trainer]? = nil
+  var trainer_offerings: [Offering]? = nil
+  var packages: [Package]? = nil
+  struct Location: Decodable, Identifiable, Sendable {
+    let id: UUID; let name: String; let is_active: Bool?
+  }
+  struct Resource: Decodable, Identifiable, Sendable {
+    let id: UUID; let name: String; let location_id: UUID?; let is_active: Bool?
+  }
+  var locations: [Location]? = nil
+  var resources: [Resource]? = nil
   struct Participant: Decodable, Sendable {
     let appointment_id: UUID
     let athlete_id: UUID
@@ -67,7 +90,23 @@ struct HPTrainingWorkspace: Decodable, Sendable {
   let source_diagnostics: [String: [String]]
 }
 
+struct HPTrainingCredits: Decodable, Sendable {
+  struct Balance: Decodable, Identifiable, Sendable {
+    let athlete_id: UUID; let display_name: String; let package_id: UUID; let package_name: String; let credits: Int
+    var id: String { "\(athlete_id):\(package_id)" }
+  }
+  struct Decision: Decodable, Identifiable, Sendable {
+    let appointment_id: UUID; let athlete_id: UUID; let display_name: String; let package_name: String; let starts_at: String
+    var id: String { "\(appointment_id):\(athlete_id)" }
+  }
+  let balances: [Balance]
+  let pending_decisions: [Decision]
+}
+
 extension SupabaseService {
+  func trainingCredits(organizationId: UUID) async throws -> HPTrainingCredits {
+    try await invokeAuthenticatedFunction("war-operations", body: ["action":"package_credit_workspace", "org_id":organizationId.uuidString])
+  }
   func trainingExperience(organizationId: UUID) async throws -> HPTrainingExperience {
     try await client.rpc("sd_resolve_organization_experience", params: ["p_org_id": organizationId.uuidString])
       .execute().value

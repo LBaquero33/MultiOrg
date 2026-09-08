@@ -171,7 +171,9 @@ struct PlayerHomeView: View {
     case .playerToday:
       SDPlayerTodayView()
     case .playerCalendar:
-      PlayerUnifiedCalendarView()
+      if ["training_facility", "independent_trainer"].contains(appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? "") {
+        HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey)
+      } else { PlayerUnifiedCalendarView().toolbar { NavigationLink("Training sessions") { HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey) } } }
     case .playerProgram:
       UnifiedPlayerDevelopmentWorkspaceView()
     case .chat:

@@ -2,6 +2,49 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 
+private struct HPMessageSafetyView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.dismiss) private var dismiss
+  let organizationId: UUID
+  let message: SDChatMessage
+  @State private var action = "report"
+  @State private var reason = ""
+  @State private var requestId = UUID()
+  @State private var busy = false
+  @State private var errorText: String?
+  @State private var saved = false
+  var body: some View {
+    NavigationStack {
+      Form {
+        Text("Reports go to Home Plate administrators. Blocking stops new direct messages between you and this sender; group messages and existing history remain visible.")
+        if saved { Text("Saved successfully.") }
+        else {
+          Picker("Action", selection: $action) {
+            Text("Report message").tag("report")
+            if message.sender_id != nil { Text("Block direct messages").tag("block"); Text("Unblock direct messages").tag("unblock") }
+          }
+          TextField("Reason (at least 8 characters)", text: $reason, axis: .vertical)
+          Button("Submit") { Task { await submit() } }.disabled(busy || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
+        }
+        if let errorText { Text(errorText).foregroundStyle(.red) }
+      }.disabled(busy).navigationTitle("Message safety")
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() }.disabled(busy) } }
+        .interactiveDismissDisabled(busy)
+    }
+  }
+  private func submit() async {
+    guard let service=appState.supabase, organizationId==appState.activeOrgId else { errorText="Choose the original organization before continuing."; return }
+    busy=true; defer {busy=false}; errorText=nil
+    do {
+      let _: SDJSONValue = try await service.invokeAuthenticatedFunction("communication-safety", body:[
+        "action":action,"org_id":organizationId.uuidString,"message_id":message.id.uuidString,
+        "user_id":message.sender_id?.uuidString ?? "","request_id":requestId.uuidString,"reason":reason,
+      ])
+      saved=true
+    } catch { errorText="Could not confirm this action: \(error.localizedDescription)" }
+  }
+}
+
 struct ChatThreadView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -24,6 +67,7 @@ struct ChatThreadView: View {
   @State private var pendingAttachments: [PendingChatAttachment] = []
   @State private var photoPickerItem: PhotosPickerItem?
   @State private var isShowingFileImporter = false
+  @State private var safetyMessage: SDChatMessage?
 
   private var myId: UUID? { appState.myProfile?.id }
   private var canSend: Bool {
@@ -63,6 +107,11 @@ struct ChatThreadView: View {
                 onReact: { emoji in Task { await toggleReaction(messageId: message.id, emoji: emoji) } }
               )
               .id(message.id)
+              .contextMenu {
+                if message.sender_id != myId {
+                  Button("Report / direct-message safety") { safetyMessage = message }
+                }
+              }
             }
           }
           .padding(.vertical, HP.Space.xs)
@@ -85,6 +134,9 @@ struct ChatThreadView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(HP.Color.bg)
     .navigationTitle(channelTitle)
+    .sheet(item: $safetyMessage) { message in
+      if let org = channel.org_id { HPMessageSafetyView(organizationId: org, message: message) }
+    }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
