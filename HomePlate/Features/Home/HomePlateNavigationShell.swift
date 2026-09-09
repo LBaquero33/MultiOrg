@@ -313,7 +313,10 @@ struct HPAppNavigationInventory: Equatable {
     let athletes = item(.coachPlayers, "Athletes", "figure.run")
     let sessions = item(.coachSchedule, "Sessions", "calendar")
     let account = item(.account, "Account", "person.crop.circle")
-    let ids = Set(experience?.navigation_ids ?? [])
+    let resolvedIDs = Set(experience?.navigation_ids ?? [])
+    let ids = !canAdminister && experience?.current_role == "front_desk"
+      ? resolvedIDs.intersection(["home", "calendar", "lessons", "facilities", "messages", "account"])
+      : resolvedIDs
     let daily = [home] + (ids.contains("athletes") ? [athletes] : [])
       + (ids.contains("lessons") || ids.contains("calendar") ? [sessions] : [])
     let extras = (ids.contains("programs") ? [item(.coachPrograms, "Programs & Development", "list.clipboard")] : [])

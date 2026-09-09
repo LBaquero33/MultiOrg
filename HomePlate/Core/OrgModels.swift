@@ -35,6 +35,7 @@ struct HPTrainingExperience: Decodable, Sendable {
   let enabled_modules: [String]
   let navigation_ids: [String]
   let capabilities: [String]
+  var current_role: String? = nil
 }
 
 struct HPTrainingWorkspace: Decodable, Sendable {

@@ -3,6 +3,16 @@ import Testing
 @testable import HomePlate
 
 struct TrainingCatalogTests {
+  @Test @MainActor func frontDeskNavigationDoesNotInheritCoachProgramOrBillingMenus() {
+    var experience = HPTrainingExperience(organization_type: "hybrid_academy", enabled_modules: [],
+      navigation_ids: ["home", "calendar", "lessons", "athletes", "programs", "payments", "messages", "account"], capabilities: [])
+    experience.current_role = "front_desk"
+    let staff = HPAppNavigationInventory.training(experience: experience, canAdminister: false)
+    #expect(!staff.regularItems.contains { $0.destination == .coachPrograms || $0.destination == .payments })
+    #expect(staff.regularItems.contains { $0.destination == .coachSchedule })
+    let admin = HPAppNavigationInventory.training(experience: experience, canAdminister: true)
+    #expect(admin.regularItems.contains { $0.destination == .coachPrograms })
+  }
   @Test func offeringDraftPreservesOverrides() throws {
     let service = HPTrainingWorkspace.Service(id: UUID(), name: "Hitting")
     let location = UUID(), resource = UUID()
