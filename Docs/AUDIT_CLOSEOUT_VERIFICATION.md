@@ -17,6 +17,7 @@ September 8, 2026 (EDT). This supersedes the native implementation gaps in the e
 - Live signed scoring against guarded QA organization `00000000-0000-4000-8000-0000000000aa`: game `f13f34cc-adc1-4d8d-b64b-a909774cc1d8`, three local commands, accepted and retried without duplicate events.
 - Extended live QA: game `11ef6a01-409f-4d9c-a447-6cb751ec44e5`, nine local commands covering a walk, two-run home run, and strikeout. Every command and duplicate accepted; replay verified 2 runs, 1 hit, 1 out and a reset pitch count. `/tmp/homeplate-native-live-scoring.log`. An earlier fixture deliberately remains separate: its single without runner advancement failed locally with `destinationOccupied` before synchronization; corrected fixture uses explicit automatic home-run advancement.
 - Cross-language fixture verifies native projection/statistics/envelope/journal hashes and P-256 signatures in the web test suite. Fixed locale-aware key ordering based on this test.
+- Final focused run after explicit end-game and no-pending-plays permission-refresh controls: four tests passed (`/tmp/homeplate-closeout-native-final2.log`). An earlier final run hit an internal simulator codesign error; the rerun passed. Those controls are in commit `ace6e53`.
 - WAR Performance was not a mutation target. Live role canaries confirmed unchanged organization/membership hashes and three retained memberships during their run.
 
 ## Release boundaries and open acceptance
