@@ -12,6 +12,7 @@ struct ProductionLiveScoringView: View {
   @State private var attachedRunnerResolutions: [RunnerResolution] = []
   @State private var safeRunnerDraft: SafeRunnerDraft?
   @State private var tapRunner: RunnerState?
+  @State private var confirmingEnd = false
 
   init(game: SDGame, participants: [SDEventParticipant], canScore: Bool) {
     _controller = StateObject(wrappedValue: ProductionScoringController(
@@ -28,6 +29,10 @@ struct ProductionLiveScoringView: View {
           if let record = controller.recoveryRecord {
             ShareLink(item: record) { Label("Export saved plays for recovery", systemImage: "square.and.arrow.up") }
               .font(.caption).padding(8)
+          }
+          if controller.canRefreshPermission {
+            Button("Refresh scoring permission") { Task { await controller.refreshPermission() } }
+              .font(.caption).frame(minHeight: 44)
           }
           HPScoreboard(seed: controller.seed, projection: controller.projection)
           HPMatchupStrip(
@@ -66,6 +71,10 @@ struct ProductionLiveScoringView: View {
     }
     .sheet(isPresented: $showingResults) { resultSheet }
     .sheet(item: $safeRunnerDraft) { draft in safeRunnerSheet(draft) }
+    .confirmationDialog("End this game?", isPresented: $confirmingEnd) {
+      Button("End game") { controller.endGame() }
+      Button("Keep scoring", role: .cancel) {}
+    } message: { Text("This saves an end-game event. Unsynced plays remain on this device until accepted by the server; official statistics still require postgame review.") }
     .confirmationDialog("Runner actions", isPresented: Binding(
       get: { tapRunner != nil }, set: { if !$0 { tapRunner = nil } }
     )) {
@@ -191,10 +200,15 @@ struct ProductionLiveScoringView: View {
         .padding(12).background(Color(hex: 0x1A1E16)).clipShape(RoundedRectangle(cornerRadius: 16))
       } else {
         HPPitchActionDock(
-          disabled: !controller.canMutate,
+          disabled: !controller.canMutate || controller.projection.status != .live,
           onPitch: controller.recordPitch,
           onBallInPlay: { showingResults = true }
         )
+        if controller.canScore && controller.projection.status == .live {
+          Button("End game") { confirmingEnd = true }
+            .frame(minHeight: 44)
+            .disabled(!controller.canMutate)
+        }
       }
     }
   }

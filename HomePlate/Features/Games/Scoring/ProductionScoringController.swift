@@ -44,6 +44,31 @@ import HomePlateScoringUI
     guard currentContext(), let journal, journal.pendingCount > 0 else { return nil }
     return try? journal.recoveryRecord()
   }
+  var canRefreshPermission: Bool {
+    canScore && currentContext() && journal?.pendingCount == 0 && !isBusy && !synchronizing && projection.status != .final
+  }
+  func refreshPermission() async {
+    guard canRefreshPermission, let service, let saved = journal else { return }
+    isBusy = true; defer { isBusy = false }
+    do {
+      let remote = try await service.listScoringEventsV2(gameId: game.id, organizationId: game.org_id)
+      guard currentContext(), remote.starts(with: saved.events, by: { $0.id == $1.id }) else {
+        throw HPNativeScoringV2Journal.JournalError.contextChanged
+      }
+      let key = P256.Signing.PrivateKey()
+      let packageHash = try HPNativeScoringCanonical.hash(["gameID": .string(game.id.uuidString.lowercased()), "version": .int(remote.last?.sequence ?? 0)])
+      let prepared = try await service.prepareNativeOffline(gameID: game.id, deviceID: deviceID, packageHash: packageHash, publicKey: HPNativeScoringV2Journal.publicKey(key))
+      guard currentContext(), prepared.permit.gameID == game.id, prepared.permit.deviceID == deviceID,
+            prepared.authority.serverVersion == (remote.last?.sequence ?? 0) else { throw HPNativeScoringV2Journal.JournalError.contextChanged }
+      var updated = HPNativeScoringV2Journal(accountID: saved.accountID, organizationID: saved.organizationID, gameID: saved.gameID, deviceID: saved.deviceID,
+        seed: saved.seed, packageHash: packageHash, privateKey: key.rawRepresentation, permit: prepared.permit, controlToken: prepared.authority.controlToken, confirmedEvents: remote)
+      updated.rules = rules
+      try HPNativeScoringV2JournalStore.application.save(updated)
+      journal = updated; events = remote; try refreshDerivedState(); syncState = .synced
+    } catch {
+      syncState = .conflict("Could not refresh scoring permission. Saved history remains protected; try again when authorized and connected.")
+    }
+  }
   private var isConflict: Bool { if case .conflict = syncState { true } else { false } }
   func start(service: SupabaseService, accountID: UUID, currentContext: @escaping () -> Bool) async {
     guard !isReady else { return }
