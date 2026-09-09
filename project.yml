@@ -1,4 +1,17 @@
 name: HomePlate
+schemes:
+  HomePlateStoreKitAudit:
+    build:
+      targets:
+        HomePlate: all
+    run:
+      config: Debug
+      storeKitConfiguration: HomePlate/Supporting/HomePlatePlayerAccess.storekit
+    test:
+      config: Debug
+      targets: [HomePlateTests]
+      environmentVariables:
+        HOMEPLATE_STOREKIT_TESTS: "1"
 options:
   bundleIdPrefix: com.multiorg
   deploymentTarget:
@@ -24,6 +37,8 @@ configFiles:
   Release: Configs/Secrets.xcconfig
 
 packages:
+  HomePlateScoringKit:
+    path: Packages/HomePlateScoringKit
   Supabase:
     url: https://github.com/supabase/supabase-swift
     from: 2.0.0
@@ -92,6 +107,12 @@ targets:
           DHD_APNS_ENVIRONMENT: production
     dependencies:
       - package: Supabase
+      - package: HomePlateScoringKit
+        product: HomePlateScoringCore
+      - package: HomePlateScoringKit
+        product: HomePlateScoringStore
+      - package: HomePlateScoringKit
+        product: HomePlateScoringUI
     postBuildScripts:
       - name: Embed Home Plate runtime identity
         basedOnDependencyAnalysis: false
@@ -123,6 +144,8 @@ targets:
       - path: SharedFixtures/apple_player_purchase_context_vectors.json
         buildPhase: resources
       - path: SharedFixtures/player_development_workspace.json
+        buildPhase: resources
+      - path: HomePlate/Supporting/HomePlatePlayerAccess.storekit
         buildPhase: resources
     settings:
       base:
@@ -182,6 +205,12 @@ targets:
           DHD_APNS_ENVIRONMENT: production
     dependencies:
       - package: Supabase
+      - package: HomePlateScoringKit
+        product: HomePlateScoringCore
+      - package: HomePlateScoringKit
+        product: HomePlateScoringStore
+      - package: HomePlateScoringKit
+        product: HomePlateScoringUI
     postBuildScripts:
       - name: Embed Home Plate runtime identity
         basedOnDependencyAnalysis: false

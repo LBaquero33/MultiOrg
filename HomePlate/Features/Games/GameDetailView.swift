@@ -141,16 +141,29 @@ struct GameDetailView: View {
           empty(item.game?.ruleset_id == nil ? "Default organization rules apply." : "A versioned game ruleset is attached.")
         case .liveScore:
           if let game = item.game {
-            LiveGameScoringView(game: game, participants: participants)
+            if game.scoring_schema_version == 2 {
+              ProductionLiveScoringView(game: game, participants: participants, canScore: SDGameAuthorization.canScore(
+                game: game, userId: appState.myProfile?.id, membership: appState.activeOrgMembership, participants: participants
+              ))
+              .id("\(appState.myProfile?.id.uuidString ?? ""):\(game.id)")
+            } else {
+              LiveGameScoringView(game: game, participants: participants)
+            }
           } else {
             empty("This event does not have a game record.")
           }
         case .boxScore:
-          if let game = item.game { GameStatisticsView(game: game, mode: .boxScore) }
-        case .playerStats:
-          if let game = item.game { GameStatisticsView(game: game, mode: .players) }
-        case .postgameReview:
           if let game = item.game {
+            if game.scoring_schema_version == 2 { ProductionGameReportView(game: game) }
+            else { GameStatisticsView(game: game, mode: .boxScore) }
+          }
+        case .playerStats:
+          if let game = item.game {
+            if game.scoring_schema_version == 2 { ProductionGameReportView(game: game) }
+            else { GameStatisticsView(game: game, mode: .players) }
+          }
+        case .postgameReview:
+          if let game = item.game, game.scoring_schema_version != 2 {
             VStack(alignment: .leading, spacing: 16) {
               GameStatisticsView(game: game, mode: .decisions)
               Divider()
@@ -158,9 +171,15 @@ struct GameDetailView: View {
                 await load()
               }
             }
+          } else if let game = item.game {
+            ProductionGameReportView(game: game)
+            Text("Official schema-2 postgame review is managed in the web Game Hub.").font(.caption)
           }
         case .playByPlay:
-          if let game = item.game { PlayByPlayView(game: game) }
+          if let game = item.game {
+            if game.scoring_schema_version == 2 { ProductionGameReportView(game: game, history: true) }
+            else { PlayByPlayView(game: game) }
+          }
         case .gameNotes:
           empty("Game notes are visible only according to server authorization.")
         }

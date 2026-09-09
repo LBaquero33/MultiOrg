@@ -59,17 +59,39 @@ struct HPTrainingWorkspace: Decodable, Sendable {
     var duration_minutes: Int? = nil
     var capacity: Int? = nil
     var public_booking_mode: String? = nil
+    var category: String? = nil
+    var slug: String? = nil
+    var price_cents: Int? = nil
+    var price_verification_required: Bool? = nil
+    var public_visible: Bool? = nil
+    var cancellation_policy: String? = nil
   }
   struct Trainer: Decodable, Identifiable, Sendable {
     let id: UUID; let display_name: String; let staff_kind: String; let status: String
   }
   struct Offering: Decodable, Sendable {
     let service_id: UUID; let trainer_directory_id: UUID; let active: Bool
+    var description_override: String? = nil
+    var duration_minutes_override: Int? = nil
+    var capacity_override: Int? = nil
+    var public_price_cents: Int? = nil
+    var member_price_cents: Int? = nil
+    var location_ids: [UUID]? = nil
+    var resource_ids: [UUID]? = nil
+    var public_visible: Bool? = nil
+    var booking_mode_override: String? = nil
+    var sort_order: Int? = nil
   }
   struct Package: Decodable, Identifiable, Sendable {
     let id: UUID; let name: String; let active: Bool
     var credits: Int? = nil
     var validity_days: Int? = nil
+    var description: String? = nil
+    var price_cents: Int? = nil
+    var currency: String? = nil
+    var public_visible: Bool? = nil
+    var price_verification_required: Bool? = nil
+    var updated_at: String? = nil
   }
   var staff_directory: [Trainer]? = nil
   var trainer_offerings: [Offering]? = nil
