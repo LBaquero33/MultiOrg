@@ -27,7 +27,7 @@ hp_catalog <- function() list(
         hp_model("extension_distribution", "Extension Distribution", c("TaggedPitchType", "Extension"), c("trackman", "rapsodo"), c("distribution")),
         hp_model("pitch_shape", "Pitch Shape", c("TaggedPitchType", "InducedVertBreak", "HorzBreak"), c("trackman", "rapsodo"), c("scatter")),
         hp_model("pitch_clusters", "Pitch Clusters", c("TaggedPitchType", "InducedVertBreak", "HorzBreak"), c("trackman", "rapsodo"), c("scatter")),
-        hp_model("pitch_map_3d", "3D Pitch Map", c("TaggedPitchType", "PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2"), c("trackman"), c("trajectory_3d", "scatter")),
+        hp_model("pitch_map_3d", "3D Pitch Map", c("TaggedPitchType", "ZoneTime", "PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2"), c("trackman"), c("trajectory_3d", "scatter")),
         hp_model("release_clusters", "Release Point Cluster", c("TaggedPitchType", "RelSide", "RelHeight"), c("trackman", "rapsodo"), c("scatter")),
         hp_model("pitch_location", "Pitch Location", c("TaggedPitchType", "PlateLocSide", "PlateLocHeight"), c("trackman", "rapsodo"), c("scatter", "zone_grid")),
         hp_model("command", "Command", c("TaggedPitchType", "PitchCall", "PlateLocSide", "PlateLocHeight"), c("trackman", "rapsodo"), c("table")),

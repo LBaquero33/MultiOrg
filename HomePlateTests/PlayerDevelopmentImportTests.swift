@@ -9,6 +9,15 @@ struct PlayerDevelopmentImportTests {
   let userId = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
   let playerId = UUID(uuidString: "44444444-4444-4444-8444-444444444444")!
 
+  @Test("Catcher view places positive PlateLocSide on screen-left")
+  func catcherViewOrientation() {
+    let range = -17.0...17.0
+    let positive = catcherViewHorizontalFraction(12, in: range)
+    let negative = catcherViewHorizontalFraction(-12, in: range)
+    #expect(positive < negative)
+    #expect(abs(catcherViewHorizontalFraction(0, in: range) - 0.5) < 0.000_001)
+  }
+
   @Test("Provider and file shape contracts identify automatic adapters")
   func providerContracts() {
     #expect(SDDevelopmentImportProvider.allCases.count == 7)

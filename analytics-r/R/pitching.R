@@ -201,17 +201,33 @@ hp_pitch_distribution <- function(data, column, group = "TaggedPitchType", bins 
 
 hp_trajectory_3d <- function(data, limit = 120L) {
   coefficients <- c("PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2")
-  hp_require(data, c("TaggedPitchType", coefficients))
-  rows <- data[stats::complete.cases(data[coefficients]), , drop = FALSE]
+  required <- c(coefficients, "ZoneTime")
+  hp_require(data, c("TaggedPitchType", required))
+  rows <- data[stats::complete.cases(data[required]), , drop = FALSE]
+  rows <- rows[is.finite(hp_num(rows$ZoneTime)) & hp_num(rows$ZoneTime) > 0, , drop = FALSE]
   if (nrow(rows) > limit) rows <- rows[round(seq(1, nrow(rows), length.out = limit)), , drop = FALSE]
-  times <- seq(0, 1, length.out = 24)
   output <- list()
   for (index in seq_len(nrow(rows))) {
     row <- rows[index, , drop = FALSE]
+    zone_time <- hp_num(row$ZoneTime)[[1]]
+    times <- seq(0, zone_time, length.out = 24)
     polynomial <- function(prefix) hp_num(row[[paste0(prefix, "0")]]) + hp_num(row[[paste0(prefix, "1")]]) * times + hp_num(row[[paste0(prefix, "2")]]) * times^2
+    distance <- polynomial("PitchTrajectoryXc")
+    height <- polynomial("PitchTrajectoryYc")
+    lateral <- -polynomial("PitchTrajectoryZc")
+    points <- lapply(seq_along(times), function(i) list(
+      x = distance[[i]],
+      y = lateral[[i]],
+      z = height[[i]],
+      time = times[[i]],
+      is_plate = i == length(times)
+    ))
     output[[length(output) + 1L]] <- list(
       pitch_type = hp_chr(row$TaggedPitchType),
-      points = lapply(seq_along(times), function(i) list(x = polynomial("PitchTrajectoryXc")[[i]], y = polynomial("PitchTrajectoryYc")[[i]], z = polynomial("PitchTrajectoryZc")[[i]]))
+      method = "trackman_stadium_zone_time",
+      zone_time = zone_time,
+      points = points,
+      plate_point = points[[length(points)]]
     )
   }
   output
@@ -261,7 +277,7 @@ hp_pitching_analysis <- function(data, topic) {
     pitch_break_shape = {
       hp_require(data, c("TaggedPitchType", "InducedVertBreak", "HorzBreak"))
       metrics <- hp_pitch_metrics(data)
-      trajectory_columns <- c("TaggedPitchType", "PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2")
+      trajectory_columns <- c("TaggedPitchType", "ZoneTime", "PitchTrajectoryXc0", "PitchTrajectoryXc1", "PitchTrajectoryXc2", "PitchTrajectoryYc0", "PitchTrajectoryYc1", "PitchTrajectoryYc2", "PitchTrajectoryZc0", "PitchTrajectoryZc1", "PitchTrajectoryZc2")
       list(
         metrics = list(hp_metric("pitch_types", "Pitch types", nrow(metrics))),
         tables = list(hp_table("pitch_shape_averages", "Average Pitch Shape", metrics[, c("pitch_type", "pitches", "induced_vertical_break", "horizontal_break", "avg_velocity", "avg_spin"), drop = FALSE])),

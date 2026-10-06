@@ -133,7 +133,9 @@ hp_woba <- function(data) {
 
 hp_zone_bins <- function(data) {
   hp_require(data, c("PlateLocSide", "PlateLocHeight"))
-  data$.zone_x <- cut(data$PlateLocSide, breaks = seq(HP_ZONE$left, HP_ZONE$right, length.out = 4), labels = c("Left", "Middle", "Right"), include.lowest = TRUE)
+  # TrackMan PlateLocSide is positive to the catcher's left. Keep the raw
+  # measurement intact while assigning catcher-view screen labels.
+  data$.zone_x <- cut(data$PlateLocSide, breaks = seq(HP_ZONE$left, HP_ZONE$right, length.out = 4), labels = c("Right", "Middle", "Left"), include.lowest = TRUE)
   data$.zone_y <- cut(data$PlateLocHeight, breaks = seq(HP_ZONE$bottom, HP_ZONE$top, length.out = 4), labels = c("Bottom", "Middle", "Top"), include.lowest = TRUE)
   data
 }
