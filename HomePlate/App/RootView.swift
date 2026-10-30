@@ -58,6 +58,25 @@ struct RootView: View {
       .frame(minWidth: 480, minHeight: 360)
       #endif
     }
+    .sheet(item: $appState.requestedCalendarDestination) { destination in
+      NavigationStack {
+        CalendarLinkDestinationView(route: destination)
+          .environmentObject(appState)
+      }
+      #if os(macOS)
+      .frame(minWidth: 480, minHeight: 420)
+      #endif
+    }
+    .sheet(item: Binding(
+      get: { appState.isAuthenticated ? appState.pendingParentInviteRedemption : nil },
+      set: { if $0 == nil { appState.dismissParentInviteRedemption() } }
+    )) { redemption in
+      ParentInviteRedemptionView(redemption: redemption)
+        .environmentObject(appState)
+      #if os(macOS)
+      .frame(minWidth: 440, minHeight: 360)
+      #endif
+    }
   }
 
   private var pushConfigurationKey: String {

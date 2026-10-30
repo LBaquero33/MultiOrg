@@ -16,6 +16,33 @@ struct TeamOperationsFoundationTests {
   private let seasonA = UUID(uuidString: "cccccccc-cccc-4ccc-8ccc-cccccccccccc")!
   private let seasonB = UUID(uuidString: "dddddddd-dddd-4ddd-8ddd-dddddddddddd")!
 
+  @Test("calendar deep links resolve event and booking destinations")
+  func calendarDeepLinksResolve() {
+    let event = HPCalendarLinkRoute(url: URL(string:
+      "homeplate://calendar/event/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee?organization=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    )!)
+    let booking = HPCalendarLinkRoute(url: URL(string:
+      "homeplate://calendar/booking/ffffffff-ffff-4fff-8fff-ffffffffffff?organization=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    )!)
+    #expect(event?.source == .event)
+    #expect(event?.organizationId == orgA)
+    #expect(booking?.source == .booking)
+    #expect(booking?.organizationId == orgB)
+  }
+
+  @Test("malformed and duplicate calendar or team query keys are rejected")
+  func duplicateDeepLinkKeysAreRejected() {
+    #expect(HPCalendarLinkRoute(url: URL(string:
+      "homeplate://calendar/event/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee?organization=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&ORGANIZATION=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    )!) == nil)
+    #expect(HPCalendarLinkRoute(url: URL(string:
+      "homeplate://calendar/event/invalid?organization=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    )!) == nil)
+    #expect(HPTeamWorkspaceRoute(url: URL(string:
+      "homeplate://team?organization_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&ORGANIZATION_ID=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb&team_id=cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+    )!) == nil)
+  }
+
   @Test("one-team coach is selected without a switch choice")
   func oneTeamAutoSelection() {
     let only = team(name: "Varsity")

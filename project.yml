@@ -54,6 +54,9 @@ targets:
         excludes:
           - "**/*.md"
           - "Supporting/Fonts/*-OFL.txt"
+          - "Supporting/PrivacyInfo.xcprivacy"
+      - path: HomePlate/Supporting/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Configs/HomePlate-iOS-Info.plist
       properties:
@@ -157,6 +160,18 @@ targets:
     dependencies:
       - target: HomePlate
 
+  HomePlateMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: HomePlateTests/NativeClientContractTests.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app.mac.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: HomePlateMac
+
   HomePlateMac:
     type: application
     platform: macOS
@@ -168,7 +183,10 @@ targets:
           - "Features/Player/**"
           - "Supporting/LaunchScreen.storyboard"
           - "Supporting/Fonts/*-OFL.txt"
+          - "Supporting/PrivacyInfo.xcprivacy"
       - path: HomePlate/Features/Player/PlayerDevelopmentPlayerWorkspaceView.swift
+      - path: HomePlate/Supporting/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Configs/HomePlate-macOS-Info.plist
       properties:
@@ -234,4 +252,5 @@ targets:
           /usr/libexec/PlistBuddy -c "Add :BuildNumber string $CURRENT_PROJECT_VERSION" "$identity_path"
           /usr/libexec/PlistBuddy -c "Add :RootShellIdentifier string homeplate.phase13a.root" "$identity_path"
     scheme:
-      testTargets: []
+      testTargets:
+        - HomePlateMacTests

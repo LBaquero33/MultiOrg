@@ -1,14 +1,12 @@
 import SwiftUI
 
 /// Parent-facing home:
-/// - Accept invites
 /// - View linked children (read-only performance data)
 /// - Book facilities + request payment on behalf
 struct ParentHomeView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.scenePhase) private var scenePhase
 
-  @State private var invites: [SDParentInvite] = []
   @State private var links: [SDParentChildLink] = []
   @State private var children: [Profile] = []
   @State private var todayMissions: [ParentTodayMission] = []
@@ -166,19 +164,6 @@ struct ParentHomeView: View {
         .task(id: parentContextIdentity) { await reload() }
       }
 #endif
-    }
-    .sheet(
-      isPresented: Binding(
-        get: { !invites.isEmpty },
-        set: { isPresented in
-          if !isPresented { invites = [] }
-        }
-      )
-    ) {
-      ParentInviteAcceptanceSheet(invites: $invites, onAccept: { inviteId in
-        Task { await accept(inviteId: inviteId) }
-      })
-      .environmentObject(appState)
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -385,7 +370,6 @@ struct ParentHomeView: View {
     guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
     let context = parentContextIdentity
     if publishedContext != context {
-      invites = []
       links = []
       children = []
       todayMissions = []
@@ -396,13 +380,11 @@ struct ParentHomeView: View {
     isLoading = true
     todayServiceError = nil
     do {
-      async let loadedInvites = supabase.listMyParentInvites()
       async let loadedLinks = supabase.listMyParentChildLinks(orgId: orgId)
-      let (newInvites, newLinks) = try await (loadedInvites, loadedLinks)
+      let newLinks = try await loadedLinks
       let ids = newLinks.map(\.child_id)
       let profiles = try await supabase.listProfiles(ids: ids)
       guard acceptsParent(context: context, token: token) else { return }
-      invites = newInvites
       links = newLinks
       // Only show player children.
       children = profiles.filter(\.isPlayer).sorted { $0.displayName < $1.displayName }
@@ -545,20 +527,7 @@ struct ParentHomeView: View {
     }
   }
 
-  private func accept(inviteId: UUID) async {
-    guard let supabase = appState.supabase else { return }
-    isLoading = true
-    defer { isLoading = false }
-    do {
-      try await supabase.acceptParentInvite(inviteId: inviteId)
-      await reload()
-    } catch {
-      errorText = SDApplicationErrorClassifier.alertMessage(
-        for: error,
-        taskIsCancelled: Task.isCancelled
-      )
-    }
-  }
+
 }
 
 struct RegistrationFamilySummaryCard: View {
@@ -764,75 +733,4 @@ private struct ParentPendingAvailability {
   let presentation: ParentAvailabilityPresentation
   let draft: SDEventAvailabilityDraft
   let requestId: UUID
-}
-
-private struct ParentInviteAcceptanceSheet: View {
-  @Environment(\.dismiss) private var dismiss
-  @Binding var invites: [SDParentInvite]
-  let onAccept: (UUID) -> Void
-
-  var body: some View {
-    NavigationStack {
-      HPListScreenLayout {
-        HPWorkspaceHeader(
-          "Parent invites",
-          context: "You have been invited to view one or more players as a parent/guardian."
-        )
-      } controls: {
-        EmptyView()
-      } results: { context in
-        HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Invites") {
-              HPStatusBadge(text: "\(invites.count)", kind: .neutral)
-            }
-            ForEach(invites) { invite in
-              let layout = context.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.sm))
-                : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.sm))
-              layout {
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("Player: \(invite.child_id.uuidString.prefix(6).uppercased())")
-                    .font(HP.Font.headline)
-                    .foregroundStyle(HP.Color.text)
-                  if let relationship = invite.relationship,
-                     !relationship.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(relationship)
-                      .font(HP.Font.caption)
-                      .foregroundStyle(HP.Color.textMuted)
-                  }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                HPButton(
-                  title: "Accept",
-                  systemImage: "checkmark",
-                  variant: .secondary,
-                  size: .sm,
-                  fullWidth: context.isAccessibilitySize,
-                  action: { onAccept(invite.id) }
-                )
-              }
-              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-
-              if invite.id != invites.last?.id {
-                Divider().overlay(HP.Color.border.opacity(0.5))
-              }
-            }
-          }
-        }
-      }
-      .navigationTitle("Parent invites")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Close") {
-            invites = []
-            dismiss()
-          }
-            #if os(macOS)
-            .keyboardShortcut(.cancelAction)
-            #endif
-        }
-      }
-    }
-  }
 }

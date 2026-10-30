@@ -77,6 +77,23 @@ struct OrganizationAuthorizationTests {
     ))
   }
 
+  @Test("Announcement controls follow the active organization membership")
+  func announcementCapabilityFollowsOrganization() {
+    let memberships = [
+      membership(role: "coach", orgId: coachOrgId),
+      membership(role: "parent", orgId: adminOrgId),
+    ]
+    let activeCoach = OrganizationAuthorization.activeMembership(
+      userId: userId, orgId: coachOrgId, memberships: memberships
+    )
+    let activeParent = OrganizationAuthorization.activeMembership(
+      userId: userId, orgId: adminOrgId, memberships: memberships
+    )
+    #expect(SDChatAuthorization.canComposeAnnouncement(membership: activeCoach))
+    #expect(!SDChatAuthorization.canComposeAnnouncement(membership: activeParent))
+    #expect(!SDChatAuthorization.canComposeAnnouncement(membership: nil))
+  }
+
   @Test("Memberships are bound to the current authenticated user")
   func unrelatedMembershipCannotAuthorize() {
     #expect(!OrganizationAuthorization.canAdminister(

@@ -125,7 +125,7 @@ struct StrikeZoneChart: View {
           }
         }
         .accessibilityLabel(mode == "density" ? "Strike-zone contact-quality heat map" : "Strike-zone pitch location chart")
-        Text("Catcher view. Color intensity reflects \(mode == "density" ? "average exit velocity" : "each tracked pitch").")
+        Text("Catcher view. Positive PlateLocSide appears on the catcher's left. Color intensity reflects \(mode == "density" ? "average exit velocity" : "each tracked pitch").")
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
@@ -182,7 +182,7 @@ struct StrikeZoneChart: View {
   private func heatBins(_ points: [StrikeZonePoint]) -> [StrikeZoneHeatBin] {
     var values: [String: StrikeZoneHeatBin] = [:]
     for point in points {
-      let xFraction = (point.x - horizontalRange.lowerBound) / (horizontalRange.upperBound - horizontalRange.lowerBound)
+      let xFraction = catcherViewHorizontalFraction(point.x, in: horizontalRange)
       let zFraction = (point.z - verticalRange.lowerBound) / (verticalRange.upperBound - verticalRange.lowerBound)
       let column = min(columns - 1, max(0, Int(xFraction * Double(columns))))
       let row = min(rows - 1, max(0, rows - 1 - Int(zFraction * Double(rows))))
@@ -206,7 +206,7 @@ struct StrikeZoneChart: View {
   }
 
   private func pointLocation(_ point: StrikeZonePoint, in rect: CGRect) -> CGPoint {
-    let xFraction = (point.x - horizontalRange.lowerBound) / (horizontalRange.upperBound - horizontalRange.lowerBound)
+    let xFraction = catcherViewHorizontalFraction(point.x, in: horizontalRange)
     let zFraction = (point.z - verticalRange.lowerBound) / (verticalRange.upperBound - verticalRange.lowerBound)
     return CGPoint(x: rect.minX + rect.width * xFraction, y: rect.maxY - rect.height * zFraction)
   }
@@ -214,6 +214,12 @@ struct StrikeZoneChart: View {
   private func heatColor(_ score: Double) -> Color {
     Color(red: 0.10 + 0.80 * score, green: 0.22 + 0.56 * score, blue: 0.42 - 0.25 * score)
   }
+}
+
+func catcherViewHorizontalFraction(_ value: Double, in range: ClosedRange<Double>) -> Double {
+  let span = range.upperBound - range.lowerBound
+  guard value.isFinite, span.isFinite, span > 0 else { return 0 }
+  return (range.upperBound - value) / span
 }
 
 struct ContactQualitySummary: View {

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { env, json } from "../_shared/org_billing.ts";
+import { webhookClaimDisposition } from "../_shared/webhook_claim.ts";
 import { stripeRequest, stripeSubscriptionSnapshot, stripeUnixToIso, verifyStripeSignature } from "../_shared/stripe.ts";
 
 type StripeSubscription = Record<string, any>;
@@ -69,27 +70,30 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const providerAccountId = String(event.account ?? "") || null;
-  const { data: existing } = await admin.from("sd_webhook_events")
-    .select("id,processing_status,attempt_count")
-    .eq("provider", "stripe").eq("provider_event_id", String(event.id))
-    .is("provider_account_id", providerAccountId)
-    .maybeSingle();
-
-  if (existing?.processing_status === "processed" || existing?.processing_status === "processing") return json(200, { received: true, duplicate: true });
-  let ledgerId = existing?.id as string | undefined;
-  if (ledgerId) {
-    const { error } = await admin.from("sd_webhook_events").update({
-      processing_status: "processing", attempt_count: Number(existing?.attempt_count ?? 0) + 1, error_message: null,
-    }).eq("id", ledgerId);
-    if (error) return json(500, { error: "webhook_ledger_update_failed" });
-  } else {
-    const { data, error } = await admin.from("sd_webhook_events").insert({
-      provider: "stripe", provider_account_id: providerAccountId, provider_event_id: String(event.id),
-      event_type: String(event.type), processing_status: "processing", payload: event, attempt_count: 1,
-    }).select("id").single();
-    if (error?.code === "23505") return json(200, { received: true, duplicate: true });
-    if (error || !data?.id) return json(500, { error: "webhook_ledger_insert_failed" });
-    ledgerId = String(data.id);
+  const { data: claim, error: claimError } = await admin.rpc("sd_claim_webhook_event", {
+    p_provider: "stripe",
+    p_provider_event_id: String(event.id),
+    p_provider_account_id: providerAccountId,
+    p_event_type: String(event.type),
+    p_payload: event,
+    p_lease_seconds: 900,
+  });
+  const lease = Array.isArray(claim) ? claim[0] : claim;
+  const disposition = webhookClaimDisposition(lease);
+  const ledgerId = String(lease?.id ?? "");
+  const leaseToken = String(lease?.lease_token ?? "");
+  if (claimError || disposition.kind === "error") return json(500, { error: "webhook_ledger_claim_failed" });
+  if (disposition.kind === "acknowledge") {
+    return json(200, { received: true, duplicate: true });
+  }
+  if (disposition.kind === "retry") {
+    return new Response(JSON.stringify({ received: false, retryable: true }), {
+      status: disposition.status,
+      headers: { "content-type": "application/json", "retry-after": String(disposition.retryAfterSeconds) },
+    });
+  }
+  if (!ledgerId || !/^[0-9a-f-]{36}$/i.test(leaseToken)) {
+    return json(500, { error: "webhook_ledger_claim_failed" });
   }
 
   try {
@@ -114,11 +118,18 @@ Deno.serve(async (req) => {
       default:
         break;
     }
-    await admin.from("sd_webhook_events").update({ processing_status: "processed", processed_at: new Date().toISOString(), error_message: null }).eq("id", ledgerId);
+    const { data: completed, error: completionError } = await admin.from("sd_webhook_events").update({
+      processing_status: "processed", processed_at: new Date().toISOString(), error_message: null,
+      processing_lease_until: null, processing_lease_token: null,
+    }).eq("id", ledgerId).eq("processing_lease_token", leaseToken).select("id").maybeSingle();
+    if (completionError || !completed) throw new Error("webhook_ledger_completion_failed");
     return json(200, { received: true });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : "webhook_processing_failed";
-    await admin.from("sd_webhook_events").update({ processing_status: "failed", error_message: message }).eq("id", ledgerId);
+    await admin.from("sd_webhook_events").update({
+      processing_status: "failed", error_message: message,
+      processing_lease_until: null, processing_lease_token: null,
+    }).eq("id", ledgerId).eq("processing_lease_token", leaseToken);
     return json(500, { error: "webhook_processing_failed" });
   }
 });

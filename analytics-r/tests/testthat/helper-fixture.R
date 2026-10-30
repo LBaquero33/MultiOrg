@@ -18,12 +18,12 @@ make_trackman_fixture <- function() {
     RelSpeed = c(rnorm(60, 78, 2), rnorm(60, 71, 2), rnorm(60, 69, 2)), SpinRate = c(rnorm(60, 2150, 80), rnorm(60, 2300, 90), rnorm(60, 1700, 75)),
     InducedVertBreak = c(rnorm(60, 16, 1), rnorm(60, 4, 1), rnorm(60, 10, 1)), HorzBreak = c(rnorm(60, 8, 1), rnorm(60, -9, 1), rnorm(60, 13, 1)),
     RelHeight = rnorm(count, 5.8, .08), RelSide = rnorm(count, 1.8, .08), Extension = rnorm(count, 6, .15),
-    PlateLocHeight = runif(count, 1, 4), PlateLocSide = runif(count, -1.2, 1.2), ZoneSpeed = rnorm(count, 70, 2),
+    PlateLocHeight = runif(count, 1, 4), PlateLocSide = runif(count, -1.2, 1.2), ZoneSpeed = rnorm(count, 70, 2), ZoneTime = runif(count, .38, .48),
     ExitSpeed = ifelse(play_results == "Undefined", NA, rnorm(count, 82, 8)), Angle = ifelse(play_results == "Undefined", NA, rnorm(count, 15, 12)),
     Direction = ifelse(play_results == "Undefined", NA, runif(count, -40, 40)), Distance = ifelse(play_results == "Undefined", NA, runif(count, 100, 360)),
-    PitchTrajectoryXc0 = 0, PitchTrajectoryXc1 = runif(count, -.2, .2), PitchTrajectoryXc2 = runif(count, -.2, .2),
-    PitchTrajectoryYc0 = 55, PitchTrajectoryYc1 = -50, PitchTrajectoryYc2 = 0,
-    PitchTrajectoryZc0 = 6, PitchTrajectoryZc1 = runif(count, -2, -1), PitchTrajectoryZc2 = runif(count, -1, 0),
+    PitchTrajectoryXc0 = 55, PitchTrajectoryXc1 = runif(count, -125, -115), PitchTrajectoryXc2 = runif(count, -.2, .2),
+    PitchTrajectoryYc0 = 6, PitchTrajectoryYc1 = runif(count, -6, -4), PitchTrajectoryYc2 = runif(count, -1, 0),
+    PitchTrajectoryZc0 = runif(count, -2, 2), PitchTrajectoryZc1 = runif(count, -.4, .4), PitchTrajectoryZc2 = runif(count, -.2, .2),
     stringsAsFactors = FALSE, check.names = FALSE
   )
 }

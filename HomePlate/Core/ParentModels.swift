@@ -1,14 +1,49 @@
 import Foundation
 
-struct SDParentInvite: Identifiable, Decodable, Equatable {
+struct SDParentInvite: Identifiable, Decodable, Equatable, Sendable {
   let id: UUID
+  let org_id: UUID
   let email_norm: String
   let child_id: UUID
-  let invited_by: UUID?
   let relationship: String?
-  let accepted_at: Date?
-  let parent_id: UUID?
-  let created_at: Date?
+  let accepted_at: String?
+  let expires_at: String
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "invite_id"
+    case org_id, email_norm, child_id, relationship, accepted_at, expires_at
+  }
+}
+
+struct SDParentInviteListResponse: Decodable, Sendable {
+  let invites: [SDParentInvite]
+}
+
+struct SDParentInvitePreview: Decodable, Equatable, Sendable {
+  let valid: Bool
+  let org_id: UUID
+  let organization_name: String
+  let child_id: UUID
+  let child_name: String
+  let relationship: String?
+  let expires_at: String
+}
+
+struct SDParentInviteAcceptResponse: Decodable, Equatable, Sendable {
+  let accepted: Bool
+  let org_id: UUID
+  let child_id: UUID
+}
+
+struct SDParentInviteIssueResponse: Decodable, Equatable, Sendable {
+  let invite_id: UUID
+  let delivery: String
+  let expires_at: String
+}
+
+enum SDParentInviteRedemptionError: Error {
+  case previewUnavailable
+  case contextMismatch
 }
 
 struct SDParentChildLink: Identifiable, Decodable, Equatable {

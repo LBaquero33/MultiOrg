@@ -223,6 +223,12 @@ enum OrganizationAuthorization {
   }
 }
 
+enum SDChatAuthorization {
+  static func canComposeAnnouncement(membership: SDOrgMembership?) -> Bool {
+    membership?.isStaff == true
+  }
+}
+
 enum SDAuthenticatedWorkspace: Equatable, Sendable {
   case staff
   case player

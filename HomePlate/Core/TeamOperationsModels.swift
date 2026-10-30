@@ -728,13 +728,10 @@ struct HPTeamWorkspaceRoute: Equatable, Sendable {
           ["team", "currentteam", "current-team", "current_team"].contains(url.host?.lowercased() ?? "") else {
       return nil
     }
-    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-    let values = Dictionary(
-      uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
-        item.value.map { (item.name.lowercased(), $0) }
-      }
-    )
-    let pathTeamId = url.pathComponents.dropFirst().first.flatMap(UUID.init(uuidString:))
+    guard let values = HPDeepLinkQueryValues(url: url) else { return nil }
+    let pathComponents = url.pathComponents.filter { $0 != "/" }
+    guard pathComponents.count <= 1 else { return nil }
+    let pathTeamId = pathComponents.first.flatMap(UUID.init(uuidString:))
     guard let organizationId = values["organization_id"].flatMap(UUID.init(uuidString:)),
           let teamId = values["team_id"].flatMap(UUID.init(uuidString:)) ?? pathTeamId else {
       return nil
@@ -742,6 +739,59 @@ struct HPTeamWorkspaceRoute: Equatable, Sendable {
     self.organizationId = organizationId
     self.teamId = teamId
     section = values["section"].flatMap(HPTeamWorkspaceSection.init(rawValue:)) ?? .overview
+  }
+}
+
+enum HPCalendarLinkSource: String, Equatable, Sendable {
+  case event
+  case booking
+}
+
+enum HPCalendarLinkError: Error {
+  case unavailable
+}
+
+struct HPCalendarLinkRoute: Identifiable, Equatable, Sendable {
+  let source: HPCalendarLinkSource
+  let sourceId: UUID
+  let organizationId: UUID
+
+  var id: String { "\(organizationId.uuidString):\(source.rawValue):\(sourceId.uuidString)" }
+
+  init?(url: URL) {
+    guard url.scheme?.lowercased() == "homeplate",
+          url.host?.lowercased() == "calendar",
+          let values = HPDeepLinkQueryValues(url: url) else { return nil }
+    let path = url.pathComponents.filter { $0 != "/" }
+    guard path.count == 2,
+          let source = HPCalendarLinkSource(rawValue: path[0].lowercased()),
+          let sourceId = UUID(uuidString: path[1]),
+          let organizationId = values["organization"].flatMap(UUID.init(uuidString:)) else {
+      return nil
+    }
+    self.source = source
+    self.sourceId = sourceId
+    self.organizationId = organizationId
+  }
+}
+
+/// Parses query parameters without trapping on duplicate keys. Deep links are
+/// external input, so case-insensitive duplicates are rejected explicitly.
+private struct HPDeepLinkQueryValues {
+  let values: [String: String]
+
+  subscript(_ key: String) -> String? { values[key] }
+
+  init?(url: URL) {
+    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+    var parsed: [String: String] = [:]
+    for item in components.queryItems ?? [] {
+      guard let value = item.value else { return nil }
+      let key = item.name.lowercased()
+      guard parsed[key] == nil else { return nil }
+      parsed[key] = value
+    }
+    values = parsed
   }
 }
 

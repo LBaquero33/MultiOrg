@@ -72,7 +72,9 @@ struct ChatThreadView: View {
 
   private var myId: UUID? { appState.myProfile?.id }
   private var canSend: Bool {
-    if channel.isAnnouncement { return appState.myProfile?.isCoach == true }
+    if channel.isAnnouncement {
+      return SDChatAuthorization.canComposeAnnouncement(membership: appState.activeOrgMembership)
+    }
     return true
   }
 

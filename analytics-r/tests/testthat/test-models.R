@@ -114,6 +114,40 @@ testthat::test_that("Rapsodo pitching returns partial topics without trajectory 
   testthat::expect_length(location$tables, 0)
 })
 
+testthat::test_that("Stadium trajectory uses ZoneTime, normalizes axes, and ends at the plate", {
+  fixture <- data.frame(
+    TaggedPitchType = "Fastball",
+    ZoneTime = 0.5,
+    PitchTrajectoryXc0 = 55, PitchTrajectoryXc1 = -110, PitchTrajectoryXc2 = 0,
+    PitchTrajectoryYc0 = 6, PitchTrajectoryYc1 = -4, PitchTrajectoryYc2 = 0,
+    PitchTrajectoryZc0 = -1, PitchTrajectoryZc1 = 2, PitchTrajectoryZc2 = 0,
+    check.names = FALSE
+  )
+  trajectory <- hp_trajectory_3d(fixture)[[1]]
+  first <- trajectory$points[[1]]
+  plate <- trajectory$points[[length(trajectory$points)]]
+
+  testthat::expect_equal(trajectory$zone_time, 0.5)
+  testthat::expect_equal(c(first$x, first$y, first$z), c(55, 1, 6))
+  testthat::expect_equal(c(plate$x, plate$y, plate$z), c(0, 0, 4))
+  testthat::expect_equal(plate$time, 0.5)
+  testthat::expect_true(plate$is_plate)
+  testthat::expect_false(any(vapply(trajectory$points[-length(trajectory$points)], `[[`, logical(1), "is_plate")))
+  testthat::expect_identical(trajectory$plate_point, plate)
+})
+
+testthat::test_that("Stadium trajectory rejects missing or invalid ZoneTime", {
+  fixture <- make_trackman_fixture()[1:2, , drop = FALSE]
+  fixture$ZoneTime <- c(NA_real_, -0.1)
+  testthat::expect_length(hp_trajectory_3d(fixture), 0)
+})
+
+testthat::test_that("catcher-view zone labels put positive side on catcher left", {
+  fixture <- data.frame(PlateLocSide = c(0.6, 0, -0.6), PlateLocHeight = c(2.5, 2.5, 2.5))
+  binned <- hp_zone_bins(fixture)
+  testthat::expect_equal(as.character(binned$.zone_x), c("Left", "Middle", "Right"))
+})
+
 testthat::test_that("cache is bounded by explicit sha256 keys", {
   key <- paste(rep("a", 64), collapse = "")
   hp_cache_set(key, list(ok = TRUE))

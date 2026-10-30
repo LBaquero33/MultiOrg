@@ -108,7 +108,7 @@ hp_chase_profile <- function(data) {
   hp_require(data, c("PlateLocSide", "PlateLocHeight", "PitchCall"))
   outside <- data[!data$.in_zone, , drop = FALSE]
   if (!nrow(outside)) return(data.frame())
-  outside$direction <- ifelse(outside$PlateLocHeight > HP_ZONE$top, "Up", ifelse(outside$PlateLocHeight < HP_ZONE$bottom, "Down", ifelse(outside$PlateLocSide > HP_ZONE$right, "Right", "Left")))
+  outside$direction <- ifelse(outside$PlateLocHeight > HP_ZONE$top, "Up", ifelse(outside$PlateLocHeight < HP_ZONE$bottom, "Down", ifelse(outside$PlateLocSide > HP_ZONE$right, "Left", "Right")))
   directions <- c("Up", "Down", "Left", "Right")
   do.call(rbind, lapply(directions, function(direction) {
     rows <- outside[outside$direction == direction, , drop = FALSE]

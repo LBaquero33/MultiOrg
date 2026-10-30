@@ -103,6 +103,7 @@ final class PlayerSubscriptionStore: ObservableObject {
   }
 
   struct VerifiedPurchase: Identifiable, Equatable, Sendable {
+    let signedTransactionInfo: String
     let id: UInt64
     let originalTransactionID: UInt64
     let productID: String
@@ -432,6 +433,7 @@ final class PlayerSubscriptionStore: ObservableObject {
         return .contextMismatch
       }
       let purchase = VerifiedPurchase(
+        signedTransactionInfo: result.jwsRepresentation,
         id: transaction.id,
         originalTransactionID: transaction.originalID,
         productID: transaction.productID,

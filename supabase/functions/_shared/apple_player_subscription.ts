@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { Buffer } from "node:buffer";
+import {
+  Environment as AppleEnvironment,
+  SignedDataVerifier,
+} from "npm:@apple/app-store-server-library@3.1.0";
+import { APPLE_ROOT_CERTIFICATES_BASE64 } from "./apple_roots.ts";
 export const APPLE_PLAYER_MONTHLY_PRODUCT_ID = "com.homeplate.player.monthly";
 export const env = (name: string) => (Deno.env.get(name) ?? "").trim();
 export const json = (status: number, body: Record<string, unknown>) =>
@@ -77,6 +83,93 @@ export type StoreKitVerifiedTransactionMetadata = {
   expiresDate: number;
   revocationDate: number;
 };
+
+type AppleDecodedTransaction = Record<string, unknown>;
+
+export function createAppleTransactionVerifier(
+  environment: string,
+  bundleId: string,
+  appAppleId?: number,
+) {
+  const normalizedEnvironment = environment.toLowerCase();
+  if (!bundleId || !["sandbox", "production"].includes(normalizedEnvironment)) {
+    throw new Error("apple_subscription_server_not_configured");
+  }
+  if (normalizedEnvironment === "production" && !Number.isSafeInteger(appAppleId)) {
+    throw new Error("apple_subscription_server_not_configured");
+  }
+  const appleEnvironment = normalizedEnvironment === "production"
+    ? AppleEnvironment.PRODUCTION
+    : AppleEnvironment.SANDBOX;
+  const verifier = new SignedDataVerifier(
+    APPLE_ROOT_CERTIFICATES_BASE64.map((certificate) => Buffer.from(certificate, "base64")),
+    true,
+    appleEnvironment,
+    bundleId,
+    appAppleId,
+  );
+  return {
+    async verify(signedTransactionInfo: string) {
+      if (
+        signedTransactionInfo.length > 16_384 ||
+        signedTransactionInfo.split(".").length !== 3
+      ) throw new Error("apple_transaction_signature_invalid");
+      try {
+        return await verifier.verifyAndDecodeTransaction(signedTransactionInfo) as AppleDecodedTransaction;
+      } catch {
+        throw new Error("apple_transaction_signature_invalid");
+      }
+    },
+  };
+}
+
+export function normalizeVerifiedAppleTransaction(
+  transaction: AppleDecodedTransaction,
+  expected: { bundleId: string; environment: string; appAccountToken: string },
+  now = Date.now(),
+): StoreKitVerifiedTransactionMetadata {
+  const transactionId = String(transaction.transactionId ?? "").trim();
+  const originalTransactionId = String(transaction.originalTransactionId ?? "").trim();
+  const productId = String(transaction.productId ?? "").trim();
+  const bundleId = String(transaction.bundleId ?? "").trim();
+  const environment = String(transaction.environment ?? "").trim().toLowerCase();
+  const appAccountToken = canonicalUuid(transaction.appAccountToken);
+  if (
+    !transactionIdPattern.test(transactionId) ||
+    !transactionIdPattern.test(originalTransactionId)
+  ) throw new Error("apple_transaction_identifiers_missing");
+  if (productId !== APPLE_PLAYER_MONTHLY_PRODUCT_ID) throw new Error("product_id_mismatch");
+  if (!expected.bundleId || bundleId !== expected.bundleId) throw new Error("bundle_id_mismatch");
+  if (environment !== expected.environment.toLowerCase()) throw new Error("environment_mismatch");
+  if (!appAccountToken || appAccountToken !== expected.appAccountToken) {
+    throw new Error("app_account_token_mismatch");
+  }
+  const purchaseDate = timestamp(transaction.purchaseDate, "apple_transaction_invalid");
+  const expiresDate = timestamp(transaction.expiresDate, "apple_transaction_invalid");
+  const revocationDate = transaction.revocationDate == null
+    ? 0
+    : timestamp(transaction.revocationDate, "apple_transaction_invalid");
+  const earliestReasonablePurchase = Date.UTC(2020, 0, 1);
+  const maximumMonthlyPeriod = 45 * 24 * 60 * 60 * 1_000;
+  if (
+    purchaseDate < earliestReasonablePurchase ||
+    purchaseDate > now + 5 * 60_000 ||
+    expiresDate <= purchaseDate ||
+    expiresDate - purchaseDate > maximumMonthlyPeriod ||
+    (revocationDate > 0 && revocationDate < purchaseDate)
+  ) throw new Error("apple_transaction_invalid");
+  return {
+    bundleId,
+    productId,
+    environment,
+    appAccountToken,
+    transactionId,
+    originalTransactionId,
+    purchaseDate,
+    expiresDate,
+    revocationDate,
+  };
+}
 
 const transactionIdPattern = /^[0-9]{1,32}$/;
 

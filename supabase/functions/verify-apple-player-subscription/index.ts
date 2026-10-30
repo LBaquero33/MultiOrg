@@ -1,16 +1,16 @@
 import {
   appleStatus,
   canonicalUuid,
+  createAppleTransactionVerifier,
   env,
   expectedAppAccountToken,
   json,
-  normalizeStoreKitVerifiedTransaction,
+  normalizeVerifiedAppleTransaction,
   requireApplePurchaseActor,
   syncAppleSubscriptionAtomically,
-  validateAppleTransactionContext,
 } from "../_shared/apple_player_subscription.ts";
 
-const DEPLOYMENT_MARKER = "apple_iap_atomic_storekit_verified_20260714_2";
+const DEPLOYMENT_MARKER = "apple_iap_server_verified_jws_20261019_1";
 
 const safeErrorCode = (error: unknown) => {
   const candidate = error instanceof Error
@@ -18,6 +18,7 @@ const safeErrorCode = (error: unknown) => {
     : "apple_verification_failed";
   const allowed = new Set([
     "invalid_purchase_context_payload",
+    "apple_transaction_signature_invalid",
     "missing_auth",
     "invalid_auth",
     "actor_profile_missing",
@@ -82,8 +83,10 @@ Deno.serve(async (req) => {
 
     const orgId = canonicalUuid(body.org_id);
     const playerId = canonicalUuid(body.player_id);
-    const token = canonicalUuid(body.app_account_token);
-    if (!orgId || !playerId || !token) {
+    const signedTransactionInfo = typeof body.signedTransactionInfo === "string"
+      ? body.signedTransactionInfo.trim()
+      : "";
+    if (!orgId || !playerId || !signedTransactionInfo) {
       return json(400, { error: "invalid_purchase_context_payload" });
     }
 
@@ -92,10 +95,6 @@ Deno.serve(async (req) => {
       orgId,
       playerId,
     );
-    if (token !== await expectedAppAccountToken(orgId, playerId, actorId)) {
-      throw new Error("app_account_token_mismatch");
-    }
-
     const expectedEnvironment = env("APPLE_ENVIRONMENT").toLowerCase();
     const expectedBundleId = env("APPLE_BUNDLE_ID");
     if (
@@ -104,20 +103,22 @@ Deno.serve(async (req) => {
     ) {
       throw new Error("apple_subscription_server_not_configured");
     }
-    const transaction = normalizeStoreKitVerifiedTransaction(body, {
+    const expectedToken = await expectedAppAccountToken(orgId, playerId, actorId);
+    const appAppleId = env("APPLE_APPLE_ID");
+    const verifier = createAppleTransactionVerifier(
+      expectedEnvironment,
+      expectedBundleId,
+      appAppleId ? Number(appAppleId) : undefined,
+    );
+    const verifiedClaims = await verifier.verify(signedTransactionInfo);
+    const transaction = normalizeVerifiedAppleTransaction(verifiedClaims, {
       bundleId: expectedBundleId,
       environment: expectedEnvironment,
-      appAccountToken: token,
-    });
-    validateAppleTransactionContext(transaction, {
-      bundleId: expectedBundleId,
-      productId: "com.homeplate.player.monthly",
-      environment: expectedEnvironment,
-      appAccountToken: token,
+      appAccountToken: expectedToken,
     });
 
     console.info(JSON.stringify({
-      event: "storekit_verified_metadata_accepted",
+      event: "apple_signed_transaction_verified",
       deployment_marker: DEPLOYMENT_MARKER,
     }));
     const result = await syncAppleSubscriptionAtomically({
