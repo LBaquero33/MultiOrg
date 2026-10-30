@@ -165,7 +165,11 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
     } else if let errorText {
       HPErrorState(message: errorText, onRetry: { Task { await reloadPlayers() } })
     } else {
-      HPEmptyState(title: "Player workspace unavailable", systemImage: "person.crop.circle.badge.exclamationmark")
+      HPEmptyState(
+        title: "No development profile here yet",
+        message: "This organization hasn't added you as an athlete. Ask your coach or trainer, or switch to another organization.",
+        systemImage: "person.crop.circle.badge.exclamationmark"
+      )
     }
   }
 
