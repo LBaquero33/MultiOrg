@@ -508,6 +508,9 @@ final class AppState: ObservableObject {
           needsAccess = false
         }
       } catch {
+        #if DEBUG
+        NSLog("[HP-AUTH] profile load failed: %@", String(describing: error))
+        #endif
         myProfile = nil
         profileLoadError = error.localizedDescription
         myEntitlement = nil
@@ -851,6 +854,9 @@ final class AppState: ObservableObject {
         needsAccess = false
       }
     } catch {
+      #if DEBUG
+      NSLog("[HP-AUTH] sign-in failed: %@", String(describing: error))
+      #endif
       authError = error.localizedDescription
       isAuthenticated = false
       myProfile = nil
