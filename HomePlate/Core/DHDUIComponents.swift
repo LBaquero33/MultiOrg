@@ -460,7 +460,7 @@ private struct DHDUniversalButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(HP.Font.caption.weight(.semibold))
+      .font(HP.Font.caption.weight(.bold))
       .foregroundStyle(Self.foregroundColor(for: variant))
       .padding(.horizontal, variant == .icon ? 0 : size.horizontalPadding)
       .frame(
@@ -483,34 +483,34 @@ private struct DHDUniversalButtonStyle: ButtonStyle {
 
   static func foregroundColor(for variant: DHDButtonVariant) -> Color {
     switch variant {
-    case .primary: DHDTheme.identityText
+    case .primary: DHDTheme.accentText
     case .secondary, .icon: DHDTheme.textPrimary
     case .destructive: DHDTheme.danger
-    case .compactAction: DHDTheme.identityText
+    case .compactAction: DHDTheme.accentText
     }
   }
 
   private var backgroundColor: Color {
     switch variant {
-    case .primary: DHDTheme.primary
+    case .primary: DHDTheme.accent
     case .secondary, .icon: DHDTheme.surfaceMuted
     case .destructive: DHDTheme.danger.opacity(0.14)
-    case .compactAction: DHDTheme.primary
+    case .compactAction: DHDTheme.accent
     }
   }
 
   private var strokeColor: Color {
     if isFocused { return DHDTheme.focusRing }
     switch variant {
-    case .primary: return DHDTheme.primaryGlow.opacity(0.8)
+    case .primary: return DHDTheme.accent
     case .secondary, .icon: return DHDTheme.borderStrong
     case .destructive: return DHDTheme.danger.opacity(0.75)
-    case .compactAction: return DHDTheme.primaryGlow.opacity(0.75)
+    case .compactAction: return DHDTheme.accent
     }
   }
 
-  private var buttonShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+  private var buttonShape: Capsule {
+    Capsule(style: .continuous)
   }
 }
 

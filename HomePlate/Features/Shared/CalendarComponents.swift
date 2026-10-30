@@ -57,44 +57,34 @@ struct DHDCalendarDayCellView: View {
   var body: some View {
     let dayNum = DateUtils.calendarET.component(.day, from: date)
     let base = min(cellSize.width, cellSize.height)
-    let cellPad: CGFloat = dynamicTypeSize.isAccessibilitySize
-      ? max(4, min(7, base * 0.12))
-      : max(3, min(8, base * 0.10))
+    // The number sits in a circle: filled when selected, ringed for today.
+    // No cell boxes, so a full month reads as dates, not a grid of tiles.
+    let circle = max(30, min(44, base * 0.74))
 
-    VStack(alignment: .leading, spacing: 4) {
-      HStack(alignment: .top, spacing: 2) {
-        Text("\(dayNum)")
-          .font(dayNumberFont)
-          .monospacedDigit()
-          .lineLimit(1)
-          .fixedSize(horizontal: true, vertical: false)
-          .layoutPriority(1)
-          .foregroundStyle(dayNumberColor)
-        Spacer(minLength: 0)
-        if isToday && cellSize.width >= 48 { todayMark }
-      }
+    VStack(spacing: 3) {
+      Text("\(dayNum)")
+        .font(dayNumberFont)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .foregroundStyle(dayNumberColor)
+        .frame(width: circle, height: circle)
+        .background(Circle().fill(isSelected ? HP.Color.accent : Color.clear))
+        .overlay(
+          Circle()
+            .strokeBorder(isToday && !isSelected ? HP.Color.accent : Color.clear, lineWidth: 2)
+            .allowsHitTesting(false)
+        )
 
-      Spacer(minLength: 0)
-
-      HStack(spacing: 4) {
+      HStack(spacing: 3) {
         if showGreen { DHDStatusDot(color: HP.Color.success, systemImage: "circle.fill") }
         if showBlue { DHDStatusDot(color: HP.Color.info, systemImage: "diamond.fill") }
         if showRed { DHDStatusDot(color: HP.Color.danger, systemImage: "square.fill") }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(height: 8)
       .allowsHitTesting(false)
     }
-    .padding(cellPad)
     .frame(width: cellSize.width, height: cellSize.height)
-    .background(
-      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-        .fill(cellBackground)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
-        .strokeBorder(selectionStroke, lineWidth: isSelected ? 2 : 1)
-        .allowsHitTesting(false)
-    )
     .opacity(isInMonth ? 1 : 0.48)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilityDateLabel)
@@ -105,12 +95,12 @@ struct DHDCalendarDayCellView: View {
 
   private var dayNumberFont: Font {
     dynamicTypeSize.isAccessibilitySize
-      ? HP.Font.caption.weight(.semibold)
-      : HP.Font.callout.weight(.semibold)
+      ? HP.Font.caption.weight(.bold)
+      : HP.Font.headline.weight(.heavy)
   }
 
   private var dayNumberColor: Color {
-    if isSelected { return HP.Color.text }
+    if isSelected { return HP.Color.accentText }
     return isInMonth ? HP.Color.text : HP.Color.textMuted
   }
 

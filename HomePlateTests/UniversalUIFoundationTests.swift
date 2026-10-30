@@ -37,11 +37,11 @@ final class UniversalUIFoundationTests: XCTestCase {
   }
 
   func testDarkCompatibilityPaletteMatchesApprovedHomePlateTokens() {
-    XCTAssertEqual(DHDTheme.components(for: .pageBackground, appearance: .dark), .init(hex: 0x0A0D0A))
-    XCTAssertEqual(DHDTheme.components(for: .surface, appearance: .dark), .init(hex: 0x111511))
-    XCTAssertEqual(DHDTheme.components(for: .text, appearance: .dark), .init(hex: 0xEAE8DF))
-    XCTAssertEqual(DHDTheme.components(for: .primary, appearance: .dark), .init(hex: 0x296944))
-    XCTAssertEqual(DHDTheme.components(for: .accent, appearance: .dark), .init(hex: 0xD2AF67))
+    XCTAssertEqual(DHDTheme.components(for: .pageBackground, appearance: .dark), .init(hex: 0x0B1410))
+    XCTAssertEqual(DHDTheme.components(for: .surface, appearance: .dark), .init(hex: 0x131D18))
+    XCTAssertEqual(DHDTheme.components(for: .text, appearance: .dark), .init(hex: 0xF4F7F5))
+    XCTAssertEqual(DHDTheme.components(for: .primary, appearance: .dark), .init(hex: 0x1C7A4C))
+    XCTAssertEqual(DHDTheme.components(for: .accent, appearance: .dark), .init(hex: 0x5FCF8E))
   }
 
   func testCardPreservesChildHitTesting() {

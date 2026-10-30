@@ -70,18 +70,18 @@ struct HPButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(size.font.weight(.semibold))
+      .font(size.font.weight(.bold))
       .foregroundStyle(foreground)
       .multilineTextAlignment(.center)
       .padding(.horizontal, size.hPadding)
       .padding(.vertical, 6)
       .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: size.minHeight)
       .background(
-        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        Capsule(style: .continuous)
           .fill(background(pressed: configuration.isPressed))
       )
       .overlay(
-        RoundedRectangle(cornerRadius: HP.Radius.md, style: .continuous)
+        Capsule(style: .continuous)
           .strokeBorder(borderColor, lineWidth: borderWidth)
       )
       .opacity(isEnabled ? 1 : 0.32)
@@ -93,7 +93,7 @@ struct HPButtonStyle: ButtonStyle {
 
   private var foreground: Color {
     switch variant {
-    case .primary:     Color.white
+    case .primary:     HP.Color.accentText
     case .secondary:   HP.Color.text
     case .tertiary:    HP.Color.textTertiary
     case .destructive: HP.Color.text
@@ -102,7 +102,7 @@ struct HPButtonStyle: ButtonStyle {
 
   private func background(pressed: Bool) -> Color {
     let base: Color = switch variant {
-    case .primary:     HP.Color.primary
+    case .primary:     HP.Color.accent
     case .destructive: HP.Color.danger
     case .secondary, .tertiary: .clear
     }
@@ -110,7 +110,7 @@ struct HPButtonStyle: ButtonStyle {
   }
 
   private var borderColor: Color {
-    variant == .secondary ? HP.Color.border : .clear
+    variant == .secondary ? HP.Color.borderStrong : .clear
   }
 
   private var borderWidth: CGFloat {

@@ -161,50 +161,51 @@ enum DHDTheme {
   }
 
   /// Exact palette components used by both the platform-adaptive colors and
-  /// contrast tests. Dark values mirror `HP.Color`; light values are warm,
-  /// role-equivalent Home Plate colors rather than system-default blue/gray.
+  /// contrast tests. Dark values mirror `HP.Color`; light values are the
+  /// "Day Game" side of the same roles rather than system-default blue/gray.
   static func components(for role: SemanticRole, appearance: Appearance) -> RGBA {
     switch (role, appearance) {
-    // Exact sRGB equivalents of the website's OKLCH design tokens.
-    case (.pageBackground, .dark): return RGBA(hex: 0x0A0D0A)
-    case (.surface, .dark): return RGBA(hex: 0x111511)
-    case (.surfaceRaised, .dark): return RGBA(hex: 0x1B201B)
-    case (.surfaceMuted, .dark): return RGBA(hex: 0x191D19)
-    case (.input, .dark): return RGBA(hex: 0x282D28)
-    case (.border, .dark): return RGBA(hex: 0x232823)
-    case (.borderStrong, .dark): return RGBA(hex: 0x282D28)
-    case (.text, .dark): return RGBA(hex: 0xEAE8DF)
-    case (.textMuted, .dark): return RGBA(hex: 0x95968C)
-    case (.textTertiary, .dark): return RGBA(hex: 0xB7B6AC)
-    case (.primary, .dark): return RGBA(hex: 0x296944)
-    case (.primaryGlow, .dark): return RGBA(hex: 0x4B9D6B)
-    case (.brandDeep, .dark): return RGBA(hex: 0x0A0D0A)
-    case (.accent, .dark), (.focusRing, .dark): return RGBA(hex: 0xD2AF67)
-    case (.accentText, .dark): return RGBA(hex: 0x18160C)
+    // "Under the Lights" (2026-10-13): the website's tokens. Mint `accent` is the
+    // action colour with dark text; `primary` stays deep enough for white text.
+    case (.pageBackground, .dark): return RGBA(hex: 0x0B1410)
+    case (.surface, .dark): return RGBA(hex: 0x131D18)
+    case (.surfaceRaised, .dark): return RGBA(hex: 0x1B2721)
+    case (.surfaceMuted, .dark): return RGBA(hex: 0x17221C)
+    case (.input, .dark): return RGBA(hex: 0x2C3C33)
+    case (.border, .dark): return RGBA(hex: 0x243229)
+    case (.borderStrong, .dark): return RGBA(hex: 0x3A4C42)
+    case (.text, .dark): return RGBA(hex: 0xF4F7F5)
+    case (.textMuted, .dark): return RGBA(hex: 0xA3ADA8)
+    case (.textTertiary, .dark): return RGBA(hex: 0xC2CAC6)
+    case (.primary, .dark): return RGBA(hex: 0x1C7A4C)
+    case (.primaryGlow, .dark): return RGBA(hex: 0x5FCF8E)
+    case (.brandDeep, .dark): return RGBA(hex: 0x070D0A)
+    case (.accent, .dark), (.focusRing, .dark): return RGBA(hex: 0x5FCF8E)
+    case (.accentText, .dark): return RGBA(hex: 0x0B1410)
     case (.danger, .dark): return RGBA(hex: 0xDE3B3D)
-    case (.success, .dark): return RGBA(hex: 0x4B9D6B)
-    case (.warning, .dark): return RGBA(hex: 0xE0A33E)
-    case (.info, .dark): return RGBA(hex: 0x5A9BD6)
+    case (.success, .dark): return RGBA(hex: 0x5FCF8E)
+    case (.warning, .dark): return RGBA(hex: 0xF2B84B)
+    case (.info, .dark): return RGBA(hex: 0xC9D2CE)
 
-    case (.pageBackground, .light): return RGBA(hex: 0xF6F3EA)
+    case (.pageBackground, .light): return RGBA(hex: 0xF3F6F3)
     case (.surface, .light): return RGBA(hex: 0xFFFFFF)
-    case (.surfaceRaised, .light): return RGBA(hex: 0xEEE9DD)
-    case (.surfaceMuted, .light): return RGBA(hex: 0xE7E1D4)
+    case (.surfaceRaised, .light): return RGBA(hex: 0xE9EEEA)
+    case (.surfaceMuted, .light): return RGBA(hex: 0xE1E8E3)
     case (.input, .light): return RGBA(hex: 0xFFFFFF)
-    case (.border, .light): return RGBA(hex: 0xCCC4B2)
-    case (.borderStrong, .light): return RGBA(hex: 0x8F8674)
-    case (.text, .light): return RGBA(hex: 0x182019)
-    case (.textMuted, .light): return RGBA(hex: 0x555D54)
-    case (.textTertiary, .light): return RGBA(hex: 0x3E493F)
-    case (.primary, .light): return RGBA(hex: 0x216441)
-    case (.primaryGlow, .light): return RGBA(hex: 0x18794E)
-    case (.brandDeep, .light): return RGBA(hex: 0x123628)
-    case (.accent, .light), (.focusRing, .light): return RGBA(hex: 0x8A5A00)
+    case (.border, .light): return RGBA(hex: 0xC5CFC9)
+    case (.borderStrong, .light): return RGBA(hex: 0x7F8C85)
+    case (.text, .light): return RGBA(hex: 0x0B1410)
+    case (.textMuted, .light): return RGBA(hex: 0x56625B)
+    case (.textTertiary, .light): return RGBA(hex: 0x3C4A42)
+    case (.primary, .light): return RGBA(hex: 0x17633E)
+    case (.primaryGlow, .light): return RGBA(hex: 0x0C7A42)
+    case (.brandDeep, .light): return RGBA(hex: 0x0B2A1C)
+    case (.accent, .light), (.focusRing, .light): return RGBA(hex: 0x0C7A42)
     case (.accentText, .light): return RGBA(hex: 0xFFFFFF)
     case (.danger, .light): return RGBA(hex: 0xB42318)
-    case (.success, .light): return RGBA(hex: 0x18794E)
+    case (.success, .light): return RGBA(hex: 0x0C7A42)
     case (.warning, .light): return RGBA(hex: 0x7A4F00)
-    case (.info, .light): return RGBA(hex: 0x215F9A)
+    case (.info, .light): return RGBA(hex: 0x4F5F58)
     }
   }
 
