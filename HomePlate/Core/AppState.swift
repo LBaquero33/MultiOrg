@@ -440,7 +440,8 @@ final class AppState: ObservableObject {
     if let currentOrgId = activeOrgId, membershipIds.contains(currentOrgId) {
       // Keep the current organization when the user still has access.
     } else {
-      activeOrgId = memberships.first?.org_id
+      let saved = myProfile.flatMap { UserDefaults.standard.string(forKey: "homeplate.activeOrganization.\($0.id.uuidString)") }.flatMap(UUID.init(uuidString:))
+      activeOrgId = saved.flatMap { membershipIds.contains($0) ? $0 : nil } ?? memberships.first?.org_id
     }
 
     do {
@@ -507,6 +508,9 @@ final class AppState: ObservableObject {
     chatListenerOrganizationId = nil
     clearChatContext()
     activeOrgId = orgId
+    if let userId = myProfile?.id {
+      UserDefaults.standard.set(orgId.uuidString, forKey: "homeplate.activeOrganization.\(userId.uuidString)")
+    }
     do {
       activeOrgSettings = try await supabase?.fetchOrgSettings(orgId: orgId)
       let name = availableOrganizations.first(where: { $0.id == orgId })?.displayName ?? "Organization"

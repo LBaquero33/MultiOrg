@@ -139,7 +139,7 @@ struct OrgTeamOperationsAdminView: View {
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.sm) {
           HStack(spacing: HP.Space.sm) {
-            HPSectionHeader("Teams")
+            HPSectionHeader("Browse")
             Spacer()
             HPButton(title: "Create Team", systemImage: "plus", variant: .primary, size: .sm) {
               beginCreatingTeam()

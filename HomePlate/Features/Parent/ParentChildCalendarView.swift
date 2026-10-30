@@ -57,7 +57,7 @@ struct ParentChildCalendarView: View {
     #if os(macOS)
     .dhdFloatingModal(item: $daySheet, width: 920, height: 640) { s in
       NavigationStack {
-        ParentChildDayDetailView(child: child, date: s.date)
+        PlayerDevelopmentDayView(playerId: child.id, playerName: child.displayName, date: DateUtils.toISODate(s.date))
           .navigationTitle(DateUtils.toISODate(s.date))
           .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -70,7 +70,7 @@ struct ParentChildCalendarView: View {
     #else
     .sheet(item: $daySheet) { s in
       NavigationStack {
-        ParentChildDayDetailView(child: child, date: s.date)
+        PlayerDevelopmentDayView(playerId: child.id, playerName: child.displayName, date: DateUtils.toISODate(s.date))
           .navigationTitle(DateUtils.toISODate(s.date))
           .navigationBarTitleDisplayMode(.inline)
           .toolbar {

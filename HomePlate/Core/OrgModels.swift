@@ -11,6 +11,11 @@ struct SDOrg: Identifiable, Decodable, Equatable, Hashable, Sendable {
 }
 
 enum HPTrainingCalendar {
+  static func date(_ value: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+  }
   static func calendar(timezone: String?) -> Calendar {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = timezone.flatMap(TimeZone.init(identifier:)) ?? TimeZone(secondsFromGMT: 0)!

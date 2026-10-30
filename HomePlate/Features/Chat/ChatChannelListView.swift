@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum ChatLayoutPolicy {
+  static func usesSplit(width: CGFloat, isCompact: Bool, isAccessibility: Bool) -> Bool {
+    !isCompact && width >= 760 && !isAccessibility
+  }
+}
+
 struct ChatChannelListView: View {
   @EnvironmentObject private var appState: AppState
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -30,6 +36,7 @@ struct ChatChannelListView: View {
   @State private var selectedChannelId: UUID?
   @State private var detailRevision = UUID()
   @State private var navigationPath = NavigationPath()
+  @State private var containerWidth: CGFloat = 0
 
   private var myId: UUID? { appState.myProfile?.id }
 
@@ -50,6 +57,7 @@ struct ChatChannelListView: View {
     } message: {
       Text(errorText ?? "")
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { containerWidth = $0 }
     .task(id: chatContextIdentity) {
       resetForOrganizationChange()
       await reload()
@@ -116,7 +124,7 @@ struct ChatChannelListView: View {
 #if os(macOS)
     !dynamicTypeSize.isAccessibilitySize
 #else
-    horizontalSizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
+    ChatLayoutPolicy.usesSplit(width: containerWidth, isCompact: horizontalSizeClass == .compact, isAccessibility: dynamicTypeSize.isAccessibilitySize)
 #endif
   }
 
@@ -124,14 +132,14 @@ struct ChatChannelListView: View {
 #if os(macOS)
     .wide
 #else
-    horizontalSizeClass == .compact ? .compact : .regular
+    usesSplitPresentation ? .regular : .compact
 #endif
   }
 
   private var navigationContainer: some View {
     NavigationStack(path: $navigationPath) {
       communicationLayout
-        .navigationTitle("Chat")
+        .navigationTitle("Messages")
         .navigationDestination(for: UUID.self) { channelId in
           if let channel = channels.first(where: { $0.id == channelId }) {
             ChatThreadView(channel: channel)
@@ -230,10 +238,9 @@ struct ChatChannelListView: View {
   private func sidebar(_ context: HPScreenLayoutContext) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: HP.Space.md) {
-        HPWorkspaceHeader(
-          "Messages",
-          context: "\(filteredChannels.count) conversation\(filteredChannels.count == 1 ? "" : "s")"
-        ) {
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          Text("\(filteredChannels.count) conversation\(filteredChannels.count == 1 ? "" : "s")")
+            .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
           let layout = context.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: HP.Space.xs))
             : AnyLayout(HStackLayout(alignment: .center, spacing: HP.Space.xs))
@@ -261,7 +268,7 @@ struct ChatChannelListView: View {
 
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Conversations") {
+            HPSectionHeader("Recent") {
               HPStatusBadge(text: "\(filteredChannels.count)", kind: .neutral)
             }
 

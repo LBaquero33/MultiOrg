@@ -24,8 +24,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    CURRENT_PROJECT_VERSION: 6
-    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 8
+    MARKETING_VERSION: 1.02
     DEVELOPMENT_TEAM: ""
 
 configs:
@@ -75,6 +75,8 @@ targets:
         DHD_ENABLE_ENTITLEMENT_TEST: $(DHD_ENABLE_ENTITLEMENT_TEST)
         DHD_APNS_ENVIRONMENT: $(DHD_APNS_ENVIRONMENT)
         NSCalendarsFullAccessUsageDescription: Home Plate uses calendar access to keep your approved team events and facility bookings synchronized.
+        NSCameraUsageDescription: Home Plate records team games and links official plays to video clips.
+        NSMicrophoneUsageDescription: Home Plate records game audio with your team video.
         UIAppFonts:
           - Archivo-Variable.ttf
           - InstrumentSans-Variable.ttf
@@ -94,6 +96,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.multiorg.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: HomePlate/Supporting/HomePlate.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": HomePlate/Supporting/HomePlateSimulator.entitlements
         DEVELOPMENT_TEAM: L9HQB8S3M3
         TARGETED_DEVICE_FAMILY: "1,2"
         DHD_RUNTIME_SCHEME_NAME: HomePlate

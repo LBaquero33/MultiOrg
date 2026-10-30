@@ -262,6 +262,7 @@ struct AccountView: View {
   // Avatar
   @State private var avatarURL: URL?
   @State private var pendingAvatarJPEG: Data?
+  @State private var pendingAvatarName = "Profile.jpg"
 
 #if canImport(UIKit)
   @State private var photoItem: PhotosPickerItem?
@@ -300,7 +301,7 @@ struct AccountView: View {
   private var accountPage: some View {
     HPSettingsScreenLayout { _ in
       HPWorkspaceHeader(
-        title,
+        "Profile & preferences",
         orgLabel: activeOrganizationName,
         context: subtitle
       )
@@ -999,7 +1000,7 @@ struct AccountView: View {
     var avatarPath: String? = details?.avatar_path
     if let jpeg = pendingAvatarJPEG {
       do {
-        avatarPath = try await supabase.uploadMyAvatarJPEG(jpeg)
+        avatarPath = try await supabase.uploadMyAvatarJPEG(jpeg, displayName: pendingAvatarName)
       } catch {
         errorText = "Your profile photo could not be uploaded. Please try again. (avatar_upload_failed)"
         return
@@ -1076,6 +1077,7 @@ struct AccountView: View {
     do {
       if let data = try await item.loadTransferable(type: Data.self),
          let jpeg = AvatarImageProcessor.squareJPEG(from: data, side: 512) {
+        pendingAvatarName = try await HPUploadNaming.confirm(["Profile.jpg"])[0]
         pendingAvatarJPEG = jpeg
         // Show immediate preview by decoding jpeg data locally.
         avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
@@ -1096,6 +1098,7 @@ struct AccountView: View {
     do {
       let data = try Data(contentsOf: url)
       if let jpeg = AvatarImageProcessor.squareJPEG(from: data, side: 512) {
+        pendingAvatarName = try await HPUploadNaming.confirm(["\(url.deletingPathExtension().lastPathComponent).jpg"])[0]
         pendingAvatarJPEG = jpeg
         avatarURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
         scheduleProfileAutosave()

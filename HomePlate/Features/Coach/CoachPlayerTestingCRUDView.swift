@@ -534,7 +534,9 @@ struct TestingEntryFormSheet: View {
             testingEntryId: saved.id,
             fieldKey: fieldKey,
             fileExtension: video.fileExtension,
-            contentType: video.contentType
+            contentType: video.contentType,
+            uploadId: video.uploadId,
+            displayName: video.fileName
           )
           try await supabase.upsertTestingFieldMedia(
             testingEntryId: saved.id,
@@ -555,6 +557,7 @@ struct TestingEntryFormSheet: View {
 }
 
 private struct PendingTestingVideo {
+  let uploadId = UUID()
   let data: Data
   let fileName: String
   let fileExtension: String
@@ -612,9 +615,10 @@ private struct TestingFieldVideoPicker: View {
         from: data,
         sourceExtension: type?.preferredFilenameExtension ?? "mov"
       )
+      let names = try await HPUploadNaming.confirm(["\(fieldLabel)-video.mp4"])
       pending = PendingTestingVideo(
         data: compatibleData,
-        fileName: "\(fieldLabel)-video.mp4",
+        fileName: names[0],
         fileExtension: "mp4",
         contentType: "video/mp4"
       )

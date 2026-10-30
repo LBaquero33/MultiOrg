@@ -16,10 +16,15 @@ struct SDPlayerCalendarView: View {
   @State private var practiceISOs: Set<String> = []
   @State private var gameISOs: Set<String> = []
   @State private var selectedDate: Date = DateUtils.startOfDayET(Date())
-  @State private var navPath = NavigationPath()
+  @State private var daySheet: CalendarDaySheet?
+
+  private struct CalendarDaySheet: Identifiable {
+    let id = UUID()
+    let date: Date
+  }
 
   var body: some View {
-    NavigationStack(path: $navPath) {
+    NavigationStack {
       HPCalendarScreenLayout(compactPane: .calendar) { _ in
         HPWorkspaceHeader(
           "Calendar",
@@ -77,8 +82,18 @@ struct SDPlayerCalendarView: View {
       .task(id: calendarContextIdentity) {
         await reload()
       }
-      .navigationDestination(for: Date.self) { d in
-        SDPlayerDayDetailView(initialDate: d)
+      .sheet(item: $daySheet) { selection in
+        NavigationStack {
+          SDPlayerDayDetailView(initialDate: selection.date)
+            .navigationTitle(selection.date.formatted(date: .complete, time: .omitted))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+              ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { daySheet = nil }
+              }
+            }
+        }
+        .presentationDetents([.large])
       }
     }
   }
@@ -210,13 +225,9 @@ struct SDPlayerCalendarView: View {
   }
 
   private func openDay(_ date: Date) {
-    // Preserve the asynchronous push so grid/layout updates cannot race the
-    // NavigationStack path mutation.
     let startOfDay = DateUtils.startOfDayET(date)
     selectedDate = startOfDay
-    DispatchQueue.main.async {
-      navPath.append(startOfDay)
-    }
+    daySheet = CalendarDaySheet(date: startOfDay)
   }
 
   private func reload() async {

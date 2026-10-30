@@ -19,6 +19,8 @@ struct HPNativeScoringV2Journal: Codable {
     let journal: [String: SDJSONValue]
     let deviceProof: [String: SDJSONValue]
     var accepted = false
+    var captureMarker: GameVideoCaptureMarker? = nil
+    var captureMarkerSynced: Bool? = nil
   }
   let accountID: UUID
   let organizationID: UUID
@@ -32,22 +34,24 @@ struct HPNativeScoringV2Journal: Codable {
   var rules: GameRulesProfile? = nil
   var confirmedEvents: [ScoringEvent]
   var entries: [Entry] = []
+  var recoveryReason: String? = nil
 
   var events: [ScoringEvent] { confirmedEvents + entries.flatMap(\.play.events) }
   var pendingCount: Int { entries.filter { !$0.accepted }.count }
-  var canAppend: Bool { permit.isCurrent }
+  var canAppend: Bool { permit.isCurrent || recoveryReason != nil }
 
   /// Support export excludes the signing key, permit token and control token.
   func recoveryRecord() throws -> String {
     let value: [String: SDJSONValue] = ["gameID": .string(gameID.uuidString.lowercased()),
       "organizationID": .string(organizationID.uuidString.lowercased()),
+      "recoveryReason": recoveryReason.map(SDJSONValue.string) ?? .null,
       "pendingCommands": .array(entries.filter { !$0.accepted }.map {
         .object(["envelope": .object($0.envelope), "journal": .object($0.journal), "deviceProof": .object($0.deviceProof)])
       })]
     return String(decoding: try Self.encode(value), as: UTF8.self)
   }
 
-  mutating func append(play: ScoringPlay, envelope: ScoringPlayEnvelopeV2, command: ScoringCommand, preconditions: GameProjection) throws {
+  mutating func append(play: ScoringPlay, envelope: ScoringPlayEnvelopeV2, command: ScoringCommand, preconditions: GameProjection, captureTimestamp: GameVideoTimestamp? = nil) throws {
     guard canAppend, play.events.allSatisfy({ $0.gameID == gameID && $0.authorityEpoch == permit.authorityEpoch }),
           play.events.first?.sequence == (events.last?.sequence ?? 0) + 1 else { throw JournalError.contextChanged }
     var encoded = try Self.object(envelope)
@@ -80,7 +84,9 @@ struct HPNativeScoringV2Journal: Codable {
     let signature = try P256.Signing.PrivateKey(rawRepresentation: privateKey).signature(for: Self.encode(proof))
     var journal = fields; journal["commandHash"] = .string(commandHash)
     var signed = proof; signed["signature"] = .string(Self.base64URL(signature.rawRepresentation))
-    entries.append(.init(play: play, envelope: encoded, journal: journal, deviceProof: signed))
+    let stamp = captureTimestamp ?? GameVideoTimestamp(enteredAt: play.events.first?.occurredAt ?? Date(), uncertaintyMilliseconds: nil)
+    entries.append(.init(play: play, envelope: encoded, journal: journal, deviceProof: signed,
+      captureMarker: GameVideoCaptureMarker.make(play: play, timestamp: stamp)))
   }
 
   static func object<T: Encodable>(_ value: T) throws -> [String: SDJSONValue] {

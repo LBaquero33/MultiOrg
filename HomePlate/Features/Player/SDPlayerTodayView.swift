@@ -3,7 +3,9 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 private struct PendingProgramSetVideo {
+  let uploadId = UUID()
   let data: Data
+  let fileName: String
   let fileExtension: String
   let mimeType: String
 }
@@ -29,6 +31,8 @@ struct SDPlayerTodayViewInternal: View {
   @State private var strengthLogs: [SDStrengthLog] = []
   @State private var testingEntries: [SDTestingEntry] = []
   @State private var teamEvents: [SDCanonicalEvent] = []
+  @State private var trainingWorkspace: HPTrainingWorkspace?
+  @State private var trainingScheduleError: String?
   @State private var eventAttendance: [UUID: Bool] = [:]
   @State private var attendanceSavingEventIds: Set<UUID> = []
   @State private var selectedEvent: SDCanonicalEvent?
@@ -64,7 +68,15 @@ struct SDPlayerTodayViewInternal: View {
       dateContextCard
     } programSummary: {
       playerTodayAttentionCard
-      playerBaseballDayCard
+      if let playerId = appState.myProfile?.id {
+        NavigationLink {
+          NativeSharedVideoLibraryView(playerId: playerId)
+        } label: {
+          Label("My Videos", systemImage: "play.rectangle")
+        }
+      }
+      if !hasTrainingSchedule || !teamEvents.isEmpty { playerBaseballDayCard }
+      trainingScheduleCard
       improvementCard
       programCard
     } activities: {
@@ -129,7 +141,7 @@ struct SDPlayerTodayViewInternal: View {
   private var playerBaseballDayCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Upcoming team schedule") {
+        HPSectionHeader("Upcoming schedule") {
           HPStatusBadge(text: "\(teamEvents.count) upcoming", kind: teamEvents.isEmpty ? .neutral : .info)
         }
         if teamEvents.isEmpty {
@@ -509,8 +521,10 @@ struct SDPlayerTodayViewInternal: View {
         from: data,
         sourceExtension: type.preferredFilenameExtension ?? "mov"
       )
+      let names = try await HPUploadNaming.confirm(["\(exerciseName)-set-\(setNumber).mp4"])
       pendingSetVideoData[setVideoKey(exerciseName: exerciseName, setNumber: setNumber)] = PendingProgramSetVideo(
         data: compatibleData,
+        fileName: names[0],
         fileExtension: "mp4",
         mimeType: "video/mp4"
       )
@@ -525,6 +539,41 @@ struct SDPlayerTodayViewInternal: View {
     await reloadDay()
     await reloadTesting()
     await reloadBaseballDay()
+    await reloadTrainingSchedule()
+  }
+
+  private var hasTrainingSchedule: Bool {
+    ["training_facility", "independent_trainer", "hybrid_academy"].contains(
+      appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? ""
+    )
+  }
+
+  @ViewBuilder private var trainingScheduleCard: some View {
+    if hasTrainingSchedule {
+      if let trainingScheduleError {
+        HPErrorState(title: "Training schedule unavailable", message: trainingScheduleError, onRetry: { Task { await reloadTrainingSchedule() } })
+      }
+      if let workspace = trainingWorkspace {
+        HPTrainingUpcomingCard(workspace: workspace, appointments: Array(workspace.appointments.filter {
+          !["cancelled", "canceled", "completed", "no_show"].contains($0.status) &&
+          (HPTrainingCalendar.date($0.ends_at) ?? .distantPast) >= max(date, Date())
+        }.sorted { (HPTrainingCalendar.date($0.starts_at) ?? .distantPast) < (HPTrainingCalendar.date($1.starts_at) ?? .distantPast) }.prefix(6)), title: "Upcoming training")
+      }
+    }
+  }
+
+  private func reloadTrainingSchedule() async {
+    trainingWorkspace = nil; trainingScheduleError = nil
+    guard hasTrainingSchedule, let service = appState.supabase, let org = appState.activeOrgId else { return }
+    let identity = appState.activeOrgAuthorizationKey
+    do {
+      let result = try await service.trainingWorkspace(organizationId: org)
+      guard !Task.isCancelled, identity == appState.activeOrgAuthorizationKey else { return }
+      trainingWorkspace = result
+    } catch {
+      guard !Task.isCancelled, identity == appState.activeOrgAuthorizationKey else { return }
+      trainingScheduleError = "Please retry to load your sessions."
+    }
   }
 
   private func reloadTodayAggregate() async {
@@ -648,11 +697,12 @@ struct SDPlayerTodayViewInternal: View {
         ids: activeAssignments.map(\.template_id)
       )
       let templatesById = Dictionary(uniqueKeysWithValues: loadedTemplates.map { ($0.id, $0) })
+      let revisions = try await supabase.assignedProgramRevisions(ids: activeAssignments.map(\.id))
 
       let selectedAssignment = preferredAssignmentId.flatMap { preferredId in
         activeAssignments.first(where: { $0.id == preferredId })
       } ?? activeAssignments.first(where: { candidate in
-        guard let candidateTemplate = templatesById[candidate.template_id] else { return false }
+        guard let candidateTemplate = revisions[candidate.id]?.template ?? templatesById[candidate.template_id] else { return false }
         return SDProgramSchedule.context(
           for: date,
           assignment: candidate,
@@ -661,7 +711,7 @@ struct SDPlayerTodayViewInternal: View {
       }) ?? activeAssignments.first(where: { templatesById[$0.template_id] != nil })
 
       assignment = selectedAssignment
-      template = selectedAssignment.flatMap { templatesById[$0.template_id] }
+      template = selectedAssignment.flatMap { revisions[$0.id]?.template ?? templatesById[$0.template_id] }
     } catch {
       errorText = SDApplicationErrorClassifier.alertMessage(
         for: error,
@@ -695,7 +745,7 @@ struct SDPlayerTodayViewInternal: View {
       if let assignment, let template {
         let ctx = SDProgramSchedule.context(for: date, assignment: assignment, template: template)
         if ctx.isScheduled, let w = ctx.week, let d = ctx.dayIndex {
-          let days = try await supabase.fetchProgramDays(templateId: template.id)
+          let days = try await supabase.assignedProgramDays(assignmentId: assignment.id, templateId: template.id)
           exercises = (days.first(where: { $0.week == w && $0.day_index == d })?.exercises ?? [])
             .map { ex in
               var copy = ex
@@ -801,7 +851,9 @@ struct SDPlayerTodayViewInternal: View {
               assignmentId: assignment.id,
               dateISO: dateISO,
               fileExtension: pendingVideo.fileExtension,
-              contentType: pendingVideo.mimeType
+              contentType: pendingVideo.mimeType,
+              uploadId: pendingVideo.uploadId,
+              displayName: pendingVideo.fileName
             )
             _ = try await supabase.upsertProgramSetMedia(SDProgramSetMediaWrite(
               org_id: organizationId,
@@ -812,7 +864,7 @@ struct SDPlayerTodayViewInternal: View {
               exercise_name: exerciseName,
               set_number: setNumber,
               storage_path: path,
-              file_name: "Set-\(setNumber).\(pendingVideo.fileExtension)",
+              file_name: pendingVideo.fileName,
               mime_type: pendingVideo.mimeType,
               byte_size: pendingVideo.data.count,
               uploaded_by: uid

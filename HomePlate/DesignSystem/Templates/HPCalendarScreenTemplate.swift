@@ -59,10 +59,9 @@ struct HPCalendarScreenLayout<Header: View, ScopeControl: View, Calendar: View, 
     if context.isAccessibilitySize {
       agenda(context)
     } else if context.isRegularWidth {
-      HStack(alignment: .top, spacing: HP.Space.md) {
-        calendar(context).frame(maxWidth: .infinity, alignment: .top)
-        agenda(context).frame(maxWidth: .infinity, alignment: .top)
-      }
+      // Calendar dates always open their day details in the caller's modal.
+      // Do not also render a selected-day agenda beside or below the grid.
+      calendar(context).frame(maxWidth: .infinity, alignment: .top)
     } else {
       switch compactPane {
       case .calendar: calendar(context)
@@ -77,8 +76,8 @@ struct HPCalendarScreenLayout<Header: View, ScopeControl: View, Calendar: View, 
 /// Purpose: see what's scheduled and act on it. Anatomy: header → scope control
 /// (Month/Week/Day) → month grid → selected-day timeline → conflicts/approvals.
 ///
-/// Responsive: iPhone = grid **or** timeline (scope-switched, never both);
-/// iPad/macOS = month grid left + day timeline right. AX3 = timeline list only —
+/// Responsive: iPhone/iPad/macOS show the month grid and open selected days in
+/// a modal supplied by the caller. AX3 = timeline list only —
 /// a 7-column grid is unreadable at accessibility sizes, so it is replaced by an
 /// agenda list rather than scaled down.
 struct HPCalendarScreenTemplate: View {

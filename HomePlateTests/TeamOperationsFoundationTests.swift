@@ -250,12 +250,12 @@ struct TeamOperationsFoundationTests {
     #expect(scaffold.contains(".contentMargins(.top, HP.Space.lg, for: .scrollContent)"))
   }
 
-  @Test("Programs use a two-pane desktop workspace without a nested split or editor cap")
+  @Test("Programs use an adaptive library workspace without a nested split or editor cap")
   func macProgramsContract() throws {
     let programs = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
     let editor = try sourceFile("HomePlate/Features/Coach/ProgramTemplateEditorView.swift")
-    #expect(programs.contains("HSplitView"))
-    #expect(programs.contains("idealWidth: 300"))
+    #expect(programs.contains("HPListScreenLayout"))
+    #expect(programs.contains("UnifiedPlayerDevelopmentWorkspaceView"))
     #expect(!programs.contains("NavigationSplitView"))
     #expect(editor.contains("HPFormScreenLayout(maxContentWidth: nil)"))
   }
@@ -383,8 +383,8 @@ struct TeamOperationsFoundationTests {
       facilitiesTitle: "Facilities",
       testingTitle: "Testing"
     )
-    #expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Programs & Development", "Progress", "Messages", "Account"])
-    #expect(player.compactItems.isEmpty)
+#expect(player.regularItems.map(\.title) == ["Today", "Calendar", "Facilities", "Programs", "Progress", "Messages", "Account"])
+    #expect(player.compactItems.map(\.title) == ["Today", "Calendar", "Program", "Messages"])
 
     let coach = HPAppNavigationInventory.staff(
       playersTitle: "Players",
@@ -396,8 +396,8 @@ struct TeamOperationsFoundationTests {
       canAdministerOrganization: false,
       isPlatformAdmin: false
     )
-    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Account"])
-    #expect(coach.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs & Player Development"])
+    #expect(coach.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Games", "Messages", "Account"])
+    #expect(coach.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
 
     let owner = HPAppNavigationInventory.owner(
       facilitiesTitle: "Facilities",
@@ -407,8 +407,8 @@ struct TeamOperationsFoundationTests {
       programsEnabled: true,
       isPlatformAdmin: false
     )
-    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs & Player Development", "Facilities", "Games", "Messages", "Payments", "Organization Settings", "Account"])
-    #expect(owner.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs & Player Development"])
+    #expect(owner.regularItems.map(\.title) == ["Home", "Calendar", "Teams", "Programs", "Facilities", "Games", "Messages", "Payments", "Organization Settings", "Account"])
+    #expect(owner.compactItems.map(\.title) == ["Home", "Teams", "Calendar", "Programs"])
     #expect(owner.defaultDestination == .coachToday)
     #expect(owner.item(for: .coachToday)?.workspaceScope == .allAssignedTeams)
     #expect(owner.regularItems.contains(where: { $0.destination == .coachToday }))

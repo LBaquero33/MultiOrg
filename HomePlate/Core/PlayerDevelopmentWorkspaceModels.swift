@@ -1,5 +1,65 @@
 import Foundation
 
+/// Display formatting only: source keys and values remain unchanged for sync/audits.
+enum HPReadableValue {
+  static func words(_ value: String) -> String {
+    switch value.lowercased() {
+    case "home_plate": return "Home Plate"
+    case "inquiry": return "Request to book"
+    case "disabled": return "Not bookable"
+    case "paid": return "Paid booking"
+    case "free": return "Free booking"
+    default: return value.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+  }
+
+  static func date(_ value: String) -> String {
+    if let date = HPTrainingCalendar.date(value) {
+      return date.formatted(date: .abbreviated, time: .shortened)
+    }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.isLenient = false
+    if value.count == 10, let date = formatter.date(from: value) {
+      return date.formatted(date: .abbreviated, time: .omitted)
+    }
+    return value
+  }
+
+  static func field(_ field: SDDevelopmentField) -> String {
+    if field.key.lowercased().contains("cents"), let cents = Int(field.value) {
+      return HPMoneyField.format(cents: cents, currencyCode: "USD")
+    }
+    let formatted = date(field.value)
+    if formatted != field.value { return formatted }
+    let isStatus = ["status", "attendance", "source", "kind", "activity"].contains(where: field.key.lowercased().contains)
+    let value = field.value.contains("_") || isStatus ? words(field.value) : field.value
+    return [value, field.unit].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+  }
+
+  static func uniqueFields(_ fields: [SDDevelopmentField]) -> [SDDevelopmentField] {
+    var seen = Set<String>()
+    return fields.filter { field in
+      let label = field.label.lowercased().filter { $0.isLetter || $0.isNumber }
+      if label == "date", fields.contains(where: { $0.label.lowercased().contains("starts") && $0.value == field.value }) { return false }
+      return seen.insert(label + "|" + field.value + "|" + (field.unit ?? "")).inserted
+    }
+  }
+
+  static func group(_ field: SDDevelopmentField) -> String {
+    let key = field.key.lowercased()
+    if ["price", "payment", "cents", "rate", "refund"].contains(where: key.contains) { return "Payment" }
+    if ["date", "starts", "ends", "status", "attendance", "visible", "title", "source", "activity"].contains(where: key.contains) { return "Session details" }
+    return "Results"
+  }
+
+  static func label(_ field: SDDevelopmentField) -> String {
+    field.label.replacingOccurrences(of: "\\s*\\(?cents\\)?$", with: "", options: [.regularExpression, .caseInsensitive])
+      .replacingOccurrences(of: "_", with: " ")
+  }
+}
+
 enum SDDevelopmentStatus: String, Codable, Sendable {
   case submitted
   case missed
@@ -38,6 +98,8 @@ enum SDDevelopmentPlaybackStatus: String, Codable, Sendable {
 }
 
 struct SDDevelopmentPlayer: Identifiable, Codable, Equatable, Sendable {
+  var subject_type: String? = nil
+  var analyticsAthleteId: UUID? { subject_type == "facility_athlete" ? id : nil }
   let id: UUID
   let name: String
   let avatar_path: String?
@@ -103,6 +165,7 @@ struct SDDevelopmentDay: Identifiable, Codable, Equatable, Sendable {
   let media_count: Int
   let activities: [SDDevelopmentActivity]
   let media: [SDDevelopmentMedia]
+  var planned_work: [SDDevelopmentActivity]? = nil
 }
 
 struct SDProviderSessionSummary: Identifiable, Codable, Equatable, Sendable {

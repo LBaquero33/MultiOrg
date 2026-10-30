@@ -79,6 +79,7 @@ struct OrgAdminConsoleView: View {
   @State private var accentHex = "#4D9EF9"
   @State private var logoURL: URL?
   @State private var pendingLogoJPEG: Data?
+  @State private var pendingLogoName = "Organization-logo.jpg"
   @State private var logoPickerItem: PhotosPickerItem?
 
   // Features
@@ -383,8 +384,7 @@ struct OrgAdminConsoleView: View {
         .accessibilityValue(selectedTab.rawValue)
       }
     }
-    .accessibilityLabel("Organization admin sections")
-    .accessibilityValue(selectedTab.rawValue)
+    .accessibilityElement(children: .contain)
     #if os(macOS)
     .onMoveCommand { direction in
       if direction == .left { moveAdminSelection(by: -1) }
@@ -2153,7 +2153,7 @@ struct OrgAdminConsoleView: View {
     let now = Date()
     let horizon = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
     upcomingBookings = (try? await supabase.listFacilityBookings(rangeStart: now, rangeEnd: horizon, orgId: orgId)) ?? upcomingBookings
-    templateCount = (try? await supabase.listMyCoachTemplates().count) ?? templateCount
+    templateCount = (try? await supabase.listMyCoachTemplates(orgId: appState.activeOrgId).count) ?? templateCount
     channelCount = (try? await supabase.listChatChannels(organizationId: orgId).count) ?? channelCount
     await appState.refreshTeamOperationsContext()
   }
@@ -2748,7 +2748,7 @@ struct OrgAdminConsoleView: View {
     do {
       var logoPath = settings?.logo_path
       if let jpeg = pendingLogoJPEG {
-        logoPath = try await supabase.uploadOrganizationLogoJPEG(orgId: orgId, jpegData: jpeg)
+        logoPath = try await supabase.uploadOrganizationLogoJPEG(orgId: orgId, jpegData: jpeg, displayName: pendingLogoName)
       }
       let payload = SupabaseService.SDOrgSettingsUpsert(
         org_id: orgId,
@@ -2811,6 +2811,9 @@ struct OrgAdminConsoleView: View {
     defer { isLoading = false }
     do {
       let payload = SupabaseService.SDFacilityUpsert(
+        opens_at: clean(draft.opensAt),
+        closes_at: clean(draft.closesAt),
+        hours_timezone: draft.hoursTimezone,
         id: draft.id,
         org_id: orgId,
         name: nonEmpty(draft.name, fallback: "Resource"),
@@ -2954,6 +2957,7 @@ struct OrgAdminConsoleView: View {
         errorText = "That image could not be prepared as an organization logo."
         return
       }
+      pendingLogoName = try await HPUploadNaming.confirm(["Organization-logo.jpg"])[0]
       pendingLogoJPEG = jpeg
       logoURL = AvatarImageProcessor.localPreviewURL(for: jpeg)
       scheduleSettingsAutosave()
@@ -3434,6 +3438,9 @@ private enum OrgColorCodec {
 }
 
 struct FacilityDraft: Identifiable, Equatable {
+  var opensAt = ""
+  var closesAt = ""
+  var hoursTimezone = "America/New_York"
   var id: UUID?
   var orgId: UUID?
   var name: String
@@ -3461,6 +3468,9 @@ struct FacilityDraft: Identifiable, Equatable {
   }
 
   init(facility: SDFacility, orgId: UUID?) {
+    opensAt = facility.opens_at.map { String($0.prefix(5)) } ?? ""
+    closesAt = facility.closes_at.map { String($0.prefix(5)) } ?? ""
+    hoursTimezone = facility.hours_timezone ?? "America/New_York"
     self.id = facility.id
     self.orgId = facility.org_id ?? orgId
     self.name = facility.name
@@ -3503,6 +3513,11 @@ private struct FacilityAdminEditorSheet: View {
               HPSectionHeader("Resource")
               HPFormField(label: "Name", text: $draft.name, placeholder: "Facility name")
               HPFormField(label: "Type", text: $draft.resourceType, placeholder: "cage")
+              HPFormField(label: "Opening time", text: $draft.opensAt, placeholder: "09:00")
+              HPFormField(label: "Closing time", text: $draft.closesAt, placeholder: "21:00")
+              HPFormField(label: "Hours timezone", text: $draft.hoursTimezone, placeholder: "America/New_York")
+              Text("Use 24-hour times. Leave both times blank for unrestricted hours. New bookings must fit within these hours.")
+                .font(HP.Font.caption)
               Toggle("Active / visible", isOn: $draft.isActive)
                 .font(HP.Font.callout)
                 .foregroundStyle(HP.Color.text)

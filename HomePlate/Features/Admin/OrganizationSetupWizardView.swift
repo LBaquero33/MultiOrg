@@ -343,7 +343,6 @@ struct OrganizationSetupWizardView: View {
         Text("Travel team organization").tag("team_program")
         Text("Training facility").tag("training_facility")
         Text("Independent trainer").tag("independent_trainer")
-        Text("Teams and training").tag("hybrid_academy")
       }
       VStack(alignment: .leading, spacing: HP.Space.xs) {
         Text("TIMEZONE").font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)

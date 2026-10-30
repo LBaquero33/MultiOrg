@@ -9,6 +9,11 @@ struct CoachPaymentRequestsView: View {
   @State private var isLoading = false
   @State private var isPresentingCreate = false
   @State private var errorText: String?
+  @State private var requestFilter = "Open"
+
+  private var visibleRequests: [SDPaymentRequest] {
+    requests.filter { requestFilter == "All" || $0.status.rawValue.lowercased() == requestFilter.lowercased() }
+  }
 
   var body: some View {
     HPListScreenLayout {
@@ -25,6 +30,7 @@ struct CoachPaymentRequestsView: View {
         .disabled(players.isEmpty || isLoading)
       }
     } controls: {
+      HPSegmentedControl(options: ["Open", "Paid", "All"].map { (value: $0, label: $0) }, selection: $requestFilter)
       HPCard {
         HStack(alignment: .top, spacing: HP.Space.sm) {
             Image(systemName: "person.2.fill")
@@ -52,7 +58,10 @@ struct CoachPaymentRequestsView: View {
           HPSectionHeader("Requests") {
             HPStatusBadge(text: "\(requests.count)", kind: .neutral)
           }
-          ForEach(requests) { request in
+          if visibleRequests.isEmpty {
+            Text("No \(requestFilter.lowercased()) payment requests.").foregroundStyle(HP.Color.textMuted)
+          }
+          ForEach(visibleRequests) { request in
             requestCard(request)
           }
         }

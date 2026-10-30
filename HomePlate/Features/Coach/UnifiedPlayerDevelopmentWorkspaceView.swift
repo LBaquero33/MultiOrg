@@ -3,6 +3,7 @@ import SwiftUI
 
 struct UnifiedPlayerDevelopmentWorkspaceView: View {
   @EnvironmentObject private var appState: AppState
+  var onOpenTemplateBuilder: (() -> Void)? = nil
 
   @State private var players: [SDDevelopmentPlayer] = []
   @State private var selectedPlayerId: UUID?
@@ -94,18 +95,20 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
             variant: .primary,
             size: .md
           ) {
-            showTemplateBuilder = true
+            if let onOpenTemplateBuilder {
+              onOpenTemplateBuilder()
+            } else {
+              showTemplateBuilder = true
+            }
           }
         }
         HPCard {
           VStack(spacing: HP.Space.sm) {
             HPSearchBar(text: $searchText, placeholder: "Search players")
-            Picker("Status", selection: $rosterStatus) {
-              ForEach(["All", "Submitted", "Missed", "Upcoming", "No Activity"], id: \.self) {
-                Text($0).tag($0)
-              }
-            }
-            .pickerStyle(.segmented)
+            HPSegmentedControl(
+              options: ["All", "Submitted", "Missed", "Upcoming", "No Activity"].map { (value: $0, label: $0) },
+              selection: $rosterStatus
+            )
           }
         }
 
@@ -116,7 +119,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
         } else if filteredPlayers.isEmpty {
           HPEmptyState(
             title: "No players match",
-            message: "Adjust the team, status, or player search.",
+            message: "Try another status or clear your search. Organization administrators can manage athlete access in Organization Settings.",
             systemImage: "person.3"
           )
         } else {
@@ -429,7 +432,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
               } label: {
                 HStack(spacing: HP.Space.sm) {
                   VStack(alignment: .leading, spacing: 4) {
-                    Text(day.date)
+                    Text(HPReadableValue.date(day.date))
                       .font(HP.Font.body.weight(.semibold))
                       .foregroundStyle(HP.Color.text)
                     Text("\(day.activity_count) activities · \(day.media_count) files or videos")
@@ -570,15 +573,46 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   @State private var month = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
   @State private var timelineFilter: TimelineFilter = .all
   @State private var focusedDay: SDDevelopmentDay?
+  @State private var emptyDay: String?
   @State private var showPlayerManagement = false
+  @State private var libraryEnabled = false
 
   private enum Tab: String, CaseIterable, Identifiable {
     case calendar = "Calendar"
     case timeline = "Timeline"
-    case programs = "Programs"
-    case dataLab = "Data Lab"
+    case programs = "Program Progress"
+    case videos = "Videos"
+    case testing = "Testing"
+    case sessions = "Sessions & Data"
+    case dataLab = "R Analysis"
     case profile = "Profile"
     var id: String { rawValue }
+
+    var systemImage: String {
+      switch self {
+      case .calendar: "calendar"
+      case .timeline: "clock.arrow.circlepath"
+      case .programs: "list.clipboard"
+      case .videos: "play.rectangle"
+      case .testing: "checklist"
+      case .sessions: "tablecells"
+      case .dataLab: "chart.xyaxis.line"
+      case .profile: "person.crop.circle"
+      }
+    }
+
+    var summary: String {
+      switch self {
+      case .calendar: "Daily assignments, submissions, and missed work"
+      case .timeline: "All development activity in chronological order"
+      case .programs: "Assigned programs and completion progress"
+      case .videos: "Personal, workout, testing, and session videos"
+      case .testing: "Testing results and uploaded evaluations"
+      case .sessions: "Imported TrackMan, Rapsodo, and session data"
+      case .dataLab: "Open the full R analytics experience on the web"
+      case .profile: "Player information and account details"
+      }
+    }
   }
 
   private enum TimelineFilter: String, CaseIterable, Identifiable {
@@ -598,10 +632,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     NavigationStack {
       VStack(spacing: 0) {
         playerHeader
-        HPSegmentedControl(
-          options: Tab.allCases.map { (value: $0, label: $0.rawValue) },
-          selection: $selectedTab
-        )
+        playerWorkspaceNavigation
         .padding(.horizontal, HP.Space.md)
         .padding(.vertical, HP.Space.sm)
         .background(HP.Color.bg)
@@ -622,6 +653,12 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       .background(HP.Color.bg)
       .toolbar(.hidden, for: .navigationBar)
     }
+    .task(id: appState.activeOrgId) {
+      libraryEnabled = false
+      if let org = appState.activeOrgId, let service = appState.supabase {
+        libraryEnabled = (try? await service.libraryRolloutEnabled(organizationId: org)) == true
+      }
+    }
     .onChange(of: workspace?.player.id) { _, _ in
       guard let workspace else { return }
       selectedDay = initialDay(workspace)
@@ -630,8 +667,15 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       }
     }
     .sheet(item: $focusedDay) { day in
-      DevelopmentDayDetailSheet(playerName: player.name, day: day)
+      DevelopmentDayDetailSheet(playerName: player.name, playerId: player.id, day: day, athleteId: player.analyticsAthleteId)
         .environmentObject(appState)
+    }
+    .sheet(isPresented: Binding(get: { emptyDay != nil }, set: { if !$0 { emptyDay = nil } })) {
+      NavigationStack {
+        ContentUnavailableView("No activity recorded", systemImage: "calendar", description: Text("No assignments or submissions are recorded for this date."))
+          .navigationTitle(emptyDay ?? "Day details")
+          .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { emptyDay = nil } } }
+      }
     }
     .sheet(isPresented: $showPlayerManagement) {
       CoachPlayerProfileView(
@@ -641,8 +685,62 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     }
   }
 
+  private var playerWorkspaceNavigation: some View {
+    HPCard(style: .flat) {
+      HStack(spacing: HP.Space.sm) {
+        Image(systemName: selectedTab.systemImage)
+          .font(.title3.weight(.semibold))
+          .foregroundStyle(HP.Color.accent)
+          .frame(width: 32)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(selectedTab.rawValue)
+            .font(HP.Font.callout.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+          Text(selectedTab.summary)
+            .font(HP.Font.caption)
+            .foregroundStyle(HP.Color.textMuted)
+            .lineLimit(2)
+        }
+        Spacer(minLength: HP.Space.xs)
+        Menu {
+          Section("Activity") {
+            workspaceDestination(.calendar)
+            workspaceDestination(.timeline)
+            workspaceDestination(.programs)
+          }
+          Section("Data and media") {
+            workspaceDestination(.videos)
+            workspaceDestination(.testing)
+            workspaceDestination(.sessions)
+            workspaceDestination(.dataLab)
+          }
+          Section("Player") {
+            workspaceDestination(.profile)
+          }
+        } label: {
+          Image(systemName: "chevron.down")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(HP.Color.textMuted)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Change player workspace view")
+      }
+    }
+  }
+
+  private func workspaceDestination(_ tab: Tab) -> some View {
+    Button {
+      selectedTab = tab
+    } label: {
+      Label(tab.rawValue, systemImage: selectedTab == tab ? "checkmark" : tab.systemImage)
+    }
+  }
+
   private var playerHeader: some View {
-    HStack(spacing: HP.Space.sm) {
+    VStack(alignment: .leading, spacing: HP.Space.sm) {
+      HStack(spacing: HP.Space.sm) {
       HPAvatar(
         name: player.name,
         size: .md,
@@ -655,9 +753,20 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
           .foregroundStyle(HP.Color.textMuted)
           .lineLimit(1)
       }
-      Spacer()
+      Spacer(minLength: 0)
+      Button { dismiss() } label: {
+        Image(systemName: "xmark")
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundStyle(HP.Color.textMuted)
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Close player workspace")
+      }
+      HStack(spacing: HP.Space.sm) {
       if let workspace {
-        VStack(alignment: .trailing, spacing: 2) {
+        VStack(alignment: .leading, spacing: 2) {
           Text("\(workspace.assignments.filter { $0.status == "active" }.count) active")
             .font(HP.Font.caption.weight(.semibold))
           Text("\(completionPercent(workspace))% complete")
@@ -665,23 +774,23 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
             .foregroundStyle(HP.Color.textMuted)
         }
       }
+      Spacer(minLength: HP.Space.sm)
       if canManage {
         Button {
           showPlayerManagement = true
         } label: {
-          Image(systemName: "plus")
-            .frame(width: 40, height: 40)
+          Label("Assign program", systemImage: "plus")
+            .font(HP.Font.caption.weight(.semibold))
+            .foregroundStyle(HP.Color.accent)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .background(HP.Color.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.plain)
         .accessibilityLabel("Assign program")
       }
-      Button {
-        dismiss()
-      } label: {
-        Image(systemName: "xmark").frame(width: 40, height: 40)
       }
-      .buttonStyle(.bordered)
-      .accessibilityLabel("Close player workspace")
     }
     .padding(HP.Space.md)
     .background(HP.Color.surface)
@@ -707,8 +816,20 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       timeline(workspace)
     case .programs:
       programAssignments(workspace)
+    case .videos:
+      if workspace.player.subject_type == "facility_athlete" {
+        timeline(workspace).onAppear { timelineFilter = .media }
+      } else {
+        NativeSharedVideoLibraryView(playerId: workspace.player.id)
+      }
+    case .testing:
+      timeline(workspace)
+        .onAppear { timelineFilter = .testing }
+    case .sessions:
+      timeline(workspace)
+        .onAppear { timelineFilter = .sessions }
     case .dataLab:
-      NativePlayerAnalyticsView(playerId: player.id, playerName: player.name)
+      NativePlayerAnalyticsView(playerId: player.id, playerName: player.name, athleteId: player.analyticsAthleteId)
     case .profile:
       profile(workspace)
     }
@@ -717,15 +838,27 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   private func calendar(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
     VStack(alignment: .leading, spacing: HP.Space.sm) {
       HStack {
-        Button { changeMonth(-1) } label: { Image(systemName: "chevron.left") }
-          .buttonStyle(.bordered)
+        Button { changeMonth(-1) } label: {
+          Image(systemName: "chevron.left")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(HP.Color.textMuted)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+          .buttonStyle(.plain)
         Spacer()
         Text(month.formatted(.dateTime.month(.wide).year()))
           .font(HP.Font.title.weight(.semibold))
           .foregroundStyle(HP.Color.text)
         Spacer()
-        Button { changeMonth(1) } label: { Image(systemName: "chevron.right") }
-          .buttonStyle(.bordered)
+        Button { changeMonth(1) } label: {
+          Image(systemName: "chevron.right")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(HP.Color.textMuted)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+          .buttonStyle(.plain)
       }
 
       HStack(spacing: HP.Space.sm) {
@@ -761,6 +894,8 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     let color = dayColor(cell.day)
     return Button {
       selectedDay = cell.day
+      focusedDay = cell.day
+      if cell.day == nil { emptyDay = Self.isoDate(cell.date) }
     } label: {
       ZStack(alignment: .topTrailing) {
         Text(cell.date.formatted(.dateTime.day()))
@@ -784,13 +919,12 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       }
     }
     .buttonStyle(.plain)
-    .disabled(cell.day == nil)
   }
 
   private func daySummary(_ day: SDDevelopmentDay) -> some View {
     VStack(alignment: .leading, spacing: HP.Space.sm) {
       HStack {
-        Text("\(day.date) · \(day.status.title)")
+        Text("\(HPReadableValue.date(day.date)) · \(day.status.title)")
           .font(HP.Font.title.weight(.semibold))
           .foregroundStyle(HP.Color.text)
         Spacer()
@@ -839,6 +973,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   private func timeline(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: HP.Space.md) {
+        if selectedTab == .timeline {
         ScrollView(.horizontal, showsIndicators: false) {
           HStack {
             ForEach(TimelineFilter.allCases) { filter in
@@ -854,13 +989,21 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
             }
           }
         }
+        }
+        if filteredTimeline(workspace).isEmpty {
+          HPEmptyState(
+            title: timelineFilter == .media ? "No media yet" : "No activity to show",
+            message: "Nothing matches this view. Choose another filter or review this player's calendar for submissions.",
+            systemImage: timelineFilter == .media ? "video" : "calendar"
+          )
+        }
         ForEach(filteredTimeline(workspace), id: \.day.id) { row in
           Button { focusedDay = row.day } label: {
             HStack(alignment: .top, spacing: HP.Space.sm) {
               VStack(alignment: .leading, spacing: 2) {
-                Text(row.day.date).font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
+                Text(HPReadableValue.date(row.day.date)).font(HP.Font.caption.weight(.semibold)).foregroundStyle(HP.Color.textMuted)
                 Text(row.title).font(HP.Font.body.weight(.semibold)).foregroundStyle(HP.Color.text)
-                Text(row.source).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+                Text(HPReadableValue.words(row.source)).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
               }
               Spacer()
               HPStatusBadge(text: row.day.status.title, kind: row.day.status.badgeKind)
@@ -880,6 +1023,22 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   private func programAssignments(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: HP.Space.md) {
+        HPSectionHeader("Day-by-day progress")
+        ForEach(workspace.days.filter { $0.scheduled || $0.activities.contains(where: { $0.kind == .program || $0.kind == .dailyLog }) }.sorted { $0.date > $1.date }) { day in
+          Button { focusedDay = day } label: {
+            HStack {
+              Text(HPReadableValue.date(day.date))
+              Spacer()
+              HPStatusBadge(text: day.status.title, kind: day.status.badgeKind)
+              Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(HP.Color.textMuted)
+            }.padding(HP.Space.sm)
+          }
+          .buttonStyle(.plain)
+          .background(HP.Color.surfaceRaised, in: RoundedRectangle(cornerRadius: HP.Radius.sm))
+        }
+        HPSectionHeader("Assigned programs")
         ForEach(workspace.assignments.sorted { $0.status == "active" && $1.status != "active" }) { assignment in
           HPCard {
             VStack(alignment: .leading, spacing: HP.Space.xs) {
@@ -1111,11 +1270,94 @@ struct TestingSetupWorkspaceView: View {
   }
 }
 
+struct PlayerDevelopmentDayView: View {
+  @EnvironmentObject private var appState: AppState
+  let playerId: UUID
+  let playerName: String
+  let date: String
+  @State private var day: SDDevelopmentDay?
+  @State private var isLoading = true
+  @State private var errorText: String?
+
+  var body: some View {
+    Group {
+      if isLoading {
+        HPLoadingState(text: "Loading submissions, testing, sessions, and videos…")
+      } else if let errorText {
+        HPErrorState(message: errorText, onRetry: { Task { await load() } })
+      } else if let day {
+        DevelopmentDayDetailSheet(playerName: playerName, playerId: playerId, day: day)
+      } else {
+        ContentUnavailableView("No activity recorded", systemImage: "calendar", description: Text("No assignments or submissions are recorded for \(date)."))
+      }
+    }
+    .task(id: "\(appState.activeOrgAuthorizationKey)-\(playerId)-\(date)") { await load() }
+  }
+
+  private func load() async {
+    guard let service = appState.supabase, let orgId = appState.activeOrgId else { return }
+    isLoading = true
+    errorText = nil
+    day = nil
+    do {
+      // A player deep link is not scoped to the sidebar's current team.
+      // The server still checks this actor's organization and player access.
+      let loaded = try await service.fetchDevelopmentDayDetail(orgId: orgId, playerId: playerId, teamId: nil, date: date)
+      guard !Task.isCancelled, orgId == appState.activeOrgId else { return }
+      day = loaded
+    } catch {
+      guard !Task.isCancelled, orgId == appState.activeOrgId else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+    isLoading = false
+  }
+}
+
+struct PlayerDevelopmentProfileWorkspaceView: View {
+  @EnvironmentObject private var appState: AppState
+  let playerId: UUID
+  @State private var workspace: SDPlayerDevelopmentWorkspace?
+  @State private var errorText: String?
+  @State private var isLoading = true
+
+  var body: some View {
+    Group {
+      if let workspace {
+        DevelopmentPlayerWorkspaceScreen(player: workspace.player, workspace: $workspace, isLoading: isLoading, errorText: errorText, onRetry: { Task { await load() } })
+      } else if let errorText {
+        HPErrorState(message: errorText, onRetry: { Task { await load() } })
+      } else {
+        HPLoadingState(text: "Loading player progress…")
+      }
+    }
+    .task(id: "\(appState.activeOrgAuthorizationKey)-\(playerId)") { await load() }
+  }
+
+  private func load() async {
+    guard let service = appState.supabase, let orgId = appState.activeOrgId else { return }
+    isLoading = true
+    errorText = nil
+    workspace = nil
+    let now = Date()
+    do {
+      let loaded = try await service.fetchDevelopmentWorkspace(orgId: orgId, playerId: playerId, teamId: appState.selectedTeamId, startDate: DateUtils.toISODate(Calendar.current.date(byAdding: .year, value: -1, to: now) ?? now), endDate: DateUtils.toISODate(Calendar.current.date(byAdding: .year, value: 1, to: now) ?? now))
+      guard !Task.isCancelled, orgId == appState.activeOrgId else { return }
+      workspace = loaded
+    } catch {
+      guard !Task.isCancelled, orgId == appState.activeOrgId else { return }
+      errorText = SDApplicationErrorClassifier.alertMessage(for: error)
+    }
+    isLoading = false
+  }
+}
+
 private struct DevelopmentDayDetailSheet: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var appState: AppState
   let playerName: String
+  let playerId: UUID
   let day: SDDevelopmentDay
+  var athleteId: UUID? = nil
 
   var body: some View {
     NavigationStack {
@@ -1124,13 +1366,26 @@ private struct DevelopmentDayDetailSheet: View {
           HStack {
             VStack(alignment: .leading, spacing: 4) {
               Text(playerName).font(HP.Font.title.weight(.bold)).foregroundStyle(HP.Color.text)
-              Text(day.date).font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
+              Text(HPReadableValue.date(day.date)).font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
             }
             Spacer()
             HPStatusBadge(text: day.status.title, kind: day.status.badgeKind)
           }
 
-          if day.activities.isEmpty {
+          NavigationLink("R Analysis for this day") {
+            NativePlayerAnalyticsView(playerId: playerId, playerName: playerName, date: day.date, athleteId: athleteId)
+          }
+          .buttonStyle(.borderedProminent)
+
+          if let plannedWork = day.planned_work, !plannedWork.isEmpty {
+            Text("Assigned work for this day")
+              .font(HP.Font.title.weight(.semibold))
+            ForEach(plannedWork) { activity in
+              DevelopmentActivityCard(activity: activity)
+            }
+          }
+
+          if day.activities.isEmpty && (day.planned_work ?? []).isEmpty {
             HPEmptyState(title: "No recorded activity", systemImage: "clipboard")
           } else {
             ForEach(day.activities) { activity in
@@ -1170,7 +1425,7 @@ private struct DevelopmentActivityCard: View {
         HStack(alignment: .top) {
           VStack(alignment: .leading, spacing: 4) {
             Text(activity.title).font(HP.Font.headline).foregroundStyle(HP.Color.text)
-            Text(activity.source.capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            Text(HPReadableValue.words(activity.source)).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
           }
           Spacer()
           HPStatusBadge(text: activity.kind.rawValue.replacingOccurrences(of: "_", with: " ").capitalized, kind: .info)
@@ -1183,17 +1438,25 @@ private struct DevelopmentActivityCard: View {
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.warning)
         }
-        ForEach(activity.fields ?? [], id: \.key) { field in
+        ForEach(["Results", "Session details", "Payment"], id: \.self) { group in
+          let fields = HPReadableValue.uniqueFields(activity.fields ?? []).filter {
+            HPReadableValue.group($0) == group && !($0.value == activity.notes && $0.label.lowercased().contains("summary"))
+          }
+          if !fields.isEmpty {
+            Text(group).font(HP.Font.callout.weight(.semibold)).padding(.top, HP.Space.xs)
+          }
+        ForEach(fields, id: \.key) { field in
           HStack(alignment: .top) {
-            Text(field.label)
+            Text(HPReadableValue.label(field))
               .font(HP.Font.caption.weight(.semibold))
               .foregroundStyle(HP.Color.textMuted)
               .frame(maxWidth: 140, alignment: .leading)
-            Text([field.value, field.unit].compactMap { $0 }.joined(separator: " "))
+            Text(HPReadableValue.field(field))
               .font(HP.Font.body)
               .foregroundStyle(HP.Color.text)
               .frame(maxWidth: .infinity, alignment: .leading)
           }
+        }
         }
         if let notes = activity.notes, !notes.isEmpty {
           VStack(alignment: .leading, spacing: 3) {
@@ -1280,7 +1543,8 @@ private struct DevelopmentMediaCard: View {
     do {
       let response = try await service.developmentMediaPlaybackURL(
         orgId: orgId,
-        teamId: appState.selectedTeamId,
+        // Media identity, not an unrelated sidebar filter, determines access.
+        teamId: nil,
         mediaId: media.id
       )
       guard response.playback_status == .ready, let url = URL(string: response.url) else {

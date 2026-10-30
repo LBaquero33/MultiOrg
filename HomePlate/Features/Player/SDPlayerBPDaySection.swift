@@ -18,6 +18,18 @@ struct SDPlayerBPDaySection: View {
   @State private var isWorking = false
   @State private var errorText: String?
   @State private var toastText: String?
+  private struct PendingVideo {
+    let id = UUID()
+    let data: Data
+    let organizationId: UUID
+    let playerId: UUID
+    let dateISO: String
+    let activityType: String
+    let repsType: String
+    let displayName: String
+    let originalFilename: String
+  }
+  @State private var pendingVideo: PendingVideo?
 
   @State private var session: SDBPSession?
   @State private var events: [SDBPEvent] = []
@@ -111,7 +123,7 @@ struct SDPlayerBPDaySection: View {
                 isImportingVideo = true
                 isImporting = true
               }
-              .disabled(isWorking)
+              .disabled(isWorking || pendingVideo != nil)
 
               if session?.video_path != nil {
                 Label("Video uploaded", systemImage: "checkmark.circle.fill")
@@ -154,6 +166,10 @@ struct SDPlayerBPDaySection: View {
           }
         }
         .padding(.top, HP.Space.sm)
+        if let pendingVideo {
+          Button("Retry upload: \(pendingVideo.displayName)") { Task { await uploadPendingVideo() } }
+            .disabled(isWorking || pendingVideo.organizationId != appState.activeOrgId)
+        }
       } label: {
         Text("Hitting & Bullpens")
           .font(HP.Font.headline)
@@ -253,6 +269,7 @@ struct SDPlayerBPDaySection: View {
     isWorking = true
     defer { isWorking = false }
     do {
+      let names = try await HPUploadNaming.confirm([url.lastPathComponent])
       let text = try CSVFileReader.readText(from: url)
       let importResult = try BPImportMapper.map(text: text, selectedSource: BPImportSource.parse(source))
       source = importResult.source.rawValue
@@ -277,7 +294,7 @@ struct SDPlayerBPDaySection: View {
           launch_angle: row.launch_angle,
           strike_x: row.strike_x,
           strike_z: row.strike_z,
-          raw: row.raw
+          raw: row.raw.merging(["__homeplate_file_name": names[0], "__homeplate_original_filename": url.lastPathComponent]) { _, value in value }
         )
       }
       try await supabase.replaceBPEvents(sessionId: s.id, events: creates)
@@ -314,24 +331,45 @@ struct SDPlayerBPDaySection: View {
         sourceExtension: url.pathExtension.lowercased()
       )
       let playerId = try await supabase.client.auth.session.user.id
+      let names = try await HPUploadNaming.confirm(["\(url.deletingPathExtension().lastPathComponent).mp4"])
+      pendingVideo = PendingVideo(data: data, organizationId: organizationId, playerId: playerId, dateISO: dateISO, activityType: activityType, repsType: repsType, displayName: names[0], originalFilename: url.lastPathComponent)
+      await uploadPendingVideo()
+    } catch {
+      errorText = error.localizedDescription
+    }
+  }
+
+  private func uploadPendingVideo() async {
+    guard let pending = pendingVideo, let supabase = appState.supabase,
+          pending.organizationId == appState.activeOrgId else { return }
+    isWorking = true
+    defer { isWorking = false }
+    do {
+      guard try await supabase.client.auth.session.user.id == pending.playerId else { return }
       let path = try await supabase.uploadPlayerSessionVideo(
-        data,
-        organizationId: organizationId,
-        playerId: playerId,
+        pending.data,
+        organizationId: pending.organizationId,
+        playerId: pending.playerId,
         fileExtension: "mp4",
-        contentType: "video/mp4"
+        contentType: "video/mp4",
+        displayName: pending.displayName,
+        uploadId: pending.id,
+        originalFilename: pending.originalFilename
       )
       session = try await supabase.upsertBPSession(
-        playerId: playerId,
-        dateISO: dateISO,
+        playerId: pending.playerId,
+        dateISO: pending.dateISO,
         source: "video",
-        repsType: repsType,
-        activityType: activityType,
+        repsType: pending.repsType,
+        activityType: pending.activityType,
         videoPath: path,
-        orgId: organizationId
+        orgId: pending.organizationId,
+        videoFileName: pending.displayName,
+        videoOriginalFilename: pending.originalFilename
       )
+      pendingVideo = nil
       events = []
-      toast(activityType == "bullpen" ? "Bullpen video uploaded." : "Hitting video uploaded.")
+      toast(pending.activityType == "bullpen" ? "Bullpen video uploaded." : "Hitting video uploaded.")
     } catch {
       errorText = error.localizedDescription
     }

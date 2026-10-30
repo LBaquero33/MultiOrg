@@ -24,6 +24,12 @@ struct SDParentFacilitiesView: View {
 
   @State private var showRequest = false
   @State private var requestSeed: RequestSeed?
+  @State private var dayModal: FacilityDayModal?
+
+  private struct FacilityDayModal: Identifiable {
+    let id = UUID()
+    let date: Date
+  }
 
   private struct RequestSeed: Identifiable {
     let id = UUID()
@@ -124,7 +130,7 @@ struct SDParentFacilitiesView: View {
       )
       .environmentObject(appState)
     }
-    .sheet(item: $requestSeed) { seed in
+    .sheet(item: Binding(get: { dayModal == nil ? requestSeed : nil }, set: { requestSeed = $0 })) { seed in
       ParentRequestBookingSheet(
         child: child,
         facilities: facilities,
@@ -136,6 +142,30 @@ struct SDParentFacilitiesView: View {
         }
       )
       .environmentObject(appState)
+    }
+    .sheet(item: $dayModal) { modal in
+      NavigationStack {
+        ScrollView { dayPane.padding(HP.Space.md) }
+          .background(HP.Color.bg)
+          .navigationTitle(modal.date.formatted(date: .complete, time: .omitted))
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { dayModal = nil }
+            }
+          }
+      }
+      .presentationDetents([.large])
+      .sheet(item: $requestSeed) { seed in
+        ParentRequestBookingSheet(
+          child: child,
+          facilities: facilities,
+          defaultDate: seed.startAt,
+          seed: .init(facilityId: seed.facilityId, startAt: seed.startAt, durationMin: seed.durationMin),
+          onCreated: { Task { await reloadAll() } }
+        )
+        .environmentObject(appState)
+      }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
@@ -171,9 +201,8 @@ struct SDParentFacilitiesView: View {
         },
         onSelect: { date in
           selectedDate = DateUtils.startOfDayET(date)
-          if !context.isRegularWidth {
-            compactScope = "day"
-          }
+          dayBookings = []
+          dayModal = FacilityDayModal(date: selectedDate)
           Task { await loadDay() }
         }
       )
@@ -328,7 +357,9 @@ struct SDParentFacilitiesView: View {
     do {
       let start = DateUtils.startOfDayET(selectedDate)
       let end = DateUtils.calendarET.date(byAdding: .day, value: 1, to: start) ?? start
-      dayBookings = try await supabase.listFacilityBookings(dayStart: start, dayEnd: end, orgId: appState.activeOrgId)
+      let bookings = try await supabase.listFacilityBookings(dayStart: start, dayEnd: end, orgId: appState.activeOrgId)
+      guard start == DateUtils.startOfDayET(selectedDate) else { return }
+      dayBookings = bookings
     } catch {
       errorText = error.localizedDescription
     }

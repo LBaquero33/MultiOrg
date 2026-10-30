@@ -7,8 +7,6 @@ struct HPTrainingCatalogView: View {
   @State private var creatingService = false
   @State private var editingService: HPTrainingWorkspace.Service?
   @State private var editingTrainer: HPTrainingWorkspace.Trainer?
-  @State private var editingPackage: HPTrainingWorkspace.Package?
-  @State private var creatingPackage = false
 
   var body: some View {
     List {
@@ -42,21 +40,6 @@ struct HPTrainingCatalogView: View {
           }
         }
       }
-      Section("Packages") {
-        ForEach(workspace.packages ?? []) { package in
-          VStack(alignment: .leading) {
-            Text(package.name).font(.headline)
-            Text("\(package.credits.map(String.init) ?? "—") credits · \(package.active ? "Active" : "Inactive")")
-            if let days = package.validity_days { Text("Valid for \(days) days after verified payment").font(.caption) }
-            if workspace.access["is_admin"]?.boolValue == true {
-              Button("Edit \(package.name)") { editingPackage = package }
-            }
-          }
-        }
-        if workspace.access["is_admin"]?.boolValue == true {
-          Button("Create package") { creatingPackage = true }
-        }
-      }
     }
     .navigationTitle("Training catalog")
     .onChange(of: appState.activeOrgId) { _, _ in closeEditors() }
@@ -70,16 +53,9 @@ struct HPTrainingCatalogView: View {
     .sheet(item: $editingTrainer) { trainer in
       HPTrainingOfferingsEditor(workspace: workspace, trainer: trainer) { await onSaved(); editingTrainer = nil }
     }
-    .sheet(isPresented: $creatingPackage) {
-      HPTrainingPackageEditor { await onSaved(); creatingPackage = false }
-    }
-    .sheet(item: $editingPackage) { package in
-      HPTrainingPackageEditor(existing: package) { await onSaved(); editingPackage = nil }
-    }
   }
   private func closeEditors() {
     creatingService = false; editingService = nil; editingTrainer = nil
-    creatingPackage = false; editingPackage = nil
   }
 }
 
@@ -118,19 +94,36 @@ private struct HPCreateTrainingServiceView: View {
   var body: some View {
     NavigationStack {
       Form {
+        Section {
+          HStack {
+            Button("Cancel changes", role: .cancel) { dismiss() }
+              .accessibilityIdentifier("training.service.cancel")
+              .disabled(busy)
+            Spacer()
+            Button("Save service") { Task { await save() } }
+              .accessibilityIdentifier("training.service.save")
+              .disabled(busy || uncertain || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          }.buttonStyle(.borderless)
+        }
+        Section("Service details") {
         TextField("Service name", text: $name)
         TextField("Description", text: $description, axis: .vertical)
         Stepper("\(duration) minutes", value: $duration, in: 15...480, step: 15)
         Stepper("Capacity: \(capacity)", value: $capacity, in: 1...500)
-        Picker("Booking mode", selection: $bookingMode) {
-          ForEach(["disabled", "inquiry", "free", "paid", "package_credit"], id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ")).tag($0) }
         }
-        TextField("Price in cents (blank if unset)", text: $price)
+        Section("Booking and pricing") {
+        Picker("Booking mode", selection: $bookingMode) {
+          ForEach(["disabled", "inquiry", "free", "paid"], id: \.self) { Text(HPReadableValue.words($0)).tag($0) }
+        }
+        HPOptionalMoneyField(label: "Price", rawCents: $price)
         Toggle("Price reviewed and verified", isOn: $verified)
+        }
+        Section("Visibility and policies") {
         Toggle("Publicly visible", isOn: $visible)
         Toggle("Active", isOn: $active)
         TextField("Cancellation policy", text: $cancellationPolicy, axis: .vertical)
         Text("New services start as private inquiries. Assign trainers, availability and verified pricing before enabling public booking.")
+        }
         if let errorText { Text(errorText).foregroundStyle(.red) }
         if uncertain { Button("Refresh catalog and close") { Task { await onSaved() } } }
       }.navigationTitle(existing == nil ? "Create service" : "Edit service")
@@ -148,7 +141,7 @@ private struct HPCreateTrainingServiceView: View {
   private var context: String { "\(appState.myProfile?.id.uuidString ?? ""):\(appState.activeOrgId?.uuidString ?? "")" }
   private func save() async {
     guard editContext == context, let service = appState.supabase, let org = appState.activeOrgId else { return }
-    guard price.isEmpty || (Int(price).map { $0 >= 0 } == true) else { errorText = "Enter a nonnegative whole number of cents."; return }
+    guard price.isEmpty || (Int(price).map { $0 >= 0 } == true) else { errorText = "Enter a valid price with no more than two decimal places."; return }
     guard !["paid", "package_credit"].contains(bookingMode) || verified else { errorText = "Verify pricing before enabling paid or package bookings."; return }
     guard bookingMode != "paid" || !price.isEmpty else { errorText = "Set a price for paid bookings."; return }
     busy = true

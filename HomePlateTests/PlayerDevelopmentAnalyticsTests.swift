@@ -40,14 +40,16 @@ struct PlayerDevelopmentAnalyticsTests {
     #expect(response.cacheStatus == "hit")
   }
 
-  @Test("mobile defaults to the latest single source and uses authenticated analytics")
-  func mobileFastPathContract() throws {
+  @Test("mobile preserves player context and redirects to the full web analytics experience")
+  func mobileWebRedirectContract() throws {
     let view = try sourceFile("HomePlate/Features/Coach/NativePlayerAnalyticsView.swift")
     let service = try sourceFile("HomePlate/Core/SupabaseService.swift")
 
-    #expect(view.contains("selectedSourceId = eligibleSources.first?.id"))
-    #expect(view.contains("All matching sessions (slower first load)"))
-    #expect(view.contains("result.cacheStatus == \"hit\""))
+    #expect(view.contains("https://www.homeplateapps.com/app/analysis"))
+    #expect(view.contains("name: athleteId == nil ? \"player\" : \"athlete\""))
+    #expect(view.contains("Open R Analysis"))
+    #expect(view.contains("Player and organization preserved"))
+    #expect(!view.contains("runPlayerAnalytics("))
     #expect(service.contains("func listPlayerAnalyticsSources("))
     #expect(service.contains("func runPlayerAnalytics("))
     #expect(service.contains("\"player-development-analytics\""))

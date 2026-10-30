@@ -5,12 +5,18 @@ import Testing
 @testable import HomePlate
 
 struct NativeScoringV2JournalTests {
+  @Test @MainActor func uploadNamesPreserveExtensionsAndRejectPaths() throws {
+    #expect(try HPUploadNaming.filename(original: "Swing.MP4", stem: "Game swing") == "Game swing.MP4")
+    #expect(throws: (any Error).self) { try HPUploadNaming.filename(original: "x.csv", stem: "../escape") }
+    #expect(throws: (any Error).self) { try HPUploadNaming.filename(original: "x.csv", stem: " ") }
+  }
   @Test @MainActor func authoritativeRejectionsPauseInsteadOfLookingOffline() {
-    for category in [SDApplicationErrorCategory.unauthorized, .forbidden, .validation, .staleData, .malformedResponse] {
+    for category in [SDApplicationErrorCategory.forbidden, .validation, .staleData, .malformedResponse] {
       #expect(ProductionScoringController.requiresReconciliation(SDServiceError(category: category, functionName: nil, statusCode: nil)))
     }
     #expect(!ProductionScoringController.requiresReconciliation(URLError(.notConnectedToInternet)))
     #expect(!ProductionScoringController.requiresReconciliation(URLError(.timedOut)))
+    #expect(!ProductionScoringController.requiresReconciliation(SDServiceError(category: .unauthorized, functionName: nil, statusCode: 401)))
   }
   @Test func durableCompoundPlaysAndAccountIsolation() throws {
     let seed = DemoGame.seed, key = P256.Signing.PrivateKey(), account = UUID(), device = UUID()
@@ -38,8 +44,11 @@ struct NativeScoringV2JournalTests {
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = HPNativeScoringV2JournalStore(directory: directory)
     try store.save(journal)
+    journal.recoveryReason = "Local recovery only; not official"
+    try store.save(journal)
     let restored = try #require(try store.load(account: account, org: seed.organizationID, game: seed.id, device: device))
     #expect(restored.events == journal.events)
+    #expect(restored.recoveryReason == "Local recovery only; not official")
     #expect(restored.entries.map(\.envelope) == journal.entries.map(\.envelope))
     #expect(try store.load(account: UUID(), org: seed.organizationID, game: seed.id, device: device) == nil)
     #expect(throws: HPNativeScoringV2Journal.JournalError.self) { try store.load(account: account, org: seed.organizationID, game: seed.id, device: UUID()) }

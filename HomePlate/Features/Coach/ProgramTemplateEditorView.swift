@@ -54,11 +54,11 @@ struct ProgramTemplateEditorView: View {
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: { Text(errorText ?? "") }
-    .confirmationDialog("Delete this program?", isPresented: $confirmDeleteTemplate, titleVisibility: .visible) {
-      Button("Delete Program", role: .destructive) { Task { await deleteTemplate() } }
+    .confirmationDialog("Archive this program?", isPresented: $confirmDeleteTemplate, titleVisibility: .visible) {
+      Button("Archive Program", role: .destructive) { Task { await deleteTemplate() } }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("This permanently removes the template and all of its workout days. Assigned programs must be ended first.")
+      Text("The program leaves assignment choices, but existing assignments and their workout history remain. Restore it from the Library’s Archived view.")
     }
     .task { await reload() }
     .dhdToast($toastText)

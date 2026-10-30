@@ -182,7 +182,7 @@ struct HPAppNavigationInventory: Equatable {
   ) -> Self {
     let today = item(.playerToday, "Today", "sun.max")
     let calendar = item(.playerCalendar, "Calendar", "calendar")
-    let program = item(.playerProgram, "Programs & Development", "square.stack.3d.up.fill")
+    let program = item(.playerProgram, "Programs", "square.stack.3d.up.fill")
     let trends = item(.playerTrends, "Progress", "chart.line.uptrend.xyaxis")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let facilities = item(.playerFacilities, facilitiesTitle, "building.2")
@@ -195,8 +195,8 @@ struct HPAppNavigationInventory: Equatable {
     let regular = [HPAppNavigationSection(title: nil, items: websiteItems)]
 
     return Self(
-      compactItems: [],
-      directorySections: [],
+      compactItems: [today, calendar, item(.playerProgram, "Program", "square.stack.3d.up.fill")] + (chatEnabled ? [chat] : []),
+      directorySections: [HPAppNavigationSection(title: "More", items: (facilitiesEnabled ? [facilities] : []) + [trends, account])],
       regularSections: regular,
       defaultDestination: .playerToday
     )
@@ -206,7 +206,7 @@ struct HPAppNavigationInventory: Equatable {
     let home = item(.parentHome, "Home", "house")
     let children = item(.parentChildren, childrenTitle, "person.2")
     let calendar = item(.parentCalendar, "Calendar", "calendar")
-    let development = item(.playerProgram, "Programs & Development", "square.stack.3d.up.fill")
+    let development = item(.playerProgram, "Programs", "square.stack.3d.up.fill")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let payments = item(.payments, "Payments", "creditcard")
     let account = item(.account, "Account", "person.crop.circle")
@@ -251,7 +251,7 @@ struct HPAppNavigationInventory: Equatable {
     let teams = item(.coachTeams, "Teams", "person.3")
     let facilities = item(.coachFacilities, facilitiesTitle, "building.2")
     let payments = item(.payments, "Payments", "creditcard")
-    let programs = item(.coachPrograms, "Programs & Player Development", "list.clipboard")
+    let programs = item(.coachPrograms, "Programs", "list.clipboard")
     let games = item(.games, "Games", "trophy")
     let chat = item(.chat, "Messages", "bubble.left.and.bubble.right")
     let organization = item(.organizationAdmin, "Organization Settings", "gearshape")
@@ -309,21 +309,26 @@ struct HPAppNavigationInventory: Equatable {
   }
 
   static func training(experience: HPTrainingExperience?, canAdminister: Bool) -> Self {
-    let home = item(.coachToday, "Today", "house")
+    let home = item(.coachToday, "Home", "house")
     let athletes = item(.coachPlayers, "Athletes", "figure.run")
-    let sessions = item(.coachSchedule, "Sessions", "calendar")
+    let sessions = item(.coachSchedule, "Calendar", "calendar")
     let account = item(.account, "Account", "person.crop.circle")
     let resolvedIDs = Set(experience?.navigation_ids ?? [])
     let ids = !canAdminister && experience?.current_role == "front_desk"
       ? resolvedIDs.intersection(["home", "calendar", "lessons", "facilities", "messages", "account"])
       : resolvedIDs
-    let daily = [home] + (ids.contains("athletes") ? [athletes] : [])
+    let daily = [home]
       + (ids.contains("lessons") || ids.contains("calendar") ? [sessions] : [])
-    let extras = (ids.contains("programs") ? [item(.coachPrograms, "Programs & Development", "list.clipboard")] : [])
-      + (ids.contains("messages") ? [item(.chat, "Messages", "bubble.left.and.bubble.right")] : [])
-      + (ids.contains("payments") ? [item(.payments, "Payments", "creditcard")] : [])
-      + (canAdminister ? [item(.organizationAdmin, "Organization Settings", "gearshape")] : [])
-      + [account]
+    var extras: [HPAppNavigationItem] = []
+    if ids.contains("athletes") { extras.append(athletes) }
+    if ids.contains("teams") { extras.append(item(.coachTeams, "Teams", "person.3")) }
+    if ids.contains("facilities") { extras.append(item(.coachFacilities, "Facilities", "building.2")) }
+    if ids.contains("games") { extras.append(item(.games, "Games", "baseball")) }
+    if ids.contains("programs") { extras.append(item(.coachPrograms, "Programs", "list.clipboard")) }
+    if ids.contains("messages") { extras.append(item(.chat, "Messages", "bubble.left.and.bubble.right")) }
+    if ids.contains("payments") { extras.append(item(.payments, "Payments", "creditcard")) }
+    if canAdminister { extras.append(item(.organizationAdmin, "Organization Settings", "gearshape")) }
+    extras.append(account)
     return Self(compactItems: daily, directorySections: [HPAppNavigationSection(title: "More", items: extras)],
       regularSections: [HPAppNavigationSection(title: "Daily Work", items: daily), HPAppNavigationSection(title: "More", items: extras)],
       defaultDestination: .coachToday)
@@ -733,7 +738,9 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
   private var showsTeamScopeControl: Bool {
     let canSelectTeam = role == .coach || role == .owner
+    let type = appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type
     return canSelectTeam && !activeTeamScopes.isEmpty
+      && type != "training_facility" && type != "independent_trainer"
   }
 
   private var sidebarTeamScopeControl: AnyView? {

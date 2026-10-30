@@ -4,6 +4,21 @@ import Testing
 
 @Suite("Organization-scoped administration")
 struct OrganizationAuthorizationTests {
+  @Test("Video permission transport failure is retryable, not denial")
+  @MainActor func videoPermissionRetry() async {
+    let failed = await PersonalVideoAccessResult.resolve { throw URLError(.notConnectedToInternet) }
+    #expect(failed == .unavailable)
+    let recovered = await PersonalVideoAccessResult.resolve { true }
+    #expect(recovered == .allowed)
+  }
+
+  @Test("Video permission denial stays distinct from unavailable access")
+  @MainActor func videoPermissionDenial() async {
+    let denied = await PersonalVideoAccessResult.resolve { false }
+    #expect(denied == .denied)
+    #expect(denied != .unavailable)
+  }
+
   private let userId = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
   private let otherUserId = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
   private let adminOrgId = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
@@ -1332,6 +1347,37 @@ struct PaymentRequestFoundationTests {
   }
 }
 
+@Suite("Personal video upload reliability")
+struct PersonalVideoReliabilityTests {
+  @Test("an interrupted upload retains one identity and captured context for retry")
+  func stableRetryContract() throws {
+    let source = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
+    #expect(source.contains("private struct Pending"))
+    #expect(source.contains("let id = UUID()"))
+    #expect(source.contains("else if pending != nil { DHDButton(\"Retry upload\""))
+    #expect(source.contains("guard !busy, let p = pending"))
+    #expect(source.contains("where error.statusCode == \"409\""))
+    #expect(source.contains("existing.recorded_date == p.date, existing.category == p.category"))
+  }
+
+  @Test("prepared bytes survive filename validation and upload failures")
+  func preparedBytesAreRecoverable() throws {
+    let source = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
+    #expect(source.contains("@State private var prepared: Pending?"))
+    #expect(source.contains("guard name.count <= 160 else"))
+    #expect(source.contains("pending = Pending(org: p.org"))
+    #expect(source.contains("prepared = nil"))
+    #expect(source.contains("Upload interrupted. Retry to finish this same video"))
+  }
+
+  private func sourceFile(_ path: String) throws -> String {
+    let root = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+  }
+}
+
 #if os(macOS)
 @Suite("Platform organization creation workflow")
 @MainActor
@@ -1469,4 +1515,5 @@ struct PlatformOrganizationCreationWorkflowTests {
     #expect(object["owner_user_id"] == nil)
   }
 }
+
 #endif

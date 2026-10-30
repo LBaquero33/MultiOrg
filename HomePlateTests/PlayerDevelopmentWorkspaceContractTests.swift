@@ -4,6 +4,62 @@ import Testing
 
 @Suite("Player development workspace parity")
 struct PlayerDevelopmentWorkspaceContractTests {
+  @Test("UI amounts preserve exact integer cents and reject invalid input")
+  func readableMoney() {
+    #expect(HPOptionalMoneyField.parseCents("19.99") == 1999)
+    #expect(HPOptionalMoneyField.parseCents("0") == 0)
+    #expect(HPOptionalMoneyField.parseCents(".5") == 50)
+    #expect(HPOptionalMoneyField.parseCents("-1") == nil)
+    #expect(HPOptionalMoneyField.parseCents("1.001") == nil)
+    #expect(HPOptionalMoneyField.parseCents("1,000") == nil)
+    #expect(HPOptionalMoneyField.parseCents("999999999999") == nil)
+  }
+
+  @Test("Activity presentation formats values without changing source fields")
+  func readableActivityFields() {
+    let price = SDDevelopmentField(key: "price_cents", label: "Price (cents)", value: "1299", unit: nil)
+    #expect(HPReadableValue.field(price) == "$12.99")
+    #expect(price.value == "1299")
+    #expect(HPReadableValue.words("home_plate") == "Home Plate")
+    #expect(HPReadableValue.field(.init(key: "status", label: "Status", value: "checked_in", unit: nil)) == "Checked In")
+    #expect(HPReadableValue.uniqueFields([price, price]).count == 1)
+    #expect(HPReadableValue.date("not a date") == "not a date")
+    #expect(!HPReadableValue.date("2026-09-01T15:00:00+00:00").contains("T15"))
+  }
+
+  @Test("Assigned work decodes separately without becoming a submission")
+  func plannedWorkRoundTrip() throws {
+    let workspace = try fixture()
+    var day = try #require(workspace.days.first { $0.status == .missed })
+    #expect(day.planned_work == nil)
+    day.planned_work = [try #require(workspace.days.flatMap(\.activities).first)]
+    let decoded = try JSONDecoder().decode(SDDevelopmentDay.self, from: JSONEncoder().encode(day))
+    #expect(decoded.planned_work == day.planned_work)
+    #expect(decoded.status == .missed)
+    #expect(decoded.activity_count == day.activity_count)
+  }
+
+  @Test("Messaging uses the available pane width rather than iPad size class alone")
+  func compactIPadMessaging() {
+    #expect(!ChatLayoutPolicy.usesSplit(width: 531, isCompact: false, isAccessibility: false))
+    #expect(ChatLayoutPolicy.usesSplit(width: 900, isCompact: false, isAccessibility: false))
+    #expect(!ChatLayoutPolicy.usesSplit(width: 900, isCompact: true, isAccessibility: false))
+    #expect(!ChatLayoutPolicy.usesSplit(width: 900, isCompact: false, isAccessibility: true))
+  }
+
+  @Test("Facility R analysis uses athlete identity, not team-player identity")
+  func facilityAnalyticsIdentity() throws {
+    var player = try fixture().player
+    player.subject_type = "facility_athlete"
+    let encoded = try JSONEncoder().encode(player)
+    let decoded = try JSONDecoder().decode(SDDevelopmentPlayer.self, from: encoded)
+    #expect(decoded.analyticsAthleteId == player.id)
+    player.subject_type = "team_player"
+    #expect(player.analyticsAthleteId == nil)
+    player.subject_type = nil
+    #expect(player.analyticsAthleteId == nil)
+  }
+
   private func fixture() throws -> SDPlayerDevelopmentWorkspace {
     let bundle = Bundle(for: PlayerDevelopmentFixtureBundleMarker.self)
     let url = try #require(

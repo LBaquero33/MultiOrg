@@ -15,6 +15,7 @@ struct GameDetailView: View {
   @State private var errorText: String?
   @State private var selectedSection: SDGameWorkspaceSection = .overview
   @State private var isChangingAttendance = false
+  @State private var gameVideoEnabled = false
 
   init(calendarItem: SDGameCalendarItem) {
     eventId = calendarItem.event.id
@@ -45,6 +46,10 @@ struct GameDetailView: View {
             .foregroundStyle(.white)
           }
           sectionPicker
+          if gameVideoEnabled, let game = item.game {
+            NavigationLink { GameVideoView(gameID: game.id) } label: { Label("Game Video", systemImage: "video.fill") }
+              .buttonStyle(.bordered)
+          }
           workspaceSection(item)
         }
         .padding(DHDTheme.pagePadding)
@@ -56,6 +61,11 @@ struct GameDetailView: View {
     .navigationTitle("Event")
     .task(id: "\(appState.activeOrgId?.uuidString ?? ""):\(eventId?.uuidString ?? gameId?.uuidString ?? "")") {
       await load()
+      gameVideoEnabled = false
+      if let service = appState.supabase, let id = item?.game?.id {
+        struct Params: Encodable { let p_game: UUID }
+        gameVideoEnabled = (try? await service.client.rpc("sd_can_view_game_video", params: Params(p_game: id)).execute().value) ?? false
+      }
     }
     .alert("Game unavailable", isPresented: Binding(
       get: { errorText != nil }, set: { if !$0 { errorText = nil } }

@@ -8,9 +8,12 @@ struct CoachPlayerProfileView: View {
   enum Tab: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case calendar = "Calendar"
+    case progress = "Progress"
+    case videos = "Videos"
     case testing = "Testing"
     case program = "Program"
     case analysis = "Analysis"
+    case rAnalysis = "R Analysis"
     case developmentAI = "Development AI"
     var id: String { rawValue }
 
@@ -23,7 +26,18 @@ struct CoachPlayerProfileView: View {
   @State private var canManagePlayer = true
 
   var body: some View {
-    content
+    VStack(spacing: 0) {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack {
+          ForEach(Tab.visible(playerDevelopmentAIEnabled: appState.isPlayerDevelopmentCopilotEnabled)) { section in
+            Button(section.rawValue) { tab = section }
+              .buttonStyle(.bordered)
+              .tint(tab == section ? HP.Color.accent : HP.Color.textMuted)
+          }
+        }.padding(HP.Space.sm)
+      }
+      content
+    }
       .background(HP.Color.bg)
       .toolbar {
 #if os(macOS)
@@ -93,12 +107,18 @@ struct CoachPlayerProfileView: View {
       CoachPlayerOverviewView(player: player)
     case .calendar:
       CoachPlayerCalendarView(player: player)
+    case .progress:
+      PlayerDevelopmentProfileWorkspaceView(playerId: player.id)
+    case .videos:
+      NativeSharedVideoLibraryView(playerId: player.id)
     case .testing:
       CoachPlayerTestingCRUDView(player: player, canManagePlayer: canManagePlayer)
     case .program:
       CoachPlayerProgramAssignerView(player: player, canManagePlayer: canManagePlayer)
     case .analysis:
       CoachPlayerAnalysisView(player: player)
+    case .rAnalysis:
+      NativePlayerAnalyticsView(playerId: player.id, playerName: player.displayName)
     case .developmentAI:
       if appState.isPlayerDevelopmentCopilotEnabled {
         PlayerDevelopmentAIWorkspaceView(player: player)
@@ -451,7 +471,7 @@ private struct CoachPlayerProgramAssignerView: View {
     isWorking = true
     defer { isWorking = false }
     do {
-      coachTemplates = try await supabase.listMyCoachTemplates()
+      coachTemplates = try await supabase.listMyCoachTemplates(orgId: appState.activeOrgId)
       activeAssignments = try await supabase.fetchActiveAssignments(
         playerId: player.id,
         orgId: appState.activeOrgId

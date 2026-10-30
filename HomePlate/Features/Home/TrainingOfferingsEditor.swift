@@ -23,21 +23,24 @@ struct HPTrainingOfferingsEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        Text("Choose this trainer’s services. Blank overrides inherit service defaults. Saving replaces this trainer’s offering list atomically.")
+        Text("Choose the services this trainer offers. Leave optional settings blank to use each service’s defaults.")
         ForEach($drafts) { $draft in
           Section(draft.name) {
             Toggle("Offered by this trainer", isOn: $draft.enabled)
             if draft.enabled {
+              DisclosureGroup("Custom settings (optional)") {
               TextField("Description override", text: $draft.description, axis: .vertical)
               TextField("Duration override (minutes)", text: $draft.duration)
               TextField("Capacity override", text: $draft.capacity)
-              TextField("Public price override (cents)", text: $draft.publicPrice)
-              TextField("Member price override (cents)", text: $draft.memberPrice)
+              HPOptionalMoneyField(label: "Public price", rawCents: $draft.publicPrice)
+              HPOptionalMoneyField(label: "Member price", rawCents: $draft.memberPrice)
               Picker("Booking mode", selection: $draft.bookingMode) {
                 Text("Use service default").tag("")
-                ForEach(["disabled", "inquiry", "free", "paid", "package_credit"], id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ")).tag($0) }
+                ForEach(["disabled", "inquiry", "free", "paid"], id: \.self) { Text(HPReadableValue.words($0)).tag($0) }
+              }
               }
               Toggle("Publicly visible", isOn: $draft.publicVisible)
+              DisclosureGroup("Locations and spaces") {
               ForEach(workspace.locations ?? []) { location in
                 Toggle(location.name, isOn: Binding(get: { draft.locations.contains(location.id) }, set: { selected in
                   if selected { draft.locations.insert(location.id) } else { draft.locations.remove(location.id) }
@@ -47,6 +50,7 @@ struct HPTrainingOfferingsEditor: View {
                 Toggle(resource.name, isOn: Binding(get: { draft.resources.contains(resource.id) }, set: { selected in
                   if selected { draft.resources.insert(resource.id) } else { draft.resources.remove(resource.id) }
                 }))
+              }
               }
             }
           }

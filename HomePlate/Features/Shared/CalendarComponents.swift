@@ -59,7 +59,7 @@ struct DHDCalendarDayCellView: View {
     let base = min(cellSize.width, cellSize.height)
     let cellPad: CGFloat = dynamicTypeSize.isAccessibilitySize
       ? max(4, min(7, base * 0.12))
-      : max(6, min(10, base * 0.18))
+      : max(3, min(8, base * 0.10))
 
     VStack(alignment: .leading, spacing: 4) {
       HStack(alignment: .top, spacing: 2) {
@@ -67,10 +67,11 @@ struct DHDCalendarDayCellView: View {
           .font(dayNumberFont)
           .monospacedDigit()
           .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
           .layoutPriority(1)
           .foregroundStyle(dayNumberColor)
         Spacer(minLength: 0)
-        if isToday { todayMark }
+        if isToday && cellSize.width >= 48 { todayMark }
       }
 
       Spacer(minLength: 0)

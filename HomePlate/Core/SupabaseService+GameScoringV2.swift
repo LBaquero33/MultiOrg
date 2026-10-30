@@ -2,6 +2,21 @@ import Foundation
 import HomePlateScoringCore
 import Supabase
 
+extension SupabaseService {
+  func gameVideoClockAnchor() async throws -> GameVideoClockAnchor {
+    let sent = ProcessInfo.processInfo.systemUptime
+    let date: Date = try await client.rpc("sd_game_video_clock").execute().value
+    return try GameVideoClockAnchor(serverDate: date, sent: sent, received: ProcessInfo.processInfo.systemUptime)
+  }
+  func saveGameCaptureMarker(_ marker: GameVideoCaptureMarker) async throws {
+    struct Params: Encodable {
+      let p_event: UUID; let p_entered: Date; let p_uncertainty: Double?
+    }
+    try await client.rpc("sd_save_game_capture_marker", params: Params(p_event: marker.eventID,
+      p_entered: marker.timestamp.enteredAt, p_uncertainty: marker.timestamp.uncertaintyMilliseconds)).execute()
+  }
+}
+
 struct SDScorekeeperLeaseV2: Decodable, Sendable {
   let state: String
   let control_token: String?

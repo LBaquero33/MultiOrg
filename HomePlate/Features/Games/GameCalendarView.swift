@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct GameCalendarView: View {
+  var gamesOnly = false
+  var teamId: UUID? = nil
   @EnvironmentObject private var appState: AppState
 
   @State private var visibleMonth = DateUtils.startOfMonthET(Date())
@@ -10,6 +12,12 @@ struct GameCalendarView: View {
   @State private var isLoading = false
   @State private var errorText: String?
   @State private var editor: CanonicalEventEditorPresentation?
+  @State private var daySheet: GameDaySheet?
+
+  private struct GameDaySheet: Identifiable {
+    let id = UUID()
+    let date: Date
+  }
 
   var body: some View {
     NavigationStack {
@@ -24,16 +32,15 @@ struct GameCalendarView: View {
             isLoading: isLoading,
             onPrev: { moveMonth(-1) },
             onNext: { moveMonth(1) },
-            onSelect: { selectedDate = DateUtils.startOfDayET($0) }
+            onSelect: { openDay($0) }
           )
 
-          eventTypeFilter
-          agenda
+          if !gamesOnly { eventTypeFilter }
         }
         .padding(DHDTheme.pagePadding)
       }
       .background(DHDTheme.pageBackground)
-      .navigationTitle("Calendar")
+      .navigationTitle(gamesOnly ? "Games" : "Calendar")
       .toolbar {
         if canCreateEvents {
           ToolbarItem(placement: .primaryAction) {
@@ -47,8 +54,11 @@ struct GameCalendarView: View {
         }
       }
       .refreshable { await reload() }
-      .task(id: reloadKey) { await reload() }
-      .sheet(item: $editor) { presentation in
+      .task(id: reloadKey) {
+        if gamesOnly { selectedType = .game }
+        await reload()
+      }
+      .sheet(item: Binding(get: { daySheet == nil ? editor : nil }, set: { editor = $0 })) { presentation in
         CanonicalEventEditorView(
           event: presentation.event,
           duplicatesEvent: presentation.duplicatesEvent,
@@ -58,6 +68,37 @@ struct GameCalendarView: View {
           Task { await reload() }
         }
         .environmentObject(appState)
+      }
+      .sheet(item: $daySheet) { selection in
+        NavigationStack {
+          ScrollView {
+            VStack(alignment: .leading, spacing: DHDTheme.sectionSpacing) {
+              if !gamesOnly { eventTypeFilter }
+              agenda
+            }
+            .padding(DHDTheme.pagePadding)
+          }
+          .background(DHDTheme.pageBackground)
+          .navigationTitle(selection.date.formatted(date: .complete, time: .omitted))
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+              Button("Close") { daySheet = nil }
+            }
+          }
+        }
+        .presentationDetents([.medium, .large])
+        .sheet(item: $editor) { presentation in
+          CanonicalEventEditorView(
+            event: presentation.event,
+            duplicatesEvent: presentation.duplicatesEvent,
+            teams: appState.authorizedScheduleTeams
+          ) {
+            editor = nil
+            Task { await reload() }
+          }
+          .environmentObject(appState)
+        }
       }
       .alert("Calendar unavailable", isPresented: Binding(
         get: { errorText != nil },
@@ -181,7 +222,7 @@ struct GameCalendarView: View {
   }
 
   private var reloadKey: String {
-    "\(appState.activeOrgId?.uuidString ?? "none"):\(DateUtils.toISODate(visibleMonth))"
+    "\(appState.activeOrgId?.uuidString ?? "none"):\(teamId?.uuidString ?? "all"):\(gamesOnly):\(DateUtils.toISODate(visibleMonth))"
   }
 
   private var canCreateEvents: Bool {
@@ -195,6 +236,12 @@ struct GameCalendarView: View {
     selectedDate = DateUtils.startOfDayET(visibleMonth)
   }
 
+  private func openDay(_ date: Date) {
+    let day = DateUtils.startOfDayET(date)
+    selectedDate = day
+    daySheet = GameDaySheet(date: day)
+  }
+
   private func reload() async {
     guard let service = appState.supabase, let orgId = appState.activeOrgId else {
       items = []
@@ -205,9 +252,12 @@ struct GameCalendarView: View {
     do {
       let start = DateUtils.startOfMonthET(visibleMonth)
       let end = DateUtils.calendarET.date(byAdding: .month, value: 1, to: start) ?? start
-      let events = try await service.listCanonicalEvents(
+      let loadedEvents = try await service.listCanonicalEvents(
         organizationId: orgId, from: start, through: end
       )
+      let events = loadedEvents.filter { event in
+        (teamId == nil || event.team_id == teamId) && (!gamesOnly || event.event_type == .game)
+      }
       let games = try await service.listGames(
         organizationId: orgId, eventIds: events.map(\.id)
       )

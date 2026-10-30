@@ -204,7 +204,7 @@ struct PlayerDetailView: View {
     isWorking = true
     defer { isWorking = false }
     do {
-      coachTemplates = try await supabase.listMyCoachTemplates()
+      coachTemplates = try await supabase.listMyCoachTemplates(orgId: appState.activeOrgId)
       activeAssignment = try await supabase.fetchActiveAssignment(
         playerId: player.id,
         orgId: appState.activeOrgId

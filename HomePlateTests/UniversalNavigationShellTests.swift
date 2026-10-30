@@ -21,7 +21,8 @@ final class UniversalNavigationShellTests: XCTestCase {
       enabled_modules: ["athletes", "lessons", "messages"],
       navigation_ids: ["home", "athletes", "lessons", "messages", "account"], capabilities: [])
     let inventory = HPAppNavigationInventory.training(experience: experience, canAdminister: false)
-    XCTAssertEqual(inventory.compactItems.map(\.destination), [.coachToday, .coachPlayers, .coachSchedule])
+    XCTAssertEqual(inventory.compactItems.map(\.destination), [.coachToday, .coachSchedule])
+    XCTAssertTrue(inventory.directoryItems.contains { $0.destination == .coachPlayers })
     XCTAssertFalse(inventory.regularItems.contains { [.coachTeams, .games, .payments, .organizationAdmin].contains($0.destination) })
     XCTAssertTrue(inventory.regularItems.contains { $0.destination == .chat })
   }
@@ -48,10 +49,10 @@ final class UniversalNavigationShellTests: XCTestCase {
     )
     XCTAssertEqual(
       inventory.regularItems.map(\.title),
-      ["Today", "Calendar", "Facilities", "Programs & Development", "Progress", "Messages", "Account"]
+      ["Today", "Calendar", "Facilities", "Programs", "Progress", "Messages", "Account"]
     )
-    XCTAssertTrue(inventory.compactItems.isEmpty)
-    XCTAssertTrue(inventory.directoryItems.isEmpty)
+    XCTAssertEqual(inventory.compactItems.map(\.destination), [.playerToday, .playerCalendar, .playerProgram, .chat])
+    XCTAssertEqual(inventory.directoryItems.map(\.destination), [.playerFacilities, .playerTrends, .account])
   }
 
   func testPlayerFeatureGatesRemoveOnlyGatedDestinations() {
@@ -83,7 +84,7 @@ final class UniversalNavigationShellTests: XCTestCase {
     )
     XCTAssertEqual(
       inventory.regularItems.map(\.title),
-      ["Home", "Children", "Calendar", "Programs & Development", "Payments", "Messages", "Account"]
+      ["Home", "Children", "Calendar", "Programs", "Payments", "Messages", "Account"]
     )
     XCTAssertTrue(inventory.compactItems.isEmpty)
     XCTAssertTrue(inventory.directoryItems.isEmpty)
@@ -196,6 +197,7 @@ final class UniversalNavigationShellTests: XCTestCase {
 
     XCTAssertTrue(source.contains("role == .coach || role == .owner"))
     XCTAssertTrue(source.contains("canSelectTeam && !activeTeamScopes.isEmpty"))
+    XCTAssertTrue(source.contains("type != \"training_facility\" && type != \"independent_trainer\""))
     XCTAssertTrue(source.contains("Text(\"All Teams\")"))
   }
 

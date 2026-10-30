@@ -205,7 +205,8 @@ struct TeamSchedulingTests {
     let source = try sourceFile("HomePlate/Features/Coach/CoachTeamCommandCenterView.swift")
     #expect(source.contains("listTeamEvents"))
     #expect(source.contains("teamEvents"))
-    #expect(source.contains("Next Event"))
+    #expect(source.contains("Next coaching plan"))
+    #expect(source.contains("officialEvents"))
     #expect(!source.contains("The next scheduled team item will appear here"))
     #expect(!source.contains("Scheduled team operations will appear here"))
   }

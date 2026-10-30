@@ -39,9 +39,7 @@ struct SDParentBillingView: View {
           }
         }
         HPCard {
-          VStack(alignment: .leading, spacing: HP.Space.xs) {
-            Text("About These Payments")
-              .font(HP.Font.headline)
+          DisclosureGroup("About These Payments") {
             Text("Organization payment requests cover baseball services delivered outside the app. They are separate from Apple In-App Purchase and never unlock Home Plate digital access.")
               .font(HP.Font.caption)
               .foregroundStyle(HP.Color.textMuted)

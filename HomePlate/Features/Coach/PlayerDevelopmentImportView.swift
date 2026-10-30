@@ -728,6 +728,7 @@ struct PlayerDevelopmentImportWorkspaceView: View {
       } metrics: {
         EmptyView()
       } supporting: {
+        importProgressCard
         selectCard(service: service, organizationId: organizationId, userId: userId)
         if let inspection = model.inspection { inspectionCard(inspection) }
         if let inspection = model.inspection,
@@ -766,6 +767,41 @@ struct PlayerDevelopmentImportWorkspaceView: View {
         withAnimation { proxy.scrollTo(anchor, anchor: .top) }
       }
     }
+  }
+
+  private var importProgressCard: some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Import workflow")
+        HStack(spacing: HP.Space.xs) {
+          importStep("1", "File", complete: model.inspection != nil)
+          importStep("2", "Review", complete: model.preview != nil)
+          importStep("3", "Import", complete: model.phase == .completed)
+        }
+        Text(importProgressMessage)
+          .font(HP.Font.caption)
+          .foregroundStyle(HP.Color.textMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func importStep(_ number: String, _ title: String, complete: Bool) -> some View {
+    HStack(spacing: 5) {
+      Image(systemName: complete ? "checkmark.circle.fill" : "\(number).circle")
+        .foregroundStyle(complete ? HP.Color.success : HP.Color.textMuted)
+      Text(title)
+        .font(HP.Font.caption.weight(.semibold))
+        .foregroundStyle(complete ? HP.Color.text : HP.Color.textMuted)
+    }
+    .frame(maxWidth: .infinity)
+  }
+
+  private var importProgressMessage: String {
+    if model.phase == .completed { return "Import complete. The source is ready in Sessions & Data and on the web analytics page." }
+    if model.preview != nil { return "Review accepted, rejected, warning, and duplicate rows before confirming the import." }
+    if model.inspection != nil { return "Confirm the detected player, TrackMan units, and column mapping, then build a preview." }
+    return "Choose a TrackMan, Rapsodo, HitTrax, CSV, or TSV export to begin. Nothing is saved until you confirm the final import."
   }
 
   private var sourcePlayerSelectionPending: Bool {
@@ -958,18 +994,23 @@ struct PlayerDevelopmentImportWorkspaceView: View {
           badge(inspection.detectedDelimiter)
           badge("\(inspection.rowCount) rows")
         }
-        ScrollView(.horizontal, showsIndicators: true) {
-          HStack(spacing: HP.Space.xs) {
-            ForEach(inspection.headers, id: \.self) { header in
-              Text(header)
-                .font(HP.Font.caption.monospaced())
-                .foregroundStyle(HP.Color.text)
-                .padding(HP.Space.xs)
-                .background(HP.Color.surfaceMuted)
-                .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+        DisclosureGroup("File columns (\(inspection.headers.count))") {
+          ScrollView(.horizontal, showsIndicators: true) {
+            HStack(spacing: HP.Space.xs) {
+              ForEach(inspection.headers, id: \.self) { header in
+                Text(header)
+                  .font(HP.Font.caption.monospaced())
+                  .foregroundStyle(HP.Color.text)
+                  .padding(HP.Space.xs)
+                  .background(HP.Color.surfaceMuted)
+                  .clipShape(RoundedRectangle(cornerRadius: HP.Radius.sm, style: .continuous))
+              }
             }
           }
         }
+        .font(HP.Font.callout.weight(.semibold))
+        .foregroundStyle(HP.Color.text)
+        .tint(HP.Color.accent)
         if !inspection.providerAdapterActive && provider != .genericCSV {
           Label("Automatic \(provider.label) detection is inactive; confirm every mapping manually.", systemImage: "hand.raised.fill")
             .font(HP.Font.caption)
@@ -1589,7 +1630,12 @@ struct PlayerDevelopmentImportWorkspaceView: View {
       }
       operationTask?.cancel()
       operationTask = Task {
-        await model.uploadAndInspect(client: service, organizationId: orgId, userId: userId, playerId: player?.id, provider: provider, fileName: url.lastPathComponent, data: data)
+        do {
+          let names = try await HPUploadNaming.confirm([url.lastPathComponent])
+          guard !Task.isCancelled else { return }
+          await model.uploadAndInspect(client: service, organizationId: orgId, userId: userId, playerId: player?.id, provider: provider, fileName: names[0], data: data)
+        } catch is CancellationError { return }
+        catch { model.errorMessage = error.localizedDescription }
       }
     } catch { model.errorMessage = "The selected file could not be read." }
   }

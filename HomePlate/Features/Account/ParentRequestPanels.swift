@@ -368,8 +368,10 @@ struct CoachParentRequestsPanel: View {
     do {
       requests = try await supabase.coachListParentInviteRequests(status: "requested")
     } catch {
-      loadErrorText = error.localizedDescription
-      errorText = error.localizedDescription
+      guard !Task.isCancelled else { return }
+      // A read failure is recoverable in this panel; do not interrupt the
+      // entire Account screen with a second modal error.
+      loadErrorText = "Parent requests could not be loaded. Please retry."
     }
   }
 

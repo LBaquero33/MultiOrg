@@ -45,6 +45,9 @@ struct SDPlayerProgramView: View {
       } metrics: {
         EmptyView()
       } details: {
+        if let playerId = appState.myProfile?.id {
+          NavigationLink { NativeSharedVideoLibraryView(playerId: playerId) } label: { Label("My Videos", systemImage: "play.rectangle") }
+        }
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.md) {
             HPSectionHeader("Assigned programs") {
@@ -216,8 +219,9 @@ struct SDPlayerProgramView: View {
       )
       let loadedTemplates = try await supabase.fetchProgramTemplates(ids: assignments.map(\.template_id))
       let templatesById = Dictionary(uniqueKeysWithValues: loadedTemplates.map { ($0.id, $0) })
+      let revisions = try await supabase.assignedProgramRevisions(ids: assignments.map(\.id))
       let resolved = assignments.compactMap { assignment -> PlayerProgramRecord? in
-        guard let template = templatesById[assignment.template_id] else { return nil }
+        guard let template = revisions[assignment.id]?.template ?? templatesById[assignment.template_id] else { return nil }
         return PlayerProgramRecord(assignment: assignment, template: template)
       }
       programs = resolved.sorted { lhs, rhs in
@@ -243,7 +247,7 @@ struct SDPlayerProgramView: View {
       return
     }
     do {
-      let loadedDays = try await supabase.fetchProgramDays(templateId: program.template.id)
+      let loadedDays = try await supabase.assignedProgramDays(assignmentId: program.assignment.id, templateId: program.template.id)
       guard selectedProgram?.id == program.id else { return }
       days = loadedDays
       if resetSelection {

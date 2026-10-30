@@ -25,7 +25,7 @@ struct FinanceDashboardView: View {
       } else {
         ScrollView { dashboardContent }
           .background(HP.Color.bg)
-          .navigationTitle("Finance")
+          .navigationTitle("Payments")
       }
     }
     .task(id: "\(organizationId.uuidString)|\(viewModel.loadKey)|\(platformSupportMode)") {
@@ -37,7 +37,7 @@ struct FinanceDashboardView: View {
 
   private var dashboardContent: some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
-      HPWorkspaceHeader("Finance", orgLabel: headerOrgLabel, context: headerContext) {
+      HPWorkspaceHeader("Financial overview", orgLabel: headerOrgLabel, context: headerContext) {
         HPButton(title: "Refresh", systemImage: "arrow.clockwise", variant: .secondary, size: .sm) {
           Task { await refresh() }
         }
@@ -116,7 +116,7 @@ struct FinanceDashboardView: View {
 
   private var headerContext: String {
     if let range = viewModel.snapshot?.overview.overview.range {
-      return "\(range.start_date) – \(range.end_date)"
+      return "\(HPReadableValue.date(range.start_date)) – \(HPReadableValue.date(range.end_date))"
     }
     return viewModel.rangeSelection.preset.title
   }
@@ -205,7 +205,7 @@ struct FinanceDateRangePicker: View {
         }
 
         if let serverRange {
-          Text("\(serverRange.start_date) – \(serverRange.end_date) · \(serverRange.timezone)")
+          Text("\(HPReadableValue.date(serverRange.start_date)) – \(HPReadableValue.date(serverRange.end_date)) · \(serverRange.timezone)")
             .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)
         }

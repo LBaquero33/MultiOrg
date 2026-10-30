@@ -38,6 +38,35 @@ struct CrossPlatformOperationsClosureTests {
     #expect(service.contains("func cancelCanonicalEvent"))
   }
 
+  @Test("Calendar day selection is modal instead of inline")
+  func calendarDaySelectionIsModalInsteadOfInline() throws {
+    let games = try sourceFile("HomePlate/Features/Games/GameCalendarView.swift")
+    let layout = try sourceFile("HomePlate/DesignSystem/Templates/HPCalendarScreenTemplate.swift")
+    let player = try sourceFile("HomePlate/Features/Player/SDPlayerCalendarView.swift")
+    let parent = try sourceFile("HomePlate/Features/Parent/ParentChildCalendarView.swift")
+    let coach = try sourceFile("HomePlate/Features/Coach/CoachPlayerCalendarView.swift")
+    let coachFacilities = try sourceFile("HomePlate/Features/Coach/CoachFacilitiesView.swift")
+    let playerFacilities = try sourceFile("HomePlate/Features/Player/SDPlayerFacilitiesView.swift")
+    let parentFacilities = try sourceFile("HomePlate/Features/Parent/SDParentFacilitiesView.swift")
+
+    #expect(games.contains("onSelect: { openDay($0) }"))
+    #expect(games.contains(".sheet(item: $daySheet)"))
+    #expect(!games.contains("if !gamesOnly { eventTypeFilter }\n          agenda"))
+    #expect(layout.contains("calendar(context).frame(maxWidth: .infinity, alignment: .top)"))
+    #expect(!layout.contains("calendar(context).frame(maxWidth: .infinity, alignment: .top)\n        agenda(context)"))
+    #expect(player.contains("onSelect: openDay"))
+    #expect(player.contains(".sheet(item: $daySheet)"))
+    #expect(parent.contains("onSelect: openDay"))
+    #expect(parent.contains(".sheet(item: $daySheet)"))
+    #expect(coach.contains("onSelect: openDay"))
+    #expect(coach.contains(".sheet(item: $daySheet)"))
+    for facilities in [coachFacilities, playerFacilities, parentFacilities] {
+      #expect(facilities.contains("onSelect:"))
+      #expect(facilities.contains("dayModal ="))
+      #expect(facilities.contains(".sheet(item: $dayModal)"))
+    }
+  }
+
   @Test("Program workspace exposes templates tracker and day details")
   func programTrackerContract() throws {
     let programs = try sourceFile("HomePlate/Features/Coach/CoachProgramsView.swift")
@@ -47,7 +76,7 @@ struct CrossPlatformOperationsClosureTests {
     #expect(programs.contains("Templates"))
     #expect(programs.contains("UnifiedPlayerDevelopmentWorkspaceView"))
     #expect(programs.contains("init(initialWorkspace: Workspace = .workspace)"))
-    #expect(programs.contains("case templates = \"Program Builder\""))
+    #expect(programs.contains("case templates = \"Library\""))
     #expect(workspace.contains("CoachProgramsView(initialWorkspace: .templates)"))
     #expect(workspace.contains("NativePlayerAnalyticsView(playerId: player.id"))
     for text in ["All players", "Active", "Ended", "Submitted", "Upcoming", "No Submission"] {

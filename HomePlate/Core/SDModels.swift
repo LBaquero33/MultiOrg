@@ -1,4 +1,62 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+/// Shared explicit review for user-selected uploads. Never changes the media bytes or extension.
+@MainActor
+enum HPUploadNaming {
+  static func filename(original: String, stem: String) throws -> String {
+    let value = stem.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+    guard !value.isEmpty, value != ".", value != "..", value.count <= 160,
+      value.rangeOfCharacter(from: .controlCharacters) == nil, !value.contains("/"), !value.contains("\\") else {
+      throw NSError(domain: "UploadNaming", code: 1, userInfo: [NSLocalizedDescriptionKey: "Use a name of 1–160 characters without slashes or control characters."])
+    }
+    let ext = (original as NSString).pathExtension
+    return ext.isEmpty ? value : "\(value).\(ext)"
+  }
+  static func confirm(_ originals: [String]) async throws -> [String] {
+    guard !originals.isEmpty else { return [] }
+    #if canImport(UIKit)
+    // Wait briefly for the system picker to finish dismissal before presenting review.
+    try await Task.sleep(for: .milliseconds(250))
+    guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }),
+      let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else { throw CancellationError() }
+    var presenter = root
+    while let presented = presenter.presentedViewController { presenter = presented }
+    guard !(presenter is UIAlertController), !presenter.isBeingDismissed else { throw CancellationError() }
+    return try await withCheckedThrowingContinuation { continuation in
+      let alert = UIAlertController(title: originals.count == 1 ? "Name your file" : "Name your files", message: "Confirm or edit each name. File extensions and contents are preserved.", preferredStyle: .alert)
+      for original in originals {
+        alert.addTextField { field in
+          field.placeholder = original
+          field.text = (original as NSString).deletingPathExtension
+          field.accessibilityLabel = "Name for \(original)"
+        }
+      }
+      alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in continuation.resume(throwing: CancellationError()) })
+      alert.addAction(UIAlertAction(title: "Confirm names", style: .default) { _ in
+        do {
+          let values = try originals.enumerated().map { index, original in try filename(original: original, stem: alert.textFields?[index].text ?? "") }
+          continuation.resume(returning: values)
+        } catch { continuation.resume(throwing: error) }
+      })
+      presenter.present(alert, animated: true)
+    }
+    #elseif canImport(AppKit)
+    let alert = NSAlert(); alert.messageText = "Name your files"; alert.informativeText = "Confirm or edit each name. Extensions are preserved."
+    let fields = originals.map { original in let field = NSTextField(string: (original as NSString).deletingPathExtension); field.placeholderString = original; return field }
+    let stack = NSStackView(views: fields); stack.orientation = .vertical; stack.frame = NSRect(x: 0, y: 0, width: 360, height: originals.count * 32)
+    alert.accessoryView = stack; alert.addButton(withTitle: "Confirm names"); alert.addButton(withTitle: "Cancel")
+    guard alert.runModal() == .alertFirstButtonReturn else { throw CancellationError() }
+    return try originals.enumerated().map { index, original in try filename(original: original, stem: fields[index].stringValue) }
+    #else
+    throw CancellationError()
+    #endif
+  }
+}
 
 enum SDProgramKind: String, Codable, CaseIterable, Identifiable {
   case strength
@@ -112,6 +170,9 @@ struct SDExerciseLibraryItem: Identifiable, Decodable, Equatable {
 }
 
 struct SDFacility: Identifiable, Decodable, Equatable {
+  var opens_at: String? = nil
+  var closes_at: String? = nil
+  var hours_timezone: String? = nil
   let id: UUID
   let org_id: UUID?
   let name: String

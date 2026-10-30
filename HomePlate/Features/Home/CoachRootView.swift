@@ -131,7 +131,9 @@ struct CoachRootView: View {
   private func destinationView(_ destination: HPAppNavigationDestination) -> some View {
     switch destination {
     case .coachToday:
-      if isTraining { HPTrainingOperationsView(mode: .today).id(appState.activeOrgAuthorizationKey) } else { CoachTodayFoundationView() }
+      if isTraining && (trainingExperience?.organization_type ?? appState.availableOrganizations.first(where: { $0.id == appState.activeOrgId })?.organization_type) != "hybrid_academy" {
+        HPTrainingHomeView().id(appState.activeOrgAuthorizationKey)
+      } else { CoachTodayFoundationView() }
     case .coachTeam:
       CoachTeamCommandCenterView()
     case .coachSchedule:
@@ -169,7 +171,7 @@ struct CoachRootView: View {
         disabledFeatureView("Chat")
       }
     case .games:
-      GameCalendarView()
+      GameCalendarView(gamesOnly: true, teamId: appState.selectedTeamId)
     case .payments:
       if appState.canAdminActiveOrg, let organizationId = appState.activeOrgId {
 #if os(macOS)
@@ -271,6 +273,141 @@ struct CoachRootView: View {
   }
 }
 
+/// Team's Home hierarchy, backed by the authorized training workspace.
+struct HPTrainingHomeView: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var workspace: HPTrainingWorkspace?
+  @State private var programCount: Int?
+  @State private var errorText: String?
+  @State private var now = Date()
+
+  private var isTrainer: Bool {
+    appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type == "independent_trainer"
+  }
+  private var organizationName: String {
+    appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.displayName ?? "Home Plate"
+  }
+  private var upcoming: [HPTrainingWorkspace.Appointment] {
+    (workspace?.appointments ?? []).filter {
+      !["cancelled", "canceled", "completed", "no_show"].contains($0.status) &&
+      (HPTrainingCalendar.date($0.ends_at) ?? .distantPast) > now
+    }.sorted { (HPTrainingCalendar.date($0.starts_at) ?? .distantPast) < (HPTrainingCalendar.date($1.starts_at) ?? .distantPast) }
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: HP.Space.lg) {
+          ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top) { heading; Spacer(); calendarLink }
+            VStack(alignment: .leading, spacing: HP.Space.sm) { heading; calendarLink }
+          }
+          if let errorText {
+            HPErrorState(title: "We couldn't refresh Home", message: errorText, onRetry: { Task { await reload() } })
+          }
+          if let workspace {
+            if !(workspace.source_diagnostics["unavailable_sources"] ?? []).isEmpty {
+              Text("Some information is unavailable. Refresh to try again.").font(HP.Font.caption).foregroundStyle(HP.Color.warning)
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: HP.Space.sm), GridItem(.flexible(), spacing: HP.Space.sm), GridItem(.flexible(), spacing: HP.Space.sm)], spacing: HP.Space.sm) {
+              metric(isTrainer ? "Athletes" : "Resources", value: count(isTrainer ? workspace.athletes.count : workspace.resources?.filter { $0.is_active != false }.count, workspace: workspace))
+              metric(isTrainer ? "Programs" : "Athletes", value: count(isTrainer ? programCount : workspace.athletes.count, workspace: workspace), hint: isTrainer ? "Assigned to your athletes" : "Athlete records")
+              metric(isTrainer ? "Sessions" : "Bookings", value: count(min(upcoming.count, 6), workspace: workspace), hint: "Next 6 scheduled")
+            }
+            HPTrainingUpcomingCard(workspace: workspace, appointments: Array(upcoming.prefix(6)))
+          } else if errorText == nil {
+            ProgressView("Loading Home…")
+          }
+        }.padding(HP.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+      }.background(HP.Color.bg)
+        .task(id: appState.activeOrgAuthorizationKey) { await reload() }
+        .refreshable { await reload() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await reload() } } }
+    }
+  }
+  private var heading: some View {
+    VStack(alignment: .leading, spacing: HP.Space.xs) {
+      Text("Home").font(HP.Font.display).foregroundStyle(HP.Color.text)
+      Text("\(organizationName) — what's happening next.").font(HP.Font.body).foregroundStyle(HP.Color.textMuted)
+    }
+  }
+  private var calendarLink: some View {
+    NavigationLink { HPTrainingOperationsView(mode: .sessions) } label: { Label("Open calendar", systemImage: "calendar") }
+      .buttonStyle(HPButtonStyle(variant: .primary, size: .md))
+  }
+  private func count(_ value: Int?, workspace: HPTrainingWorkspace) -> String {
+    guard (workspace.source_diagnostics["unavailable_sources"] ?? []).isEmpty, let value else { return "—" }
+    return String(value)
+  }
+  private func metric(_ title: String, value: String, hint: String? = nil) -> some View {
+    HPCard(style: .flat) {
+      VStack(alignment: .leading, spacing: HP.Space.xs) {
+        Text(title.uppercased()).font(HP.Font.eyebrow).foregroundStyle(HP.Color.textMuted)
+        Text(value).font(HP.Font.number()).foregroundStyle(HP.Color.text)
+        if let hint { Text(hint).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted) }
+      }.frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+    }
+  }
+  private func reload() async {
+    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
+    let identity = appState.activeOrgAuthorizationKey
+    do {
+      let loaded = try await service.trainingWorkspace(organizationId: org)
+      var templates = Set<UUID>()
+      var programsAvailable = true
+      if isTrainer {
+        for athlete in loaded.athletes {
+          guard let playerId = athlete.athlete_user_id else { continue }
+          do {
+            let assignments = try await service.fetchActiveAssignments(playerId: playerId, orgId: org)
+            templates.formUnion(assignments.map(\.template_id))
+          } catch { programsAvailable = false }
+        }
+      }
+      guard !Task.isCancelled, identity == appState.activeOrgAuthorizationKey else { return }
+      workspace = loaded; programCount = programsAvailable ? templates.count : nil; now = Date(); errorText = nil
+    } catch {
+      guard !Task.isCancelled, identity == appState.activeOrgAuthorizationKey else { return }
+      errorText = "Please retry. Previously loaded records may be out of date."
+    }
+  }
+}
+
+struct HPTrainingUpcomingCard: View {
+  let workspace: HPTrainingWorkspace
+  let appointments: [HPTrainingWorkspace.Appointment]
+  var title = "Coming up"
+  var body: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader(title)
+        if appointments.isEmpty {
+          Text((workspace.source_diagnostics["unavailable_sources"] ?? []).isEmpty ? "Nothing scheduled yet" : "Schedule unavailable").foregroundStyle(HP.Color.textMuted)
+        }
+        ForEach(appointments) { appointment in
+          NavigationLink {
+            HPTrainingOperationsView(mode: .sessions, selectedAppointmentId: appointment.id)
+          } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              HStack {
+                Text(workspace.services.first { $0.id == appointment.service_id }?.name ?? "Training session").font(HP.Font.body.weight(.medium))
+                Spacer()
+                Image(systemName: "chevron.right").font(HP.Font.caption)
+              }
+              if let start = HPTrainingCalendar.date(appointment.starts_at) {
+                Text(start.formatted(date: .abbreviated, time: .shortened)).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+              }
+              Text(appointment.status.replacingOccurrences(of: "_", with: " ").capitalized).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }.foregroundStyle(HP.Color.text).padding(.vertical, HP.Space.xs)
+          }.buttonStyle(.plain)
+          if appointment.id != appointments.last?.id { Divider().overlay(HP.Color.border) }
+        }
+      }
+    }
+  }
+}
+
 struct HPTrainingOperationsView: View {
   enum Mode { case today, athletes, sessions }
   @EnvironmentObject private var appState: AppState
@@ -279,10 +416,10 @@ struct HPTrainingOperationsView: View {
   @State private var busy = false
   @State private var completion: HPTrainingWorkspace.Appointment?
   @State private var booking = false
-  @State private var credits = false
   @State private var now = Date()
   @State private var trainerFilter = "all"
   let mode: Mode
+  var selectedAppointmentId: UUID? = nil
 
   var body: some View {
     NavigationStack {
@@ -294,7 +431,8 @@ struct HPTrainingOperationsView: View {
           }
           if mode == .athletes {
             Section("Athletes") {
-              if workspace.athletes.isEmpty { Text("No athletes are available to your current role.") }
+              if workspace.athletes.isEmpty { HPEmptyState(title: "No athletes yet", message: "Manage athlete access in Organization Settings. Linked athletes will appear here.", systemImage: "person.3")
+                if appState.canAdminActiveOrg { NavigationLink("Manage people") { OrgAdminConsoleView() } } }
               ForEach(workspace.athletes) { athlete in
                 VStack(alignment: .leading) {
                   Text(athlete.display_name).font(.headline)
@@ -311,6 +449,7 @@ struct HPTrainingOperationsView: View {
             }
             Section(mode == .today ? "Today and needs closeout" : "Sessions") {
               let rows = workspace.appointments.filter { appointment in
+                (selectedAppointmentId == nil || appointment.id == selectedAppointmentId) &&
                 (trainerFilter == "all" || appointment.trainer_user_id?.uuidString == trainerFilter) &&
                 (mode == .sessions || date(appointment.starts_at).map { HPTrainingCalendar.isToday($0, now: now, timezone: organizationTimezone) } == true ||
                   (date(appointment.ends_at).map { $0 < now } == true && !terminal(appointment.status)))
@@ -340,11 +479,10 @@ struct HPTrainingOperationsView: View {
             }
           }
           Section("Organization tools") {
-            NavigationLink("Services, trainers and packages") {
+            NavigationLink("Services and trainers") {
               HPTrainingCatalogView(workspace: workspace) { await reload() }
             }
             Button("Book a session") { booking = true }
-            Button("Package balances and credit decisions") { credits = true }
             Link("Open booking, services and website tools", destination: URL(string: "https://www.homeplateapps.com/app/lessons")!)
             Text("Web sign-in may be required. Choose the same organization before making changes.").font(.caption)
           }
@@ -359,7 +497,7 @@ struct HPTrainingOperationsView: View {
                           Text("Shared session report").font(.title2.bold())
                           Text(outcome["summary"]?.stringValue ?? "No summary recorded.")
                             .textSelection(.enabled)
-                          Text("This report contains the outcome shared by staff. Attendance and package-credit decisions are separate.").font(.caption)
+                          Text("This report contains the outcome shared by staff.").font(.caption)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding()
                       }.navigationTitle("Session report")
                     } label: { Text(outcome["summary"]?.stringValue ?? "Session report").lineLimit(3) }
@@ -385,7 +523,6 @@ struct HPTrainingOperationsView: View {
       .sheet(isPresented: $booking) {
         if let workspace { HPTrainingBookingSheet(workspace: workspace, timezone: organizationTimezone) { await reload() } }
       }
-      .sheet(isPresented: $credits) { HPTrainingCreditsView() }
     }
   }
   private func terminal(_ status: String) -> Bool { ["completed", "cancelled", "no_show"].contains(status) }
@@ -450,10 +587,10 @@ private struct HPTrainingCompletionSheet: View {
         if appointment.status == "completed" {
           Section("Reason for correction") {
             TextField("Explain what needs correcting", text: $correctionReason, axis: .vertical)
-            Text("Previous attendance and reports remain in staff audit history. Credit decisions are separate.")
+            Text("Previous attendance and reports remain in staff audit history.")
           }
         }
-        Text("Choose attendance for every athlete. Package credits are used at booking confirmation, not charged again here. Staff review cancellation and no-show credits separately.")
+        Text("Choose attendance for every athlete and record the appropriate shared outcome.")
         ForEach(roster, id: \.athlete_id) { participant in
           Section(workspace.athletes.first { $0.id == participant.athlete_id }?.display_name ?? "Athlete") {
             Picker("Attendance", selection: Binding(get: { attendance[participant.athlete_id] ?? "" }, set: { attendance[participant.athlete_id] = $0 })) {
@@ -519,7 +656,6 @@ private struct HPTrainingBookingSheet: View {
   @State private var athleteId = ""
   @State private var serviceId = ""
   @State private var trainerId = ""
-  @State private var packageId = ""
   @State private var locationId = ""
   @State private var resourceIds: Set<UUID> = []
   @State private var startsAt = Date().addingTimeInterval(3600)
@@ -557,13 +693,6 @@ private struct HPTrainingBookingSheet: View {
             Toggle(resource.name, isOn: Binding(get: { resourceIds.contains(resource.id) }, set: { if $0 { resourceIds.insert(resource.id) } else { resourceIds.remove(resource.id) } }))
           }
         }
-        Section("Package funding") {
-          Picker("Package", selection: $packageId) {
-            Text("Do not use package credits").tag("")
-            ForEach((workspace.packages ?? []).filter(\.active)) { Text($0.name).tag($0.id.uuidString) }
-          }
-          Text("Selecting a package uses one existing credit when this booking is confirmed. An insufficient balance prevents the entire booking. No cash payment is collected here.").font(.caption)
-        }
         if let errorText { Text(errorText).foregroundStyle(.red) }
       }
       .navigationTitle("Book a session")
@@ -583,67 +712,14 @@ private struct HPTrainingBookingSheet: View {
       try await service.trainingAction(organizationId: org, action: "create_appointment", payload: [
         "service_id": .string(serviceId), "trainer_directory_id": .string(trainerId),
         "athlete_ids": .array([.string(athleteId)]), "starts_at": .string(ISO8601DateFormatter().string(from: startsAt)),
-        "package_id": .string(packageId), "idempotency_key": .string(requestId.uuidString),
+        "package_id": .string(""), "idempotency_key": .string(requestId.uuidString),
         "location_id": .string(locationId), "resource_ids": .array(resourceIds.sorted { $0.uuidString < $1.uuidString }.map { .string($0.uuidString) }),
       ])
       await onSaved(); dismiss()
-    } catch { errorText = "Booking could not be confirmed: \(error.localizedDescription). Check availability and package credits, then retry. If you change the request, close and reopen this form." }
+    } catch { errorText = "Booking could not be confirmed: \(error.localizedDescription). Check availability, then retry. If you change the request, close and reopen this form." }
   }
 }
 
-private struct HPTrainingCreditsView: View {
-  @EnvironmentObject private var appState: AppState
-  @Environment(\.dismiss) private var dismiss
-  @State private var data: HPTrainingCredits?
-  @State private var errorText: String?
-  @State private var selected: HPTrainingCredits.Decision?
-  var body: some View {
-    NavigationStack {
-      List {
-        Section { Text("Package credits are used at booking confirmation. Staff decide whether to keep or return the used credit after a cancellation or no-show.") }
-        if let errorText { Section { Text(errorText).foregroundStyle(.red); Button("Retry") { Task { await load() } } } }
-        if let data {
-          Section("Ledger balances") {
-            if data.balances.isEmpty { Text("No package ledger recorded for this view.") }
-            ForEach(data.balances) { row in
-              VStack(alignment: .leading) {
-                Text("\(row.display_name) · \(row.package_name)")
-                Text("\(row.credits) available credits").font(.headline)
-                if let expired = row.expired_credits, expired > 0 { Text("\(expired) expired credits retained in history").font(.caption) }
-              }
-            }
-          }
-          Section("Staff decisions needed") {
-            if data.pending_decisions.isEmpty { Text("No pending decisions in your accessible records.") }
-            ForEach(data.pending_decisions) { row in
-              Button { selected = row } label: { VStack(alignment: .leading) { Text(row.display_name); Text(row.package_name).font(.caption) } }
-            }
-          }
-          if let reviews = data.payment_review, !reviews.isEmpty {
-            Section("Payments needing staff review") {
-              Text("A payment changed after credits were issued. Review the payment before making a reasoned credit adjustment. No credits were automatically removed.")
-              ForEach(reviews) { row in
-                VStack(alignment: .leading) { Text("\(row.display_name) · \(row.package_name)"); Text(row.reversed ? "Reversed" : row.has_refund ? "Refund recorded" : row.payment_status).font(.caption) }
-              }
-            }
-          }
-        } else if errorText == nil { ProgressView("Loading credits…") }
-      }.navigationTitle("Package credits")
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        .task(id: appState.activeOrgAuthorizationKey) { await load() }
-        .refreshable { await load() }
-        .sheet(item: $selected) { row in HPTrainingCreditDecisionSheet(row: row) { await load() } }
-    }
-  }
-  private func load() async {
-    guard let service = appState.supabase, let org = appState.activeOrgId else { return }
-    data = nil; errorText = nil
-    do {
-      let result = try await service.trainingCredits(organizationId: org)
-      guard !Task.isCancelled, org == appState.activeOrgId else { return }; data = result
-    } catch { guard !Task.isCancelled, org == appState.activeOrgId else { return }; errorText = "Credit records could not be loaded." }
-  }
-}
 
 private struct HPTrainingCreditDecisionSheet: View {
   @EnvironmentObject private var appState: AppState

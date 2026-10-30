@@ -203,6 +203,7 @@ struct SDPlayerBPView: View {
     isWorking = true
     defer { isWorking = false }
     do {
+      let names = try await HPUploadNaming.confirm([url.lastPathComponent])
       let text = try CSVFileReader.readText(from: url)
       let importResult = try BPImportMapper.map(text: text, selectedSource: BPImportSource.parse(source))
       source = importResult.source.rawValue
@@ -219,7 +220,7 @@ struct SDPlayerBPView: View {
           launch_angle: row.launch_angle,
           strike_x: row.strike_x,
           strike_z: row.strike_z,
-          raw: row.raw
+          raw: row.raw.merging(["__homeplate_file_name": names[0], "__homeplate_original_filename": url.lastPathComponent]) { _, value in value }
         )
       }
       try await supabase.replaceBPEvents(sessionId: s.id, events: creates)

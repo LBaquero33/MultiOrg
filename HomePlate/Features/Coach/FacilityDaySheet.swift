@@ -28,25 +28,11 @@ struct FacilityDaySheet: View {
     NavigationStack {
       HPDetailScreenLayout {
         HPWorkspaceHeader(
-          title,
-          context: DateUtils.toISODate(date)
+          date.formatted(date: .abbreviated, time: .omitted),
+          context: "\(facilities.count) spaces · \(bookings.count) bookings · \(pendingRequests.count) pending"
         )
       } metrics: {
-        HPMetricCard(
-          title: "Facilities",
-          value: "\(facilities.count)",
-          context: "Available spaces"
-        )
-        HPMetricCard(
-          title: "Bookings",
-          value: "\(bookings.count)",
-          context: "Scheduled today"
-        )
-        HPMetricCard(
-          title: "Pending",
-          value: "\(pendingRequests.count)",
-          context: "Awaiting review"
-        )
+        EmptyView()
       } details: {
         VStack(alignment: .leading, spacing: HP.Space.md) {
           HPCard {

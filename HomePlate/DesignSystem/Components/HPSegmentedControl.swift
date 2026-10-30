@@ -12,7 +12,31 @@ struct HPSegmentedControl<T: Hashable>: View {
   var body: some View {
     // At accessibility sizes horizontal segments truncate long labels
     // (e.g. "Owner/Admin"), so switch to a vertical selection list.
-    if dts.isAccessibilitySize { verticalList } else { horizontalSegments }
+    if dts.isAccessibilitySize {
+      verticalList
+    } else {
+      ViewThatFits(in: .horizontal) {
+        horizontalSegments.fixedSize(horizontal: true, vertical: false)
+        Menu {
+          ForEach(options, id: \.value) { option in
+            Button { selection = option.value } label: {
+              Label(option.label, systemImage: option.value == selection ? "checkmark.circle.fill" : "circle")
+            }
+          }
+        } label: {
+          HStack {
+            Text(options.first(where: { $0.value == selection })?.label ?? "Choose filter")
+            Spacer()
+            Image(systemName: "chevron.up.chevron.down")
+          }
+          .font(HP.Font.callout.weight(.semibold))
+          .padding(.horizontal, HP.Space.sm).frame(minHeight: 44)
+          .background(HP.Color.surfaceRaised, in: RoundedRectangle(cornerRadius: HP.Radius.md))
+        }
+        .accessibilityLabel("Filter")
+        .accessibilityValue(options.first(where: { $0.value == selection })?.label ?? "")
+      }
+    }
   }
 
   private var verticalList: some View {
@@ -63,9 +87,10 @@ struct HPSegmentedControl<T: Hashable>: View {
         } label: {
           Text(option.label)
             .font(HP.Font.callout.weight(.semibold))
-            .lineLimit(2)
+            .lineLimit(1)
             .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: true, vertical: true)
+            .padding(.horizontal, HP.Space.sm)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .frame(minHeight: 44)

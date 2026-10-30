@@ -66,7 +66,7 @@ struct CoachTeamSelector: View {
   }
 
   private func teamMenuTitle(_ team: SDTeamOperationsTeam) -> String {
-    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }
+    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }.filter { $0.caseInsensitiveCompare(team.name) != .orderedSame }
     return details.isEmpty ? team.name : "\(team.name) — \(details.joined(separator: " • "))"
   }
 }
@@ -104,12 +104,12 @@ struct CoachTodayFoundationView: View {
           }
 
           LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 150), spacing: HP.Space.sm)],
+            columns: Array(repeating: GridItem(.flexible(), spacing: HP.Space.sm), count: 3),
             spacing: HP.Space.sm
           ) {
-            websiteMetric("Active teams", value: activeTeamCount)
-            websiteMetric("Active members", value: activeMemberCount)
-            websiteMetric("Upcoming events", value: upcomingEvents.count, hint: "Next 6 scheduled")
+            websiteMetric("Teams", value: activeTeamCount)
+            websiteMetric("Members", value: activeMemberCount)
+            websiteMetric("Upcoming", value: upcomingEvents.count, hint: "Next 6 scheduled")
           }
 
           HPCard {
@@ -177,7 +177,7 @@ struct CoachTodayFoundationView: View {
           Text(hint).font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
         }
       }
-      .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+      .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
     }
   }
 
@@ -467,6 +467,7 @@ struct CoachTeamCommandCenterView: View {
   @EnvironmentObject private var appState: AppState
   @State private var section: Section
   @State private var teamEvents: [SDTeamEvent] = []
+  @State private var officialEvents: [SDGameCalendarItem] = []
   @State private var operationSummaries: [UUID: SDEventOperationSummary] = [:]
   @State private var practicePlanSummaries: [UUID: SDPracticePlanSummary] = [:]
   @State private var gamePlanSummaries: [UUID: SDGamePlanSummary] = [:]
@@ -598,7 +599,7 @@ struct CoachTeamCommandCenterView: View {
 
   private var teamHeaderContext: String {
     guard let team = appState.selectedTeam else { return "Select a team to open its workspace" }
-    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }
+    let details = [team.age_group, team.competitive_level].compactMap { $0?.sdNilIfBlank }.filter { $0.caseInsensitiveCompare(team.name) != .orderedSame }
     return details.isEmpty ? team.name : "\(team.name) • \(details.joined(separator: " • "))"
   }
 
@@ -622,10 +623,21 @@ struct CoachTeamCommandCenterView: View {
           emptyMessage: "No active staff assignments are available."
         )
       case .schedule: scheduleCard(team)
-      case .development: placeholder("Development", "Player development tools are available through authorized player profiles.", "chart.line.uptrend.xyaxis")
-      case .communication: placeholder("Communication", "Team-scoped communication will use this authorized roster.", "bubble.left.and.bubble.right")
-      case .documents: placeholder("Documents", "Team documents will appear here when added.", "doc")
-      case .settings: placeholder("Settings", "Team settings are managed by authorized staff.", "gearshape")
+      case .development:
+        NavigationLink("Open player development") { CoachProgramsView() }.buttonStyle(HPButtonStyle(variant: .primary))
+      case .communication:
+        NavigationLink("Open messages") { ChatChannelListView() }.buttonStyle(HPButtonStyle(variant: .primary))
+      case .documents:
+        VStack(alignment: .leading, spacing: HP.Space.sm) {
+          HPEmptyState(title: "Shared files", message: "Review files in Messages. Choose your team conversation to find or share attachments.", systemImage: "doc")
+          NavigationLink("Open shared attachments") { ChatChannelListView() }
+        }
+      case .settings:
+        if appState.canAdminActiveOrg {
+          NavigationLink("Manage teams and staff") { OrgTeamOperationsAdminView() }.buttonStyle(HPButtonStyle(variant: .primary))
+        } else {
+          placeholder("Team administration", "Ask your organization administrator to update team settings or staff access.", "person.badge.shield.checkmark")
+        }
       }
     } else if let issue = appState.teamOperationsIssue {
       HPCard {
@@ -648,6 +660,7 @@ struct CoachTeamCommandCenterView: View {
 
   private func overview(_ team: SDTeamOperationsTeam) -> some View {
     VStack(alignment: .leading, spacing: HP.Space.md) {
+      officialCalendarCard(team)
       if loadError != nil {
         HPCard {
           HPErrorState(
@@ -678,7 +691,7 @@ struct CoachTeamCommandCenterView: View {
       HPCard {
         if let next = displayedTeamEvents.first(where: { $0.startDate >= Date() && $0.status != .draft && $0.status != .cancelled }) {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
-            HPSectionHeader("Next Event") { HPStatusBadge(text: next.event_type.label, kind: .info) }
+            HPSectionHeader("Next coaching plan") { HPStatusBadge(text: next.event_type.label, kind: .info) }
             TeamEventRow(event: next, teamName: team.name)
             if next.event_type == .practice {
               Text("Plan readiness: \(practicePlanSummaries[next.id]?.status.label ?? "No Plan")")
@@ -691,7 +704,7 @@ struct CoachTeamCommandCenterView: View {
             }
           }
         } else {
-          HPEmptyState(title: "No upcoming event", message: "Published team schedule items will appear here.", systemImage: "calendar")
+          HPEmptyState(title: "No coaching plan scheduled", message: "Official events are shown above. Add a coaching plan from Schedule to organize preparation.", systemImage: "list.clipboard")
         }
       }
       HPCard {
@@ -767,9 +780,11 @@ struct CoachTeamCommandCenterView: View {
   }
 
   private func scheduleCard(_ team: SDTeamOperationsTeam) -> some View {
+    VStack(alignment: .leading, spacing: HP.Space.md) {
+    officialCalendarCard(team)
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Upcoming Schedule") {
+        HPSectionHeader("Coaching plans") {
           HStack(spacing: HP.Space.xs) {
             HPStatusBadge(text: "\(displayedTeamEvents.count)", kind: .neutral)
             if team.capabilitySet.contains(.createTeamEvent) || appState.canAdminActiveOrg {
@@ -790,7 +805,7 @@ struct CoachTeamCommandCenterView: View {
             onRetry: { Task { await reloadTeamEvents() } }
           )
         } else if displayedTeamEvents.isEmpty, !isScheduleLoading {
-          HPEmptyState(title: "No upcoming events", message: "Create events from Schedule.", systemImage: "calendar")
+          HPEmptyState(title: "No coaching plans", message: "Official games and events appear in the calendar above. Create a plan here to organize staff preparation.", systemImage: "list.clipboard")
         } else {
           if loadError != nil {
             Label(
@@ -806,6 +821,26 @@ struct CoachTeamCommandCenterView: View {
     }
   }
 
+    }
+
+  private func officialCalendarCard(_ team: SDTeamOperationsTeam) -> some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        HPSectionHeader("Official calendar")
+        ForEach(officialEvents) { item in
+          NavigationLink { GameDetailView(calendarItem: item) } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(item.event.title).font(HP.Font.callout.weight(.semibold))
+              Text(item.event.scheduled_start.formatted(date: .abbreviated, time: .shortened))
+                .font(HP.Font.caption).foregroundStyle(HP.Color.textMuted)
+            }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          }
+        }
+        NavigationLink("Open team calendar") { GameCalendarView(teamId: team.id) }
+      }
+    }
+  }
+
   private func reloadTeamEvents() async {
     guard let service = appState.supabase, let orgId = appState.activeOrgId, let team = appState.selectedTeam else {
       teamEvents = []
@@ -817,6 +852,7 @@ struct CoachTeamCommandCenterView: View {
     loadToken = token
     if loadedScheduleContext != context {
       teamEvents = []
+      officialEvents = []
       operationSummaries = [:]
       practicePlanSummaries = [:]
       gamePlanSummaries = [:]
@@ -826,6 +862,17 @@ struct CoachTeamCommandCenterView: View {
     loadError = nil
     supportingLoadError = nil
     do {
+      let calendarEvents = try await service.listCanonicalEvents(
+        organizationId: orgId,
+        from: Calendar.current.startOfDay(for: Date()),
+        through: Calendar.current.date(byAdding: .day, value: 60, to: Date())!
+      ).filter { $0.team_id == team.id && $0.status != .canceled }
+      let games = try await service.listGames(organizationId: orgId, eventIds: calendarEvents.map(\.id))
+      guard acceptsTeam(context: context, token: token) else { return }
+      let gamesByEvent = Dictionary(uniqueKeysWithValues: games.map { ($0.event_id, $0) })
+      officialEvents = calendarEvents.sorted { $0.scheduled_start < $1.scheduled_start }.prefix(6).map {
+        SDGameCalendarItem(event: $0, game: gamesByEvent[$0.id])
+      }
       let loadedEvents = try await service.listTeamEvents(
         organizationId: orgId,
         seasonId: team.season_id,

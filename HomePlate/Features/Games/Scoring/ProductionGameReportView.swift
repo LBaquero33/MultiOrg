@@ -10,6 +10,7 @@ struct ProductionGameReportView: View {
   @State private var projection: GameProjection?
   @State private var snapshot: StatSnapshot?
   @State private var failure: String?
+  @State private var videoPlays: Set<UUID> = []
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -27,6 +28,9 @@ struct ProductionGameReportView: View {
               Text("\(play.half == .top ? "Top" : "Bottom") \(play.inning) · \(play.text)")
                 .strikethrough(play.isVoided)
               Text("\(play.scoreAfter) · \(play.outsAfter) outs").font(.caption)
+              if videoPlays.contains(play.id), !play.isVoided {
+                NavigationLink("Watch play") { GameVideoView(gameID: game.id, focusedPlayID: play.id) }.font(.caption)
+              }
             }
           }
           if projection.playSummaries.isEmpty { Text("No server-confirmed plays yet.") }
@@ -51,7 +55,15 @@ struct ProductionGameReportView: View {
         }
       } else { ProgressView("Loading confirmed scoring history…") }
     }
-    .task(id: "\(appState.myProfile?.id.uuidString ?? ""):\(appState.activeOrgId?.uuidString ?? ""):\(game.game_version)") { await load() }
+    .task(id: "\(appState.myProfile?.id.uuidString ?? ""):\(appState.activeOrgId?.uuidString ?? ""):\(game.game_version)") {
+      videoPlays = []; await load()
+      if let service = appState.supabase, appState.activeOrgId == game.org_id {
+        struct Row: Decodable { let play_id: UUID }
+        let rows: [Row] = (try? await service.client.from("sd_game_video_clips")
+          .select("play_id,recording:sd_game_recordings!inner(game_id)").eq("recording.game_id", value: game.id).eq("withdrawn", value: false).limit(1000).execute().value) ?? []
+        if !Task.isCancelled, appState.activeOrgId == game.org_id { videoPlays = Set(rows.map(\.play_id)) }
+      }
+    }
   }
 
   @MainActor private func load() async {

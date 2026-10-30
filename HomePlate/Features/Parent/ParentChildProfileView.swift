@@ -11,9 +11,12 @@ struct ParentChildProfileView: View {
   enum Tab: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case calendar = "Calendar"
+    case progress = "Progress"
+    case videos = "Videos"
     case testing = "Testing"
     case program = "Program"
     case analysis = "Analysis"
+    case rAnalysis = "R Analysis"
     case facilities = "Facilities"
     case billing = "Billing"
     var id: String { rawValue }
@@ -78,12 +81,18 @@ struct ParentChildProfileView: View {
       CoachPlayerOverviewView(player: child)
     case .calendar:
       ParentChildCalendarView(child: child)
+    case .progress:
+      PlayerDevelopmentProfileWorkspaceView(playerId: child.id)
+    case .videos:
+      NativeSharedVideoLibraryView(playerId: child.id)
     case .testing:
       CoachPlayerTestingEntriesView(player: child)
     case .program:
       ParentChildProgramView(child: child)
     case .analysis:
       CoachPlayerAnalysisView(player: child)
+    case .rAnalysis:
+      NativePlayerAnalyticsView(playerId: child.id, playerName: child.displayName)
     case .facilities:
       SDParentFacilitiesView(child: child)
     case .billing:

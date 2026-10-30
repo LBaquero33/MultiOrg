@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A10000000000000000000001 /* GameVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* GameVideoView.swift */; };
+        A10000000000000000000002 /* GameVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* GameVideoView.swift */; };
 		0077915D83EE68017FDED839 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7632A128A965C588D4C6FC /* ChatModels.swift */; };
 		0089AAF30AD489DF97749593 /* PlayerDevelopmentAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9D2A11773CCB0DF3F6E87C /* PlayerDevelopmentAIModels.swift */; };
 		0091DC26AA07F8771ED84069 /* SDParentFacilitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEDFFF2001858BDE61515A9 /* SDParentFacilitiesView.swift */; };
@@ -436,6 +438,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        A10000000000000000000003 /* GameVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameVideoView.swift; sourceTree = "<group>"; };
 		0372D43530D862477E7165F5 /* SDPlayerTestingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDPlayerTestingView.swift; sourceTree = "<group>"; };
 		03DB0233F4CFEF528A01A582 /* CompatibleVideoTranscoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompatibleVideoTranscoder.swift; sourceTree = "<group>"; };
 		04249502FEC9AF0B05DCAAA8 /* OrganizationSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSetupTests.swift; sourceTree = "<group>"; };
@@ -852,6 +855,7 @@
 				D1701478A8FC679A87E40B84 /* Scoring */,
 				A69FB883BACB88FBFB3040E8 /* GameCalendarView.swift */,
 				0B8DCFDD15CFA7C52CC08ED7 /* GameDetailView.swift */,
+                A10000000000000000000003 /* GameVideoView.swift */,
 				A5724A4DD53B3ED4D4F7B741 /* GameFinalizationView.swift */,
 				6D543DD89F540979729A4302 /* GameStatisticsView.swift */,
 				8C3D879491D99E83CBB23B03 /* LiveGameScoringView.swift */,
@@ -1480,6 +1484,7 @@
 				42AF5F7EB084DA82B701A026 /* FinanceDashboardViewModel.swift in Sources */,
 				C2B78031AEEB7584AF185B09 /* GameCalendarView.swift in Sources */,
 				24998E4A8231FF4A4C8D764D /* GameDetailView.swift in Sources */,
+                A10000000000000000000001 /* GameVideoView.swift in Sources */,
 				AA967E2DE4E25B14589F78DB /* GameFinalization.swift in Sources */,
 				FE3D32349F70F6E64BDE8E3B /* GameFinalizationView.swift in Sources */,
 				C4C18BAC1F6DAFBB90BA9267 /* GameModels.swift in Sources */,
@@ -1658,6 +1663,7 @@
 				6901A53AA68748AA4DD0719D /* FinanceDashboardViewModel.swift in Sources */,
 				D821C718B08AD45AD36EBEDD /* GameCalendarView.swift in Sources */,
 				693A216CA08705C52EA2C6A0 /* GameDetailView.swift in Sources */,
+                A10000000000000000000002 /* GameVideoView.swift in Sources */,
 				DC261B93E0079B81F03D3DD7 /* GameFinalization.swift in Sources */,
 				DB95263EED505BCCD64DA6F1 /* GameFinalizationView.swift in Sources */,
 				C5D8F953D3B8B3508DB4898B /* GameModels.swift in Sources */,
@@ -1824,6 +1830,7 @@
 				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HomePlate/Supporting/HomePlate.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = HomePlate/Supporting/HomePlateSimulator.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = L9HQB8S3M3;
 				DHD_APNS_ENVIRONMENT = development;
@@ -1877,7 +1884,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1898,7 +1905,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.02;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1944,7 +1951,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1959,7 +1966,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.02;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1997,6 +2004,7 @@
 				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HomePlate/Supporting/HomePlate.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = HomePlate/Supporting/HomePlateSimulator.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = L9HQB8S3M3;
 				DHD_APNS_ENVIRONMENT = production;

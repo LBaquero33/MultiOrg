@@ -225,15 +225,18 @@ final class SupabaseService: ObservableObject {
     let full_name: String?
   }
 
-  init(config: SupabaseConfig) {
+  init(config: SupabaseConfig, session: URLSession = .shared,
+       authStorage: any AuthLocalStorage = AuthClient.Configuration.defaultLocalStorage) {
     self.client = SupabaseClient(
       supabaseURL: config.url,
       supabaseKey: config.anonKey,
       options: .init(
         auth: .init(
+          storage: authStorage,
           autoRefreshToken: true,
           emitLocalSessionAsInitialSession: true
-        )
+        ),
+        global: .init(session: session)
       )
     )
   }
@@ -416,6 +419,7 @@ final class SupabaseService: ObservableObject {
     try await client
       .from("sd_orgs")
       .select("id, slug, name, organization_type, timezone")
+      .eq("status", value: "active")
       .order("name", ascending: true)
       .execute()
       .value
@@ -2359,22 +2363,33 @@ final class SupabaseService: ObservableObject {
       .value
   }
 
+  func libraryRolloutEnabled(organizationId: UUID) async throws -> Bool {
+    struct Flag: Decodable { let enabled: Bool }
+    let flags: [Flag] = try await client.from("sd_library_rollout").select("enabled")
+      .eq("org_id", value: organizationId.uuidString).limit(1).execute().value
+    return flags.first?.enabled == true
+  }
+
   func uploadChatAttachment(
     _ data: Data,
     organizationId: UUID,
     channelId: UUID,
     fileName: String,
-    contentType: String
+    contentType: String,
+    uploadId: UUID = UUID(),
+    originalFilename: String? = nil
   ) async throws -> String {
     let session = try await client.auth.session
     let rawExtension = URL(fileURLWithPath: fileName).pathExtension.lowercased()
     let safeExtension = rawExtension.isEmpty ? "bin" : rawExtension
-    let path = "\(organizationId.uuidString.lowercased())/\(channelId.uuidString.lowercased())/\(session.user.id.uuidString.lowercased())/\(UUID().uuidString.lowercased()).\(safeExtension)"
-    _ = try await client.storage.from("chat-attachments").upload(
+    let path = "\(organizationId.uuidString.lowercased())/\(channelId.uuidString.lowercased())/\(session.user.id.uuidString.lowercased())/\(uploadId.uuidString.lowercased()).\(safeExtension)"
+    do { _ = try await client.storage.from("chat-attachments").upload(
       path,
       data: data,
-      options: FileOptions(contentType: contentType, upsert: false)
-    )
+      options: FileOptions(contentType: contentType, upsert: false, metadata: ["displayName": .string(fileName), "originalFilename": .string(originalFilename ?? fileName)])
+    ) } catch let error as StorageError where error.statusCode == "409" || error.error == "Duplicate" {
+      // The same selected file keeps its UUID; a lost upload acknowledgement is safe to retry.
+    }
     return path
   }
 
@@ -2786,6 +2801,9 @@ final class SupabaseService: ObservableObject {
   }
 
   struct SDFacilityUpsert: Encodable {
+    var opens_at: String? = nil
+    var closes_at: String? = nil
+    var hours_timezone: String = "America/New_York"
     let id: UUID?
     let org_id: UUID
     let name: String
@@ -2795,6 +2813,27 @@ final class SupabaseService: ObservableObject {
     let color_hex: String?
     let capacity: Int
     let metadata: [String: SDJSONValue]
+
+    enum CodingKeys: String, CodingKey {
+      case id, org_id, name, is_active, sort_order, resource_type, color_hex, capacity, metadata
+      case opens_at, closes_at, hours_timezone
+    }
+
+    func encode(to encoder: Encoder) throws {
+      var values = encoder.container(keyedBy: CodingKeys.self)
+      try values.encodeIfPresent(id, forKey: .id)
+      try values.encode(org_id, forKey: .org_id)
+      try values.encode(name, forKey: .name)
+      try values.encode(is_active, forKey: .is_active)
+      try values.encode(sort_order, forKey: .sort_order)
+      try values.encode(resource_type, forKey: .resource_type)
+      try values.encode(color_hex, forKey: .color_hex)
+      try values.encode(capacity, forKey: .capacity)
+      try values.encode(metadata, forKey: .metadata)
+      try values.encode(opens_at, forKey: .opens_at)
+      try values.encode(closes_at, forKey: .closes_at)
+      try values.encode(hours_timezone, forKey: .hours_timezone)
+    }
   }
 
   func createFacility(_ facility: SDFacilityUpsert) async throws -> SDFacility {
@@ -3004,7 +3043,7 @@ final class SupabaseService: ObservableObject {
       .execute()
   }
 
-  func uploadMyAvatarJPEG(_ jpegData: Data) async throws -> String {
+  func uploadMyAvatarJPEG(_ jpegData: Data, displayName: String = "Profile.jpg") async throws -> String {
     let session = try await client.auth.session
     let uid = session.user.id
     // Storage RLS compares the first path segment to auth.uid()::text, which
@@ -3013,7 +3052,7 @@ final class SupabaseService: ObservableObject {
     _ = try await client
       .storage
       .from("avatars")
-      .upload(path, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: true))
+      .upload(path, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: true, metadata: ["displayName": .string(displayName)]))
     return path
   }
 
@@ -3025,12 +3064,12 @@ final class SupabaseService: ObservableObject {
     }
   }
 
-  func uploadOrganizationLogoJPEG(orgId: UUID, jpegData: Data) async throws -> String {
+  func uploadOrganizationLogoJPEG(orgId: UUID, jpegData: Data, displayName: String = "Organization-logo.jpg") async throws -> String {
     let path = "\(orgId.uuidString)/logo.jpg"
     _ = try await client
       .storage
       .from("org-assets")
-      .upload(path, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: true))
+      .upload(path, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: true, metadata: ["displayName": .string(displayName)]))
     return path
   }
 
@@ -3589,16 +3628,18 @@ final class SupabaseService: ObservableObject {
 
   func listPlayerAnalyticsSources(
     organizationId: UUID,
-    playerId: UUID
+    playerId: UUID,
+    athleteId: UUID? = nil
   ) async throws -> SDPlayerAnalyticsSourcesResponse {
     struct Request: Encodable {
       let action = "list_sources"
       let org_id: UUID
-      let player_id: UUID
+      let player_id: UUID?
+      let athlete_id: UUID?
     }
     return try await invokeAuthenticatedFunction(
       "player-development-analytics",
-      body: Request(org_id: organizationId, player_id: playerId)
+      body: Request(org_id: organizationId, player_id: athleteId == nil ? playerId : nil, athlete_id: athleteId)
     )
   }
 
@@ -3607,13 +3648,19 @@ final class SupabaseService: ObservableObject {
     playerId: UUID,
     discipline: SDPlayerAnalyticsDiscipline,
     module: String,
-    sourceIds: [UUID]
+    sourceIds: [UUID],
+    date: String? = nil,
+    athleteId: UUID? = nil
   ) async throws -> SDPlayerAnalyticsResponse {
-    struct Filters: Encodable {}
+    struct Filters: Encodable {
+      let start_date: String?
+      let end_date: String?
+    }
     struct Request: Encodable {
       let action = "run_analysis"
       let org_id: UUID
-      let player_id: UUID
+      let player_id: UUID?
+      let athlete_id: UUID?
       let discipline: String
       let module: String
       let import_job_ids: [UUID]
@@ -3623,11 +3670,12 @@ final class SupabaseService: ObservableObject {
       "player-development-analytics",
       body: Request(
         org_id: organizationId,
-        player_id: playerId,
+        player_id: athleteId == nil ? playerId : nil,
+        athlete_id: athleteId,
         discipline: discipline.rawValue,
         module: module,
         import_job_ids: sourceIds,
-        filters: Filters()
+        filters: Filters(start_date: date, end_date: date)
       )
     )
   }
@@ -4762,13 +4810,13 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - SD Program (iOS-native tables)
 
-  func listMyCoachTemplates() async throws -> [SDProgramTemplate] {
+  func listMyCoachTemplates(orgId: UUID? = nil) async throws -> [SDProgramTemplate] {
     let session = try await client.auth.session
     let uid = session.user.id
-    return try await client
-      .from("sd_program_templates")
-      .select()
-      .eq("coach_id", value: uid.uuidString)
+    var query = client.from("sd_program_templates").select().is("archived_at", value: nil)
+    if let orgId { query = query.eq("org_id", value: orgId.uuidString) }
+    else { query = query.eq("coach_id", value: uid.uuidString) }
+    return try await query
       .order("created_at", ascending: false)
       .execute()
       .value
@@ -4810,6 +4858,10 @@ final class SupabaseService: ObservableObject {
   }
 
   func upsertProgramDay(templateId: UUID, week: Int, dayIndex: Int, exercises: [SDExercise]) async throws -> SDProgramDay {
+    struct RevisionParams: Encodable { let target_template: UUID; let target_week: Int; let target_day: Int; let exercises: [SDExercise] }
+    do {
+      return try await client.rpc("sd_save_program_day_revision", params: RevisionParams(target_template: templateId, target_week: week, target_day: dayIndex, exercises: exercises)).execute().value
+    } catch let error as PostgrestError where error.code == "PGRST202" { /* Older backend only. */ }
     struct Upsert: Encodable {
       let template_id: UUID
       let week: Int
@@ -4838,6 +4890,11 @@ final class SupabaseService: ObservableObject {
   }
 
   func duplicateProgramTemplate(_ template: SDProgramTemplate) async throws -> SDProgramTemplate {
+    if let org = template.org_id {
+      struct Params: Encodable { let target_org: UUID; let action: String; let target_id: UUID }
+      let id: UUID = try await client.rpc("sd_program_library_action", params: Params(target_org: org, action: "duplicate_template", target_id: template.id)).execute().value
+      return try await fetchTemplate(id: id)
+    }
     let duplicate = try await createProgramTemplate(
       name: "\(template.name) Copy",
       kind: template.kind,
@@ -4867,11 +4924,28 @@ final class SupabaseService: ObservableObject {
   }
 
   func deleteProgramTemplate(id: UUID) async throws {
-    _ = try await client
-      .from("sd_program_templates")
-      .delete()
-      .eq("id", value: id.uuidString)
-      .execute()
+    let template = try await fetchTemplate(id: id)
+    guard let org = template.org_id else { throw SDServiceError(category: .validation, functionName: "Organization required for program archive", statusCode: 422) }
+    struct Params: Encodable { let target_org: UUID; let action: String; let target_id: UUID }
+    _ = try await client.rpc("sd_program_library_action", params: Params(target_org: org, action: "archive_template", target_id: id)).execute()
+  }
+
+  struct AssignedProgramRevision: Decodable {
+    let template: SDProgramTemplate
+    let days: [SDProgramDay]
+  }
+  func assignedProgramRevisions(ids: [UUID]) async throws -> [UUID: AssignedProgramRevision] {
+    guard !ids.isEmpty else { return [:] }
+    struct Revision: Decodable { let content: AssignedProgramRevision }
+    struct Row: Decodable { let id: UUID; let revision: Revision? }
+    do {
+      let rows: [Row] = try await client.from("sd_program_assignments").select("id,revision:sd_program_revisions(content)").in("id", values: ids.map(\.uuidString)).execute().value
+      return Dictionary(uniqueKeysWithValues: rows.compactMap { row in row.revision.map { (row.id, $0.content) } })
+    } catch let error as PostgrestError where error.code == "PGRST200" { return [:] }
+  }
+  func assignedProgramDays(assignmentId: UUID, templateId: UUID) async throws -> [SDProgramDay] {
+    if let revision = try await assignedProgramRevisions(ids: [assignmentId])[assignmentId] { return revision.days }
+    return try await fetchProgramDays(templateId: templateId)
   }
 
   func assignProgram(templateId: UUID, playerId: UUID, startDateISO: String, notes: String?, orgId: UUID? = nil) async throws -> SDProgramAssignment {
@@ -5183,15 +5257,19 @@ final class SupabaseService: ObservableObject {
     assignmentId: UUID,
     dateISO: String,
     fileExtension: String,
-    contentType: String
+    contentType: String,
+    uploadId: UUID,
+    displayName: String
   ) async throws -> String {
     let ext = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
-    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(assignmentId.uuidString.lowercased())/\(dateISO)/\(UUID().uuidString.lowercased()).\(ext)"
-    _ = try await client.storage.from("program-set-videos").upload(
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(assignmentId.uuidString.lowercased())/\(dateISO)/\(uploadId.uuidString.lowercased()).\(ext)"
+    do { _ = try await client.storage.from("program-set-videos").upload(
       path,
       data: data,
-      options: FileOptions(contentType: contentType, upsert: false)
-    )
+      options: FileOptions(contentType: contentType, upsert: false, metadata: ["displayName": .string(displayName), "mimeType": .string(contentType)])
+    ) } catch let error as StorageError where error.statusCode == "409" {
+      // A retry of this selected file already uploaded its bytes.
+    }
     return path
   }
 
@@ -5294,7 +5372,9 @@ final class SupabaseService: ObservableObject {
     repsType: String,
     activityType: String = "bp",
     videoPath: String? = nil,
-    orgId: UUID? = nil
+    orgId: UUID? = nil,
+    videoFileName: String? = nil,
+    videoOriginalFilename: String? = nil
   ) async throws -> SDBPSession {
     struct Upsert: Encodable {
       let org_id: UUID?
@@ -5304,6 +5384,8 @@ final class SupabaseService: ObservableObject {
       let source: String
       let reps_type: String
       let video_path: String?
+      let video_file_name: String?
+      let video_original_filename: String?
     }
     return try await client
       .from("sd_bp_sessions")
@@ -5315,7 +5397,9 @@ final class SupabaseService: ObservableObject {
           activity_type: activityType,
           source: source,
           reps_type: repsType,
-          video_path: videoPath
+          video_path: videoPath,
+          video_file_name: videoFileName,
+          video_original_filename: videoOriginalFilename
         ),
         onConflict: orgId == nil
           ? "player_id,session_date,activity_type,source,reps_type"
@@ -5332,15 +5416,20 @@ final class SupabaseService: ObservableObject {
     organizationId: UUID,
     playerId: UUID,
     fileExtension: String,
-    contentType: String
+    contentType: String,
+    displayName: String,
+    uploadId: UUID,
+    originalFilename: String
   ) async throws -> String {
     let safeExtension = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
-    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).\(safeExtension)"
-    _ = try await client.storage.from("player-session-videos").upload(
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/\(uploadId.uuidString.lowercased()).\(safeExtension)"
+    do { _ = try await client.storage.from("player-session-videos").upload(
       path,
       data: data,
-      options: FileOptions(contentType: contentType, upsert: false)
-    )
+      options: FileOptions(contentType: contentType, upsert: false, metadata: ["displayName": .string(displayName), "originalFilename": .string(originalFilename), "mimeType": .string(contentType)])
+    ) } catch let error as StorageError where error.statusCode == "409" {
+      // Preserve the selected file identity when retrying after an ambiguous response.
+    }
     return path
   }
 
@@ -5355,18 +5444,22 @@ final class SupabaseService: ObservableObject {
     testingEntryId: UUID,
     fieldKey: String,
     fileExtension: String,
-    contentType: String
+    contentType: String,
+    uploadId: UUID,
+    displayName: String
   ) async throws -> String {
     let safeExtension = fileExtension.lowercased() == "mov" ? "mov" : "mp4"
     let safeField = fieldKey
       .lowercased()
       .replacingOccurrences(of: "[^a-z0-9_-]", with: "-", options: .regularExpression)
-    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/testing/\(testingEntryId.uuidString.lowercased())/\(safeField)-\(UUID().uuidString.lowercased()).\(safeExtension)"
-    _ = try await client.storage.from("player-session-videos").upload(
+    let path = "\(organizationId.uuidString.lowercased())/\(playerId.uuidString.lowercased())/testing/\(testingEntryId.uuidString.lowercased())/\(safeField)-\(uploadId.uuidString.lowercased()).\(safeExtension)"
+    do { _ = try await client.storage.from("player-session-videos").upload(
       path,
       data: data,
-      options: FileOptions(contentType: contentType, upsert: false)
-    )
+      options: FileOptions(contentType: contentType, upsert: false, metadata: ["displayName": .string(displayName), "mimeType": .string(contentType)])
+    ) } catch let error as StorageError where error.statusCode == "409" {
+      // A retry of this selected file already uploaded its bytes.
+    }
     return path
   }
 

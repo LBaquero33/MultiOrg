@@ -146,6 +146,14 @@ struct ParentHomeView: View {
                   }
                   .buttonStyle(.plain)
 
+                  NavigationLink {
+                    NativeSharedVideoLibraryView(playerId: child.id)
+                      .environmentObject(appState)
+                  } label: {
+                    Label("\(child.displayName)'s Videos", systemImage: "play.rectangle")
+                      .font(HP.Font.body)
+                  }
+
                   if child.id != children.last?.id {
                     Divider().overlay(HP.Color.border.opacity(0.5))
                   }

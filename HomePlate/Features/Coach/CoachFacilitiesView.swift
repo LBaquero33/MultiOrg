@@ -41,7 +41,7 @@ struct CoachFacilitiesView: View {
       HPWorkspaceHeader(
         "Facilities",
         orgLabel: activeOrganizationName,
-        context: "Schedule cages, approve requests, and drag bookings between cages."
+        context: "View available spaces and manage bookings. Select a day to review its schedule."
       ) {
         if isLoading {
           HPProgressIndicator(style: .spinner)

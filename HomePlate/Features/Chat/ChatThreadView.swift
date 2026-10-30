@@ -68,6 +68,7 @@ struct ChatThreadView: View {
   @State private var photoPickerItem: PhotosPickerItem?
   @State private var isShowingFileImporter = false
   @State private var safetyMessage: SDChatMessage?
+  @State private var containerWidth: CGFloat = 0
 
   private var myId: UUID? { appState.myProfile?.id }
   private var canSend: Bool {
@@ -133,6 +134,7 @@ struct ChatThreadView: View {
     .padding(HP.Space.md)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(HP.Color.bg)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { containerWidth = $0 }
     .navigationTitle(channelTitle)
     .sheet(item: $safetyMessage) { message in
       if let org = channel.org_id { HPMessageSafetyView(organizationId: org, message: message) }
@@ -358,17 +360,17 @@ struct ChatThreadView: View {
   }
 
   private var usesCompactComposer: Bool {
-    horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
+    horizontalSizeClass == .compact || containerWidth < 520 || dynamicTypeSize.isAccessibilitySize
   }
 
   private var attachmentButtons: some View {
     HStack(spacing: HP.Space.xs) {
-      PhotosPicker(selection: $photoPickerItem, matching: .images) {
+      PhotosPicker(selection: $photoPickerItem, matching: .any(of: [.images, .videos])) {
         Image(systemName: "photo")
           .frame(width: 44, height: 44)
           .contentShape(Rectangle())
       }
-      .accessibilityLabel("Attach photo")
+      .accessibilityLabel("Attach photo or video")
       .onChange(of: photoPickerItem) { _, item in
         guard let item else { return }
         Task { await addPhoto(item) }
@@ -529,7 +531,7 @@ struct ChatThreadView: View {
     let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
     let outgoingAttachments = pendingAttachments
     let messageBody = text.isEmpty ? "Shared an attachment" : text
-    let operationMaterial = messageBody + "\n" + outgoingAttachments.map(\.fileName).joined(separator: "|")
+    let operationMaterial = messageBody + "\n" + outgoingAttachments.map { $0.id.uuidString + ":" + $0.fileName }.joined(separator: "|")
     guard let clientMessageId = sendOperation.begin(
       channelId: channel.id,
       body: operationMaterial
@@ -546,10 +548,10 @@ struct ChatThreadView: View {
       if !messages.contains(where: { $0.id == response.message.id }) {
         messages.append(response.message)
       }
-      var existing = (try? await supabase.listChatAttachments(messageIds: [response.message.id])) ?? []
+      var existing = try await supabase.listChatAttachments(messageIds: [response.message.id])
       for attachment in outgoingAttachments {
         if existing.contains(where: {
-          $0.file_name == attachment.fileName && $0.byte_size == attachment.data.count
+          $0.storage_path.split(separator: "/").last?.hasPrefix(attachment.id.uuidString.lowercased() + ".") == true
         }) {
           continue
         }
@@ -559,7 +561,9 @@ struct ChatThreadView: View {
           organizationId: organizationId,
           channelId: channel.id,
           fileName: attachment.fileName,
-          contentType: attachment.mimeType
+          contentType: attachment.mimeType,
+          uploadId: attachment.id,
+          originalFilename: attachment.originalFilename
         )
         let saved = try await supabase.createChatAttachment(
           messageId: response.message.id,
@@ -603,46 +607,61 @@ struct ChatThreadView: View {
   private func addPhoto(_ item: PhotosPickerItem) async {
     do {
       guard let data = try await item.loadTransferable(type: Data.self) else {
-        sendErrorText = "That photo could not be loaded."
+        sendErrorText = "That photo or video could not be loaded."
         return
       }
+      let imageType = item.supportedContentTypes.first(where: { $0.conforms(to: .movie) || $0.conforms(to: .image) }) ?? .jpeg
+      let originalName = "\(imageType.conforms(to: .movie) ? "Video" : "Photo").\(imageType.preferredFilenameExtension ?? "jpg")"
+      let names = try await HPUploadNaming.confirm([originalName])
       try appendPending(
         data: data,
-        fileName: "Photo-\(pendingAttachments.count + 1).jpg",
-        mimeType: "image/jpeg",
-        isImage: true
+        fileName: names[0],
+        originalFilename: originalName,
+        mimeType: imageType.preferredMIMEType ?? "image/jpeg",
+        isImage: imageType.conforms(to: .image)
       )
+    } catch is CancellationError {
+      return
     } catch {
-      sendErrorText = "That photo could not be attached."
+      sendErrorText = error.localizedDescription
     }
   }
 
   private func handleImportedFiles(_ result: Result<[URL], Error>) {
+    Task { await prepareImportedFiles(result) }
+  }
+
+  private func prepareImportedFiles(_ result: Result<[URL], Error>) async {
     do {
-      for url in try result.get() {
+      let urls = try result.get()
+      let names = try await HPUploadNaming.confirm(urls.map(\.lastPathComponent))
+      for (index, url) in urls.enumerated() {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         let data = try Data(contentsOf: url)
         let type = UTType(filenameExtension: url.pathExtension)
         try appendPending(
           data: data,
-          fileName: url.lastPathComponent,
+          fileName: names[index],
+          originalFilename: url.lastPathComponent,
           mimeType: type?.preferredMIMEType ?? "application/octet-stream",
           isImage: type?.conforms(to: .image) == true
         )
       }
+    } catch is CancellationError {
+      return
     } catch {
       sendErrorText = error.localizedDescription
     }
   }
 
-  private func appendPending(data: Data, fileName: String, mimeType: String, isImage: Bool) throws {
+  private func appendPending(data: Data, fileName: String, originalFilename: String? = nil, mimeType: String, isImage: Bool) throws {
     guard data.count <= 52_428_800 else {
       throw NSError(domain: "chat", code: 10, userInfo: [NSLocalizedDescriptionKey: "Attachments must be 50 MB or smaller."])
     }
     let allowed = isImage
       || [
-        "application/pdf", "text/plain", "text/csv", "application/msword",
+        "video/mp4", "video/quicktime", "application/pdf", "text/plain", "text/csv", "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -651,8 +670,9 @@ struct ChatThreadView: View {
       throw NSError(domain: "chat", code: 11, userInfo: [NSLocalizedDescriptionKey: "That file type is not supported."])
     }
     pendingAttachments.append(
-      PendingChatAttachment(data: data, fileName: fileName, mimeType: mimeType, isImage: isImage)
+      PendingChatAttachment(data: data, fileName: fileName, originalFilename: originalFilename ?? fileName, mimeType: mimeType, isImage: isImage)
     )
+    sendErrorText = nil
     sendOperation.clear()
   }
 
@@ -829,6 +849,7 @@ private struct PendingChatAttachment: Identifiable {
   let id = UUID()
   let data: Data
   let fileName: String
+  let originalFilename: String
   let mimeType: String
   let isImage: Bool
 }

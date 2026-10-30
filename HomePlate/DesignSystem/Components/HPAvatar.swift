@@ -118,6 +118,15 @@ private struct HPProfileSheet: View {
             .foregroundStyle(HP.Color.text)
           HPStatusBadge(text: (details?.role ?? profile.role).capitalized, kind: .info)
 
+          if profile.role == "player", appState.canAdminActiveOrg || appState.activeOrgMembership?.normalizedRole == "coach" {
+            NavigationLink {
+              CoachPlayerProfileView(player: profile)
+            } label: {
+              Label("Programs, videos and progress", systemImage: "chart.line.uptrend.xyaxis")
+            }
+            .buttonStyle(HPButtonStyle(variant: .primary))
+          }
+
           if isLoading {
             HPLoadingState(text: "Loading profile…")
           } else if let errorText {
