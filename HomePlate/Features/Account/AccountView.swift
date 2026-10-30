@@ -1061,7 +1061,9 @@ struct AccountView: View {
       await appState.signOut()
     } catch {
       isShowingDeleteAccount = false
-      errorText = "Your account could not be deleted. Please try again or contact support."
+      errorText = (error as NSError).domain == "HomePlate.AccountDeletion"
+        ? error.localizedDescription
+        : "Your account could not be deleted. Please try again or contact support."
     }
   }
 
@@ -1133,7 +1135,9 @@ private struct DeleteAccountConfirmationSheet: View {
         Section("Permanently delete account") {
           Text("This removes your Home Plate login and profile and cannot be undone. Type DELETE to confirm.")
           TextField("DELETE", text: $confirmation)
+            #if os(iOS)
             .textInputAutocapitalization(.characters)
+            #endif
             .autocorrectionDisabled()
         }
       }

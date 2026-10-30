@@ -1,0 +1,78 @@
+{
+  "bundle_id": "com.multiorg.app",
+  "candidate_source_date": "2026-10-19",
+  "status": "prepared locally; App Store Connect update and exact released-binary review require approval/access",
+  "tracking": false,
+  "linked_to_user": true,
+  "purposes": [
+    "App Functionality"
+  ],
+  "data_types": [
+    {
+      "type": "Name",
+      "basis": "Account/profile identity"
+    },
+    {
+      "type": "EmailAddress",
+      "basis": "Authentication and invitations"
+    },
+    {
+      "type": "PhoneNumber",
+      "basis": "Optional account/player/guardian contact details"
+    },
+    {
+      "type": "Fitness",
+      "basis": "Workouts, athlete testing and performance records"
+    },
+    {
+      "type": "EmailsOrTextMessages",
+      "basis": "Organization, coach, player and parent messages"
+    },
+    {
+      "type": "PhotosorVideos",
+      "basis": "Uploaded profile and development media"
+    },
+    {
+      "type": "OtherUserContent",
+      "basis": "Programs, notes, documents, calendars, scoring and submitted records"
+    },
+    {
+      "type": "UserID",
+      "basis": "Authenticated user and organization-scoped athlete identifiers"
+    },
+    {
+      "type": "DeviceID",
+      "basis": "APNs device token and scoring device identity"
+    },
+    {
+      "type": "PurchaseHistory",
+      "basis": "Apple entitlement and organization payment history"
+    },
+    {
+      "type": "OtherFinancialInfo",
+      "basis": "Invoices, balances and payment-request records"
+    },
+    {
+      "type": "ProductInteraction",
+      "basis": "Authenticated workflow and audit events"
+    }
+  ],
+  "excluded_without_evidence": [
+    "Advertising tracking",
+    "Precise or coarse user location",
+    "HealthKit/medical records",
+    "Payment card numbers handled externally by payment providers",
+    "Native crash/performance telemetry without an enabled transmitting SDK"
+  ],
+  "review_required": [
+    "Confirm actual distributed build and SDK privacy report",
+    "Confirm optional phone/media and financial metadata collection in enabled organization workflows",
+    "Confirm required-reason API inventory of final built bundle",
+    "Update App Store Connect label from Data Not Collected before release acceptance"
+  ],
+  "sources": [
+    "https://developer.apple.com/app-store/app-privacy-details/",
+    "https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api",
+    "https://developer.apple.com/documentation/technotes/tn3183-adding-required-reason-api-entries-to-your-privacy-manifest"
+  ]
+}

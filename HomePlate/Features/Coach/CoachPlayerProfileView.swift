@@ -487,21 +487,21 @@ private struct CoachPlayerProgramAssignerView: View {
   }
 
   private func reload() async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase, let orgId = appState.activeOrgId else { return }
     isWorking = true
     defer { isWorking = false }
     do {
       coachTemplates = try await supabase.listMyCoachTemplates()
       activeAssignments = try await supabase.fetchActiveAssignments(
         playerId: player.id,
-        orgId: appState.activeOrgId
+        orgId: orgId
       )
       activeTemplates = Dictionary(uniqueKeysWithValues: try await supabase
         .fetchProgramTemplates(ids: activeAssignments.map(\.template_id))
         .map { ($0.id, $0) })
-      parentInvites = try await supabase.coachListParentInvites(childId: player.id)
-      parentLinks = try await supabase.coachListParentLinks(childId: player.id)
-      if appState.canAdminActiveOrg, let orgId = appState.activeOrgId {
+      parentInvites = try await supabase.coachListParentInvites(orgId: orgId, childId: player.id)
+      parentLinks = try await supabase.coachListParentLinks(orgId: orgId, childId: player.id)
+      if appState.canAdminActiveOrg {
         playerAccess = try await supabase.adminFetchPlayerAccess(orgId: orgId, playerId: player.id)
       }
     } catch {
@@ -571,13 +571,13 @@ private struct CoachPlayerProgramAssignerView: View {
     defer { isWorking = false }
     do {
       let rel = parentRelationship.trimmingCharacters(in: .whitespacesAndNewlines)
-      _ = try await supabase.coachCreateParentInvite(
+      let issued = try await supabase.coachCreateParentInvite(
         orgId: orgId,
         childId: player.id,
         parentEmail: parentEmail,
         relationship: rel.isEmpty ? nil : rel
       )
-      toastText = "Invited"
+      toastText = issued.delivery == "email" ? "Invitation email sent" : "Invitation created"
       parentEmail = ""
       parentRelationship = ""
       await reload()

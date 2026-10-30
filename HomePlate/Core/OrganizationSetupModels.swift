@@ -166,6 +166,33 @@ enum SDOrganizationInvitationURL {
   }
 }
 
+struct SDParentInviteRedemption: Identifiable, Equatable, Sendable {
+  let inviteId: UUID
+  let token: String
+
+  var id: String { inviteId.uuidString.lowercased() }
+
+  init?(url: URL) {
+    guard url.scheme?.lowercased() == "homeplate",
+          url.host?.lowercased() == "parent-invite",
+          let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+    let path = url.pathComponents.filter { $0 != "/" }
+    guard path.count == 1, let inviteId = UUID(uuidString: path[0]) else { return nil }
+    var token: String?
+    for item in components.queryItems ?? [] {
+      guard item.name.lowercased() == "token", token == nil,
+            let value = item.value,
+            (32...128).contains(value.count),
+            value.utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) })
+      else { return nil }
+      token = value.lowercased()
+    }
+    guard let token else { return nil }
+    self.inviteId = inviteId
+    self.token = token
+  }
+}
+
 struct SDOrganizationInvitationLink: Identifiable, Decodable, Equatable, Sendable {
   let id: UUID
   let organization_id: UUID

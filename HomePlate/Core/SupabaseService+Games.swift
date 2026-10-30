@@ -296,6 +296,84 @@ extension SupabaseService {
     )).single().execute().value
   }
 
+  func acquireNativeScorekeepingControl(
+    gameId: UUID, deviceId: UUID, sessionId: String, expectedAuthorityEpoch: Int?
+  ) async throws -> SDScorekeeperLease {
+    struct Parameters: Encodable {
+      let p_game_id: UUID
+      let p_device_id: UUID
+      let p_authenticated_session_id: String
+      let p_expected_authority_epoch: Int?
+    }
+    return try await client.rpc("sd_acquire_native_scorekeeping_control", params: Parameters(
+      p_game_id: gameId,
+      p_device_id: deviceId,
+      p_authenticated_session_id: sessionId,
+      p_expected_authority_epoch: expectedAuthorityEpoch
+    )).single().execute().value
+  }
+
+  func authenticatedScoringSessionIdentifier() async throws -> String {
+    let session = try await client.auth.session
+    let parts = session.accessToken.split(separator: ".")
+    guard parts.count == 3 else { throw SDScoringSessionIdentifierError.missingJWTSessionIdentifier }
+    var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    let remainder = payload.count % 4
+    if remainder != 0 { payload += String(repeating: "=", count: 4 - remainder) }
+    struct Claims: Decodable { let session_id: String? }
+    guard let data = Data(base64Encoded: payload),
+          let claims = try? JSONDecoder().decode(Claims.self, from: data),
+          let value = claims.session_id?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !value.isEmpty, value.count <= 256 else {
+      throw SDScoringSessionIdentifierError.missingJWTSessionIdentifier
+    }
+    return value
+  }
+
+  func legacyScoringSessionIdentifier() async throws -> String {
+    let session = try await client.auth.session
+    return session.user.id.uuidString.lowercased()
+  }
+
+  func appendNativeScoringJournalCommand(
+    game: SDGame,
+    command: SDQueuedScoringCommand,
+    actorDeviceId: UUID,
+    controlToken: String,
+    authorityEpoch: Int
+  ) async throws -> [SDScoringEvent] {
+    struct EventPayload: Encodable {
+      let id: UUID
+      let event_type: String
+      let payload: [String: SDJSONValue]
+    }
+    struct Parameters: Encodable {
+      let p_game_id: UUID
+      let p_canonical_event_id: UUID
+      let p_expected_version: Int
+      let p_actor_device_id: UUID
+      let p_control_token: String
+      let p_command_id: UUID
+      let p_expected_authority_epoch: Int
+      let p_events: [EventPayload]
+    }
+    let parameters = Parameters(
+      p_game_id: game.id,
+      p_canonical_event_id: game.event_id,
+      p_expected_version: command.expectedVersion,
+      p_actor_device_id: actorDeviceId,
+      p_control_token: controlToken,
+      p_command_id: command.id,
+      p_expected_authority_epoch: authorityEpoch,
+      p_events: command.events.map {
+        EventPayload(id: $0.id, event_type: $0.type.rawValue, payload: $0.payload)
+      }
+    )
+    return try await client.rpc("sd_append_native_journal_command", params: parameters)
+      .execute().value
+  }
+
   func acquireScorekeepingControl(
     gameId: UUID, deviceId: UUID, sessionId: String
   ) async throws -> SDScorekeeperLease {

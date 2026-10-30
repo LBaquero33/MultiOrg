@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct GameDetailView: View {
   @EnvironmentObject private var appState: AppState
@@ -372,7 +377,7 @@ struct GameDetailView: View {
         }
         Button("Google Maps") {
           if let appURL = URL(string: "comgooglemaps://?daddr=\(encoded)&directionsmode=driving"),
-             UIApplication.shared.canOpenURL(appURL) {
+             canOpenMapApp(appURL) {
             openURL(appURL)
           } else if let webURL = URL(string: "https://www.google.com/maps/dir/?api=1&destination=\(encoded)") {
             openURL(webURL)
@@ -380,18 +385,35 @@ struct GameDetailView: View {
         }
         Button("Waze") {
           if let appURL = URL(string: "waze://?q=\(encoded)&navigate=yes"),
-             UIApplication.shared.canOpenURL(appURL) {
+             canOpenMapApp(appURL) {
             openURL(appURL)
           } else if let webURL = URL(string: "https://www.waze.com/ul?q=\(encoded)&navigate=yes") {
             openURL(webURL)
           }
         }
       }
-      Button("Copy Address") { UIPasteboard.general.string = address }
+      Button("Copy Address") { copyAddress(address) }
     } label: {
       Label("Directions", systemImage: "map")
     }
     .buttonStyle(.bordered)
+  }
+
+  private func canOpenMapApp(_ url: URL) -> Bool {
+    #if canImport(UIKit)
+    UIApplication.shared.canOpenURL(url)
+    #else
+    false // Desktop destinations use the provider's web directions.
+    #endif
+  }
+
+  private func copyAddress(_ address: String) {
+    #if canImport(UIKit)
+    UIPasteboard.general.string = address
+    #elseif canImport(AppKit)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(address, forType: .string)
+    #endif
   }
 
   private func load() async {

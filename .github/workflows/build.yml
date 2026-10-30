@@ -10,16 +10,45 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate Xcode project from source spec
+        run: xcodegen generate
       - name: Prepare non-secret build configuration
         run: cp Configs/Secrets.example.xcconfig Configs/Secrets.xcconfig
-      - name: Build iOS simulator target
-        run: xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlate -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Select an available iPhone simulator
+        id: simulator
+        run: |
+          device_id="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next((d["udid"] for runtime in data["devices"].values() for d in runtime if d.get("isAvailable") and d.get("name", "").startswith("iPhone")), ""))')"
+          test -n "$device_id"
+          echo "id=$device_id" >> "$GITHUB_OUTPUT"
+      - name: Run iOS unit tests
+        run: xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlate -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' -configuration Debug CODE_SIGNING_ALLOWED=NO test
 
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate Xcode project from source spec
+        run: xcodegen generate
       - name: Prepare non-secret build configuration
         run: cp Configs/Secrets.example.xcconfig Configs/Secrets.xcconfig
-      - name: Build macOS target
-        run: xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlateMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Run macOS client contract tests
+        run: xcodebuild -quiet -project HomePlate.xcodeproj -scheme HomePlateMac -destination 'platform=macOS' -configuration Debug CODE_SIGNING_ALLOWED=NO test
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck Edge entrypoints
+        run: deno check --no-lock supabase/functions/*/index.ts
+      - name: Run backend shared contracts without production access
+        working-directory: supabase/functions/_shared
+        run: deno test --no-lock --allow-read .
+      - name: Run analytics contract
+        run: deno test --no-lock supabase/functions/player-development-analytics/contract_test.ts

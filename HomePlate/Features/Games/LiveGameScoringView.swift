@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct LiveGameScoringView: View {
   @EnvironmentObject private var appState: AppState
@@ -7,6 +8,12 @@ struct LiveGameScoringView: View {
   let participants: [SDEventParticipant]
 
   @State private var state = SDGameState()
+  @State private var serverState = SDGameState()
+  @State private var journal: SDGameScoringJournal?
+  @State private var journalLoadFailed = false
+  @State private var authorityWasVerified = false
+  @State private var journalProtocolAvailable = false
+  @State private var reconciliationStatus: String?
   @State private var rules = SDResolvedBaseballRules()
   @State private var controlState: SDScorekeeperControlState = .disconnected
   @State private var controlToken: String?
@@ -18,11 +25,17 @@ struct LiveGameScoringView: View {
   @State private var errorText: String?
 
   private let deviceId = SDGameDeviceIdentity.current
+  private let journalStore = SDGameScoringJournalStore.applicationSupport
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       liveHeader
       scoreStrip
+      if let reconciliationStatus {
+        Label(reconciliationStatus, systemImage: "clock.arrow.circlepath")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.orange)
+      }
       HStack(alignment: .top, spacing: 14) {
         field
         actionPanel
@@ -63,10 +76,8 @@ struct LiveGameScoringView: View {
   }
 
   private var canMutate: Bool {
-    SDLiveScoringAccess.mutationEnabled(
-      authorizationAllowsScoring: canScore,
-      controlState: controlState
-    ) && !isSubmitting
+    canScore && appState.activeOrgId == game.org_id && !isSubmitting && !journalLoadFailed && (controlState.canMutate
+      || (authorityWasVerified && journalProtocolAvailable && journal?.hasConflict == false))
   }
 
   private var liveHeader: some View {
@@ -77,7 +88,7 @@ struct LiveGameScoringView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(controlState.canMutate ? "Live scorekeeper" : "Live viewer")
           .font(.headline)
-        Text("Version \(state.version) • \(state.half.capitalized) \(state.inning)")
+        Text("\(journal?.commands.isEmpty == false ? "PROVISIONAL • \(journal?.commands.count ?? 0) pending play(s)" : "Server version \(serverState.version)") • \(state.half.capitalized) \(state.inning)")
           .font(.caption)
           .foregroundStyle(DHDTheme.textSecondary)
       }
@@ -211,8 +222,7 @@ struct LiveGameScoringView: View {
       ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
         Button {
           Task {
-            await commit(.pitchThrown, payload: [:])
-            await commit(action.2, payload: action.3)
+            await commit([(.pitchThrown, [:]), (action.2, action.3)])
           }
         } label: {
           Label(action.0, systemImage: action.1)
@@ -227,9 +237,11 @@ struct LiveGameScoringView: View {
   private var viewerBanner: some View {
     HStack {
       Image(systemName: "lock.fill")
-      Text(pendingRequest == nil
-        ? "Scoring controls are locked on this device."
-        : "Control requested. This screen will remain live while you wait.")
+      Text(journal?.hasPendingCommands == true
+        ? "These plays are provisional on this device and are not official until the server accepts them."
+        : pendingRequest == nil
+          ? "Scoring controls are locked on this device."
+          : "Control requested. This screen will remain live while you wait.")
     }
     .font(.footnote.weight(.semibold))
     .foregroundStyle(.orange)
@@ -278,50 +290,313 @@ struct LiveGameScoringView: View {
   }
 
   private func start() async {
-    guard let service = appState.supabase, let orgId = appState.activeOrgId else { return }
+    guard let service = appState.supabase, let orgId = appState.activeOrgId,
+          let actorId = appState.myProfile?.id else { isLoading = false; return }
+    guard orgId == game.org_id else {
+      isLoading = false
+      controlState = .viewer
+      reconciliationStatus = "Select this game's organization to score it."
+      return
+    }
     rules = SDResolvedBaseballRules.resolve([game.ruleset_snapshot])
     do {
+      journal = try journalStore.load(organizationId: orgId, gameId: game.id, deviceId: deviceId)
+    } catch {
+      journalLoadFailed = true
+      controlState = .reconciliationRequired
+      reconciliationStatus = "Saved scoring data could not be read. Scoring is locked to protect it."
+      isLoading = false
+      return
+    }
+    do {
       let events = try await service.listScoringEvents(gameId: game.id, organizationId: orgId)
-      state = try SDGameReducer.replay(events, rules: rules)
+      serverState = try SDGameReducer.replay(events, rules: rules)
+      state = serverState
       if canScore {
-        let lease = try await service.acquireScorekeepingControl(
-          gameId: game.id, deviceId: deviceId, sessionId: "authenticated-app-session"
-        )
-        apply(lease)
+        if let stored = journal {
+          guard stored.actorUserId == actorId, stored.organizationId == orgId,
+                stored.gameId == game.id, stored.deviceId == deviceId else {
+            freezeJournal("This device or account changed. Review the saved plays before continuing.")
+            isLoading = false
+            return
+          }
+          var existing = stored
+          do {
+            try existing.reconcilePersistedCommands(
+              against: events, serverState: serverState, rules: rules
+            )
+            try journalStore.save(existing)
+            journal = existing
+          } catch {
+            freezeJournal("The server game changed while plays were pending. Review before continuing.")
+            isLoading = false
+            return
+          }
+          let lease = try await service.acquireNativeScorekeepingControl(
+            gameId: game.id, deviceId: deviceId,
+            sessionId: try await service.authenticatedScoringSessionIdentifier(),
+            expectedAuthorityEpoch: existing.authorityEpoch
+          )
+          guard lease.state != .reconciliationRequired,
+                lease.authority_epoch == existing.authorityEpoch,
+                lease.active_user_id == actorId, lease.active_device_id == deviceId else {
+            freezeJournal("Scoring authority changed. Pending plays are frozen for explicit review.")
+            isLoading = false
+            return
+          }
+          journalProtocolAvailable = true
+          authorityWasVerified = existing.authorityVerifiedAt <= Date()
+          apply(lease)
+          try await reconcilePendingCommands(service: service)
+        } else {
+          let sessionId: String
+          do {
+            sessionId = try await service.authenticatedScoringSessionIdentifier()
+          } catch SDScoringSessionIdentifierError.missingJWTSessionIdentifier {
+            let legacyLease = try await service.acquireScorekeepingControl(
+              gameId: game.id, deviceId: deviceId,
+              sessionId: try await service.legacyScoringSessionIdentifier()
+            )
+            journalProtocolAvailable = false
+            authorityWasVerified = false
+            apply(legacyLease)
+            isLoading = false
+            return
+          }
+          let lease: SDScorekeeperLease
+          do {
+            lease = try await service.acquireNativeScorekeepingControl(
+              gameId: game.id, deviceId: deviceId,
+              sessionId: sessionId, expectedAuthorityEpoch: nil
+            )
+          } catch let error where isJournalEndpointMissing(error) {
+            // Compatibility with older online deployments only. This lease
+            // cannot authorize offline provisional entry because it has no epoch.
+            lease = try await service.acquireScorekeepingControl(
+              gameId: game.id, deviceId: deviceId, sessionId: sessionId
+            )
+            journalProtocolAvailable = false
+            authorityWasVerified = false
+            apply(lease)
+            isLoading = false
+            return
+          }
+          guard lease.state != .reconciliationRequired,
+                let epoch = lease.authority_epoch,
+                lease.active_user_id == actorId, lease.active_device_id == deviceId else {
+            apply(lease)
+            isLoading = false
+            return
+          }
+          journalProtocolAvailable = true
+          authorityWasVerified = true
+          journal = SDGameScoringJournal(
+            organizationId: orgId, gameId: game.id, actorUserId: actorId,
+            deviceId: deviceId, authorityVerifiedAt: Date(), authorityEpoch: epoch,
+            baseServerVersion: serverState.version, baseState: serverState,
+            commands: [], conflictReason: nil
+          )
+          if let journal { try journalStore.save(journal) }
+          apply(lease)
+        }
       } else {
         controlState = .viewer
+        if journal?.hasPendingCommands == true {
+          freezeJournal("Your scoring role changed. Pending plays are frozen for explicit review.")
+        }
         try? await service.markGameLiveDevice(gameId: game.id, deviceId: deviceId, state: .liveViewer)
       }
     } catch {
-      controlState = .viewer
-      errorText = error.localizedDescription
+      controlState = .disconnected
+      if let existing = journal, existing.actorUserId == actorId,
+         existing.organizationId == orgId, existing.gameId == game.id,
+         existing.deviceId == deviceId, existing.authorityVerifiedAt <= Date(),
+         !existing.hasConflict {
+        journalProtocolAvailable = true
+        authorityWasVerified = true
+        state = (try? existing.projection(from: existing.baseState, rules: rules)) ?? existing.baseState
+        reconciliationStatus = "Offline provisional entry: not official until server reconciliation."
+      } else {
+        errorText = error.localizedDescription
+      }
     }
     isLoading = false
   }
 
   private func apply(_ lease: SDScorekeeperLease) {
     controlToken = lease.control_token
-    controlState = lease.state == .liveScorekeeper
-      ? .scorekeeper(expiresAt: lease.lease_expires_at)
-      : .viewer
+    switch lease.state {
+    case .liveScorekeeper: controlState = .scorekeeper(expiresAt: lease.lease_expires_at)
+    case .reconciliationRequired: controlState = .reconciliationRequired
+    case .disconnected: controlState = .disconnected
+    case .requestingControl: controlState = .requesting
+    case .liveViewer: controlState = .viewer
+    }
   }
 
   private func commit(_ type: SDScoringEventType, payload: [String: SDJSONValue]) async {
-    guard canMutate, let service = appState.supabase, let token = controlToken else { return }
+    await commit([(type, payload)])
+  }
+
+  private func commit(_ eventValues: [(SDScoringEventType, [String: SDJSONValue])]) async {
+    guard canMutate else { return }
     isSubmitting = true
     defer { isSubmitting = false }
     do {
-      let id = UUID()
-      let event = try await service.appendScoringEvent(
-        game: game, scoringEventId: id, expectedVersion: state.version,
-        type: type, deviceId: deviceId, controlToken: token, payload: payload,
-        idempotencyKey: "\(game.id.uuidString.lowercased()):\(id.uuidString.lowercased())"
-      )
-      state = try SDGameReducer.apply(event, to: state, rules: rules)
+      guard let existing = journal else {
+        guard let service = appState.supabase, let token = controlToken else {
+          throw SDGameScoringJournalError.identityMismatch
+        }
+        guard SDLegacyScoringCommandPolicy.canSendOnlineOnly(eventCount: eventValues.count) else {
+          reconciliationStatus = "This app version cannot safely record a multi-event play. Update before recording it."
+          return
+        }
+        // Legacy protocol is supported online only. Keep command IDs stable
+        // for this request and do not queue when its epoch contract is absent.
+        for (index, value) in eventValues.enumerated() {
+          let eventId = UUID()
+          let event = try await service.appendScoringEvent(
+            game: game, scoringEventId: eventId, expectedVersion: state.version,
+            type: value.0, deviceId: deviceId, controlToken: token, payload: value.1,
+            idempotencyKey: "native:\(eventId.uuidString.lowercased()):\(index)"
+          )
+          state = try SDGameReducer.apply(event, to: state, rules: rules)
+          serverState = state
+        }
+        return
+      }
+      var updated = existing
+      updated.enqueue(events: eventValues)
+      guard !updated.hasConflict else { throw SDGameScoringJournalError.identityMismatch }
+      _ = try updated.projection(from: updated.baseState, rules: rules)
+      try journalStore.save(updated)
+      journal = updated
+      state = try updated.projection(from: updated.baseState, rules: rules)
+      if let service = appState.supabase, let token = controlToken, journalProtocolAvailable {
+        await reconcilePendingCommands(service: service, token: token)
+      } else {
+        reconciliationStatus = "PROVISIONAL: saved locally; not official until server reconciliation."
+      }
     } catch {
-      await reloadEvents()
-      errorText = error.localizedDescription
+      reconciliationStatus = "This play could not be saved safely. No official score was changed."
     }
+  }
+
+  private func reconcilePendingCommands(service: SupabaseService, token: String? = nil) async {
+    guard var current = journal, let actorId = appState.myProfile?.id else { return }
+    let epoch = current.authorityEpoch
+    let activeToken: String
+    if let token { activeToken = token }
+    else if let controlToken { activeToken = controlToken }
+    else { return }
+    guard current.matches(
+      organizationId: game.org_id, gameId: game.id, actorUserId: actorId,
+      deviceId: deviceId, authorityEpoch: epoch
+    ) else {
+      freezeJournal("Scoring identity changed. Pending plays are frozen for explicit review.")
+      return
+    }
+    do {
+      for command in current.commands {
+        let accepted: [SDScoringEvent]
+        do {
+          accepted = try await service.appendNativeScoringJournalCommand(
+            game: game, command: command, actorDeviceId: deviceId,
+            controlToken: activeToken, authorityEpoch: epoch
+          )
+        } catch {
+          if isNativeAppendEndpointMissing(error), command.events.count == 1 {
+            guard let event = command.events.first else {
+              throw SDGameScoringJournalError.serverHeadChanged
+            }
+            let legacy = try await service.appendScoringEvent(
+              game: game, scoringEventId: event.id,
+              expectedVersion: command.expectedVersion, type: event.type,
+              deviceId: deviceId, controlToken: activeToken, payload: event.payload,
+              idempotencyKey: "native:\(command.id.uuidString.lowercased()):0"
+            )
+            accepted = [legacy]
+          } else {
+          let remote = try await service.listScoringEvents(gameId: game.id, organizationId: game.org_id)
+          let matches = command.events.compactMap { queued in remote.first(where: { $0.id == queued.id }) }
+          if matches.count == command.events.count {
+            accepted = matches
+          } else if matches.isEmpty {
+            // Retry the exact persisted command IDs and payload only while the
+            // current verified lease remains available.
+            accepted = try await service.appendNativeScoringJournalCommand(
+              game: game, command: command, actorDeviceId: deviceId,
+              controlToken: activeToken, authorityEpoch: epoch
+            )
+          } else {
+            throw SDGameScoringJournalError.serverHeadChanged
+          }
+          }
+        }
+        try current.acknowledge(command, with: accepted, rules: rules)
+        try journalStore.save(current)
+        journal = current
+      }
+      serverState = current.baseState
+      state = current.baseState
+      reconciliationStatus = nil
+      if current.commands.isEmpty {
+        try journalStore.remove(organizationId: current.organizationId, gameId: current.gameId, deviceId: current.deviceId)
+        journal = current
+      }
+    } catch {
+      if isRetryableScoringTransportFailure(error),
+         current.hasConflict == false {
+        // A lost response or unavailable server does not prove divergence.
+        // Preserve the durable commands as provisional and reacquire against
+        // the same verified epoch when connectivity returns.
+        controlToken = nil
+        controlState = .disconnected
+        reconciliationStatus = "PROVISIONAL: connection lost. Saved plays remain queued and are not official. Reconnect to reconcile."
+      } else {
+        freezeJournal("The server game or scoring authority diverged. Pending plays need explicit review.")
+      }
+    }
+  }
+
+  private func freezeJournal(_ message: String) {
+    if var current = journal {
+      current.freeze(message)
+      try? journalStore.save(current)
+      journal = current
+    }
+    authorityWasVerified = false
+    controlToken = nil
+    controlState = .reconciliationRequired
+    reconciliationStatus = message
+  }
+
+  private func isRetryableScoringTransportFailure(_ error: Error) -> Bool {
+    if let functionsError = error as? FunctionsError,
+       case let .httpError(statusCode, _) = functionsError {
+      return statusCode == 408 || statusCode == 429 || statusCode >= 500
+    }
+    if let functionsError = error as? FunctionsError,
+       case .relayError = functionsError {
+      return true
+    }
+    return SDScorekeepingFailureDisposition.classify(error) == .retryTransport
+  }
+
+  private func isJournalEndpointMissing(_ error: Error) -> Bool {
+    let description = error.localizedDescription.lowercased()
+    return description.contains("pgrst202")
+      || (description.contains("sd_acquire_native_scorekeeping_control")
+        && (description.contains("not found") || description.contains("does not exist")
+          || description.contains("could not find")))
+  }
+
+  private func isNativeAppendEndpointMissing(_ error: Error) -> Bool {
+    let description = error.localizedDescription.lowercased()
+    return description.contains("pgrst202")
+      || (description.contains("sd_append_native_journal_command")
+        && (description.contains("not found") || description.contains("does not exist")
+          || description.contains("could not find")))
   }
 
   private func advanceRunner(player: UUID, from: Int, to: Int) async {
@@ -343,22 +618,41 @@ struct LiveGameScoringView: View {
 
   private func heartbeatLoop() async {
     guard let service = appState.supabase else { return }
-    while !Task.isCancelled, let token = controlToken, controlState.canMutate {
+    while !Task.isCancelled {
       try? await Task.sleep(for: .seconds(SDScorekeeperLeasePolicy.heartbeatInterval))
       guard !Task.isCancelled else { break }
-      do {
-        let renewed = try await service.renewScorekeepingControl(
-          gameId: game.id, deviceId: deviceId, token: token
-        )
-        if !renewed {
+      if let token = controlToken, controlState.canMutate {
+        do {
+          let renewed = try await service.renewScorekeepingControl(
+            gameId: game.id, deviceId: deviceId, token: token
+          )
+          if renewed { continue }
           controlToken = nil
           controlState = .viewer
-          break
+        } catch {
+          controlToken = nil
+          controlState = .disconnected
         }
+      }
+      guard canScore, journalProtocolAvailable, let current = journal,
+            !current.hasConflict, let actorId = appState.myProfile?.id else { continue }
+      do {
+        let lease = try await service.acquireNativeScorekeepingControl(
+          gameId: game.id, deviceId: deviceId,
+          sessionId: try await service.authenticatedScoringSessionIdentifier(),
+          expectedAuthorityEpoch: current.authorityEpoch
+        )
+        guard lease.state != .reconciliationRequired,
+              lease.authority_epoch == current.authorityEpoch,
+              lease.active_user_id == actorId, lease.active_device_id == deviceId else {
+          freezeJournal("Scoring authority changed. Pending plays are frozen for explicit review.")
+          continue
+        }
+        apply(lease)
+        if current.hasPendingCommands { await reconcilePendingCommands(service: service) }
       } catch {
         controlToken = nil
         controlState = .disconnected
-        break
       }
     }
   }

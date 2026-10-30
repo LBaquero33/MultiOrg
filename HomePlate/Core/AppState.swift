@@ -43,6 +43,8 @@ final class AppState: ObservableObject {
   @Published var chatReadUpdate: ChatReadUpdate?
   @Published var requestedChatChannelId: UUID?
   @Published var requestedNotification: AppNotification?
+  @Published var requestedCalendarDestination: HPCalendarLinkRoute?
+  @Published var pendingCalendarLink: HPCalendarLinkRoute?
   @Published private(set) var requestedTeamWorkspaceSection: HPTeamWorkspaceSection?
   @Published private(set) var isPlatformAdmin = false
   @Published private(set) var platformFeatureFlags: [SDPlatformFeatureFlag] = []
@@ -55,6 +57,8 @@ final class AppState: ObservableObject {
   @Published private(set) var isTeamOperationsLoading = false
   @Published private(set) var pendingInvitation: SDOrganizationInvitationValidation?
   @Published private(set) var pendingInvitationToken: String?
+  @Published var pendingParentInviteRedemption: SDParentInviteRedemption?
+  @Published var pendingParentInvitePreview: SDParentInvitePreview?
   @Published var invitationErrorText: String?
 
   let pushNotifications = PushNotificationManager()
@@ -62,6 +66,7 @@ final class AppState: ObservableObject {
 
   private(set) var supabase: SupabaseService?
   private var coachListenersStarted = false
+  private var coachListenerOrganizationId: UUID?
   private var chatListenerStarted = false
   private var chatListenerOrganizationId: UUID?
   private var activeChatChannelId: UUID?
@@ -130,6 +135,14 @@ final class AppState: ObservableObject {
   }
 
   func handleAppURL(_ url: URL) async {
+    if url.scheme?.lowercased() == "homeplate", url.host?.lowercased() == "parent-invite" {
+      await handleParentInviteURL(url)
+      return
+    }
+    if url.scheme?.lowercased() == "homeplate", url.host?.lowercased() == "calendar" {
+      await handleCalendarURL(url)
+      return
+    }
     if url.host?.lowercased() == "invite" {
       await handleInvitationURL(url)
       return
@@ -146,6 +159,111 @@ final class AppState: ObservableObject {
       return
     }
     requestedTeamWorkspaceSection = route.section
+  }
+
+  func handleParentInviteURL(_ url: URL) async {
+    guard let redemption = SDParentInviteRedemption(url: url) else {
+      globalToastText = "This parent invitation link is invalid or unavailable."
+      return
+    }
+    pendingParentInviteRedemption = redemption
+    pendingParentInvitePreview = nil
+    await retryPendingParentInvitePreview()
+  }
+
+  func retryPendingDeepLinks() async {
+    await retryPendingParentInvitePreview()
+    await retryPendingCalendarDestination()
+  }
+
+  private func retryPendingParentInvitePreview() async {
+    guard let redemption = pendingParentInviteRedemption,
+          pendingParentInvitePreview == nil, let supabase else { return }
+    do {
+      pendingParentInvitePreview = try await supabase.previewParentInvite(
+        inviteId: redemption.inviteId, token: redemption.token
+      )
+    } catch {
+      globalToastText = "This parent invitation has expired or is unavailable."
+    }
+  }
+
+  func acceptPendingParentInvite() async {
+    guard isAuthenticated,
+          let redemption = pendingParentInviteRedemption,
+          let supabase else {
+      globalToastText = "Sign in with the invited email to accept this invitation."
+      return
+    }
+    do {
+      guard let preview = pendingParentInvitePreview else {
+        throw SDParentInviteRedemptionError.previewUnavailable
+      }
+      let result = try await supabase.acceptParentInvite(
+        inviteId: redemption.inviteId, token: redemption.token
+      )
+      guard result.accepted, result.org_id == preview.org_id,
+            result.child_id == preview.child_id else {
+        throw SDParentInviteRedemptionError.contextMismatch
+      }
+      pendingParentInviteRedemption = nil
+      pendingParentInvitePreview = nil
+      globalToastText = "Parent access connected."
+      await refreshOrgContext()
+      await switchActiveOrganization(to: result.org_id)
+    } catch {
+      globalToastText = SDApplicationErrorClassifier.alertMessage(for: error)
+        ?? "This invitation could not be accepted."
+    }
+  }
+
+  func dismissParentInviteRedemption() {
+    pendingParentInviteRedemption = nil
+    pendingParentInvitePreview = nil
+  }
+
+  func handleCalendarURL(_ url: URL) async {
+    guard let route = HPCalendarLinkRoute(url: url) else {
+      globalToastText = "This calendar link is invalid or unavailable."
+      return
+    }
+    pendingCalendarLink = route
+    await retryPendingCalendarDestination()
+  }
+
+  private func retryPendingCalendarDestination() async {
+    guard isAuthenticated, let route = pendingCalendarLink else { return }
+    await switchActiveOrganization(to: route.organizationId)
+    guard activeOrgId == route.organizationId,
+          activeOrgMembership?.isActive == true else {
+      globalToastText = "This calendar item is unavailable in the selected organization."
+      return
+    }
+    guard let supabase else { return }
+    do {
+      switch route.source {
+      case .event:
+        let event = try await supabase.fetchCanonicalEvent(
+          id: route.sourceId, organizationId: route.organizationId
+        )
+        guard event.org_id == route.organizationId else { throw HPCalendarLinkError.unavailable }
+      case .booking:
+        let booking = try await supabase.fetchFacilityBooking(
+          id: route.sourceId, orgId: route.organizationId
+        )
+        guard booking.org_id == route.organizationId else { throw HPCalendarLinkError.unavailable }
+      }
+      pendingCalendarLink = nil
+      requestedCalendarDestination = route
+    } catch {
+      pendingCalendarLink = nil
+      requestedCalendarDestination = nil
+      globalToastText = "This calendar item is unavailable in the selected organization."
+    }
+  }
+
+  func clearRequestedCalendarDestination() {
+    requestedCalendarDestination = nil
   }
 
   func clearRequestedTeamWorkspaceSection() {
@@ -326,6 +444,7 @@ final class AppState: ObservableObject {
       }
       isAuthenticated = true
       startLiveUpdates()
+      await retryPendingDeepLinks()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -482,6 +601,7 @@ final class AppState: ObservableObject {
     }
 
     await refreshTeamOperationsContext()
+    await startCoachListenersIfNeeded()
   }
 
   func switchActiveOrganization(to orgId: UUID) async {
@@ -517,6 +637,7 @@ final class AppState: ObservableObject {
     }
     await refreshTeamOperationsContext()
     await startChatListenerIfNeeded()
+    await startCoachListenersIfNeeded()
   }
 
   func refreshTeamOperationsContext() async {
@@ -710,6 +831,7 @@ final class AppState: ObservableObject {
       }
       isAuthenticated = true
       startLiveUpdates()
+      await retryPendingDeepLinks()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -877,6 +999,7 @@ final class AppState: ObservableObject {
       try await supabase.client.auth.setSession(accessToken: resp.access_token, refreshToken: resp.refresh_token)
       isAuthenticated = true
       await loadMyProfile()
+      await retryPendingDeepLinks()
       if myProfile?.isPlayer == true {
         await refreshOnboarding()
       } else {
@@ -914,6 +1037,7 @@ final class AppState: ObservableObject {
       }
       isAuthenticated = true
       startLiveUpdates()
+      await retryPendingDeepLinks()
       if myProfile?.isPlayer == true {
         if AppFlags.bypassAccessCheck {
           myEntitlement = nil
@@ -1106,25 +1230,39 @@ final class AppState: ObservableObject {
 
   private func startCoachListenersIfNeeded() async {
     guard let supabase else { return }
-    guard myProfile?.isCoach == true else {
+    guard let organizationId = activeOrgId,
+          activeOrgMembership?.isStaff == true else {
       if coachListenersStarted {
         await supabase.stopFacilityBookingRequestListener()
       }
       coachListenersStarted = false
+      coachListenerOrganizationId = nil
       return
     }
-    if coachListenersStarted { return }
+    if coachListenersStarted, coachListenerOrganizationId == organizationId { return }
+    if coachListenersStarted {
+      await supabase.stopFacilityBookingRequestListener()
+      coachListenersStarted = false
+      coachListenerOrganizationId = nil
+    }
     coachListenersStarted = true
+    coachListenerOrganizationId = organizationId
 
     await requestNotificationPermissionIfNeeded()
 
     do {
-      try await supabase.startFacilityBookingRequestListener { [weak self] req in
+      try await supabase.startFacilityBookingRequestListener(organizationId: organizationId) { [weak self] req in
         Task { @MainActor in
-          self?.handleNewFacilityBookingRequest(req)
+          guard let self,
+                self.activeOrgId == req.organizationId,
+                self.coachListenerOrganizationId == req.organizationId,
+                self.activeOrgMembership?.isStaff == true else { return }
+          self.handleNewFacilityBookingRequest(req)
         }
       }
     } catch {
+      coachListenersStarted = false
+      coachListenerOrganizationId = nil
       globalToastText = "Facility request notifications unavailable: \(error.localizedDescription)"
     }
   }
@@ -1200,6 +1338,9 @@ final class AppState: ObservableObject {
   }
 
   private func handleNewFacilityBookingRequest(_ req: SupabaseService.FacilityBookingRequest) {
+    guard req.organizationId == activeOrgId,
+          coachListenerOrganizationId == req.organizationId,
+          activeOrgMembership?.isStaff == true else { return }
     globalToastText = "New booking request received."
 
     let timeFmt = DateFormatter()

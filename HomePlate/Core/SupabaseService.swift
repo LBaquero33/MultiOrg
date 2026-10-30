@@ -206,6 +206,7 @@ final class SupabaseService: ObservableObject {
 
   struct FacilityBookingRequest: Sendable, Equatable {
     let bookingId: UUID
+    let organizationId: UUID
     let facilityId: UUID
     let playerId: UUID?
     let isBlock: Bool
@@ -241,15 +242,19 @@ final class SupabaseService: ObservableObject {
   // MARK: - Realtime (coach notifications)
 
   func startFacilityBookingRequestListener(
+    organizationId: UUID,
     onPendingInsert: @escaping @Sendable (FacilityBookingRequest) -> Void
   ) async throws {
     if facilityBookingRequestsChannel != nil { return }
 
     // Note: Postgres changes are gated by RLS and the table must be added to `supabase_realtime` publication.
-    let channel = client.channel("sd_facility_booking_requests")
+    let channel = client.channel("sd_facility_booking_requests_\(organizationId.uuidString.lowercased())")
     facilityBookingRequestsChannel = channel
 
-    let inserts = channel.postgresChange(InsertAction.self, schema: "public", table: "sd_facility_bookings")
+    let inserts = channel.postgresChange(
+      InsertAction.self, schema: "public", table: "sd_facility_bookings",
+      filter: .eq("org_id", value: organizationId)
+    )
 
     facilityBookingRequestsTask = Task.detached(priority: .background) {
 
@@ -283,6 +288,7 @@ final class SupabaseService: ObservableObject {
 
         guard
           let bookingId = parseUUID(rec["id"]),
+          let requestOrganizationId = parseUUID(rec["org_id"]),
           let facilityId = parseUUID(rec["facility_id"]),
           let startAt = parseDate(rec["start_at"]),
           let endAt = parseDate(rec["end_at"])
@@ -292,8 +298,10 @@ final class SupabaseService: ObservableObject {
         let activityType = rec["activity_type"]?.stringValue ?? "Request"
         let title = rec["title"]?.stringValue
 
+        guard requestOrganizationId == organizationId else { continue }
         let req = FacilityBookingRequest(
           bookingId: bookingId,
+          organizationId: requestOrganizationId,
           facilityId: facilityId,
           playerId: playerId,
           isBlock: isBlock,
@@ -2611,17 +2619,9 @@ final class SupabaseService: ObservableObject {
       return try await invokeAuthenticatedFunction(
         "verify-apple-player-subscription",
         body: [
+          "signedTransactionInfo": purchase.signedTransactionInfo,
           "org_id": context.organizationId.uuidString.lowercased(),
           "player_id": context.playerId.uuidString.lowercased(),
-          "app_account_token": context.appAccountToken.uuidString.lowercased(),
-          "transaction_id": String(purchase.id),
-          "original_transaction_id": String(purchase.originalTransactionID),
-          "product_id": purchase.productID,
-          "bundle_id": Bundle.main.bundleIdentifier ?? "",
-          "purchase_date_ms": String(Int64(purchase.purchaseDate.timeIntervalSince1970 * 1_000)),
-          "expires_date_ms": String(Int64((purchase.expirationDate?.timeIntervalSince1970 ?? 0) * 1_000)),
-          "revocation_date_ms": String(Int64((purchase.revocationDate?.timeIntervalSince1970 ?? 0) * 1_000)),
-          "environment": purchase.environment,
         ]
       )
     } catch let FunctionsError.httpError(_, data) {
@@ -2689,6 +2689,15 @@ final class SupabaseService: ObservableObject {
 
     return try await q
       .order("start_at", ascending: true)
+      .execute()
+      .value
+  }
+
+  func fetchFacilityBooking(id: UUID, orgId: UUID) async throws -> SDFacilityBooking {
+    try await client.from("sd_facility_bookings").select()
+      .eq("id", value: id.uuidString)
+      .eq("org_id", value: orgId.uuidString)
+      .single()
       .execute()
       .value
   }
@@ -2845,28 +2854,18 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Parent linking
 
-  func listMyParentInvites() async throws -> [SDParentInvite] {
-    try await client
-      .from("sd_parent_invites")
-      .select("id,email_norm,child_id,invited_by,relationship,accepted_at,parent_id,created_at")
-      .is("accepted_at", value: nil)
-      .order("created_at", ascending: false)
-      .execute()
-      .value
+  func previewParentInvite(inviteId: UUID, token: String) async throws -> SDParentInvitePreview {
+    struct Request: Encodable { let action = "preview"; let invite_id: UUID; let token: String }
+    return try await client.functions.invoke("parent-invites", options: FunctionInvokeOptions(
+      body: Request(invite_id: inviteId, token: token)
+    ))
   }
 
-  func acceptParentInvite(inviteId: UUID) async throws {
-    let session = try await client.auth.session
-    let uid = session.user.id
-    struct Patch: Encodable {
-      let parent_id: UUID
-      let accepted_at: Date
-    }
-    _ = try await client
-      .from("sd_parent_invites")
-      .update(Patch(parent_id: uid, accepted_at: Date()))
-      .eq("id", value: inviteId.uuidString)
-      .execute()
+  func acceptParentInvite(inviteId: UUID, token: String) async throws -> SDParentInviteAcceptResponse {
+    struct Request: Encodable { let action = "accept"; let invite_id: UUID; let token: String }
+    return try await invokeAuthenticatedFunction("parent-invites", body: Request(
+      invite_id: inviteId, token: token
+    ))
   }
 
   func listMyParentChildLinks(orgId: UUID) async throws -> [SDParentChildLink] {
@@ -3138,43 +3137,36 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Coach → Parent invites
 
-  func coachCreateParentInvite(orgId: UUID, childId: UUID, parentEmail: String, relationship: String?) async throws -> SDParentInvite {
-    let session = try await client.auth.session
-    let uid = session.user.id
-
+  func coachCreateParentInvite(orgId: UUID, childId: UUID, parentEmail: String, relationship: String?) async throws -> SDParentInviteIssueResponse {
     let emailNorm = parentEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if emailNorm.isEmpty { throw NSError(domain: "SupabaseService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Email is required."]) }
-
-    struct Insert: Encodable {
+    struct Request: Encodable {
+      let action = "issue"
       let org_id: UUID
-      let email_norm: String
       let child_id: UUID
-      let invited_by: UUID
+      let email_norm: String
       let relationship: String?
     }
-    return try await client
-      .from("sd_parent_invites")
-      .insert(Insert(org_id: orgId, email_norm: emailNorm, child_id: childId, invited_by: uid, relationship: relationship))
-      .select("id,email_norm,child_id,invited_by,relationship,accepted_at,parent_id,created_at")
-      .single()
-      .execute()
-      .value
+    return try await invokeAuthenticatedFunction(
+      "parent-invites", body: Request(
+        org_id: orgId, child_id: childId, email_norm: emailNorm, relationship: relationship
+      )
+    )
   }
 
-  func coachListParentInvites(childId: UUID) async throws -> [SDParentInvite] {
-    try await client
-      .from("sd_parent_invites")
-      .select("id,email_norm,child_id,invited_by,relationship,accepted_at,parent_id,created_at")
-      .eq("child_id", value: childId.uuidString)
-      .order("created_at", ascending: false)
-      .execute()
-      .value
+  func coachListParentInvites(orgId: UUID, childId: UUID? = nil) async throws -> [SDParentInvite] {
+    struct Request: Encodable { let action = "list"; let org_id: UUID }
+    let response: SDParentInviteListResponse = try await invokeAuthenticatedFunction(
+      "parent-invites", body: Request(org_id: orgId)
+    )
+    return response.invites.filter { $0.org_id == orgId && (childId == nil || $0.child_id == childId) }
   }
 
-  func coachListParentLinks(childId: UUID) async throws -> [SDParentChildLink] {
+  func coachListParentLinks(orgId: UUID, childId: UUID) async throws -> [SDParentChildLink] {
     try await client
       .from("sd_parent_child_links")
       .select("org_id,parent_id,child_id,relationship,can_book,can_pay,created_at,created_by")
+      .eq("org_id", value: orgId.uuidString)
       .eq("child_id", value: childId.uuidString)
       .execute()
       .value
@@ -5676,10 +5668,24 @@ final class SupabaseService: ObservableObject {
 
   func deleteMyAccount() async throws {
     struct Response: Decodable, Sendable { let deleted: Bool }
-    let response: Response = try await client.functions.invoke(
-      "delete-account",
-      options: FunctionInvokeOptions(body: ["confirmation": "DELETE"])
-    )
+    let response: Response
+    do {
+      response = try await client.functions.invoke(
+        "delete-account",
+        options: FunctionInvokeOptions(body: ["confirmation": "DELETE"])
+      )
+    } catch {
+      if let functionError = error as? FunctionsError,
+         case .httpError(let status, let data) = functionError,
+         status == 409,
+         let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+         body["error"] as? String == "sole_active_owner" {
+        throw NSError(domain: "HomePlate.AccountDeletion", code: 409,
+          userInfo: [NSLocalizedDescriptionKey:
+            "Assign another active owner in each organization before deleting your account."])
+      }
+      throw error
+    }
     guard response.deleted else {
       throw NSError(
         domain: "HomePlate.AccountDeletion",

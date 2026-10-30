@@ -41,7 +41,7 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
       }
     }
     .task(id: contextKey) { await reloadPlayers() }
-    .fullScreenCover(item: selectedPlayerBinding) { player in
+    .developmentPlayerPresentation(item: selectedPlayerBinding) { player in
       DevelopmentPlayerWorkspaceScreen(
         player: player,
         workspace: $workspace,
@@ -619,7 +619,9 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
       .background(HP.Color.bg)
+      #if os(iOS)
       .toolbar(.hidden, for: .navigationBar)
+      #endif
     }
     .onChange(of: workspace?.player.id) { _, _ in
       guard let workspace else { return }
@@ -1305,5 +1307,19 @@ private extension SDJSONValue {
     case .array(let value): value.map(\.compactText).joined(separator: ", ")
     case .null: ""
     }
+  }
+}
+
+private extension View {
+  @ViewBuilder
+  func developmentPlayerPresentation<Item: Identifiable, Presented: View>(
+    item: Binding<Item?>,
+    @ViewBuilder content: @escaping (Item) -> Presented
+  ) -> some View {
+    #if os(macOS)
+    self.sheet(item: item, content: content)
+    #else
+    self.fullScreenCover(item: item, content: content)
+    #endif
   }
 }

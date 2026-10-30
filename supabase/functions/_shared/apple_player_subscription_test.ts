@@ -1,9 +1,12 @@
 import {
   APPLE_PLAYER_MONTHLY_PRODUCT_ID,
   authorizeApplePurchaseContext,
+  appleStatus,
   canonicalUuid,
+  createAppleTransactionVerifier,
   expectedAppAccountToken,
   normalizeStoreKitVerifiedTransaction,
+  normalizeVerifiedAppleTransaction,
   syncAppleSubscriptionAtomically,
   validateAppleTransactionContext,
 } from "./apple_player_subscription.ts";
@@ -171,6 +174,42 @@ Deno.test("verified StoreKit metadata is strictly normalized", async () => {
     environment: "sandbox",
     appAccountToken: transaction.appAccountToken,
   });
+});
+
+Deno.test("server only accepts verified transaction claims bound to expected context", async () => {
+  const transaction = await validTransaction();
+  const expected = {
+    bundleId: transaction.bundleId,
+    environment: transaction.environment,
+    appAccountToken: transaction.appAccountToken,
+  };
+  const normalized = normalizeVerifiedAppleTransaction(transaction, expected);
+  assertEquals(normalized.transactionId, transaction.transactionId);
+  const forgedToken = await expectedAppAccountToken(otherOrg, player, player);
+  assertCode("bundle_id_mismatch", () => normalizeVerifiedAppleTransaction(
+    { ...transaction, bundleId: "attacker.bundle" },
+    expected,
+  ));
+  assertCode("app_account_token_mismatch", () => normalizeVerifiedAppleTransaction(
+    { ...transaction, appAccountToken: forgedToken },
+    expected,
+  ));
+});
+
+Deno.test("malformed or forged JWS cannot pass the Apple signature verifier", async () => {
+  const verifier = createAppleTransactionVerifier("sandbox", "com.multiorg.app");
+  await assertAsyncCode("apple_transaction_signature_invalid", () =>
+    verifier.verify("eyJhbGciOiJub25lIn0.eyJidW5kbGVJZCI6ImNvbS5tdWx0aW9yZy5hcHAifQ."));
+  await assertAsyncCode("apple_transaction_signature_invalid", () =>
+    verifier.verify("not-a-jws"));
+});
+
+Deno.test("verified expired and revoked transactions never grant active access", async () => {
+  const expired = await validTransaction();
+  expired.expiresDate = Date.now() - 1;
+  const revoked = { ...expired, expiresDate: Date.now() + 60_000, revocationDate: Date.now() };
+  assertEquals(appleStatus(expired), "expired");
+  assertEquals(appleStatus(revoked), "revoked");
 });
 
 Deno.test("metadata manipulation is rejected", async () => {
