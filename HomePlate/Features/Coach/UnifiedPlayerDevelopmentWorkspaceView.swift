@@ -157,7 +157,8 @@ struct UnifiedPlayerDevelopmentWorkspaceView: View {
         workspace: $workspace,
         isLoading: isLoadingWorkspace,
         errorText: errorText,
-        onRetry: { Task { await reloadWorkspace(playerId: player.id, context: loadContext) } }
+        onRetry: { Task { await reloadWorkspace(playerId: player.id, context: loadContext) } },
+        showsHeader: false
       )
       .environmentObject(appState)
     } else if isLoadingPlayers {
@@ -571,6 +572,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   let isLoading: Bool
   let errorText: String?
   let onRetry: () -> Void
+  var showsHeader = true
 
   @State private var selectedTab: Tab = .calendar
   @State private var selectedDay: SDDevelopmentDay?
@@ -635,7 +637,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        playerHeader
+        if showsHeader { playerHeader }
         playerWorkspaceNavigation
         .padding(.horizontal, HP.Space.md)
         .background(HP.Color.bg)
