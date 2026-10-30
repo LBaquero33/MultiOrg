@@ -167,6 +167,13 @@ struct PlayerHomeView: View {
   }
 
   @ViewBuilder
+  private var playerCalendarDestination: some View {
+    if ["training_facility", "independent_trainer"].contains(appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? "") {
+      HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey)
+    } else { PlayerUnifiedCalendarView().toolbar { NavigationLink("Training sessions") { HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey) } } }
+  }
+
+  @ViewBuilder
   private func playerDestination(_ destination: HPAppNavigationDestination) -> some View {
     switch destination {
     case .playerToday:
@@ -179,12 +186,10 @@ struct PlayerHomeView: View {
           }
         }
         .sheet(isPresented: $showPlayerCalendar) {
-          NavigationStack { playerDestination(.playerCalendar) }
+          NavigationStack { playerCalendarDestination }
         }
     case .playerCalendar:
-      if ["training_facility", "independent_trainer"].contains(appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? "") {
-        HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey)
-      } else { PlayerUnifiedCalendarView().toolbar { NavigationLink("Training sessions") { HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey) } } }
+      playerCalendarDestination
     case .playerProgram:
       UnifiedPlayerDevelopmentWorkspaceView()
     case .chat:
