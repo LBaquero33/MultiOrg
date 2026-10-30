@@ -211,14 +211,7 @@ struct PlayerHomeView: View {
     case .payments:
       NavigationStack { AccountView() }
     case .account:
-      NavigationStack {
-        AccountView().toolbar {
-          if let facilities = navigationInventory.regularSections.flatMap(\.items)
-            .first(where: { $0.destination == .playerFacilities }) {
-            NavigationLink(facilities.title) { SDPlayerFacilitiesView() }
-          }
-        }
-      }
+      NavigationStack { AccountView() }
     default:
       SDPlayerTodayView()
     }

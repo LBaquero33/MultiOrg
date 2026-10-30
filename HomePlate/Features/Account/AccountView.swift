@@ -315,10 +315,28 @@ struct AccountView: View {
         }
 
         organizationCard
+        if isActiveOrganizationPlayer {
+          paymentRequestsCard(context: context)
+          if appState.activeOrgSettings?.feature("facilities") ?? true {
+            NavigationLink {
+              SDPlayerFacilitiesView()
+            } label: {
+              HPCard(style: .flat) {
+                HStack {
+                  Text(appState.activeOrgSettings?.term("facilities", fallback: "Facilities") ?? "Facilities")
+                    .font(HP.Font.body)
+                    .foregroundStyle(HP.Color.text)
+                  Spacer()
+                  Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
+                }
+              }
+            }
+            .buttonStyle(.plain)
+          }
+        }
         profileCard(context: context)
         familyCard
         accessCard
-        if isActiveOrganizationPlayer { paymentRequestsCard(context: context) }
         PushNotificationSettingsCard(manager: appState.pushNotifications)
         if let organizationId = appState.activeOrgId {
           EventReminderPreferenceCard(organizationId: organizationId)
@@ -898,14 +916,10 @@ struct AccountView: View {
   }
 
   private var signOutAction: some View {
-    HPButton(
-      title: "Sign out",
-      systemImage: "rectangle.portrait.and.arrow.right",
-      variant: .destructive,
-      size: .md,
-      fullWidth: true,
-      action: { Task { await appState.signOut() } }
-    )
+    Button("Sign out") { Task { await appState.signOut() } }
+      .font(HP.Font.callout.weight(.semibold))
+      .foregroundStyle(HP.Color.textMuted)
+      .frame(maxWidth: .infinity, minHeight: 44)
   }
 
 

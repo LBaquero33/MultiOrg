@@ -511,6 +511,10 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
     !inventory.compactItems.isEmpty
   }
 
+  private var hidesMobileMenu: Bool {
+    usesBottomNavigation && inventory.directorySections.isEmpty
+  }
+
   private var retainedDestinationHost: some View {
     retainedDestination(selection)
       .id(selection)
@@ -527,17 +531,19 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
 
   private var mobileHeader: some View {
     HStack(spacing: HP.Space.sm) {
-      Button {
-        toggleMobileMenu()
-      } label: {
-        Image(systemName: menuIsOpen ? "xmark" : "line.3.horizontal")
-          .font(.system(size: 22, weight: .medium))
-          .foregroundStyle(HP.Color.text)
-          .frame(width: 44, height: 44)
-          .contentShape(Rectangle())
+      if !hidesMobileMenu {
+        Button {
+          toggleMobileMenu()
+        } label: {
+          Image(systemName: menuIsOpen ? "xmark" : "line.3.horizontal")
+            .font(.system(size: 22, weight: .medium))
+            .foregroundStyle(HP.Color.text)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(menuIsOpen ? "Close menu" : "Open menu")
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(menuIsOpen ? "Close menu" : "Open menu")
 
       organizationBadge
       Text(branding.name)
@@ -608,23 +614,25 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
       ForEach(inventory.compactItems) { item in
         mobileBottomButton(item)
       }
-      Button {
-        toggleMobileMenu()
-      } label: {
-        VStack(spacing: 3) {
-          Image(systemName: "ellipsis.circle")
-            .font(.system(size: 20, weight: .medium))
-          Text("More")
-            .font(HP.Font.eyebrow)
-            .lineLimit(1)
+      if !hidesMobileMenu {
+        Button {
+          toggleMobileMenu()
+        } label: {
+          VStack(spacing: 3) {
+            Image(systemName: "ellipsis.circle")
+              .font(.system(size: 20, weight: .medium))
+            Text("More")
+              .font(HP.Font.eyebrow)
+              .lineLimit(1)
+          }
+          .foregroundStyle(menuIsOpen || inventory.isDirectoryItem(selection) ? HP.Color.accent : HP.Color.textMuted)
+          .frame(maxWidth: .infinity, minHeight: 50)
+          .contentShape(Rectangle())
         }
-        .foregroundStyle(menuIsOpen || inventory.isDirectoryItem(selection) ? HP.Color.accent : HP.Color.textMuted)
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .accessibilityLabel("More")
+        .accessibilityValue(menuIsOpen ? "Open" : "Closed")
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel("More")
-      .accessibilityValue(menuIsOpen ? "Open" : "Closed")
     }
     .padding(.horizontal, HP.Space.xs)
     .padding(.top, 4)

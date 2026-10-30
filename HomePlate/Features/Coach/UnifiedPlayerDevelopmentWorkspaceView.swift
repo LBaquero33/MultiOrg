@@ -629,6 +629,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     case testing = "Testing"
     case sessions = "Sessions"
     case analysis = "Analysis"
+    case trends = "Trends"
     var id: String { rawValue }
   }
 
@@ -857,6 +858,8 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
         timeline(workspace)
       case .analysis:
         NativePlayerAnalyticsView(playerId: player.id, playerName: player.name, athleteId: player.analyticsAthleteId)
+      case .trends:
+        SDPlayerTrendsView()
       }
     }
     .onAppear { syncProgressFilter() }

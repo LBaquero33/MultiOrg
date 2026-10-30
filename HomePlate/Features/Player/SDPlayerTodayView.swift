@@ -54,6 +54,7 @@ struct SDPlayerTodayViewInternal: View {
   @State private var successToast: String?
 
   @State private var isStrengthExpanded = true
+  @State private var workoutStarted = false
 
   init(initialDate: Date, preferredAssignmentId: UUID? = nil) {
     self.initialDate = initialDate
@@ -67,46 +68,31 @@ struct SDPlayerTodayViewInternal: View {
     } dateContext: {
       dateContextCard
     } programSummary: {
-      playerTodayAttentionCard
-      if let playerId = appState.myProfile?.id {
-        NavigationLink {
-          NativeSharedVideoLibraryView(playerId: playerId)
-        } label: {
-          Label("My Videos", systemImage: "play.rectangle")
-        }
+      workoutCard
+    } activities: {
+      if showsWorkoutLogger {
+        strengthLoggerCard
+        submitCard
       }
+      SDPlayerBPDaySection(date: date)
+    } subActivities: {
+      playerTodayAttentionCard
       if !hasTrainingSchedule || !teamEvents.isEmpty { playerBaseballDayCard }
       trainingScheduleCard
-      improvementCard
-      programCard
-    } activities: {
-      if scheduleContext?.isScheduled == true {
-        strengthLoggerCard
-      }
-    } subActivities: {
-      SDPlayerBPDaySection(date: date)
     } assessment: {
       EmptyView()
     } submission: {
-      submitCard
+      EmptyView()
     }
     .navigationTitle("Today")
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Menu {
-          Button {
-            Task { await reloadAll() }
-          } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
-          }
-          Button(role: .destructive) {
-            Task { await appState.signOut() }
-          } label: {
-            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-          }
+        Button {
+          Task { await reloadAll() }
         } label: {
-          Image(systemName: "ellipsis.circle")
+          Image(systemName: "arrow.clockwise")
         }
+        .accessibilityLabel("Refresh")
       }
     }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
@@ -275,42 +261,77 @@ struct SDPlayerTodayViewInternal: View {
 
   private var header: some View {
     HPWorkspaceHeader("Today", context: DateUtils.prettyDateTitle(date)) {
-      HStack(spacing: HP.Space.xs) {
-        HPStatusBadge(text: scheduleContext?.isScheduled == true ? "Scheduled" : "Off day",
-                      kind: scheduleContext?.isScheduled == true ? .success : .neutral)
-        HPStatusBadge(text: isDaySaved ? "Saved" : "Not logged",
-                      kind: isDaySaved ? .success : .warning)
+      DatePicker("Day", selection: $date, displayedComponents: .date)
+        .datePickerStyle(.compact)
+        .labelsHidden()
+        .tint(HP.Color.accent)
+        .onChange(of: date) { _, _ in
+          workoutStarted = false
+          Task { await reloadDay() }
+        }
+    }
+  }
+
+  @ViewBuilder private var dateContextCard: some View {
+    if isLoading {
+      HPLoadingState()
+    }
+  }
+
+  private var showsWorkoutLogger: Bool {
+    scheduleContext?.isScheduled == true && (workoutStarted || isDaySaved)
+  }
+
+  private var workoutCard: some View {
+    HPCard {
+      VStack(alignment: .leading, spacing: HP.Space.sm) {
+        if assignment != nil, let template, let ctx = scheduleContext, ctx.isScheduled {
+          Text(template.name)
+            .font(HP.Font.title.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+          if let week = ctx.week, let day = ctx.dayIndex {
+            Text("Week \(week), day \(day)")
+              .font(HP.Font.caption)
+              .foregroundStyle(HP.Color.textMuted)
+          }
+          ForEach(scheduledExercises(), id: \.name) { exercise in
+            HStack(spacing: HP.Space.xs) {
+              HomePlateMark()
+                .fill(isDaySaved ? HP.Color.accent : HP.Color.border)
+                .frame(width: 12, height: 12)
+              Text(exercise.name)
+                .font(HP.Font.body)
+                .foregroundStyle(HP.Color.text)
+              Spacer(minLength: HP.Space.xs)
+              if let sets = exercise.sets {
+                Text(exercise.reps.map { "\(sets) x \($0)" } ?? "\(sets) sets")
+                  .font(HP.Font.caption)
+                  .monospacedDigit()
+                  .foregroundStyle(HP.Color.textMuted)
+              }
+            }
+          }
+          if !showsWorkoutLogger {
+            HPButton(title: "Start workout", variant: .primary, size: .lg, fullWidth: true) {
+              workoutStarted = true
+            }
+          }
+        } else {
+          Text("No workout today")
+            .font(HP.Font.title.weight(.semibold))
+            .foregroundStyle(HP.Color.text)
+          Text(restDayDetail)
+            .font(HP.Font.callout)
+            .foregroundStyle(HP.Color.textMuted)
+        }
       }
     }
   }
 
-  private var dateContextCard: some View {
-    HPCard {
-      VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HStack(alignment: .firstTextBaseline, spacing: HP.Space.sm) {
-          Text("Viewing")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-          DatePicker("", selection: $date, displayedComponents: .date)
-            .datePickerStyle(.compact)
-            .labelsHidden()
-            .tint(HP.Color.accent)
-            .onChange(of: date) { _, _ in
-              Task { await reloadDay() }
-            }
-          Spacer(minLength: 0)
-        }
-
-        Text("Tap the date to view a different day.")
-          .font(HP.Font.caption)
-          .foregroundStyle(HP.Color.textMuted)
-
-        if isLoading {
-          HPLoadingState()
-        }
-
-      }
-    }
+  private var restDayDetail: String {
+    if assignment == nil { return "Your coach hasn't assigned a program yet" }
+    if let next = scheduleContext?.nextLiftDateISO { return "Next lift day: \(next)" }
+    return "No more scheduled lifts in this program"
   }
 
   private var programCard: some View {
@@ -468,9 +489,6 @@ struct SDPlayerTodayViewInternal: View {
           Task { await submitDay() }
         }
 
-        Text("Save the sets, weights, custom results, and notes entered above.")
-          .font(HP.Font.caption)
-          .foregroundStyle(HP.Color.textMuted)
       }
     }
   }
@@ -949,6 +967,20 @@ struct SDPlayerTodayViewInternal: View {
 
 /// Reskinned completion ring — wraps `HPProgressIndicator(.ring)`.
 /// Preserves the `progress` (0...1) input from `progressFraction()`.
+/// Home plate outline used to mark finished work.
+private struct HomePlateMark: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+    path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+    path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+    path.closeSubpath()
+    return path
+  }
+}
+
 struct ProgressRing: View {
   let progress: Double // 0..1
 
