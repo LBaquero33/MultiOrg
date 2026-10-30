@@ -638,7 +638,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
         playerHeader
         playerWorkspaceNavigation
         .padding(.horizontal, HP.Space.md)
-        .padding(.vertical, HP.Space.sm)
         .background(HP.Color.bg)
 
         Group {
@@ -692,55 +691,38 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   }
 
   private var playerWorkspaceNavigation: some View {
-    HPCard(style: .flat) {
-      HStack(spacing: HP.Space.sm) {
-        Image(systemName: selectedTab.systemImage)
-          .font(.title3.weight(.semibold))
-          .foregroundStyle(HP.Color.accent)
-          .frame(width: 32)
-        VStack(alignment: .leading, spacing: 2) {
-          Text(selectedTab.rawValue)
-            .font(HP.Font.callout.weight(.semibold))
-            .foregroundStyle(HP.Color.text)
-          Text(selectedTab.summary)
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-            .lineLimit(2)
+    let tabs: [Tab] = [.calendar, .timeline, .programs, .videos, .testing, .sessions, .dataLab, .profile]
+    return ScrollViewReader { proxy in
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: HP.Space.md) {
+          ForEach(tabs, id: \.self) { tab in
+            Button {
+              selectedTab = tab
+            } label: {
+              VStack(spacing: 6) {
+                Text(tab.rawValue)
+                  .font(HP.Font.callout.weight(selectedTab == tab ? .semibold : .regular))
+                  .foregroundStyle(selectedTab == tab ? HP.Color.text : HP.Color.textMuted)
+                  .lineLimit(1)
+                  .fixedSize()
+                Capsule()
+                  .fill(selectedTab == tab ? HP.Color.accent : Color.clear)
+                  .frame(height: 2)
+              }
+              .padding(.top, 10)
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .id(tab)
+            .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+          }
         }
-        Spacer(minLength: HP.Space.xs)
-        Menu {
-          Section("Activity") {
-            workspaceDestination(.calendar)
-            workspaceDestination(.timeline)
-            workspaceDestination(.programs)
-          }
-          Section("Data and media") {
-            workspaceDestination(.videos)
-            workspaceDestination(.testing)
-            workspaceDestination(.sessions)
-            workspaceDestination(.dataLab)
-          }
-          Section("Player") {
-            workspaceDestination(.profile)
-          }
-        } label: {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(HP.Color.textMuted)
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Change player workspace view")
       }
-    }
-  }
-
-  private func workspaceDestination(_ tab: Tab) -> some View {
-    Button {
-      selectedTab = tab
-    } label: {
-      Label(tab.rawValue, systemImage: selectedTab == tab ? "checkmark" : tab.systemImage)
+      .onChange(of: selectedTab) { _, tab in
+        withAnimation { proxy.scrollTo(tab, anchor: .center) }
+      }
+      .onAppear { proxy.scrollTo(selectedTab, anchor: .center) }
     }
   }
 
