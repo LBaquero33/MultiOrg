@@ -195,8 +195,11 @@ struct HPAppNavigationInventory: Equatable {
     let regular = [HPAppNavigationSection(title: nil, items: websiteItems)]
 
     return Self(
-      compactItems: [today, calendar, item(.playerProgram, "Program", "square.stack.3d.up.fill")] + (chatEnabled ? [chat] : []),
-      directorySections: [HPAppNavigationSection(title: "More", items: (facilitiesEnabled ? [facilities] : []) + [trends, account])],
+      compactItems: [
+        today,
+        item(.playerProgram, "Progress", "chart.line.uptrend.xyaxis"),
+      ] + (chatEnabled ? [chat] : []) + [item(.account, "Me", "person.crop.circle")],
+      directorySections: [],
       regularSections: regular,
       defaultDestination: .playerToday
     )

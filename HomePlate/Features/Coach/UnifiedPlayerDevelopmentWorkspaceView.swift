@@ -585,7 +585,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   @State private var progressSection: ProgressSection = .testing
 
   private enum Tab: String, CaseIterable, Identifiable {
-    case today = "Today"
     case progress = "Progress"
     case calendar = "Calendar"
     case timeline = "Timeline"
@@ -599,7 +598,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
 
     var systemImage: String {
       switch self {
-      case .today: "sun.max"
       case .progress: "chart.line.uptrend.xyaxis"
       case .calendar: "calendar"
       case .timeline: "clock.arrow.circlepath"
@@ -614,7 +612,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
 
     var summary: String {
       switch self {
-      case .today: "Today's work and what's coming up"
       case .progress: "Testing, sessions, and analysis"
       case .calendar: "Daily assignments, submissions, and missed work"
       case .timeline: "All development activity in chronological order"
@@ -675,7 +672,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       #endif
     }
     .onAppear {
-      if !showsHeader && selectedTab == .calendar { selectedTab = .today }
+      if !showsHeader && selectedTab == .calendar { selectedTab = .progress }
     }
     .task(id: appState.activeOrgId) {
       libraryEnabled = false
@@ -712,7 +709,7 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   private var playerWorkspaceNavigation: some View {
     let tabs: [Tab] = showsHeader
       ? [.calendar, .timeline, .programs, .videos, .testing, .sessions, .dataLab, .profile]
-      : [.today, .progress, .videos]
+      : [.progress, .programs, .videos]
     return ScrollViewReader { proxy in
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: HP.Space.md) {
@@ -809,8 +806,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   @ViewBuilder
   private func workspaceContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
     switch selectedTab {
-    case .today:
-      todayContent(workspace)
     case .progress:
       progressContent(workspace)
     case .calendar:
@@ -845,60 +840,6 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       NativePlayerAnalyticsView(playerId: player.id, playerName: player.name, athleteId: player.analyticsAthleteId)
     case .profile:
       profile(workspace)
-    }
-  }
-
-  private var todayKey: String {
-    let parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
-  }
-
-  private func todayContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
-    let today = workspace.days.first { $0.date == todayKey }
-    let upcoming = Array(
-      workspace.days
-        .filter { $0.date > todayKey && $0.scheduled }
-        .sorted { $0.date < $1.date }
-        .prefix(5)
-    )
-    return ScrollView {
-      VStack(alignment: .leading, spacing: HP.Space.md) {
-        if let today, today.activity_count > 0 || today.scheduled {
-          daySummary(today)
-        } else {
-          HPEmptyState(
-            title: "No workout today",
-            message: "Your coach hasn't assigned anything for today.",
-            systemImage: "sun.max"
-          )
-        }
-        if !upcoming.isEmpty {
-          VStack(alignment: .leading, spacing: HP.Space.xs) {
-            Text("COMING UP")
-              .font(HP.Font.eyebrow)
-              .tracking(HP.Font.eyebrowTracking)
-              .foregroundStyle(HP.Color.textMuted)
-            ForEach(upcoming) { day in
-              Button { focusedDay = day } label: {
-                HStack {
-                  Text(HPReadableValue.date(day.date))
-                    .font(HP.Font.body)
-                    .foregroundStyle(HP.Color.text)
-                  Spacer()
-                  Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
-                }
-                .padding(.vertical, 7)
-              }
-              .buttonStyle(.plain)
-            }
-          }
-        }
-        Button("See full calendar") { selectedTab = .calendar }
-          .font(HP.Font.callout.weight(.semibold))
-          .foregroundStyle(HP.Color.accent)
-          .frame(minHeight: 44)
-      }
-      .padding(HP.Space.md)
     }
   }
 

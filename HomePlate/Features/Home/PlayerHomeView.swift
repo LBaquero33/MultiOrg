@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlayerHomeView: View {
   @EnvironmentObject private var appState: AppState
+  @State private var showPlayerCalendar = false
   @State private var showAccount = false
   @State private var showDevelopment = false
 #if os(iOS)
@@ -170,6 +171,16 @@ struct PlayerHomeView: View {
     switch destination {
     case .playerToday:
       SDPlayerTodayView()
+        .safeAreaInset(edge: .bottom) {
+          Button { showPlayerCalendar = true } label: {
+            Label("See calendar", systemImage: "calendar")
+              .font(HP.Font.callout.weight(.semibold))
+              .frame(minHeight: 44)
+          }
+        }
+        .sheet(isPresented: $showPlayerCalendar) {
+          NavigationStack { playerDestination(.playerCalendar) }
+        }
     case .playerCalendar:
       if ["training_facility", "independent_trainer"].contains(appState.availableOrganizations.first { $0.id == appState.activeOrgId }?.organization_type ?? "") {
         HPTrainingOperationsView(mode: .sessions).id(appState.activeOrgAuthorizationKey)
@@ -195,7 +206,14 @@ struct PlayerHomeView: View {
     case .payments:
       NavigationStack { AccountView() }
     case .account:
-      NavigationStack { AccountView() }
+      NavigationStack {
+        AccountView().toolbar {
+          if let facilities = navigationInventory.regularSections.flatMap(\.items)
+            .first(where: { $0.destination == .playerFacilities }) {
+            NavigationLink(facilities.title) { SDPlayerFacilitiesView() }
+          }
+        }
+      }
     default:
       SDPlayerTodayView()
     }
