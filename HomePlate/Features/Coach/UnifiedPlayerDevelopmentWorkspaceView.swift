@@ -582,8 +582,11 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   @State private var emptyDay: String?
   @State private var showPlayerManagement = false
   @State private var libraryEnabled = false
+  @State private var progressSection: ProgressSection = .testing
 
   private enum Tab: String, CaseIterable, Identifiable {
+    case today = "Today"
+    case progress = "Progress"
     case calendar = "Calendar"
     case timeline = "Timeline"
     case programs = "Program Progress"
@@ -596,6 +599,8 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
 
     var systemImage: String {
       switch self {
+      case .today: "sun.max"
+      case .progress: "chart.line.uptrend.xyaxis"
       case .calendar: "calendar"
       case .timeline: "clock.arrow.circlepath"
       case .programs: "list.clipboard"
@@ -609,6 +614,8 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
 
     var summary: String {
       switch self {
+      case .today: "Today's work and what's coming up"
+      case .progress: "Testing, sessions, and analysis"
       case .calendar: "Daily assignments, submissions, and missed work"
       case .timeline: "All development activity in chronological order"
       case .programs: "Assigned programs and completion progress"
@@ -619,6 +626,13 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       case .profile: "Player information and account details"
       }
     }
+  }
+
+  private enum ProgressSection: String, CaseIterable, Identifiable {
+    case testing = "Testing"
+    case sessions = "Sessions"
+    case analysis = "Analysis"
+    var id: String { rawValue }
   }
 
   private enum TimelineFilter: String, CaseIterable, Identifiable {
@@ -660,6 +674,9 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
       .toolbar(.hidden, for: .navigationBar)
       #endif
     }
+    .onAppear {
+      if !showsHeader && selectedTab == .calendar { selectedTab = .today }
+    }
     .task(id: appState.activeOrgId) {
       libraryEnabled = false
       if let org = appState.activeOrgId, let service = appState.supabase {
@@ -693,7 +710,9 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   }
 
   private var playerWorkspaceNavigation: some View {
-    let tabs: [Tab] = [.calendar, .timeline, .programs, .videos, .testing, .sessions, .dataLab, .profile]
+    let tabs: [Tab] = showsHeader
+      ? [.calendar, .timeline, .programs, .videos, .testing, .sessions, .dataLab, .profile]
+      : [.today, .progress, .videos]
     return ScrollViewReader { proxy in
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: HP.Space.md) {
@@ -790,6 +809,10 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
   @ViewBuilder
   private func workspaceContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
     switch selectedTab {
+    case .today:
+      todayContent(workspace)
+    case .progress:
+      progressContent(workspace)
     case .calendar:
       ScrollView {
         VStack(alignment: .leading, spacing: HP.Space.md) {
@@ -823,6 +846,84 @@ private struct DevelopmentPlayerWorkspaceScreen: View {
     case .profile:
       profile(workspace)
     }
+  }
+
+  private var todayKey: String {
+    let parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+  }
+
+  private func todayContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    let today = workspace.days.first { $0.date == todayKey }
+    let upcoming = Array(
+      workspace.days
+        .filter { $0.date > todayKey && $0.scheduled }
+        .sorted { $0.date < $1.date }
+        .prefix(5)
+    )
+    return ScrollView {
+      VStack(alignment: .leading, spacing: HP.Space.md) {
+        if let today, today.activity_count > 0 || today.scheduled {
+          daySummary(today)
+        } else {
+          HPEmptyState(
+            title: "No workout today",
+            message: "Your coach hasn't assigned anything for today.",
+            systemImage: "sun.max"
+          )
+        }
+        if !upcoming.isEmpty {
+          VStack(alignment: .leading, spacing: HP.Space.xs) {
+            Text("COMING UP")
+              .font(HP.Font.eyebrow)
+              .tracking(HP.Font.eyebrowTracking)
+              .foregroundStyle(HP.Color.textMuted)
+            ForEach(upcoming) { day in
+              Button { focusedDay = day } label: {
+                HStack {
+                  Text(HPReadableValue.date(day.date))
+                    .font(HP.Font.body)
+                    .foregroundStyle(HP.Color.text)
+                  Spacer()
+                  Image(systemName: "chevron.right").foregroundStyle(HP.Color.textMuted)
+                }
+                .padding(.vertical, 7)
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
+        Button("See full calendar") { selectedTab = .calendar }
+          .font(HP.Font.callout.weight(.semibold))
+          .foregroundStyle(HP.Color.accent)
+          .frame(minHeight: 44)
+      }
+      .padding(HP.Space.md)
+    }
+  }
+
+  @ViewBuilder
+  private func progressContent(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
+    VStack(spacing: HP.Space.sm) {
+      Picker("Progress view", selection: $progressSection) {
+        ForEach(ProgressSection.allCases) { Text($0.rawValue).tag($0) }
+      }
+      .pickerStyle(.segmented)
+      .padding(.horizontal, HP.Space.md)
+      .padding(.top, HP.Space.sm)
+      switch progressSection {
+      case .testing, .sessions:
+        timeline(workspace)
+      case .analysis:
+        NativePlayerAnalyticsView(playerId: player.id, playerName: player.name, athleteId: player.analyticsAthleteId)
+      }
+    }
+    .onAppear { syncProgressFilter() }
+    .onChange(of: progressSection) { _, _ in syncProgressFilter() }
+  }
+
+  private func syncProgressFilter() {
+    timelineFilter = progressSection == .sessions ? .sessions : .testing
   }
 
   private func calendar(_ workspace: SDPlayerDevelopmentWorkspace) -> some View {
