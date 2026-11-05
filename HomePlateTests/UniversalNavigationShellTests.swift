@@ -51,8 +51,8 @@ final class UniversalNavigationShellTests: XCTestCase {
       inventory.regularItems.map(\.title),
       ["Today", "Calendar", "Facilities", "Programs", "Progress", "Messages", "Account"]
     )
-    XCTAssertEqual(inventory.compactItems.map(\.destination), [.playerToday, .playerCalendar, .playerProgram, .chat])
-    XCTAssertEqual(inventory.directoryItems.map(\.destination), [.playerFacilities, .playerTrends, .account])
+    XCTAssertEqual(inventory.compactItems.map(\.destination), [.playerToday, .playerProgram, .chat, .account])
+    XCTAssertEqual(inventory.directoryItems.map(\.destination), [])
   }
 
   func testPlayerFeatureGatesRemoveOnlyGatedDestinations() {

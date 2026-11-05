@@ -44,7 +44,6 @@ struct SDPlayerBPDaySection: View {
             .tint(HP.Color.accent)
             .onChange(of: didBP) { _, newValue in
               if newValue {
-                isExpanded = true
                 Task { await loadSession() }
               }
             }
@@ -218,7 +217,6 @@ struct SDPlayerBPDaySection: View {
       let all = try await supabase.listBPSessions(playerId: uid, limit: 120)
       if all.contains(where: { $0.session_date == dateISO }) {
         didBP = true
-        isExpanded = true
         if let s = all.first(where: {
           $0.session_date == dateISO
             && ($0.activity_type ?? "bp") == activityType

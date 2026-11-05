@@ -11,9 +11,12 @@ private struct PendingProgramSetVideo {
 }
 
 struct SDPlayerTodayView: View {
+  var onOpenCalendar: (() -> Void)?
+
   var body: some View {
     NavigationStack {
-      SDPlayerTodayViewInternal(initialDate: Date())
+      SDPlayerTodayViewInternal(initialDate: Date(), onOpenCalendar: onOpenCalendar)
+        .toolbar(.hidden, for: .navigationBar)
     }
   }
 }
@@ -24,6 +27,7 @@ struct SDPlayerTodayViewInternal: View {
 
   let initialDate: Date
   let preferredAssignmentId: UUID?
+  let onOpenCalendar: (() -> Void)?
   @State private var date: Date
   @State private var assignment: SDProgramAssignment?
   @State private var template: SDProgramTemplate?
@@ -49,6 +53,7 @@ struct SDPlayerTodayViewInternal: View {
   @State private var pendingSetVideoData: [String: PendingProgramSetVideo] = [:]
 
   @State private var isLoading = false
+  @State private var hasLoadedWorkout = false
   @State private var isSaving = false
   @State private var errorText: String?
   @State private var successToast: String?
@@ -56,8 +61,9 @@ struct SDPlayerTodayViewInternal: View {
   @State private var isStrengthExpanded = true
   @State private var workoutStarted = false
 
-  init(initialDate: Date, preferredAssignmentId: UUID? = nil) {
+  init(initialDate: Date, preferredAssignmentId: UUID? = nil, onOpenCalendar: (() -> Void)? = nil) {
     self.initialDate = initialDate
+    self.onOpenCalendar = onOpenCalendar
     self.preferredAssignmentId = preferredAssignmentId
     _date = State(initialValue: initialDate)
   }
@@ -68,13 +74,20 @@ struct SDPlayerTodayViewInternal: View {
     } dateContext: {
       dateContextCard
     } programSummary: {
-      workoutCard
+      if hasLoadedWorkout { workoutCard }
     } activities: {
       if showsWorkoutLogger {
         strengthLoggerCard
         submitCard
       }
       SDPlayerBPDaySection(date: date)
+      if let onOpenCalendar {
+        Button(action: onOpenCalendar) {
+          Label("See calendar", systemImage: "calendar")
+            .font(HP.Font.callout.weight(.semibold))
+            .frame(minHeight: 44)
+        }
+      }
     } subActivities: {
       playerTodayAttentionCard
       if !hasTrainingSchedule || !teamEvents.isEmpty { playerBaseballDayCard }
@@ -85,16 +98,7 @@ struct SDPlayerTodayViewInternal: View {
       EmptyView()
     }
     .navigationTitle("Today")
-    .toolbar {
-      ToolbarItem(placement: .topBarTrailing) {
-        Button {
-          Task { await reloadAll() }
-        } label: {
-          Image(systemName: "arrow.clockwise")
-        }
-        .accessibilityLabel("Refresh")
-      }
-    }
+    .refreshable { await reloadAll() }
     .alert("Error", isPresented: Binding(get: { errorText != nil }, set: { _ in errorText = nil })) {
       Button("OK", role: .cancel) {}
     } message: {
@@ -273,7 +277,7 @@ struct SDPlayerTodayViewInternal: View {
   }
 
   @ViewBuilder private var dateContextCard: some View {
-    if isLoading {
+    if isLoading || !hasLoadedWorkout {
       HPLoadingState()
     }
   }
@@ -294,20 +298,22 @@ struct SDPlayerTodayViewInternal: View {
               .font(HP.Font.caption)
               .foregroundStyle(HP.Color.textMuted)
           }
-          ForEach(scheduledExercises(), id: \.name) { exercise in
-            HStack(spacing: HP.Space.xs) {
-              HomePlateMark()
-                .fill(isDaySaved ? HP.Color.accent : HP.Color.border)
-                .frame(width: 12, height: 12)
-              Text(exercise.name)
-                .font(HP.Font.body)
-                .foregroundStyle(HP.Color.text)
-              Spacer(minLength: HP.Space.xs)
-              if let sets = exercise.sets {
-                Text(exercise.reps.map { "\(sets) x \($0)" } ?? "\(sets) sets")
-                  .font(HP.Font.caption)
-                  .monospacedDigit()
-                  .foregroundStyle(HP.Color.textMuted)
+          if !showsWorkoutLogger || isDaySaved {
+            ForEach(scheduledExercises(), id: \.name) { exercise in
+              HStack(spacing: HP.Space.xs) {
+                HomePlateMark()
+                  .fill(isDaySaved ? HP.Color.accent : HP.Color.textMuted)
+                  .frame(width: 12, height: 12)
+                Text(exercise.name)
+                  .font(HP.Font.body)
+                  .foregroundStyle(HP.Color.text)
+                Spacer(minLength: HP.Space.xs)
+                if let sets = exercise.sets {
+                  Text(exercise.reps.map { "\(sets) x \($0)" } ?? "\(sets) sets")
+                    .font(HP.Font.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(HP.Color.textMuted)
+                }
               }
             }
           }
@@ -325,6 +331,7 @@ struct SDPlayerTodayViewInternal: View {
             .foregroundStyle(HP.Color.textMuted)
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -555,6 +562,7 @@ struct SDPlayerTodayViewInternal: View {
     await reloadTodayAggregate()
     await reloadAssignment()
     await reloadDay()
+    hasLoadedWorkout = true
     await reloadTesting()
     await reloadBaseballDay()
     await reloadTrainingSchedule()

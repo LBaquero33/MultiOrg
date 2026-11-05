@@ -177,14 +177,7 @@ struct PlayerHomeView: View {
   private func playerDestination(_ destination: HPAppNavigationDestination) -> some View {
     switch destination {
     case .playerToday:
-      SDPlayerTodayView()
-        .safeAreaInset(edge: .bottom) {
-          Button { showPlayerCalendar = true } label: {
-            Label("See calendar", systemImage: "calendar")
-              .font(HP.Font.callout.weight(.semibold))
-              .frame(minHeight: 44)
-          }
-        }
+      SDPlayerTodayView(onOpenCalendar: { showPlayerCalendar = true })
         .sheet(isPresented: $showPlayerCalendar) {
           NavigationStack { playerCalendarDestination }
         }

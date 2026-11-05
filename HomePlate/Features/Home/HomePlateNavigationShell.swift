@@ -722,16 +722,22 @@ struct HPAdaptiveApplicationShell<DestinationContent: View>: View {
     }
   }
 
+  private var organizationInitials: String {
+    let words = branding.shortName.split(separator: " ")
+    let letters = words.count > 1 ? words.prefix(2).compactMap(\.first).map(String.init).joined() : String(branding.shortName.prefix(2))
+    return letters.uppercased()
+  }
+
   private var organizationBadge: some View {
     Group {
       if let logoURL = branding.logoURL {
         AsyncImage(url: logoURL) { image in
           image.resizable().scaledToFit()
         } placeholder: {
-          Text(String(branding.shortName.prefix(2)).uppercased())
+          Text(organizationInitials)
         }
       } else {
-        Text(String(branding.shortName.prefix(2)).uppercased())
+        Text(organizationInitials)
       }
     }
     .font(HP.Font.caption.weight(.bold))
