@@ -85,7 +85,7 @@ struct PaymentRequestCard: View {
     switch SDPaymentRequestPayerAuthorization.action(for: request, context: context) {
     case .payNow:
       HPButton(
-        title: checkoutState.isOpening(request.id) ? "Opening Stripe Checkout…" : "Pay for Baseball Service",
+          title: checkoutState.isOpening(request.id) ? "Opening secure checkout…" : "Pay for Baseball Service",
         systemImage: "creditcard",
         variant: .secondary,
         size: .md,
@@ -147,7 +147,7 @@ struct PaymentCheckoutConfirmationSheet: View {
         }
 
         HPCard {
-          Text("This payment is for a baseball service delivered outside the app. It does not purchase or unlock Home Plate digital access. You will continue in Stripe’s hosted Checkout, and payment is confirmed only after the server receives Stripe’s verified webhook.")
+          Text("This payment covers a baseball service delivered outside the app. Continue in the browser to pay securely. Your Home Plate subscription is managed separately.")
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)

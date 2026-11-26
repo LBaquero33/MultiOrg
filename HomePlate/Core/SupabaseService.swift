@@ -4740,7 +4740,78 @@ final class SupabaseService: ObservableObject {
     ))
   }
 
-  // MARK: - Payment-request Checkout (Stripe Payments Phase 1B-2)
+  // MARK: - Payment request checkout
+
+  func organizationPaymentCheckout(
+    for request: SDPaymentRequest
+  ) async throws -> SDOrganizationCheckoutDestination {
+    guard request.can_current_user_pay, request.status == .open else {
+      throw SDOrganizationCheckoutError.unavailable
+    }
+    if let mode = request.squareTeamMode {
+      guard mode == "sandbox" || mode == "production" else {
+        throw SDOrganizationCheckoutError.unavailable
+      }
+      do {
+        let response: SDSquarePaymentCheckoutResponse = try await invokeAuthenticatedFunction(
+          "square-team",
+          body: [
+            "action": "checkout",
+            "org_id": request.org_id.uuidString,
+            "request_id": request.id.uuidString,
+          ]
+        )
+        return try response.destination(expectedMode: mode)
+      } catch let error as FunctionsError {
+        switch error {
+        case .httpError(let statusCode, let data):
+          throw SDEdgeFunctionHTTPError.decode(statusCode: statusCode, data: data)
+        case .relayError:
+          throw error
+        }
+      }
+    }
+    let response = try await createPaymentRequestCheckout(paymentRequestId: request.id)
+    let checkout = response.checkout
+    guard checkout.payment_request_id == request.id,
+          let url = URLComponents(url: checkout.url, resolvingAgainstBaseURL: false),
+          url.scheme == "https", url.user == nil, url.password == nil, url.port == nil,
+          url.host == "checkout.stripe.com" || url.host == "buy.stripe.com"
+    else { throw SDOrganizationCheckoutError.unavailable }
+    return .browser(checkout.url)
+  }
+
+  func organizationPaymentTiers(orgId: UUID) async throws -> [SDOrganizationPaymentTier] {
+    let response: SDOrganizationPaymentTierList = try await invokeAuthenticatedFunction(
+      "payment-tiers",
+      body: ["action": "list_available", "organization_id": orgId.uuidString]
+    )
+    return response.tiers
+  }
+
+  func organizationTierCheckout(
+    orgId: UUID, tier: SDOrganizationPaymentTier, requestId: UUID
+  ) async throws -> SDOrganizationTierCheckout {
+    try await invokeAuthenticatedFunction(
+      "create-payment-tier-checkout",
+      body: [
+        "action": "create_checkout",
+        "organization_id": orgId.uuidString,
+        "tier_id": tier.id.uuidString,
+        "expected_tier_version_id": tier.version_id.uuidString,
+        "request_id": requestId.uuidString,
+      ]
+    )
+  }
+
+  func organizationTierPurchase(orgId: UUID, purchaseId: UUID) async throws -> SDOrganizationTierPurchase {
+    let response: SDOrganizationTierStatus = try await invokeAuthenticatedFunction(
+      "create-payment-tier-checkout",
+      body: ["action": "get_status", "organization_id": orgId.uuidString, "purchase_id": purchaseId.uuidString]
+    )
+    guard response.purchase.id == purchaseId else { throw SDOrganizationCheckoutError.unavailable }
+    return response.purchase
+  }
 
   func createPaymentRequestCheckout(
     paymentRequestId: UUID

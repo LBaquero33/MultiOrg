@@ -29,7 +29,7 @@ struct SDParentBillingView: View {
       VStack(spacing: HP.Space.md) {
         HPCard {
           VStack(alignment: .leading, spacing: HP.Space.sm) {
-            Label("Secure payments through Stripe", systemImage: "lock.shield")
+            Label("Secure checkout", systemImage: "lock.shield")
               .font(HP.Font.headline)
               .foregroundStyle(HP.Color.text)
             Text("Pay Now is available only when your organization link allows payment for this child.")
@@ -51,6 +51,10 @@ struct SDParentBillingView: View {
       }
     } results: { context in
       VStack(alignment: .leading, spacing: HP.Space.md) {
+        if let orgId = appState.activeOrgId {
+          OrganizationTierCheckoutPanel(orgId: orgId)
+            .id(orgId)
+        }
         if let errorText {
           HPCard {
             HPErrorState(
@@ -145,21 +149,23 @@ struct SDParentBillingView: View {
   }
 
   private func openCheckout(for request: SDPaymentRequest) async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase, appState.activeOrgId == request.org_id else { return }
     guard checkoutState.beginOpening(requestId: request.id) else { return }
     do {
-      let response = try await supabase.createPaymentRequestCheckout(paymentRequestId: request.id)
-      guard response.checkout.payment_request_id == request.id else {
-        checkoutState.fail(requestId: request.id, message: "Checkout returned the wrong payment request. Refresh and try again.")
+      let destination = try await supabase.organizationPaymentCheckout(for: request)
+      guard appState.activeOrgId == request.org_id else { return }
+      guard case .browser(let url) = destination else {
+        checkoutState.browserOpened(requestId: request.id)
+        await reload()
         return
       }
       let wasOpened: Bool = await withCheckedContinuation { continuation in
-        openURL(response.checkout.url) { accepted in
+        openURL(url) { accepted in
           continuation.resume(returning: accepted)
         }
       }
       if !wasOpened {
-        checkoutState.fail(requestId: request.id, message: "Stripe Checkout could not be opened in the system browser.")
+        checkoutState.fail(requestId: request.id, message: "Secure checkout could not be opened in the browser.")
       } else {
         checkoutState.browserOpened(requestId: request.id)
       }
@@ -176,4 +182,103 @@ struct SDParentBillingView: View {
     return appState.activeOrgSettings?.display_name ?? "Organization"
   }
 
+}
+
+/// One-time organization membership payments use the same server plans as web.
+private struct OrganizationTierCheckoutPanel: View {
+  @EnvironmentObject private var appState: AppState
+  @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
+  let orgId: UUID
+  @State private var tiers: [SDOrganizationPaymentTier] = []
+  @State private var requestByVersion: [UUID: UUID] = [:]
+  @State private var purchaseId: UUID?
+  @State private var isOpening = false
+  @State private var status: String?
+
+  var body: some View {
+    Group {
+      if !tiers.isEmpty {
+        HPCard {
+          VStack(alignment: .leading, spacing: HP.Space.sm) {
+            Text("Organization Memberships").font(HP.Font.headline)
+            ForEach(tiers) { tier in
+              let amount = (Double(tier.amount_cents) / 100).formatted(
+                .currency(code: tier.currency.uppercased())
+              )
+              Button {
+                Task { await checkout(tier) }
+              } label: {
+                Label("\(tier.name) · \(amount)", systemImage: "creditcard")
+                  .font(HP.Font.body)
+              }
+              .disabled(isOpening)
+            }
+            if let status {
+              Text(status)
+                .font(HP.Font.caption)
+                .foregroundStyle(HP.Color.textMuted)
+                .accessibilityAddTraits(.updatesFrequently)
+            }
+          }
+        }
+      }
+    }
+    .task {
+      guard let service = appState.supabase else { return }
+      if let offers = try? await service.organizationPaymentTiers(orgId: orgId),
+         appState.activeOrgId == orgId {
+        tiers = offers
+      }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active, let purchaseId else { return }
+      Task { await checkStatus(purchaseId) }
+    }
+  }
+
+  private func checkout(_ tier: SDOrganizationPaymentTier) async {
+    guard let service = appState.supabase, appState.activeOrgId == orgId, !isOpening else { return }
+    let request = requestByVersion[tier.version_id, default: UUID()]
+    requestByVersion[tier.version_id] = request
+    isOpening = true
+    status = nil
+    defer { isOpening = false }
+    do {
+      let response = try await service.organizationTierCheckout(orgId: orgId, tier: tier, requestId: request)
+      guard appState.activeOrgId == orgId else { return }
+      let destination = try response.destination(expectedProvider: tier.checkout_provider)
+      purchaseId = response.purchase.id
+      switch destination {
+      case .alreadyPaid:
+        await checkStatus(response.purchase.id)
+      case .browser(let url):
+        let opened: Bool = await withCheckedContinuation { continuation in
+          openURL(url) { continuation.resume(returning: $0) }
+        }
+        status = opened ? "Waiting for payment confirmation." : "Secure checkout could not be opened."
+      }
+    } catch {
+      status = "Secure checkout could not be opened. Refresh and try again."
+    }
+  }
+
+  private func checkStatus(_ id: UUID) async {
+    guard let service = appState.supabase, appState.activeOrgId == orgId else { return }
+    do {
+      let purchase = try await service.organizationTierPurchase(orgId: orgId, purchaseId: id)
+      guard appState.activeOrgId == orgId, purchaseId == id else { return }
+      if purchase.refund_state == "refunded" {
+        status = "Refund confirmed."
+      } else {
+        switch purchase.status {
+        case "paid": status = "Payment confirmed."
+        case "expired", "failed": status = "Checkout ended without a confirmed payment."
+        default: status = "Waiting for payment confirmation."
+        }
+      }
+    } catch {
+      status = "Payment status is unavailable. Check again when you return."
+    }
+  }
 }

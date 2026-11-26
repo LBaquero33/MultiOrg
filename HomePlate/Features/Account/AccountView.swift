@@ -822,26 +822,25 @@ struct AccountView: View {
   }
 
   private func openPaymentRequestCheckout(for request: SDPaymentRequest) async {
-    guard let supabase = appState.supabase else { return }
+    guard let supabase = appState.supabase, appState.activeOrgId == request.org_id else { return }
     guard paymentCheckoutState.beginOpening(requestId: request.id) else { return }
     do {
-      let response = try await supabase.createPaymentRequestCheckout(paymentRequestId: request.id)
-      guard response.checkout.payment_request_id == request.id else {
-        paymentCheckoutState.fail(
-          requestId: request.id,
-          message: "Checkout returned the wrong payment request. Refresh and try again."
-        )
+      let destination = try await supabase.organizationPaymentCheckout(for: request)
+      guard appState.activeOrgId == request.org_id else { return }
+      guard case .browser(let url) = destination else {
+        paymentCheckoutState.browserOpened(requestId: request.id)
+        await reloadPlayerPaymentRequests()
         return
       }
       let wasOpened: Bool = await withCheckedContinuation { continuation in
-        openURL(response.checkout.url) { accepted in
+        openURL(url) { accepted in
           continuation.resume(returning: accepted)
         }
       }
       if !wasOpened {
         paymentCheckoutState.fail(
           requestId: request.id,
-          message: "Stripe Checkout could not be opened in the system browser."
+          message: "Secure checkout could not be opened in the browser."
         )
       } else {
         paymentCheckoutState.browserOpened(requestId: request.id)

@@ -118,6 +118,7 @@ struct SDPaymentRequest: Identifiable, Decodable, Equatable, Sendable {
   let created_at: Date?
   let updated_at: Date?
   let can_current_user_pay: Bool
+  private(set) var squareTeamMode: String? = nil
 
   var money: SDMoney? {
     amount_cents.map { SDMoney(minorUnits: $0, currency: currency) }
@@ -141,6 +142,7 @@ extension SDPaymentRequest {
     case created_at
     case updated_at
     case can_current_user_pay
+    case squareTeamMode = "square_team_mode"
   }
 
   init(from decoder: Decoder) throws {
@@ -160,6 +162,7 @@ extension SDPaymentRequest {
     created_at = try Self.decodeTimestampIfPresent(from: container, forKey: .created_at)
     updated_at = try Self.decodeTimestampIfPresent(from: container, forKey: .updated_at)
     can_current_user_pay = try container.decode(Bool.self, forKey: .can_current_user_pay)
+    squareTeamMode = try container.decodeIfPresent(String.self, forKey: .squareTeamMode)
   }
 
   private static func decodeTimestampIfPresent(

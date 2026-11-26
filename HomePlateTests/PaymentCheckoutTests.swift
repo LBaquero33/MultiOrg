@@ -63,6 +63,38 @@ struct PaymentCheckoutTests {
     }
   }
 
+  @Test("One-time memberships require the selected provider and exact hosted checkout")
+  func organizationTierCheckoutDestination() throws {
+    let id = "77777777-7777-4777-8777-777777777777"
+    func decode(provider: String, mode: String, url: String) throws -> SDOrganizationTierCheckout {
+      try JSONDecoder().decode(SDOrganizationTierCheckout.self, from: Data("""
+        {"purchase":{"id":"\(id)","status":"pending","provider":"\(provider)","provider_mode":"\(mode)"},"checkout_url":"\(url)"}
+        """.utf8))
+    }
+    let square = try decode(provider: "square", mode: "sandbox", url: "https://sandbox.square.link/u/Tier")
+    #expect(try square.destination(expectedProvider: "square") == .browser(URL(string: "https://sandbox.square.link/u/Tier")!))
+    let incorrectMode = try decode(provider: "square", mode: "production", url: "https://sandbox.square.link/u/Tier")
+    #expect(throws: SDOrganizationCheckoutError.self) { try incorrectMode.destination(expectedProvider: "square") }
+    let stripe = try decode(provider: "stripe", mode: "test", url: "https://checkout.stripe.com/c/pay/Tier")
+    #expect(try stripe.destination(expectedProvider: nil) == .browser(URL(string: "https://checkout.stripe.com/c/pay/Tier")!))
+    #expect(throws: SDOrganizationCheckoutError.self) { try stripe.destination(expectedProvider: "square") }
+  }
+
+  @Test("Square checkout validates the precise host and route")
+  func squareCheckoutDestination() throws {
+    let ok = try JSONDecoder().decode(SDSquarePaymentCheckoutResponse.self, from: Data(
+      #"{"url":"https://sandbox.square.link/u/Test123"}"#.utf8
+    ))
+    #expect(try ok.destination(expectedMode: "sandbox") == .browser(URL(string: "https://sandbox.square.link/u/Test123")!))
+    #expect(throws: SDOrganizationCheckoutError.self) { try ok.destination(expectedMode: "production") }
+    let paid = try JSONDecoder().decode(SDSquarePaymentCheckoutResponse.self, from: Data(#"{"status":"paid"}"#.utf8))
+    #expect(try paid.destination(expectedMode: "production") == .alreadyPaid)
+    let redirected = try JSONDecoder().decode(SDSquarePaymentCheckoutResponse.self, from: Data(
+      #"{"url":"https://sandbox.square.link/u/Test123?redirect=example.com"}"#.utf8
+    ))
+    #expect(throws: SDOrganizationCheckoutError.self) { try redirected.destination(expectedMode: "sandbox") }
+  }
+
   @Test("Player and authorized parent see Pay Now")
   func authorizedPayers() {
     #expect(SDPaymentRequestPayerAuthorization.action(for: request(), context: .player) == .payNow)
