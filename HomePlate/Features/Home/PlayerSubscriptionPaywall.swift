@@ -17,32 +17,9 @@ struct PlayerSubscriptionPaywall: View {
     HPStateScreenLayout(widthMode: .compact) { context in
       HPCard {
         VStack(alignment: .leading, spacing: HP.Space.md) {
-          paywallHeader
-          benefitList
-          priceCard
+          Text("Previous Apple purchases").font(HP.Font.title)
           subscriptionStatus
-
-          if !accessIsPresentedAsActive {
-            HPButton(
-              title: "Subscribe",
-              systemImage: "apple.logo",
-              variant: .primary,
-              size: .lg,
-              isLoading: subscribeIsLoading,
-              fullWidth: true
-            ) {
-              Task { await subscribe() }
-            }
-            .disabled(store.product == nil || isWorking || purchaseIsPending)
-          }
-
           recoveryActions(context)
-
-          Text("Billed through the App Store. Access is granted only after Apple confirms the purchase and Home Plate verifies the player entitlement.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
-
           legalLinks(context)
 
           Rectangle()
@@ -75,83 +52,6 @@ struct PlayerSubscriptionPaywall: View {
     }
   }
 
-  private var paywallHeader: some View {
-    VStack(alignment: .leading, spacing: HP.Space.xs) {
-      Image(systemName: "sparkles")
-        .font(.system(size: 30, weight: .semibold))
-        .foregroundStyle(HP.Color.accent)
-        .accessibilityHidden(true)
-
-      Text("Unlock Player Access")
-        .font(HP.Font.title)
-        .tracking(HP.Font.titleTracking)
-        .foregroundStyle(HP.Color.text)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityAddTraits(.isHeader)
-
-      Text("Individual and family player access is available through Apple In-App Purchase. Eligible organization-sponsored accounts may also receive access under a separate organization agreement.")
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.textMuted)
-        .fixedSize(horizontal: false, vertical: true)
-
-      Text(store.product?.displayName ?? "Home Plate Player Monthly Access")
-        .font(HP.Font.headline)
-        .foregroundStyle(HP.Color.text)
-        .fixedSize(horizontal: false, vertical: true)
-
-      Text(store.product?.description ?? "Unlock this player's Home Plate training, scheduling, and development tools.")
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.textMuted)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-  }
-
-  private var benefitList: some View {
-    VStack(alignment: .leading, spacing: HP.Space.xs) {
-      benefit("Today’s assigned training program")
-      benefit("Scheduling and facility access")
-      benefit("Testing history and development trends")
-    }
-  }
-
-  private func benefit(_ text: String) -> some View {
-    HStack(alignment: .top, spacing: HP.Space.xs) {
-      Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(HP.Color.success)
-        .accessibilityHidden(true)
-      Text(text)
-        .font(HP.Font.callout)
-        .foregroundStyle(HP.Color.text)
-        .fixedSize(horizontal: false, vertical: true)
-      Spacer(minLength: 0)
-    }
-  }
-
-  private var priceCard: some View {
-    HPCard(style: .flat) {
-      VStack(alignment: .leading, spacing: 4) {
-        if let price = store.product?.displayPrice {
-          HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(price)
-              .font(HP.Font.number(.title, weight: .bold))
-              .foregroundStyle(HP.Color.text)
-            Text("per month")
-              .font(HP.Font.callout)
-              .foregroundStyle(HP.Color.textMuted)
-          }
-          .accessibilityElement(children: .combine)
-        } else {
-          Text(pricePlaceholder)
-            .font(HP.Font.callout.weight(.semibold))
-            .foregroundStyle(HP.Color.textMuted)
-        }
-        Text("Cancel anytime in the App Store.")
-          .font(HP.Font.caption)
-          .foregroundStyle(HP.Color.textMuted)
-      }
-    }
-  }
-
   @ViewBuilder
   private var subscriptionStatus: some View {
     if let contextError {
@@ -163,11 +63,11 @@ struct PlayerSubscriptionPaywall: View {
     } else {
       switch store.state {
       case .idle:
-        statusRow("Checking", message: "Checking Apple subscription options…", kind: .neutral, showsProgress: true)
+        statusRow("Checking", message: "Checking previous Apple purchases…", kind: .neutral, showsProgress: true)
       case .loadingProduct:
-        statusRow("Loading", message: "Loading Apple subscription options…", kind: .neutral, showsProgress: true)
+        statusRow("Loading", message: "Loading purchase history…", kind: .neutral, showsProgress: true)
       case .ready:
-        statusRow("Ready", message: "Ready to subscribe or restore an existing purchase.", kind: .info)
+        statusRow("Ready", message: "Ready to restore an existing purchase.", kind: .info)
       case .purchasing:
         statusRow("Purchasing", message: "Waiting for Apple to complete the purchase…", kind: .info, showsProgress: true)
       case .pending:
@@ -177,7 +77,7 @@ struct PlayerSubscriptionPaywall: View {
       case .synchronizing:
         statusRow("Verifying", message: "Updating Home Plate access…", kind: .info, showsProgress: true)
       case .active:
-        statusRow("Active", message: "Player access is active.", kind: .success)
+        statusRow("Active", message: "Your previous purchase has been verified.", kind: .success)
       case .canceled:
         statusRow("Canceled", message: "Purchase canceled. No charge or access change was made.", kind: .neutral)
       case .failed(let failure):
@@ -244,7 +144,7 @@ struct PlayerSubscriptionPaywall: View {
 
     layout {
       HPButton(
-        title: "Refresh Access",
+        title: "Check previous purchase",
         systemImage: "checkmark.shield",
         variant: .secondary,
         size: .md,
@@ -288,42 +188,9 @@ struct PlayerSubscriptionPaywall: View {
     store.isBusy || isRefreshingAccess
   }
 
-  private var purchaseIsPending: Bool {
-    store.state == .pending
-  }
-
-  private var subscribeIsLoading: Bool {
-    isWorking || purchaseIsPending
-  }
-
-  private var accessIsPresentedAsActive: Bool {
-    accessMessage != nil || store.state == .active
-  }
-
-  private var pricePlaceholder: String {
-    if contextError != nil { return "Monthly price unavailable" }
-    switch store.state {
-    case .failed, .canceled:
-      return "Monthly price unavailable"
-    case .idle, .loadingProduct, .purchasing, .pending, .recovering, .synchronizing:
-      return "Monthly price loading from Apple"
-    case .ready, .active:
-      return "Monthly price unavailable"
-    }
-  }
-
   private func prepareAndRecover() async {
     guard let context = await purchaseContext() else { return }
     if let purchase = await store.prepare(context: context) {
-      await synchronize(purchase, automatic: true)
-    }
-  }
-
-  private func subscribe() async {
-    contextError = nil
-    accessMessage = nil
-    guard let context = await purchaseContext() else { return }
-    if let purchase = await store.purchase(context: context) {
       await synchronize(purchase, automatic: true)
     }
   }
@@ -392,7 +259,7 @@ struct PlayerSubscriptionPaywall: View {
       )
       if accessIsActive {
         contextError = nil
-        accessMessage = "Player access is active."
+        accessMessage = "Your previous purchase has been verified."
       }
     } catch let error as SupabaseService.AppleSubscriptionSynchronizationError {
       diagnostic("backend_verification_response_received")
@@ -418,18 +285,18 @@ struct PlayerSubscriptionPaywall: View {
       if session.user.id == playerId {
         await appState.refreshEntitlement()
         if appState.myEntitlement?.is_active == true, !appState.needsAccess {
-          accessMessage = "Player access is active."
+          accessMessage = "Your previous purchase has been verified."
           contextError = nil
         } else {
-          contextError = "This player does not have active access yet."
+          contextError = "No active historical entitlement was found for this player."
         }
       } else {
         let entitlement = try await supabase.fetchAccessEntitlement(userId: playerId)
         if entitlement?.is_active == true {
-          accessMessage = "Player access is active."
+          accessMessage = "Your previous purchase has been verified."
           contextError = nil
         } else {
-          contextError = "This player does not have active access yet."
+          contextError = "No active historical entitlement was found for this player."
         }
       }
     } catch {

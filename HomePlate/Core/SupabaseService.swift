@@ -2528,6 +2528,11 @@ final class SupabaseService: ObservableObject {
 
   // MARK: - Access entitlement
 
+  func hasFreePlayerAccess(orgId: UUID) async throws -> Bool {
+    try await client.rpc("sd_has_free_player_access_v1", params: ["p_org_id": orgId.uuidString])
+      .execute().value
+  }
+
   func fetchAccessEntitlement(userId: UUID) async throws -> SDAccessEntitlement? {
     let rows: [SDAccessEntitlement] = try await client
       .from("sd_access_entitlements")

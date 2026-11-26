@@ -177,8 +177,6 @@ final class PlayerSubscriptionStore: ObservableObject {
     guard begin(.preparing) else { return pendingPurchase }
     defer { endOperation() }
     activate(context)
-    await loadProductIfNeeded()
-    guard product != nil else { return nil }
     state = .recovering
     let recovered = await scanTransactions(
       context: context,

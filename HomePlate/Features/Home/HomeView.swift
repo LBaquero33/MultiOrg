@@ -15,10 +15,9 @@ struct HomeView: View {
         case .parent:
           ParentRootView()
         case .player:
-          if appState.needsAccess {
-            AccessRequiredView()
-          } else {
-            PlayerHomeView()
+          if let orgId = appState.activeOrgId, let playerId = appState.myProfile?.id {
+            AccessRequiredView(orgId: orgId, playerId: playerId)
+              .id("\(orgId)/\(playerId)")
           }
         case .platformOnly:
           PlatformRootView()

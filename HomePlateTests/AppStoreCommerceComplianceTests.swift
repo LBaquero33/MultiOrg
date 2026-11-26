@@ -75,15 +75,17 @@ struct AppStoreCommerceComplianceTests {
     #expect(paymentCard.contains("does not purchase or unlock Home Plate digital access"))
   }
 
-  @Test("individual access remains purchasable with Apple IAP")
-  func appleIAPRemainsAvailable() throws {
+  @Test("player access is included and historical Apple purchases remain recoverable")
+  func playerAccessRetiresNewPurchases() throws {
     let paywall = try sourceFile("HomePlate/Features/Home/PlayerSubscriptionPaywall.swift")
     let purchaseContext = try sourceFile("HomePlate/Core/ApplePlayerPurchaseContext.swift")
     let verifier = try sourceFile("supabase/functions/verify-apple-player-subscription/index.ts")
     let subscriptionSync = try sourceFile("supabase/functions/_shared/apple_player_subscription.ts")
 
-    #expect(paywall.contains("title: \"Subscribe\""))
-    #expect(paywall.contains("Billed through the App Store"))
+    #expect(!paywall.contains("store.purchase("))
+    #expect(paywall.contains("title: \"Restore Purchases\""))
+    let gate = try sourceFile("HomePlate/Features/Home/AccessRequiredView.swift")
+    #expect(gate.contains("api.hasFreePlayerAccess(orgId: orgId)"))
     #expect(purchaseContext.contains("com.homeplate.player.monthly"))
     #expect(verifier.contains("syncAppleSubscriptionAtomically"))
     #expect(subscriptionSync.contains("\"sd_sync_apple_player_subscription\""))
