@@ -75,6 +75,18 @@ struct SDOrganizationPaymentTier: Decodable, Equatable, Identifiable, Sendable {
   let checkout_provider: String?
 }
 
+struct SDOrganizationTierRequestKey: Hashable, Sendable {
+  let userId: UUID
+  let orgId: UUID
+  let tierId: UUID
+  let versionId: UUID
+
+  var storageKey: String {
+    "homeplate.square-tier.request." +
+      [userId, orgId, tierId, versionId].map { $0.uuidString.lowercased() }.joined(separator: ".")
+  }
+}
+
 struct SDOrganizationPaymentTierList: Decodable, Sendable {
   let tiers: [SDOrganizationPaymentTier]
 }
@@ -85,12 +97,49 @@ struct SDOrganizationTierPurchase: Decodable, Equatable, Sendable {
   let provider: String?
   let provider_mode: String?
   let refund_state: String?
+
+  var hasConfirmedRefund: Bool {
+    refund_state == "completed" || refund_state == "refunded"
+  }
 }
 
 struct SDOrganizationTierCheckout: Decodable, Sendable {
   let purchase: SDOrganizationTierPurchase
   let checkout_url: URL?
   let previous_quote: SDOrganizationTierPreviousQuote?
+  let reused: Bool?
+
+  func previousOffer(for offer: SDOrganizationPaymentTier) throws -> SDOrganizationPaymentTier? {
+    guard let quote = previous_quote else { return nil }
+    guard checkout_url == nil, quote.tier_id == offer.id,
+          quote.version_id != offer.version_id, quote.amount_cents > 0,
+          quote.currency.range(of: #"^[A-Za-z]{3}$"#, options: .regularExpression) != nil
+    else { throw SDOrganizationCheckoutError.unavailable }
+
+    switch (quote.checkout_provider, purchase.provider) {
+    case ("square", "square"):
+      guard let mode = purchase.provider_mode, ["sandbox", "production"].contains(mode) else {
+        throw SDOrganizationCheckoutError.unavailable
+      }
+    case (nil, nil), (nil, "stripe"), ("stripe", nil), ("stripe", "stripe"):
+      break
+    default:
+      throw SDOrganizationCheckoutError.unavailable
+    }
+    return SDOrganizationPaymentTier(
+      id: quote.tier_id, version_id: quote.version_id, name: offer.name,
+      amount_cents: quote.amount_cents, currency: quote.currency,
+      checkout_provider: quote.checkout_provider
+    )
+  }
+
+  func existingStripeDestination(for offer: SDOrganizationPaymentTier) throws -> URL? {
+    guard offer.checkout_provider == "square", reused == true, purchase.status == "pending",
+          purchase.provider == nil || purchase.provider == "stripe", previous_quote == nil
+    else { return nil }
+    guard case .browser(let url) = try destination(expectedProvider: "stripe") else { return nil }
+    return url
+  }
 
   func destination(expectedProvider: String?) throws -> SDOrganizationCheckoutDestination {
     guard previous_quote == nil else { throw SDOrganizationCheckoutError.unavailable }
@@ -117,6 +166,10 @@ struct SDOrganizationTierCheckout: Decodable, Sendable {
 
 struct SDOrganizationTierPreviousQuote: Decodable, Sendable {
   let tier_id: UUID
+  let version_id: UUID
+  let amount_cents: Int
+  let currency: String
+  let checkout_provider: String?
 }
 
 struct SDOrganizationTierStatus: Decodable, Sendable {

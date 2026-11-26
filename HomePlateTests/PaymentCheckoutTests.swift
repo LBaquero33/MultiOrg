@@ -80,6 +80,97 @@ struct PaymentCheckoutTests {
     #expect(throws: SDOrganizationCheckoutError.self) { try stripe.destination(expectedProvider: "square") }
   }
 
+  private var currentOffer: SDOrganizationPaymentTier {
+    .init(id: requestId, version_id: playerId, name: "Season", amount_cents: 4_500,
+          currency: "USD", checkout_provider: "square")
+  }
+
+  private func tierCheckout(
+    provider: String? = "square", mode: String? = "sandbox", status: String = "pending",
+    previous: SDOrganizationTierPreviousQuote? = nil, url: URL? = nil, reused: Bool? = nil
+  ) -> SDOrganizationTierCheckout {
+    .init(purchase: .init(id: creatorId, status: status, provider: provider, provider_mode: mode, refund_state: nil),
+          checkout_url: url, previous_quote: previous, reused: reused)
+  }
+
+  private func previousQuote(
+    tier: UUID? = nil, version: UUID? = nil, amount: Int = 2_500, currency: String = "USD",
+    provider: String? = "square"
+  ) -> SDOrganizationTierPreviousQuote {
+    .init(tier_id: tier ?? currentOffer.id, version_id: version ?? creatorId, amount_cents: amount,
+          currency: currency, checkout_provider: provider)
+  }
+
+  @Test("Review returns the saved version and price without opening a checkout")
+  func previousTierOffersRequireReview() throws {
+    for provider: String? in ["square", "stripe", nil] {
+      let response = tierCheckout(provider: provider, mode: provider == "square" ? "sandbox" : nil,
+                                  previous: previousQuote(provider: provider))
+      let prior = try #require(try response.previousOffer(for: currentOffer))
+      #expect(prior == SDOrganizationPaymentTier(id: currentOffer.id, version_id: creatorId,
+                                                name: "Season", amount_cents: 2_500, currency: "USD",
+                                                checkout_provider: provider))
+      #expect(throws: SDOrganizationCheckoutError.self) { try response.destination(expectedProvider: provider) }
+    }
+  }
+
+  @Test("Reject unrelated, unchanged, invalid, and immediately navigable previous offers")
+  func rejectInvalidPreviousTierOffers() {
+    let invalid = [
+      tierCheckout(previous: previousQuote(tier: orgId)),
+      tierCheckout(previous: previousQuote(version: currentOffer.version_id)),
+      tierCheckout(previous: previousQuote(amount: 0)),
+      tierCheckout(previous: previousQuote(amount: -5)),
+      tierCheckout(previous: previousQuote(currency: "US")),
+      tierCheckout(previous: previousQuote(provider: "stripe")),
+      tierCheckout(mode: "test", previous: previousQuote()),
+      tierCheckout(previous: previousQuote(), url: URL(string: "https://sandbox.square.link/u/Offer"))
+    ]
+    for response in invalid {
+      #expect(throws: SDOrganizationCheckoutError.self) { try response.previousOffer(for: currentOffer) }
+    }
+  }
+
+  @Test("Only a reused pending Stripe checkout can resume while Square is offered")
+  func reusePriorStripeCheckout() throws {
+    let url = try #require(URL(string: "https://checkout.stripe.com/c/pay/Existing"))
+    #expect(try tierCheckout(provider: "stripe", url: url, reused: true).existingStripeDestination(for: currentOffer) == url)
+    for response in [
+      tierCheckout(provider: "stripe", url: url, reused: false),
+      tierCheckout(provider: "stripe", url: url),
+      tierCheckout(provider: "stripe", status: "paid", url: url, reused: true),
+      tierCheckout(provider: "square", url: url, reused: true),
+      tierCheckout(provider: "stripe", previous: previousQuote(provider: "stripe"), url: url, reused: true)
+    ] {
+      #expect(try response.existingStripeDestination(for: currentOffer) == nil)
+    }
+    let wrongHost = URL(string: "https://checkout.stripe.com.example.org/c/pay/Existing")
+    #expect(throws: SDOrganizationCheckoutError.self) {
+      try tierCheckout(provider: "stripe", url: wrongHost, reused: true).existingStripeDestination(for: currentOffer)
+    }
+  }
+
+  @Test("Tier retry keys persist separately by user, organization, tier, and version")
+  func tierRequestKeyScope() {
+    func key(user: UUID? = nil, org: UUID? = nil, tier: UUID? = nil, version: UUID? = nil) -> String {
+      SDOrganizationTierRequestKey(userId: user ?? creatorId, orgId: org ?? orgId,
+                                   tierId: tier ?? requestId, versionId: version ?? playerId).storageKey
+    }
+    let other = UUID()
+    #expect(key() == key(user: creatorId, org: orgId, tier: requestId, version: playerId))
+    #expect(Set([key(), key(user: other), key(org: other), key(tier: other), key(version: other)]).count == 5)
+  }
+
+  @Test("Tier return recognizes both confirmed refund labels and waits on pending")
+  func tierConfirmedRefund() throws {
+    for (state, confirmed) in [("completed", true), ("refunded", true), ("pending", false)] {
+      let purchase = try JSONDecoder().decode(SDOrganizationTierPurchase.self, from: Data("""
+      {"id":"\(requestId.uuidString)","status":"paid","provider":"square","refund_state":"\(state)"}
+      """.utf8))
+      #expect(purchase.hasConfirmedRefund == confirmed)
+    }
+  }
+
   @Test("Square checkout validates the precise host and route")
   func squareCheckoutDestination() throws {
     let ok = try JSONDecoder().decode(SDSquarePaymentCheckoutResponse.self, from: Data(

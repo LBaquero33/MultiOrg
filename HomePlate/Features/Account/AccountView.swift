@@ -317,7 +317,15 @@ struct AccountView: View {
         profileCard(context: context)
         familyCard
         accessCard
-        if isActiveOrganizationPlayer { paymentRequestsCard(context: context) }
+        if isActiveOrganizationPlayer {
+          paymentRequestsCard(context: context)
+          if let orgId = appState.activeOrgId, let userId = appState.myProfile?.id {
+            OrganizationTierCheckoutPanel(
+              orgId: orgId, userId: userId, authorizationKey: appState.activeOrgAuthorizationKey
+            )
+            .id(appState.activeOrgAuthorizationKey)
+          }
+        }
         PushNotificationSettingsCard(manager: appState.pushNotifications)
         if let organizationId = appState.activeOrgId {
           EventReminderPreferenceCard(organizationId: organizationId)
