@@ -72,7 +72,7 @@ struct AppStoreCommerceComplianceTests {
     #expect(!retiredWebhook.contains("createClient"))
     #expect(!retiredWebhook.contains(".rpc(\"sd_sync_stripe_player_subscription\""))
     #expect(retiredWebhook.contains("player_digital_access_uses_apple_iap"))
-    #expect(paymentCard.contains("does not purchase or unlock Home Plate digital access"))
+    #expect(paymentCard.contains("Home Plate digital access is separate."))
   }
 
   @Test("individual access remains purchasable with Apple IAP")

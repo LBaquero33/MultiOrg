@@ -147,7 +147,7 @@ struct PaymentCheckoutConfirmationSheet: View {
         }
 
         HPCard {
-          Text("This payment covers a baseball service delivered outside the app. Continue in the browser to pay securely. Your Home Plate subscription is managed separately.")
+          Text("This payment covers a baseball service delivered outside the app. Home Plate digital access is separate. Continue in the browser to pay securely.")
             .font(HP.Font.caption)
             .foregroundStyle(HP.Color.textMuted)
             .fixedSize(horizontal: false, vertical: true)
