@@ -2,32 +2,32 @@ import SwiftUI
 
 struct AccessRequiredView: View {
   @EnvironmentObject private var appState: AppState
+  let orgId: UUID
+  @State private var hasAccess: Bool?
 
-  @ViewBuilder
   var body: some View {
-    if let playerId = appState.myProfile?.id {
-      PlayerSubscriptionPaywall(playerId: playerId)
-    } else {
-      HPStateScreenLayout(widthMode: .compact) { _ in
-        HPCard {
-          VStack(spacing: HP.Space.md) {
-            HPEmptyState(
-              title: "Access required",
-              message: "Home Plate couldn’t verify the player account for this session. Sign in again before managing access.",
-              systemImage: "lock.shield"
-            )
-            HPButton(
-              title: "Sign Out",
-              systemImage: "rectangle.portrait.and.arrow.right",
-              variant: .primary,
-              size: .lg,
-              fullWidth: true
-            ) {
-              Task { await appState.signOut() }
-            }
-          }
+    Group {
+      if hasAccess == true {
+        PlayerHomeView()
+      } else if hasAccess == false {
+        VStack(spacing: HP.Space.md) {
+          Text("Player access could not be verified for this organization.")
+          Button("Try again") { Task { await verifyAccess() } }
+          Button("Sign out") { Task { await appState.signOut() } }
         }
+      } else {
+        ProgressView("Checking player access")
       }
+    }
+    .task { await verifyAccess() }
+  }
+
+  private func verifyAccess() async {
+    guard let api = appState.supabase else { hasAccess = false; return }
+    do {
+      hasAccess = try await api.hasFreePlayerAccess(orgId: orgId)
+    } catch {
+      hasAccess = false
     }
   }
 }

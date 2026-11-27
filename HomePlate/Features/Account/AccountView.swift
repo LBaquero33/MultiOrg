@@ -690,34 +690,10 @@ struct AccountView: View {
   private var accessCard: some View {
     HPCard {
       VStack(alignment: .leading, spacing: HP.Space.sm) {
-        HPSectionHeader("Player Access & Subscription")
-
+        HPSectionHeader("Player access")
+        Text("Player access is included with active player membership in an organization.")
         if appState.myProfile?.isPlayer == true {
-          entitlementSummary(entitlement: appState.myEntitlement)
-          if let playerId = appState.myProfile?.id {
-            NavigationLink("View subscription, subscribe or restore purchases") {
-              PlayerSubscriptionPaywall(playerId: playerId)
-            }
-            .accessibilityIdentifier("account.playerSubscription")
-          }
-          Text("Apple purchases provide digital player access. Organization sponsorship may also cover access; baseball lesson payments are separate.")
-            .font(HP.Font.caption)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
-        } else if appState.myProfile?.isCoach == true {
-          Text("Individual player access is activated through Apple In-App Purchase. Verified organization-sponsored access is managed by the Home Plate platform.")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
-
-        } else if appState.myProfile?.isParent == true {
-          Text("Player access and payment requirements are managed by the organization.")
-            .font(HP.Font.callout)
-            .foregroundStyle(HP.Color.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
-        } else {
-          Text("—")
-            .foregroundStyle(HP.Color.textMuted)
+          Link("Manage existing Apple subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
         }
       }
     }
@@ -749,7 +725,7 @@ struct AccountView: View {
           }
         }
 
-        Text("Organization payment requests are for baseball services delivered outside the app. They are separate from your Apple player subscription and never unlock Home Plate digital access.")
+        Text("Organization payment requests are for baseball services delivered outside the app. Player membership includes access to Home Plate.")
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
@@ -907,22 +883,6 @@ struct AccountView: View {
     )
   }
 
-
-  private func entitlementSummary(entitlement: SDAccessEntitlement?) -> some View {
-    VStack(alignment: .leading, spacing: HP.Space.xs) {
-      let active = entitlement?.is_active == true
-      HStack {
-        HPStatusBadge(text: active ? "Active" : "Inactive", kind: active ? .success : .danger)
-        Spacer(minLength: 0)
-      }
-      if let end = entitlement?.current_period_end {
-        HPStatTile(label: "Renews/Ends", value: end.formatted(date: .abbreviated, time: .omitted))
-      }
-      if let src = entitlement?.source, !src.isEmpty {
-        HPStatTile(label: "Source", value: src)
-      }
-    }
-  }
 
   private func reload() async {
     guard let supabase = appState.supabase else { return }

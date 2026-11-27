@@ -313,7 +313,7 @@ private struct CoachPlayerProgramAssignerView: View {
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
 
-        Text("Individual player access is activated through Apple In-App Purchase. Organization-sponsored access requires a separately verified platform sponsorship and cannot be granted from this screen.")
+        Text("Player access is included with an active player membership.")
           .font(HP.Font.caption)
           .foregroundStyle(HP.Color.textMuted)
           .fixedSize(horizontal: false, vertical: true)
